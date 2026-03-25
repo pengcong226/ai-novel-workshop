@@ -2,7 +2,30 @@
   "name": "ai-novel-workshop",
   "version": "1.0.0",
   "description": "AI小说工坊 - 支持100万字以上长篇小说的智能生成系统",
+  "author": "pengcong226",
+  "license": "MIT",
   "type": "module",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/pengcong226/ai-novel-workshop.git"
+  },
+  "homepage": "https://github.com/pengcong226/ai-novel-workshop#readme",
+  "bugs": {
+    "url": "https://github.com/pengcong226/ai-novel-workshop/issues"
+  },
+  "keywords": [
+    "ai",
+    "novel",
+    "writing",
+    "llm",
+    "vue",
+    "tauri",
+    "sqlite",
+    "gpt",
+    "claude",
+    "chinese-novel",
+    "ai-writing-assistant"
+  ],
   "scripts": {
     "dev": "vite",
     "server": "node server.js",
