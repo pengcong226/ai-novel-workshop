@@ -1,0 +1,40 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+
+# Database
+*.db
+
+# Temporary files
+*.tmp
+*.tmp.*
+.tmp_*
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# Logs
+*.log
+npm-debug.log*
+
+# Test files
+test.json
+exclude.txt
+config_test.txt
+
+# Embedded git repos
+st-memory-enhancement/

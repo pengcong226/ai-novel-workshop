@@ -1,0 +1,272 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>IndexedDB 测试</title>
+    <style>
+        body {
+            font-family: 'Microsoft YaHei', Arial, sans-serif;
+            max-width: 1000px;
+            margin: 20px auto;
+            padding: 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        }
+        .container {
+            background: white;
+            border-radius: 10px;
+            padding: 30px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+        }
+        h1 { color: #667eea; border-bottom: 3px solid #667eea; padding-bottom: 10px; }
+        .test-result {
+            background: #f5f5f5;
+            padding: 15px;
+            margin: 10px 0;
+            border-radius: 5px;
+            border-left: 4px solid #17a2b8;
+        }
+        .success { border-left-color: #28a745; background: #d4edda; }
+        .error { border-left-color: #dc3545; background: #f8d7da; }
+        button {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 12px 30px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+            margin: 5px;
+        }
+        button:hover { transform: translateY(-2px); box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4); }
+        pre { background: #282c34; color: #abb2bf; padding: 15px; border-radius: 5px; overflow-x: auto; }
+        .project-card { background: #f8f9fa; border: 2px solid #e0e0e0; border-radius: 8px; padding: 15px; margin: 10px 0; }
+        .project-card.target { border-color: #667eea; background: #f0f4ff; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔍 IndexedDB 数据库测试（localhost:3000）</h1>
+
+        <div id="results"></div>
+
+        <div style="margin-top: 30px;">
+            <button onclick="window.open('/', '_blank')">返回项目列表</button>
+        </div>
+    </div>
+
+    <script>
+        const DB_NAME = 'AI_Novel_Workshop';
+        const DB_VERSION = 1;
+        const PROJECTS_STORE = 'projects';
+
+        async function runTests() {
+            const resultsDiv = document.getElementById('results');
+
+            try {
+                // 测试1: 打开数据库
+                resultsDiv.innerHTML += '<div class="test-result"><h2>测试 1: 打开数据库</h2></div>';
+
+                const db = await new Promise((resolve, reject) => {
+                    console.log('[测试] 尝试打开数据库:', DB_NAME, '版本:', DB_VERSION);
+
+                    const request = indexedDB.open(DB_NAME, DB_VERSION);
+
+                    request.onerror = () => {
+                        console.error('[测试] 数据库打开失败:', request.error);
+                        reject(new Error('无法打开数据库: ' + request.error));
+                    };
+
+                    request.onsuccess = () => {
+                        console.log('[测试] 数据库打开成功');
+                        resolve(request.result);
+                    };
+
+                    request.onupgradeneeded = (event) => {
+                        console.log('[测试] 触发 onupgradeneeded，需要创建对象存储');
+                        const db = event.target.result;
+
+                        if (!db.objectStoreNames.contains(PROJECTS_STORE)) {
+                            console.log('[测试] 创建 projects 对象存储');
+                            db.createObjectStore(PROJECTS_STORE, { keyPath: 'id' });
+                        }
+
+                        if (!db.objectStoreNames.contains('chapters')) {
+                            console.log('[测试] 创建 chapters 对象存储');
+                            const chaptersStore = db.createObjectStore('chapters', { keyPath: 'id' });
+                            chaptersStore.createIndex('projectId', 'projectId', { unique: false });
+                        }
+                    };
+                });
+
+                const storeNames = Array.from(db.objectStoreNames);
+                resultsDiv.innerHTML += `<div class="test-result success">✅ 数据库打开成功<br>对象存储: ${storeNames.join(', ')}</div>`;
+
+                // 测试2: 读取所有项目
+                resultsDiv.innerHTML += '<div class="test-result"><h2>测试 2: 读取项目数据</h2></div>';
+
+                const projects = await new Promise((resolve, reject) => {
+                    const tx = db.transaction([PROJECTS_STORE], 'readonly');
+                    const store = tx.objectStore(PROJECTS_STORE);
+                    const request = store.getAll();
+
+                    request.onsuccess = () => {
+                        console.log('[测试] 读取到项目数量:', request.result.length);
+                        resolve(request.result);
+                    };
+                    request.onerror = () => reject(new Error('读取项目失败'));
+                });
+
+                if (projects.length === 0) {
+                    resultsDiv.innerHTML += `<div class="test-result error">❌ 没有找到任何项目数据<br>数据库是空的，需要创建项目</div>`;
+
+                    resultsDiv.innerHTML += `
+                        <div class="test-result">
+                            <h3>创建测试项目</h3>
+                            <button onclick="createTestProject()">创建测试项目</button>
+                        </div>
+                    `;
+                } else {
+                    resultsDiv.innerHTML += `<div class="test-result success">✅ 找到 ${projects.length} 个项目</div>`;
+
+                    projects.forEach((project, index) => {
+                        resultsDiv.innerHTML += `
+                            <div class="project-card">
+                                <strong>${index + 1}. ${project.title || '未命名'}</strong><br>
+                                <small style="color: #666;">ID: <code>${project.id}</code></small><br>
+                                类型: <code>${project.genre || '未设置'}</code> |
+                                字数: <code>${project.currentWords || 0} / ${project.targetWords || 0}</code><br>
+                                <button onclick="window.open('/project/${project.id}', '_blank')">打开项目</button>
+                                <button onclick="deleteProject('${project.id}')">删除项目</button>
+                            </div>
+                        `;
+                    });
+                }
+
+                // 测试3: 写入测试
+                resultsDiv.innerHTML += '<div class="test-result"><h2>测试 3: 写入测试</h2></div>';
+
+                const testProject = {
+                    id: 'test-' + Date.now(),
+                    title: '测试项目 ' + new Date().toLocaleString(),
+                    genre: '玄幻',
+                    targetWords: 100000,
+                    currentWords: 0,
+                    status: 'draft',
+                    createdAt: new Date(),
+                    updatedAt: new Date(),
+                    world: { id: 'w-' + Date.now(), name: '', era: {}, geography: { locations: [] }, factions: [], rules: [], aiGenerated: false },
+                    characters: [],
+                    outline: { id: 'o-' + Date.now(), synopsis: '', theme: '', mainPlot: {}, subPlots: [], volumes: [], chapters: [], foreshadowings: [] },
+                    chapters: [],
+                    config: {}
+                };
+
+                await new Promise((resolve, reject) => {
+                    const tx = db.transaction([PROJECTS_STORE], 'readwrite');
+                    const store = tx.objectStore(PROJECTS_STORE);
+                    const request = store.put(testProject);
+
+                    request.onsuccess = () => {
+                        console.log('[测试] 测试项目写入成功');
+                        resolve(true);
+                    };
+                    request.onerror = () => reject(new Error('写入失败'));
+                    tx.oncomplete = () => resolve(true);
+                });
+
+                resultsDiv.innerHTML += `<div class="test-result success">✅ 写入测试成功<br>测试项目ID: ${testProject.id}</div>`;
+
+                // 验证读取
+                const savedProject = await new Promise((resolve) => {
+                    const tx = db.transaction([PROJECTS_STORE], 'readonly');
+                    const store = tx.objectStore(PROJECTS_STORE);
+                    const request = store.get(testProject.id);
+                    request.onsuccess = () => resolve(request.result);
+                });
+
+                if (savedProject) {
+                    resultsDiv.innerHTML += `<div class="test-result success">✅ 读取验证成功<br>项目标题: ${savedProject.title}</div>`;
+                    resultsDiv.innerHTML += `
+                        <div class="test-result">
+                            <button onclick="window.open('/project/${testProject.id}', '_blank')">打开测试项目</button>
+                            <button onclick="location.reload()">刷新页面重新测试</button>
+                        </div>
+                    `;
+                } else {
+                    resultsDiv.innerHTML += `<div class="test-result error">❌ 读取验证失败：保存后读取不到数据</div>`;
+                }
+
+                db.close();
+
+            } catch (error) {
+                console.error('[测试] 测试失败:', error);
+                resultsDiv.innerHTML += `<div class="test-result error"><h2>❌ 测试失败</h2><pre>${error.stack || error.message}</pre></div>`;
+            }
+        }
+
+        async function createTestProject() {
+            try {
+                const db = await new Promise((resolve) => {
+                    const request = indexedDB.open(DB_NAME, DB_VERSION);
+                    request.onsuccess = (e) => resolve(e.target.result);
+                });
+
+                const project = {
+                    id: 'project-' + Date.now(),
+                    title: '测试项目 ' + new Date().toLocaleString(),
+                    genre: '玄幻',
+                    targetWords: 100000,
+                    currentWords: 0,
+                    status: 'draft',
+                    createdAt: new Date(),
+                    updatedAt: new Date(),
+                    world: { id: 'w-' + Date.now(), name: '', era: {}, geography: { locations: [] }, factions: [], rules: [], aiGenerated: false },
+                    characters: [],
+                    outline: { id: 'o-' + Date.now(), synopsis: '', theme: '', mainPlot: {}, subPlots: [], volumes: [], chapters: [], foreshadowings: [] },
+                    chapters: [],
+                    config: {}
+                };
+
+                await new Promise((resolve) => {
+                    const tx = db.transaction([PROJECTS_STORE], 'readwrite');
+                    const store = tx.objectStore(PROJECTS_STORE);
+                    store.put(project);
+                    tx.oncomplete = () => resolve(true);
+                });
+
+                db.close();
+                alert('测试项目创建成功！');
+                location.reload();
+            } catch (error) {
+                alert('创建失败: ' + error.message);
+            }
+        }
+
+        async function deleteProject(projectId) {
+            if (!confirm('确定删除此项目？')) return;
+
+            try {
+                const db = await new Promise((resolve) => {
+                    const request = indexedDB.open(DB_NAME, DB_VERSION);
+                    request.onsuccess = (e) => resolve(e.target.result);
+                });
+
+                await new Promise((resolve) => {
+                    const tx = db.transaction([PROJECTS_STORE], 'readwrite');
+                    const store = tx.objectStore(PROJECTS_STORE);
+                    store.delete(projectId);
+                    tx.oncomplete = () => resolve(true);
+                });
+
+                db.close();
+                alert('项目已删除');
+                location.reload();
+            } catch (error) {
+                alert('删除失败: ' + error.message);
+            }
+        }
+
+        window.addEventListener('load', runTests);
+    </script>
+</body>
+</html>

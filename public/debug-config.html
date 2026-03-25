@@ -1,0 +1,266 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>配置保存调试</title>
+    <style>
+        body {
+            font-family: 'Microsoft YaHei', Arial, sans-serif;
+            max-width: 1000px;
+            margin: 20px auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        h1 { color: #333; }
+        .test-section {
+            background: #f9f9f9;
+            padding: 15px;
+            margin: 15px 0;
+            border-radius: 5px;
+            border-left: 4px solid #667eea;
+        }
+        .success { border-left-color: #28a745; background: #d4edda; }
+        .error { border-left-color: #dc3545; background: #f8d7da; }
+        button {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 12px 30px;
+            border-radius: 5px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        button:hover { opacity: 0.9; }
+        pre {
+            background: #282c34;
+            color: #abb2bf;
+            padding: 15px;
+            border-radius: 5px;
+            overflow-x: auto;
+            font-size: 12px;
+        }
+        input, textarea {
+            width: 100%;
+            padding: 8px;
+            margin: 5px 0;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔧 配置保存调试工具</h1>
+
+        <div class="test-section">
+            <h2>测试 1: 检查项目状态</h2>
+            <button onclick="checkProject()">检查项目</button>
+            <div id="project-status"></div>
+        </div>
+
+        <div class="test-section">
+            <h2>测试 2: 测试配置保存</h2>
+            <button onclick="testSaveConfig()">测试保存</button>
+            <div id="save-result"></div>
+        </div>
+
+        <div class="test-section">
+            <h2>测试 3: 手动添加配置</h2>
+            <label>提供商名称：<input type="text" id="providerName" value="GLM-5"></label>
+            <label>Base URL：<input type="text" id="baseUrl" value="https://open.bigmodel.cn/api/paas/v4"></label>
+            <label>API Key：<input type="text" id="apiKey" placeholder="输入你的 API Key"></label>
+            <label>模型 ID：<input type="text" id="modelId" value="glm-4-plus"></label>
+            <button onclick="manualAddConfig()">手动添加配置</button>
+            <div id="manual-result"></div>
+        </div>
+    </div>
+
+    <script>
+        function log(elementId, message, type = 'info') {
+            const element = document.getElementById(elementId);
+            const div = document.createElement('div');
+            div.className = `test-section ${type}`;
+            div.innerHTML = message;
+            element.appendChild(div);
+        }
+
+        function checkProject() {
+            const statusDiv = document.getElementById('project-status');
+            statusDiv.innerHTML = '';
+
+            if (!window.projectStore) {
+                log('project-status', '❌ projectStore 未定义<br>请在项目页面（localhost:3000/project/...）打开此工具', 'error');
+                return;
+            }
+
+            const project = window.projectStore.currentProject;
+            log('project-status', `
+                <strong>项目状态：</strong><br>
+                项目存在：${project?.value ? '✅' : '❌'}<br>
+                ${project?.value ? `
+                    项目ID：${project.value.id}<br>
+                    项目标题：${project.value.title}<br>
+                    配置存在：${project.value.config ? '✅' : '❌'}<br>
+                    提供商数量：${project.value.config?.providers?.length || 0}<br>
+                ` : '项目未加载'}
+            `, project?.value ? 'success' : 'error');
+        }
+
+        async function testSaveConfig() {
+            const resultDiv = document.getElementById('save-result');
+            resultDiv.innerHTML = '';
+
+            try {
+                if (!window.projectStore) {
+                    throw new Error('projectStore 未定义');
+                }
+
+                const project = window.projectStore.currentProject;
+                if (!project?.value) {
+                    throw new Error('项目未加载');
+                }
+
+                log('save-result', '开始测试保存...');
+
+                // 创建测试配置
+                const testConfig = {
+                    preset: 'standard',
+                    providers: [{
+                        id: 'test-' + Date.now(),
+                        name: '测试提供商',
+                        type: 'custom',
+                        baseUrl: 'https://test.com',
+                        apiKey: 'test-key',
+                        isEnabled: true,
+                        models: [{
+                            id: 'test-model',
+                            name: '测试模型',
+                            maxTokens: 4096,
+                            isEnabled: true
+                        }],
+                        lastSyncTime: null,
+                        isSyncing: false
+                    }],
+                    planningModel: '',
+                    writingModel: '',
+                    checkingModel: '',
+                    planningDepth: 'medium',
+                    writingDepth: 'standard',
+                    enableQualityCheck: true,
+                    qualityThreshold: 7,
+                    maxCostPerChapter: 0.15,
+                    enableAISuggestions: true
+                };
+
+                log('save-result', '测试配置已创建');
+
+                // 赋值配置
+                project.value.config = testConfig;
+                log('save-result', '配置已赋值到项目');
+
+                // 保存
+                log('save-result', '开始保存到 IndexedDB...');
+                await window.projectStore.saveCurrentProject();
+                log('save-result', '✅ 保存成功！', 'success');
+
+                // 验证
+                log('save-result', '验证保存结果...');
+                const savedProject = window.projectStore.currentProject.value;
+                log('save-result', `
+                    保存后的配置：<br>
+                    提供商数量：${savedProject.config?.providers?.length || 0}<br>
+                    <pre>${JSON.stringify(savedProject.config, null, 2)}</pre>
+                `, 'success');
+
+            } catch (error) {
+                log('save-result', `❌ 错误：${error.message}<br><pre>${error.stack}</pre>`, 'error');
+            }
+        }
+
+        async function manualAddConfig() {
+            const resultDiv = document.getElementById('manual-result');
+            resultDiv.innerHTML = '';
+
+            try {
+                const providerName = document.getElementById('providerName').value;
+                const baseUrl = document.getElementById('baseUrl').value;
+                const apiKey = document.getElementById('apiKey').value;
+                const modelId = document.getElementById('modelId').value;
+
+                if (!apiKey) {
+                    throw new Error('请输入 API Key');
+                }
+
+                if (!window.projectStore || !window.projectStore.currentProject?.value) {
+                    throw new Error('项目未加载');
+                }
+
+                const project = window.projectStore.currentProject;
+
+                // 创建新提供商
+                const newProvider = {
+                    id: 'provider-' + Date.now(),
+                    name: providerName,
+                    type: 'custom',
+                    baseUrl: baseUrl,
+                    apiKey: apiKey,
+                    isEnabled: true,
+                    models: [{
+                        id: modelId,
+                        name: modelId,
+                        maxTokens: 4096,
+                        isEnabled: true
+                    }],
+                    lastSyncTime: null,
+                    isSyncing: false
+                };
+
+                log('manual-result', '新提供商已创建');
+
+                // 初始化 config（如果不存在）
+                if (!project.value.config) {
+                    project.value.config = {
+                        preset: 'standard',
+                        providers: [],
+                        planningModel: '',
+                        writingModel: '',
+                        checkingModel: '',
+                        planningDepth: 'medium',
+                        writingDepth: 'standard',
+                        enableQualityCheck: true,
+                        qualityThreshold: 7,
+                        maxCostPerChapter: 0.15,
+                        enableAISuggestions: true
+                    };
+                }
+
+                // 添加提供商
+                project.value.config.providers.push(newProvider);
+                log('manual-result', '提供商已添加到配置');
+
+                // 保存
+                await window.projectStore.saveCurrentProject();
+                log('manual-result', `
+                    ✅ 配置已保存！<br>
+                    提供商数量：${project.value.config.providers.length}<br>
+                    <pre>${JSON.stringify(project.value.config.providers, null, 2)}</pre>
+                `, 'success');
+
+            } catch (error) {
+                log('manual-result', `❌ 错误：${error.message}<br><pre>${error.stack}</pre>`, 'error');
+            }
+        }
+
+        // 页面加载时自动检查
+        window.addEventListener('load', () => {
+            checkProject();
+        });
+    </script>
+</body>
+</html>
