@@ -151,23 +151,27 @@ class IndexedDBStorage {
       const request = store.get(projectId)
 
       request.onsuccess = async () => {
-        const project = request.result
-        console.log('[IndexedDB] 项目加载结果:', project ? '找到' : '未找到')
+        try {
+          const project = request.result
+          console.log('[IndexedDB] 项目加载结果:', project ? '找到' : '未找到')
 
-        if (!project) {
-          resolve(null)
-          return
+          if (!project) {
+            resolve(null)
+            return
+          }
+
+          // 默认加载所有章节，但支持延迟加载
+          if (options?.loadChapters !== false) {
+            const chapters = await this.loadChapters(projectId)
+            project.chapters = chapters
+          } else {
+            project.chapters = []
+          }
+
+          resolve(project)
+        } catch (error) {
+          reject(error)
         }
-
-        // 默认加载所有章节，但支持延迟加载
-        if (options?.loadChapters !== false) {
-          const chapters = await this.loadChapters(projectId)
-          project.chapters = chapters
-        } else {
-          project.chapters = []
-        }
-
-        resolve(project)
       }
 
       request.onerror = () => {
