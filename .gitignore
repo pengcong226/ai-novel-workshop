@@ -38,3 +38,6 @@ config_test.txt
 
 # Embedded git repos
 st-memory-enhancement/
+
+# Local git worktrees
+.worktrees/
