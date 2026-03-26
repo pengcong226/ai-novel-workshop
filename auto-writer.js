@@ -1,12 +1,17 @@
 import puppeteer from 'puppeteer';
 import fs from 'fs';
+import { getE2EProviderConfig } from './scripts/e2eProviderConfig.js';
 
 (async () => {
   console.log("🚀 开始全自动化百章极限压力测试...");
-  const browser = await puppeteer.launch({ headless: "new", args: ['--no-sandbox', '--disable-setuid-sandbox'] });
-  const page = await browser.newPage();
-  
-  let hasErrors = false;
+  const provider = getE2EProviderConfig();
+  let browser;
+
+  try {
+    browser = await puppeteer.launch({ headless: "new", args: ['--no-sandbox', '--disable-setuid-sandbox'] });
+    const page = await browser.newPage();
+
+    let hasErrors = false;
   page.on('console', msg => {
     const text = msg.text();
     if (msg.type() === 'error' && !text.includes('favicon')) {
@@ -19,7 +24,7 @@ import fs from 'fs';
   
   // 1. 初始化极速测试配置
   console.log("⚙️ 注入测试配置 (单章500字极速模式)...");
-  await page.evaluate(() => {
+  await page.evaluate((providerConfig) => {
     const config = {
       preset: "fast",
       planningModel: "glm-5",
@@ -41,20 +46,10 @@ import fs from 'fs';
         presencePenalty: 0,
         stopSequences: []
       },
-      providers: [
-        {
-          id: "test-provider",
-          name: "YuanJing",
-          type: "custom",
-          baseUrl: "https://maas-api.ai-yuanjing.com/openapi/compatible-mode/v1",
-          apiKey: "sk-d8d192577f254368be75d78f60245000",
-          isEnabled: true,
-          models: [{ id: "glm-5", name: "glm-5", isEnabled: true }]
-        }
-      ]
+      providers: [providerConfig]
     };
     localStorage.setItem('global-config', JSON.stringify(config));
-  });
+  }, provider);
   
   await page.reload({ waitUntil: 'networkidle0' });
   
@@ -189,5 +184,9 @@ import fs from 'fs';
   fs.writeFileSync('100章极限测试作品.json', exportedJson);
   console.log("🎉 测试流程执行完毕！小说已导出到当前目录的 100章极限测试作品.json 中！");
   
-  await browser.close();
+  } finally {
+    if (browser) {
+      await browser.close();
+    }
+  }
 })();

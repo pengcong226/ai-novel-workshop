@@ -165,12 +165,13 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, computed, defineAsyncComponent } from 'vue'
+import { ref, onMounted, onUnmounted, computed, defineAsyncComponent } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useProjectStore } from '@/stores/project'
 import { usePluginStore } from '@/stores/plugin'
 import { Promotion, User, Document, Reading, Setting, ArrowLeft, Loading, Memo, Connection, Clock, DataAnalysis, DocumentCopy, Location, Tools } from '@element-plus/icons-vue'
 import { getAIMockEnabled } from '@/utils/devFlags'
+import type { SuggestionNavInstruction } from '@/utils/suggestionNavigation'
 
 // 懒加载组件 - 按需加载，优化首屏性能
 const WorldSetting = defineAsyncComponent(() => import('@/components/WorldSetting.vue'))
@@ -230,13 +231,26 @@ const rightPanels = computed(() => {
   return pluginSidebarPanels.value.filter(panel => panel.position === 'right')
 })
 
+function handleEditorNavigate(event: Event) {
+  const { detail } = event as CustomEvent<SuggestionNavInstruction>
+  if (!detail?.menu) return
+
+  activeMenu.value = detail.menu
+}
+
 onMounted(async () => {
+  window.addEventListener('editor:navigate', handleEditorNavigate as EventListener)
+
   const projectId = route.params.id as string
   await projectStore.openProject(projectId)
 
   // 加载已安装插件
   await pluginStore.loadInstalledPlugins()
   isMockEnabled.value = getAIMockEnabled()
+})
+
+onUnmounted(() => {
+  window.removeEventListener('editor:navigate', handleEditorNavigate as EventListener)
 })
 
 function handleMenuSelect(index: string) {

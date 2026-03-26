@@ -780,7 +780,9 @@ function syncChapterDraftToProject() {
   const draftData = JSON.parse(JSON.stringify(chapterForm.value))
   draftData.id = draftData.id || uuidv4()
   draftData.wordCount = draftData.content.length
+  draftData.projectId = project.value.id
   chapterForm.value.id = draftData.id
+  chapterForm.value.projectId = draftData.projectId
 
   const existingIndex = project.value.chapters.findIndex(c => c.id === draftData.id)
   if (existingIndex >= 0) {
@@ -899,6 +901,7 @@ async function saveChapter() {
     // 将 reactive 对象转换为普通对象
     const chapterData = JSON.parse(JSON.stringify(chapterForm.value))
     chapterData.wordCount = chapterData.content.length
+    chapterData.projectId = project.value.id
 
     if (editingChapter.value) {
       const index = project.value.chapters.findIndex(c => c.id === chapterData.id)

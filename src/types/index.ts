@@ -395,6 +395,7 @@ export interface ChapterSummaryData {
 // 章节
 export interface Chapter {
   id: string
+  projectId?: string
   number: number
   title: string
 

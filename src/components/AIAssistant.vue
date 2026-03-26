@@ -287,6 +287,7 @@ import { ElMessage, ElNotification } from 'element-plus'
 import { ChatDotRound, MoreFilled } from '@element-plus/icons-vue'
 import * as echarts from 'echarts'
 import type { Suggestion, SuggestionStatus, SuggestionAction } from '@/types/suggestions'
+import { resolveSuggestionNavigation } from '@/utils/suggestionNavigation'
 
 const projectStore = useProjectStore()
 const suggestionsStore = useSuggestionsStore()
@@ -777,12 +778,20 @@ function deleteSuggestion(id: string) {
 
 function handleSuggestionAction(suggestion: Suggestion, action: SuggestionAction) {
   switch (action.type) {
-    case 'navigate':
-      if (action.navigateTarget) {
-        // 导航到目标页面
-        window.location.hash = action.navigateTarget
+    case 'navigate': {
+      if (!action.navigateTarget) {
+        ElMessage.warning('无法识别导航目标')
+        break
+      }
+
+      const instruction = resolveSuggestionNavigation(action.navigateTarget)
+      if (instruction) {
+        window.dispatchEvent(new CustomEvent('editor:navigate', { detail: instruction }))
+      } else {
+        ElMessage.warning('暂不支持该导航目标')
       }
       break
+    }
     case 'auto_fix':
       if (action.autoFixCommand) {
         processCommand(action.autoFixCommand)

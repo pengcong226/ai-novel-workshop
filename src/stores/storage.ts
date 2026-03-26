@@ -1,5 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
+import type { Chapter } from '@/types'
+import { normalizeChapterForProject, normalizeChaptersForProject } from './chapterPersistence'
 
 // 使用IndexedDB存储大数据，LocalStorage存储元数据
 const DB_NAME = 'AI_Novel_Workshop'
@@ -9,6 +11,7 @@ const CHAPTERS_STORE = 'chapters'
 
 // 判断是否在 Tauri 环境中运行
 const isTauri = typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
+type ChapterWithProjectId = Chapter & { projectId: string }
 
 class IndexedDBStorage {
   private db: IDBDatabase | null = null
@@ -105,7 +108,7 @@ class IndexedDBStorage {
 
     // 确保数据是普通对象
     const projectData = JSON.parse(JSON.stringify(project))
-    const chapters = projectData.chapters || []
+    const chapters = normalizeChaptersForProject(projectData.chapters || [], projectData.id)
 
     // 从项目对象中分离章节
     const projectMeta = { ...projectData }
@@ -228,13 +231,19 @@ class IndexedDBStorage {
   }
 
   // 保存单个章节（增量更新）
-  async saveChapter(chapter: any) {
+  async saveChapter(chapter: ChapterWithProjectId) {
     if (!this.db) await this.init()
+
+    if (!chapter?.projectId) {
+      throw new Error('章节缺少 projectId，无法保存')
+    }
+
+    const chapterData = normalizeChapterForProject(chapter, chapter.projectId)
 
     return new Promise<void>((resolve, reject) => {
       const transaction = this.db!.transaction([CHAPTERS_STORE], 'readwrite')
       const store = transaction.objectStore(CHAPTERS_STORE)
-      const request = store.put(chapter)
+      const request = store.put(chapterData)
 
       request.onsuccess = () => resolve()
       request.onerror = () => reject(request.error)
@@ -336,7 +345,7 @@ class TauriStorage {
 
     // 浅拷贝 project 以便分离 chapters
     const projectCopy = { ...project };
-    const chapters = projectCopy.chapters || [];
+    const chapters = normalizeChaptersForProject(projectCopy.chapters || [], project.id);
 
     // 从主对象中删除 chapters 属性，减轻单条记录大小
     delete projectCopy.chapters;
@@ -367,7 +376,7 @@ class TauriStorage {
     return null;
   }
 
-  async saveChapter(chapter: any) {
+  async saveChapter(chapter: ChapterWithProjectId) {
     const project = await this.findProjectContainingChapter(chapter.id);
 
     if (!project) {
@@ -469,7 +478,7 @@ export const useStorage = defineStore('storage', () => {
     return { chapters: chapters.slice(start, end), total }
   }
 
-  async function saveChapter(chapter: any) {
+  async function saveChapter(chapter: ChapterWithProjectId) {
     if (storage instanceof IndexedDBStorage) {
       return await storage.saveChapter(chapter)
     }

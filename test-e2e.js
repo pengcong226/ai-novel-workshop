@@ -1,18 +1,23 @@
 import puppeteer from 'puppeteer';
+import { getE2EProviderConfig } from './scripts/e2eProviderConfig.js';
 
 (async () => {
-  const browser = await puppeteer.launch({ headless: "new", args: ['--no-sandbox'] });
-  const page = await browser.newPage();
-  
-  page.on('console', msg => console.log('💻 [PAGE LOG]:', msg.text()));
-  page.on('pageerror', error => console.error('❌ [PAGE ERROR]:', error.message));
-  
-  console.log("🌍 Navigating to http://localhost:3000 ...");
-  await page.goto('http://localhost:3000', { waitUntil: 'networkidle0' });
-  
-  // 注入 API 配置
-  console.log("⚙️ Setting up AI Configuration...");
-  await page.evaluate(() => {
+  const provider = getE2EProviderConfig();
+  let browser;
+
+  try {
+    browser = await puppeteer.launch({ headless: "new", args: ['--no-sandbox'] });
+    const page = await browser.newPage();
+
+    page.on('console', msg => console.log('💻 [PAGE LOG]:', msg.text()));
+    page.on('pageerror', error => console.error('❌ [PAGE ERROR]:', error.message));
+
+    console.log("🌍 Navigating to http://localhost:3000 ...");
+    await page.goto('http://localhost:3000', { waitUntil: 'networkidle0' });
+
+    // 注入 API 配置
+    console.log("⚙️ Setting up AI Configuration...");
+    await page.evaluate((providerConfig) => {
     const config = {
       preset: "standard",
       planningModel: "glm-5",
@@ -33,20 +38,10 @@ import puppeteer from 'puppeteer';
         presencePenalty: 0,
         stopSequences: []
       },
-      providers: [
-        {
-          id: "test-provider",
-          name: "YuanJing",
-          type: "custom",
-          baseUrl: "https://maas-api.ai-yuanjing.com/openapi/compatible-mode/v1",
-          apiKey: "sk-d8d192577f254368be75d78f60245000",
-          isEnabled: true,
-          models: [{ id: "glm-5", name: "glm-5", isEnabled: true }]
-        }
-      ]
+      providers: [providerConfig]
     };
     localStorage.setItem('global-config', JSON.stringify(config));
-  });
+  }, provider);
   
   // 刷新使配置生效
   await page.reload({ waitUntil: 'networkidle0' });
@@ -88,13 +83,7 @@ import puppeteer from 'puppeteer';
   
   await new Promise(r => setTimeout(r, 1000));
   
-  await page.evaluate(() => {
-    // 打印当前 config 调试
-    const projectStore = window.__VUE_APP_CONTEXT__ ? null : null; // Vue3 cannot be easily accessed, we'll use localStorage
-    const p = JSON.parse(localStorage.getItem('ai_novel_projects') || '[]');
-    console.log('Project config providers:', JSON.stringify(p[p.length-1]?.config?.providers));
-  });
-  
+
   await page.evaluate(() => {
     const btns = Array.from(document.querySelectorAll('button'));
     const genBtn = btns.find(b => b.innerText.includes('AI生成大纲'));
@@ -166,5 +155,9 @@ import puppeteer from 'puppeteer';
   }
   
   console.log("✅ E2E Test Completed!");
-  await browser.close();
+  } finally {
+    if (browser) {
+      await browser.close();
+    }
+  }
 })();

@@ -18,6 +18,56 @@ import type {
 
 const STORAGE_KEY = 'ai-novel-suggestions'
 
+const chapterDetailPattern = /^\/chapters\/\d+$/
+const characterDetailPattern = /^\/characters\/[^/]+$/
+
+function normalizeNavigateTarget(target?: string): string | undefined {
+  if (!target) return target
+
+  const trimmedTarget = target.trim().replace(/^#/, '')
+
+  if (trimmedTarget === '/chapters') {
+    return '/chapters'
+  }
+
+  if (chapterDetailPattern.test(trimmedTarget)) {
+    return trimmedTarget
+  }
+
+  if (characterDetailPattern.test(trimmedTarget)) {
+    return trimmedTarget
+  }
+
+  if (trimmedTarget === 'chapters') {
+    return '/chapters'
+  }
+
+  if (/^chapters\/\d+$/.test(trimmedTarget)) {
+    return `/${trimmedTarget}`
+  }
+
+  if (/^characters\/[^/]+$/.test(trimmedTarget)) {
+    return `/${trimmedTarget}`
+  }
+
+  return target
+}
+
+function normalizeSuggestionActions(actions?: Suggestion['actions']): Suggestion['actions'] {
+  if (!actions) return actions
+
+  return actions.map(action => {
+    if (action.type !== 'navigate') {
+      return action
+    }
+
+    return {
+      ...action,
+      navigateTarget: normalizeNavigateTarget(action.navigateTarget)
+    }
+  })
+}
+
 export const useSuggestionsStore = defineStore('suggestions', () => {
   // 状态
   const suggestions = ref<Suggestion[]>([])
@@ -168,6 +218,7 @@ export const useSuggestionsStore = defineStore('suggestions', () => {
         const parsed = JSON.parse(data)
         suggestions.value = (parsed.suggestions || []).map((s: Suggestion) => ({
           ...s,
+          actions: normalizeSuggestionActions(s.actions),
           createdAt: new Date(s.createdAt),
           updatedAt: new Date(s.updatedAt),
           expiresAt: s.expiresAt ? new Date(s.expiresAt) : undefined
@@ -294,7 +345,7 @@ export const useSuggestionsStore = defineStore('suggestions', () => {
       details: params.details,
       location: params.location,
       status: 'unread',
-      actions: params.actions,
+      actions: normalizeSuggestionActions(params.actions),
       createdAt: now,
       updatedAt: now,
       expiresAt: new Date(now.getTime() + config.value.autoExpireTime),
