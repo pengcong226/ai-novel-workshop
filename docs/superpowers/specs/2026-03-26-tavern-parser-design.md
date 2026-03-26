@@ -34,10 +34,10 @@ tavern-parser/
 ```
 
 ### 核心依赖
-- `pngjs` - PNG 图片解析,读取 tEXt/iTXt chunks
-- `commander` - 命令行参数处理
-- `js-yaml` - YAML 格式输出
-- `chalk` - 终端彩色输出(可选)
+- `pngjs` ^7.0.0 - PNG 图片解析,读取 tEXt/iTXt chunks
+- `commander` ^12.0.0 - 命令行参数处理
+- `js-yaml` ^4.1.0 - YAML 格式输出
+- `chalk` ^5.3.0 - 终端彩色输出(可选)
 
 ### 数据流
 ```
@@ -76,14 +76,45 @@ PNG 文件
 }
 ```
 
-#### 1.2 TavernAI 人物卡
-- 兼容 SillyTavern 格式
+#### 1.2 Character Card V3 格式
+```javascript
+{
+  spec: "chara_card_v3",
+  spec_version: "3.0",
+  data: {
+    name: "角色名",
+    description: "角色描述",
+    personality: "性格",
+    scenario: "场景设定",
+    first_mes: "第一条消息",
+    mes_example: "示例对话",
+    creator_notes: "创建者备注",
+    tags: ["标签数组"],
+    avatar: "头像(base64)",
+    // V3 特有字段
+    system_prompt: "系统提示词",
+    post_history_instructions: "历史指令",
+    alternate_greetings: ["备用问候语数组"],
+    character_book: { /* 内嵌世界书 */ },
+    extensions: { /* 自定义扩展字段 */ }
+  }
+}
+```
+
+**V3 与 V2 的区别:**
+- 包装在 `data` 字段中
+- 添加 `spec` 和 `spec_version` 标识
+- 支持更多扩展字段
+- 结构化的扩展机制
+
+#### 1.3 TavernAI 人物卡
+- 兼容 SillyTavern V2 格式
 - 额外支持扩展字段:
   - `system_prompt`
   - `post_history_instructions`
   - `character_book` (内嵌世界书)
 
-#### 1.3 世界书
+#### 1.4 世界书
 ```javascript
 {
   entries: [
@@ -98,21 +129,116 @@ PNG 文件
 }
 ```
 
-### 2. 自动识别逻辑
+### 2. 内嵌世界书提取策略
 
+#### TavernAI 和 V3 格式的 character_book 字段
+当人物卡包含 `character_book` 字段时:
+1. **自动提取**为独立的世界书文件
+2. **文件命名**: `{角色名}_worldbook.md/json/yaml`
+3. **人物卡输出**: 在元数据中添加世界书引用链接
+4. **标记来源**: 在世界书元数据中标注来源角色卡
+
+```markdown
+## 关联的世界书
+此角色卡包含内嵌世界书,已提取为独立文件:
+- **文件**: 林清雪_worldbook.md
+- **条目数**: 15
+```
+
+### 3. 头像处理策略
+
+`avatar` 字段包含 base64 编码的图片数据,需要特殊处理:
+
+#### Markdown 输出
+- 不输出头像数据
+- 添加备注: `> 头像数据已省略`
+
+#### JSON/YAML 输出
+- **默认**: 省略 avatar 字段
+- **--include-avatar 选项**: 包含 base64 数据
+
+#### 头像提取选项
+```bash
+tavern-parser character.png --extract-avatar
+```
+- 输出独立文件: `{角色名}_avatar.png`
+- 在文档中添加引用: `![头像](林清雪_avatar.png)`
+
+### 4. 编码处理
+
+PNG 文本块有不同的编码规则:
+
+- **tEXt chunks**: 使用 Latin-1 (ISO-8859-1) 解码
+- **iTXt chunks**: 使用 UTF-8 解码,支持 Unicode
+- **zTXt chunks**: 解压后按 Latin-1 解码
+
+**优先级**: iTXt > zTXt > tEXt
+
+**实现**:
 ```javascript
-// 优先级检测
-if (data.chara || data.name) {
-  // 人物卡
-  return 'character';
-} else if (data.entries && Array.isArray(data.entries)) {
-  // 世界书
-  return 'worldbook';
-} else {
-  // 尝试兼容未知格式
-  return 'unknown';
+function decodeTextChunk(chunk) {
+  if (chunk.type === 'iTXt') {
+    return chunk.text; // 已是 UTF-8
+  } else if (chunk.type === 'zTXt') {
+    return zlib.inflateSync(chunk.compressedText).toString('latin1');
+  } else if (chunk.type === 'tEXt') {
+    return chunk.text.toString('latin1');
+  }
 }
 ```
+
+### 5. 自动识别逻辑
+
+```javascript
+function detectCardType(metadata, data) {
+  // 优先级检测
+
+  // 1. Character Card V3 格式
+  if (metadata.ccv3 || (data.spec && data.spec_version)) {
+    return {
+      type: 'character',
+      format: 'ccv3',
+      version: data.spec_version || '3.0'
+    };
+  }
+
+  // 2. 人物卡 (V2 格式)
+  if (data.chara || data.name) {
+    // 检测 TavernAI 特有字段
+    const isTavernAI = data.system_prompt ||
+                       data.post_history_instructions ||
+                       data.character_book;
+
+    return {
+      type: 'character',
+      format: isTavernAI ? 'tavernai' : 'sillytavern',
+      hasWorldBook: !!data.character_book
+    };
+  }
+
+  // 3. 世界书
+  if (data.entries && Array.isArray(data.entries)) {
+    return {
+      type: 'worldbook',
+      format: 'sillytavern',
+      entryCount: data.entries.length
+    };
+  }
+
+  // 4. 未知格式
+  return {
+    type: 'unknown',
+    format: 'unknown',
+    data: data
+  };
+}
+```
+
+**识别优先级**:
+1. Character Card V3 (ccv3 chunk 或 spec 字段)
+2. SillyTavern/TavernAI V2 (chara chunk 或 name 字段)
+3. 世界书 (entries 数组)
+4. 未知格式
 
 ### 3. PNG 元数据提取
 
@@ -127,6 +253,127 @@ PNG 文件在 `tEXt`、`iTXt` 或 `zTXt` chunks 中存储文本元数据:
 3. 查找关键字段(`chara`, `ccv3` 等)
 4. Base64 解码
 5. JSON 解析
+
+### 4. 数据验证
+
+完整的验证流程确保数据完整性:
+
+```javascript
+function validateCardData(metadata, data) {
+  const errors = [];
+  const warnings = [];
+
+  // 1. PNG chunk 完整性检查
+  if (!metadata.chara && !metadata.ccv3) {
+    errors.push('未找到有效的卡片元数据 chunk');
+  }
+
+  // 2. Base64 解码验证
+  try {
+    // 解码已在提取阶段完成
+  } catch (error) {
+    errors.push(`Base64 解码失败: ${error.message}`);
+  }
+
+  // 3. JSON 解析验证
+  try {
+    // 解析已在提取阶段完成
+  } catch (error) {
+    errors.push(`JSON 解析失败: ${error.message}`);
+  }
+
+  // 4. 必需字段检查
+  if (data.name || data.chara) {
+    if (!data.name) {
+      warnings.push('人物卡缺少 name 字段');
+    }
+  } else if (data.entries) {
+    if (!Array.isArray(data.entries)) {
+      errors.push('世界书 entries 字段必须是数组');
+    }
+  } else {
+    errors.push('无法识别卡片类型: 缺少必需字段');
+  }
+
+  // 5. 字符编码检查
+  // 已在编码处理阶段完成
+
+  return { valid: errors.length === 0, errors, warnings };
+}
+```
+
+### 5. 文件冲突处理
+
+当输出文件已存在时:
+
+**默认行为**: 跳过并警告
+```bash
+⚠️  文件已存在,跳过: output/character.md
+使用 --force 覆盖或 --suffix 添加后缀
+```
+
+**命令行选项**:
+```bash
+# 强制覆盖已存在的文件
+tavern-parser character.png --force
+
+# 自动添加数字后缀
+tavern-parser character.png --suffix
+# 输出: character_1.md, character_1.json, character_1.yaml
+```
+
+**实现逻辑**:
+```javascript
+function resolveOutputPath(basePath, format, options) {
+  let outputPath = `${basePath}.${format}`;
+
+  if (fs.existsSync(outputPath)) {
+    if (options.force) {
+      return outputPath; // 覆盖
+    } else if (options.suffix) {
+      let counter = 1;
+      while (fs.existsSync(`${basePath}_${counter}.${format}`)) {
+        counter++;
+      }
+      return `${basePath}_${counter}.${format}`;
+    } else {
+      console.warn(`⚠️  文件已存在,跳过: ${outputPath}`);
+      return null; // 跳过
+    }
+  }
+
+  return outputPath;
+}
+```
+
+### 6. 文件输入处理
+
+支持多种输入方式:
+
+```bash
+# 单个文件
+tavern-parser character.png
+
+# 通配符 (Unix/Linux/Mac shell 自动展开)
+tavern-parser *.png
+
+# 通配符 (Windows 需要引号)
+tavern-parser "*.png"
+
+# 目录 (工具内置 glob 展开)
+tavern-parser ./cards/
+```
+
+**跨平台支持**:
+```javascript
+function getInputFiles(pattern) {
+  // 内置 glob 展开,支持所有平台
+  return glob.sync(pattern, {
+    nodir: true,
+    absolute: true
+  });
+}
+```
 
 ## 命令行接口
 
@@ -159,6 +406,10 @@ tavern-parser --help
 ### 参数设计
 - `-o, --output <dir>` - 输出目录(默认: `./output/`)
 - `-f, --format <format>` - 输出格式: all/markdown/json/yaml(默认: `all`)
+- `--force` - 覆盖已存在的文件
+- `--suffix` - 文件冲突时自动添加数字后缀
+- `--extract-avatar` - 提取头像为独立 PNG 文件
+- `--include-avatar` - 在 JSON/YAML 输出中包含 avatar 字段
 - `-v, --verbose` - 显示详细处理信息
 - `-h, --help` - 显示帮助信息
 
@@ -305,6 +556,81 @@ try {
 - 跳过无法解析的文件,继续处理其他文件
 - 详细模式下显示每个文件的处理状态
 - 批量处理时生成汇总报告
+
+### 批量处理汇总报告
+
+批量处理多个文件后,显示汇总统计:
+
+```bash
+处理完成:
+✅ 成功: 15 个文件
+❌ 失败: 2 个文件
+⚠️  跳过: 1 个文件
+
+失败文件:
+- invalid.png: 无效的 PNG 格式
+- corrupt.png: 未找到卡片元数据
+
+跳过文件:
+- existing.png: 文件已存在,使用 --force 覆盖
+
+输出统计:
+- 人物卡: 12 个
+- 世界书: 3 个
+- 内嵌世界书: 5 个 (已提取)
+- 总条目: 1,247 KB
+```
+
+**实现**:
+```javascript
+class BatchProcessor {
+  constructor() {
+    this.stats = {
+      success: 0,
+      failed: 0,
+      skipped: 0,
+      errors: [],
+      skippedFiles: [],
+      cardTypes: { character: 0, worldbook: 0 },
+      embeddedWorldBooks: 0,
+      totalSize: 0
+    };
+  }
+
+  printSummary() {
+    console.log('处理完成:');
+    console.log(`✅ 成功: ${this.stats.success} 个文件`);
+    console.log(`❌ 失败: ${this.stats.failed} 个文件`);
+    console.log(`⚠️  跳过: ${this.stats.skipped} 个文件\n`);
+
+    if (this.stats.errors.length > 0) {
+      console.log('失败文件:');
+      this.stats.errors.forEach(e => {
+        console.log(`- ${e.file}: ${e.reason}`);
+      });
+      console.log('');
+    }
+
+    if (this.stats.skippedFiles.length > 0) {
+      console.log('跳过文件:');
+      this.stats.skippedFiles.forEach(s => {
+        console.log(`- ${s.file}: ${s.reason}`);
+      });
+      console.log('');
+    }
+
+    console.log('输出统计:');
+    console.log(`- 人物卡: ${this.stats.cardTypes.character} 个`);
+    console.log(`- 世界书: ${this.stats.cardTypes.worldbook} 个`);
+    console.log(`- 内嵌世界书: ${this.stats.embeddedWorldBooks} 个 (已提取)`);
+    console.log(`- 总大小: ${this.formatSize(this.stats.totalSize)}`);
+  }
+
+  formatSize(bytes) {
+    return bytes > 1024 ? `${(bytes / 1024).toFixed(0)} KB` : `${bytes} B`;
+  }
+}
+```
 
 ## 实现细节
 
