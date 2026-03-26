@@ -13,6 +13,12 @@ const CHAPTERS_STORE = 'chapters'
 const isTauri = typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
 type ChapterWithProjectId = Chapter & { projectId: string }
 
+function assertProjectId(projectId: unknown, context: string): asserts projectId is string {
+  if (typeof projectId !== 'string' || projectId.trim().length === 0) {
+    throw new Error(`${context} 缺少有效项目ID`)
+  }
+}
+
 class IndexedDBStorage {
   private db: IDBDatabase | null = null
 
@@ -108,6 +114,7 @@ class IndexedDBStorage {
 
     // 确保数据是普通对象
     const projectData = JSON.parse(JSON.stringify(project))
+    assertProjectId(projectData.id, '项目保存失败：')
     const chapters = normalizeChaptersForProject(projectData.chapters || [], projectData.id)
 
     // 从项目对象中分离章节
@@ -342,6 +349,7 @@ class TauriStorage {
 
   async saveProject(project: any) {
     const { invoke } = await import('@tauri-apps/api/core');
+    assertProjectId(project?.id, '桌面端保存项目失败：')
 
     // 浅拷贝 project 以便分离 chapters
     const projectCopy = { ...project };
@@ -377,22 +385,23 @@ class TauriStorage {
   }
 
   async saveChapter(chapter: ChapterWithProjectId) {
-    const project = await this.findProjectContainingChapter(chapter.id);
+    assertProjectId(chapter?.projectId, '桌面端保存章节失败：')
 
+    const project = await this.loadProject(chapter.projectId)
     if (!project) {
-      throw new Error(`桌面端未找到章节 ${chapter.id} 对应的项目，无法保存章节`);
+      throw new Error(`桌面端未找到项目 ${chapter.projectId}，无法保存章节`)
     }
 
-    const chapters = Array.isArray(project.chapters) ? [...project.chapters] : [];
-    const index = chapters.findIndex((item: any) => item.id === chapter.id);
+    const chapters = Array.isArray(project.chapters) ? [...project.chapters] : []
+    const index = chapters.findIndex((item: any) => item.id === chapter.id)
 
     if (index >= 0) {
-      chapters[index] = { ...chapters[index], ...chapter };
+      chapters[index] = { ...chapters[index], ...chapter }
     } else {
-      chapters.push(chapter);
+      chapters.push(chapter)
     }
 
-    await this.saveProject({ ...project, chapters });
+    await this.saveProject({ ...project, chapters })
   }
 
   async deleteChapter(chapterId: string) {
