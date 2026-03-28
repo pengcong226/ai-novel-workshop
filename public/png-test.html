@@ -1,0 +1,399 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>PNG解析测试</title>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 20px;
+      background: #f5f5f5;
+    }
+    .container {
+      background: white;
+      border-radius: 8px;
+      padding: 20px;
+      margin-bottom: 20px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+    h1 {
+      margin-top: 0;
+    }
+    .upload-area {
+      border: 2px dashed #ddd;
+      border-radius: 8px;
+      padding: 40px;
+      text-align: center;
+      cursor: pointer;
+      transition: all 0.3s;
+    }
+    .upload-area:hover {
+      border-color: #409eff;
+      background: #f0f7ff;
+    }
+    .upload-area.drag-over {
+      border-color: #409eff;
+      background: #e6f1ff;
+    }
+    .result {
+      margin-top: 20px;
+    }
+    .result pre {
+      background: #f5f5f5;
+      padding: 15px;
+      border-radius: 4px;
+      overflow-x: auto;
+      white-space: pre-wrap;
+      word-wrap: break-word;
+    }
+    .error {
+      color: #f56c6c;
+      background: #fef0f0;
+      padding: 10px;
+      border-radius: 4px;
+      margin-top: 10px;
+    }
+    .success {
+      color: #67c23a;
+      background: #f0f9ff;
+      padding: 10px;
+      border-radius: 4px;
+      margin-top: 10px;
+    }
+    .metadata-item {
+      margin: 10px 0;
+      padding: 10px;
+      background: #fafafa;
+      border-left: 3px solid #409eff;
+    }
+    .metadata-item .keyword {
+      font-weight: bold;
+      color: #409eff;
+    }
+    .metadata-item .info {
+      color: #666;
+      font-size: 14px;
+    }
+    .tabs {
+      display: flex;
+      gap: 10px;
+      margin-bottom: 20px;
+    }
+    .tab {
+      padding: 10px 20px;
+      background: #f0f0f0;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      transition: all 0.3s;
+    }
+    .tab.active {
+      background: #409eff;
+      color: white;
+    }
+    .tab-content {
+      display: none;
+    }
+    .tab-content.active {
+      display: block;
+    }
+    #diagnosticResult,
+    #metadataResult,
+    #parsedResult {
+      white-space: pre-wrap;
+      word-break: break-word;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;
+      background: #f5f5f5;
+      padding: 12px;
+      border-radius: 4px;
+    }
+  </style>
+</head>
+<body>
+  <h1>PNG解析测试工具</h1>
+
+  <div class="container">
+    <div id="uploadArea" class="upload-area">
+      <p>拖拽PNG文件到这里，或点击选择文件</p>
+      <input type="file" id="fileInput" accept=".png" style="display: none;">
+    </div>
+  </div>
+
+  <div class="container">
+    <div class="tabs">
+      <button class="tab active" data-tab="diagnostic">诊断信息</button>
+      <button class="tab" data-tab="metadata">元数据</button>
+      <button class="tab" data-tab="parsed">解析结果</button>
+    </div>
+
+    <div id="diagnostic" class="tab-content active">
+      <div id="diagnosticResult"></div>
+    </div>
+
+    <div id="metadata" class="tab-content">
+      <div id="metadataResult"></div>
+    </div>
+
+    <div id="parsed" class="tab-content">
+      <div id="parsedResult"></div>
+    </div>
+  </div>
+
+  <script type="module">
+    import { parsePngCard, extractPngTextMetadata } from '/src/services/png-parser.ts';
+
+    const uploadArea = document.getElementById('uploadArea');
+    const fileInput = document.getElementById('fileInput');
+    const diagnosticResult = document.getElementById('diagnosticResult');
+    const metadataResult = document.getElementById('metadataResult');
+    const parsedResult = document.getElementById('parsedResult');
+    const LOCAL_DEBUG_HOSTS = new Set(['localhost', '127.0.0.1', '::1']);
+    const localDebugAllowed =
+      window.location.protocol === 'file:' ||
+      LOCAL_DEBUG_HOSTS.has(window.location.hostname);
+
+    function getLocalOnlyMessage() {
+      return `此调试页面仅允许本地访问。当前主机: ${window.location.hostname || '(unknown)'}`;
+    }
+
+    function enforceLocalOnly() {
+      if (localDebugAllowed) {
+        return;
+      }
+
+      const message = getLocalOnlyMessage();
+      uploadArea.style.opacity = '0.6';
+      uploadArea.style.cursor = 'not-allowed';
+      fileInput.disabled = true;
+      diagnosticResult.textContent = message;
+      metadataResult.textContent = message;
+      parsedResult.textContent = message;
+    }
+
+    enforceLocalOnly();
+
+    if (localDebugAllowed) {
+      // 切换标签页
+      document.querySelectorAll('.tab').forEach(tab => {
+        tab.addEventListener('click', () => {
+          document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+          document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+          tab.classList.add('active');
+          document.getElementById(tab.dataset.tab).classList.add('active');
+        });
+      });
+
+      // 上传区域事件
+      uploadArea.addEventListener('click', () => fileInput.click());
+
+      uploadArea.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        uploadArea.classList.add('drag-over');
+      });
+
+      uploadArea.addEventListener('dragleave', () => {
+        uploadArea.classList.remove('drag-over');
+      });
+
+      uploadArea.addEventListener('drop', (e) => {
+        e.preventDefault();
+        uploadArea.classList.remove('drag-over');
+        const files = e.dataTransfer.files;
+        if (files.length > 0) {
+          handleFile(files[0]);
+        }
+      });
+
+      fileInput.addEventListener('change', (e) => {
+        if (e.target.files.length > 0) {
+          handleFile(e.target.files[0]);
+        }
+      });
+    }
+
+    async function handleFile(file) {
+      if (!localDebugAllowed) {
+        const message = getLocalOnlyMessage();
+        diagnosticResult.textContent = message;
+        metadataResult.textContent = message;
+        parsedResult.textContent = message;
+        return;
+      }
+
+      if (!file.name.toLowerCase().endsWith('.png')) {
+        showError('请选择PNG文件');
+        return;
+      }
+
+      try {
+        const buffer = await file.arrayBuffer();
+
+        // 诊断信息
+        showDiagnostic(file, buffer);
+
+        // 提取元数据
+        const metadata = await extractPngTextMetadata(buffer);
+        showMetadata(metadata);
+
+        // 解析角色卡
+        const parsed = await parsePngCard(buffer);
+        showParsed(parsed);
+
+      } catch (error) {
+        showError(error);
+      }
+    }
+
+    function showDiagnostic(file, buffer) {
+      const bytes = new Uint8Array(buffer);
+      const view = new DataView(buffer);
+
+      // 检查PNG签名
+      const PNG_SIGNATURE = [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A];
+      let signatureValid = true;
+      for (let i = 0; i < PNG_SIGNATURE.length; i++) {
+        if (bytes[i] !== PNG_SIGNATURE[i]) {
+          signatureValid = false;
+          break;
+        }
+      }
+
+      // 解析PNG块
+      const chunks = [];
+      let offset = 8;
+      let parseWarning = '';
+      while (offset + 12 <= bytes.length) {
+        const length = view.getUint32(offset, false);
+        const type = String.fromCharCode(bytes[offset + 4], bytes[offset + 5], bytes[offset + 6], bytes[offset + 7]);
+
+        const chunkEnd = offset + 12 + length;
+        if (chunkEnd > bytes.length) {
+          parseWarning = `⚠️ 块 ${type} 声明长度 ${length} 超出文件边界，已停止解析`;
+          break;
+        }
+
+        chunks.push({
+          type,
+          length,
+          offset
+        });
+
+        if (type === 'IEND') break;
+        offset = chunkEnd;
+      }
+
+      const textChunks = chunks.filter(c => c.type === 'tEXt' || c.type === 'zTXt' || c.type === 'iTXt');
+
+      const lines = [
+        '✅ PNG文件读取成功',
+        '',
+        '文件信息',
+        `名称: ${file.name}`,
+        `大小: ${(file.size / 1024).toFixed(2)} KB (${file.size} 字节)`,
+        '',
+        'PNG签名',
+        `${signatureValid ? '✅ 有效' : '❌ 无效'}`,
+        `字节: ${Array.from(bytes.slice(0, 8)).map(b => b.toString(16).padStart(2, '0')).join(' ')}`,
+        '',
+        'PNG块信息',
+        `总块数: ${chunks.length}`,
+        `文本块数: ${textChunks.length} (tEXt/zTXt/iTXt)`,
+        `块类型: ${[...new Set(chunks.map(c => c.type))].join(', ')}`,
+        '',
+        '文本块详情',
+        ...(textChunks.length > 0
+          ? textChunks.map(c => `${c.type}: ${c.length} 字节 (偏移 ${c.offset})`)
+          : ['(无)'])
+      ];
+
+      if (parseWarning) {
+        lines.push('', parseWarning);
+      }
+
+      diagnosticResult.textContent = lines.join('\n');
+    }
+
+    function showMetadata(metadata) {
+      const keywords = Object.keys(metadata);
+
+      if (keywords.length === 0) {
+        metadataResult.textContent = '未找到任何元数据';
+        return;
+      }
+
+      const lines = [`✅ 找到 ${keywords.length} 个元数据字段`, ''];
+
+      for (const keyword of keywords) {
+        const value = metadata[keyword];
+        const rawPreview = typeof value === 'string' ? value : JSON.stringify(value);
+        const preview = typeof rawPreview === 'string' && rawPreview.length > 200
+          ? `${rawPreview.substring(0, 200)}...`
+          : rawPreview;
+
+        lines.push(`字段: ${keyword}`);
+        lines.push(`类型: ${typeof value}`);
+        lines.push(`长度: ${typeof value === 'string' ? `${value.length} 字符` : 'N/A'}`);
+
+        if (keyword === 'chara' || keyword === 'ccv3') {
+          lines.push(`预览: ${preview ?? ''}`);
+        }
+
+        lines.push('');
+      }
+
+      metadataResult.textContent = lines.join('\n');
+    }
+
+    function showParsed(parsed) {
+      const lines = [
+        '✅ 解析成功',
+        '',
+        '解析结果',
+        `类型: ${parsed.kind}`,
+        `格式: ${parsed.format}`,
+        ''
+      ];
+
+      if (parsed.kind === 'character') {
+        lines.push('角色信息');
+        lines.push(`名称: ${parsed.data?.name || '未知'}`);
+        if (parsed.data?.description) {
+          lines.push(`描述: ${parsed.data.description.substring(0, 100)}...`);
+        }
+        if (parsed.data?.first_mes) {
+          lines.push(`开场白: ${parsed.data.first_mes.substring(0, 100)}...`);
+        }
+        if (parsed.data?.character_book) {
+          lines.push(`世界书条目: ${parsed.data.character_book.entries?.length || 0}`);
+        }
+        lines.push('');
+      }
+
+      if (parsed.kind === 'worldbook') {
+        lines.push('世界书信息');
+        lines.push(`条目数: ${parsed.data?.entries?.length || 0}`);
+        lines.push('');
+      }
+
+      lines.push('完整数据');
+      lines.push(JSON.stringify(parsed, null, 2));
+
+      parsedResult.textContent = lines.join('\n');
+    }
+
+    function showError(error) {
+      const message = error instanceof Error
+        ? `错误: ${error.message}\n${error.stack || ''}`
+        : `错误: ${String(error)}`;
+      const text = `❌ ${message}`;
+
+      diagnosticResult.textContent = text;
+      metadataResult.textContent = text;
+      parsedResult.textContent = text;
+    }
+  </script>
+</body>
+</html>
