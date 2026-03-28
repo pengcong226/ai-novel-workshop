@@ -515,8 +515,13 @@ export async function createVectorService(
 ): Promise<VectorService> {
   const fullConfig: EmbeddingConfig = {
     provider: config?.provider ?? 'local',
-    model: config?.model ?? 'Xenova/all-MiniLM-L6-v2',
-    dimension: config?.dimension ?? 384,
+    // 默认使用bge-small-zh-v1.5（中文优化，512维）
+    // 用户可在ProjectConfig.vectorConfig中切换为：
+    // - bge-m3（更强大，1024维，需下载约2GB）
+    // - text-embedding-3-small（OpenAI）
+    // - 其他模型
+    model: config?.model ?? 'bge-small-zh-v1.5',
+    dimension: config?.dimension ?? 512,  // bge-small-zh-v1.5 维度
     apiKey: config?.apiKey,
     baseUrl: config?.baseUrl,
     batchSize: config?.batchSize ?? 8,

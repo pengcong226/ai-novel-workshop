@@ -1,5 +1,9 @@
 // 类型定义
 
+// 导入世界书相关类型
+export type { Worldbook, WorldbookEntry, WorldbookGroup, WorldbookCondition } from './worldbook'
+export type { Preset, PresetExample } from './preset'
+
 // 项目状态
 export type ProjectStatus = 'draft' | 'writing' | 'completed'
 
@@ -28,6 +32,12 @@ export interface Project {
 
   // 表格记忆系统
   memory?: string  // JSON 格式的记忆系统数据
+
+  // 世界书系统（酒馆生态兼容）
+  worldbook?: Worldbook
+
+  // 预设系统
+  presets?: Preset[]
 }
 
 // 世界观设定
@@ -482,6 +492,10 @@ export interface ProjectConfig {
   // AI建议
   enableAISuggestions: boolean
 
+  // 向量检索（RAG）
+  enableVectorRetrieval: boolean  // 默认true
+  vectorConfig?: VectorServiceConfig
+
   // 高级设置
   advancedSettings?: AdvancedSettings
 }
@@ -783,3 +797,9 @@ export interface NovelTemplate {
 // ============================================================================
 
 export * from './suggestions'
+
+// ============================================================================
+// 世界书相关类型
+// ============================================================================
+
+export * from './worldbook'

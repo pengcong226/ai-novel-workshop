@@ -54,3 +54,44 @@ export type {
   ContextOptions,
   BuiltContext,
 } from './memory-adapter';
+
+// 世界书导入器
+export {
+  WorldbookImporter,
+  createWorldbookImporter,
+  mergeWorldbooks,
+  exportWorldbook,
+} from './worldbook-importer';
+
+// 世界书注入器
+export {
+  WorldbookInjector,
+  createInjector,
+  createWorldbookInjector,
+  filterWorldbook,
+  exportWorldbookToJson,
+  importWorldbookFromJson,
+} from './worldbook-injector';
+export type {
+  WorldbookCondition,
+  InjectionContext,
+  InjectionLogEntry,
+  InjectionResult,
+  ConditionEvaluator,
+  TokenCounter,
+} from './worldbook-injector';
+
+// 世界书导出器
+export {
+  WorldbookExporter,
+  createWorldbookExporter,
+  exportWorldbookAsJson,
+  exportWorldbookAsJsonl,
+  exportWorldbookAsYaml,
+  exportWorldbookAsMarkdown,
+  exportWorldbookAsPng,
+} from './worldbook-exporter';
+export type {
+  PngExportOptions,
+  MarkdownExportOptions,
+} from './worldbook-exporter';

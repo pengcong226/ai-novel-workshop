@@ -28,6 +28,16 @@
             <span>世界观设定</span>
           </el-menu-item>
 
+          <el-menu-item index="worldbook">
+            <el-icon><Notebook /></el-icon>
+            <span>世界书</span>
+          </el-menu-item>
+
+          <el-menu-item index="character-card">
+            <el-icon><Avatar /></el-icon>
+            <span>角色卡</span>
+          </el-menu-item>
+
           <el-menu-item index="map">
             <el-icon><Location /></el-icon>
             <span>世界地图</span>
@@ -117,6 +127,8 @@
         <template v-else-if="project && project.id">
           <!-- 内置组件 -->
           <WorldSetting v-if="activeMenu === 'world'" />
+          <WorldbookPanel v-else-if="activeMenu === 'worldbook'" />
+          <CharacterCardPanel v-else-if="activeMenu === 'character-card'" />
           <WorldMap v-else-if="activeMenu === 'map'" />
           <Characters v-else-if="activeMenu === 'characters'" />
           <RelationshipGraph v-else-if="activeMenu === 'relationships'" />
@@ -169,11 +181,13 @@ import { ref, onMounted, computed, defineAsyncComponent } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useProjectStore } from '@/stores/project'
 import { usePluginStore } from '@/stores/plugin'
-import { Promotion, User, Document, Reading, Setting, ArrowLeft, Loading, Memo, Connection, Clock, DataAnalysis, DocumentCopy, Location, Tools } from '@element-plus/icons-vue'
+import { Promotion, User, Document, Reading, Setting, ArrowLeft, Loading, Memo, Connection, Clock, DataAnalysis, DocumentCopy, Location, Tools, Notebook, Avatar } from '@element-plus/icons-vue'
 import { getAIMockEnabled } from '@/utils/devFlags'
 
 // 懒加载组件 - 按需加载，优化首屏性能
 const WorldSetting = defineAsyncComponent(() => import('@/components/WorldSetting.vue'))
+const WorldbookPanel = defineAsyncComponent(() => import('@/components/WorldbookPanel.vue'))
+const CharacterCardPanel = defineAsyncComponent(() => import('@/components/CharacterCardPanel.vue'))
 const WorldMap = defineAsyncComponent(() => import('@/components/WorldMap.vue'))
 const Characters = defineAsyncComponent(() => import('@/components/Characters.vue'))
 const RelationshipGraph = defineAsyncComponent(() => import('@/components/RelationshipGraph.vue'))

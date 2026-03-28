@@ -25,7 +25,8 @@
 - ✨ **可视开发者面板** - 内置全链路日志监控与 Mock 免 Token 调试机制
 
 ### 📊 智能系统
-- ✅ **向量检索系统** - 本地/OpenAI双模式语义搜索
+- ✅ **世界书系统** - SillyTavern兼容，关键词触发，优先级注入
+- ✅ **向量检索系统** - 本地/OpenAI双模式语义搜索，默认启用
 - ✅ **自动摘要生成** - 多层次压缩策略
 - ✅ **冲突检测系统** - 人物设定、时间线、世界观一致性
 - ✅ **质量检查增强** - 五维度评分
@@ -243,11 +244,63 @@ Token预算分配 (总预算: 6000-8192)
 └─ Outline: 400 (当前章节)
 ```
 
-### 5. 向量检索系统
+### 5. 世界书系统 (SillyTavern兼容)
+
+**核心特性**:
+- ✅ 完全兼容SillyTavern世界书格式
+- ✅ 支持PNG角色卡导入导出（chara/ccv3格式）
+- ✅ 关键词触发机制（精确/模糊/正则）
+- ✅ 优先级注入控制（Token预算管理）
+- ✅ 条件表达式（章节范围/角色出场/地点访问）
+- ✅ 三层注入策略（世界书 > RAG > 记忆表）
+
+**导入导出支持**:
+- PNG格式（Character Card V1/V2/V3）
+- JSON格式（SillyTavern世界书）
+- JSONL格式（批量条目）
+- YAML格式（可读性强）
+
+**关键词触发**:
+```typescript
+// 精确匹配
+keys: ["林渊", "主角"]
+
+// 正则表达式
+keyregex: "/(章|节)[0-9]+/"
+
+// 条件表达式
+extensions: {
+  chapter_range: { start: 10, end: 20 },
+  character_presence: ["character-id-1", "character-id-2"],
+  location_visit: ["location-id-1"]
+}
+```
+
+**三层注入策略**:
+```
+Token预算分配 (总预算: 2700)
+├─ 世界书: 1800 (最高优先级，关键词精确匹配)
+├─ RAG: 400 (语义检索，智能补充)
+└─ 记忆表: 500 (状态追踪，动态更新)
+```
+
+### 6. 向量检索系统
 
 **双模式支持**:
-- **本地模型**: @xenova/transformers (384维,免费)
-- **OpenAI**: text-embedding-3-small (1536维,精准)
+- **本地模型**: bge-small-zh-v1.5 (512维，中文优化，默认启用)
+- **可选升级**: bge-m3 (1024维，多语言，需下载)
+- **云端模型**: OpenAI text-embedding-3-small (1536维)
+
+**默认配置**:
+```typescript
+// 项目配置
+enableVectorRetrieval: true  // 默认启用
+vectorConfig: {
+  provider: 'local',
+  model: 'bge-small-zh-v1.5',  // 已内置，无需下载
+  dimension: 512,
+}
+```
 
 **混合检索**:
 ```typescript
@@ -259,6 +312,9 @@ const results = await vectorService.retrieveRelevantContext({
   hybrid: true  // 向量 + 关键词
 });
 ```
+
+**模型切换**:
+参见 [BGE-M3模型配置指南](./docs/bge-m3-model-guide.md) 了解如何切换到更强大的向量模型。
 
 ### 6. 智能降级机制
 

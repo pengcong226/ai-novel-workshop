@@ -82,6 +82,12 @@ export const useProjectStore = defineStore('project', () => {
       qualityThreshold: globalConfig.value?.qualityThreshold || 7,
       maxCostPerChapter: globalConfig.value?.maxCostPerChapter || 0.15,
       enableAISuggestions: globalConfig.value?.enableAISuggestions ?? true,
+      enableVectorRetrieval: globalConfig.value?.enableVectorRetrieval ?? true,  // 默认启用
+      vectorConfig: globalConfig.value?.vectorConfig || {
+        provider: 'local',
+        model: 'bge-small-zh-v1.5',  // 默认中文优化模型
+        dimension: 512,
+      },
       providers: globalConfig.value?.providers ? JSON.parse(JSON.stringify(globalConfig.value.providers)) : [],
       advancedSettings: globalConfig.value?.advancedSettings ? JSON.parse(JSON.stringify(globalConfig.value.advancedSettings)) : undefined
     }
