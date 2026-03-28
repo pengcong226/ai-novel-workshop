@@ -2,22 +2,54 @@
  * 统一导入服务
  * @module services/unified-importer
  *
- * 合并角色卡和世界书的导入，支持PNG图片同时包含两种数据的情况
+ * 合并角色卡、世界书与会话轨迹(JSONL)导入
  */
 
 import type {
   CharacterCardImportOptions,
-  CharacterCardImportResult
+  CharacterCardImportResult,
 } from '@/types/character-card'
+import type {
+  TraceParseStats,
+  TraceReviewItem,
+} from '@/types/conversation-trace'
 import type { WorldbookImportOptions } from '@/types/worldbook'
-import { createCharacterCardImporter } from './character-card-importer'
-import { createWorldbookImporter } from './worldbook-importer'
 import { useCharacterCardStore } from '@/stores/character-card'
+import { useKnowledgeStore } from '@/stores/knowledge'
+import { useProjectStore } from '@/stores/project'
 import { useWorldbookStore } from '@/stores/worldbook'
-import { createRegexScriptManager } from './regex-script'
 import { getLogger } from '@/utils/logger'
+import { applyTraceReviewItems } from './conversation-trace-apply'
+import { buildTraceReviewQueue } from './conversation-trace-conflict'
+import { extractTraceArtifacts } from './conversation-trace-extractor'
+import { parseConversationTraceFile } from './conversation-trace-parser'
+import { createCharacterCardImporter } from './character-card-importer'
+import { createRegexScriptManager } from './regex-script'
+import { createWorldbookImporter } from './worldbook-importer'
 
 const logger = getLogger('unified-importer')
+
+/**
+ * 会话轨迹导入选项
+ */
+export interface ConversationTraceImportOptions {
+  includeRoles?: Array<'user' | 'assistant' | 'system' | 'tool' | 'other'>
+  includeEmptyContent?: boolean
+  maxMessages?: number
+  useRegexPreprocess?: boolean
+  autoApplyNoConflict?: boolean
+  applyReviewed?: boolean
+  reviewItems?: TraceReviewItem[]
+}
+
+/**
+ * 会话轨迹分析结果
+ */
+export interface ConversationTraceImportAnalysis {
+  parseResult: Awaited<ReturnType<typeof parseConversationTraceFile>>
+  extractResult: Awaited<ReturnType<typeof extractTraceArtifacts>>
+  reviewResult: ReturnType<typeof buildTraceReviewQueue>
+}
 
 /**
  * 统一导入选项
@@ -28,6 +60,9 @@ export interface UnifiedImportOptions {
 
   /** 世界书导入选项 */
   worldbookOptions?: WorldbookImportOptions
+
+  /** 会话轨迹导入选项 */
+  conversationTraceOptions?: ConversationTraceImportOptions
 
   /** 是否导入角色卡数据 */
   importCharacterCard?: boolean
@@ -65,6 +100,24 @@ export interface UnifiedImportResult {
     entriesCount: number
   }
 
+  conversationTrace?: {
+    analyzed: boolean
+    parsedMessages: number
+    extractedArtifacts: number
+    reviewItems: number
+    applied?: {
+      reviewed: number
+      applied: number
+      skipped: number
+      merged: number
+      conflicts: number
+    }
+    sessionId?: string
+  }
+
+  /** 会话轨迹审核项（供 UI 编辑后提交） */
+  reviewItems?: TraceReviewItem[]
+
   regexScripts?: {
     imported: boolean
     count: number
@@ -94,37 +147,175 @@ export class UnifiedImporter {
     file: File,
     options: UnifiedImportOptions = {}
   ): Promise<UnifiedImportResult> {
-    const {
-      importCharacterCard = true,
-      importWorldbook = true,
-      importRegexScripts = true,
-      importPrompts = true,
-      importAISettings = true,
-      characterCardOptions = {},
-      worldbookOptions = {}
-    } = options
-
     const result: UnifiedImportResult = {
-      success: false
+      success: false,
     }
 
     try {
-      // 检测文件类型
-      const isPNG = file.type === 'image/png' || file.name.endsWith('.png')
-      const isJSON = file.type === 'application/json' || file.name.endsWith('.json')
+      const filename = file.name.toLowerCase()
+      const isPNG = file.type === 'image/png' || filename.endsWith('.png')
+      const isJSON = file.type === 'application/json' || filename.endsWith('.json')
+      const isJSONL =
+        filename.endsWith('.jsonl') ||
+        filename.endsWith('.ndjson') ||
+        file.type === 'application/x-ndjson' ||
+        file.type === 'application/jsonl'
 
-      if (!isPNG && !isJSON) {
-        throw new Error('不支持的文件格式，仅支持 PNG 和 JSON 文件')
+      if (!isPNG && !isJSON && !isJSONL) {
+        throw new Error('不支持的文件格式，仅支持 PNG、JSON 和 JSONL 文件')
       }
 
-      if (isPNG) {
-        return await this.importFromPNG(file, options)
-      } else {
-        return await this.importFromJSON(file, options)
-      }
+      if (isPNG) return this.importFromPNG(file, options)
+      if (isJSONL) return this.importFromJSONL(file, options)
+      return this.importFromJSON(file, options)
     } catch (error) {
       const errorMsg = error instanceof Error ? error.message : String(error)
       logger.error('统一导入失败', error)
+      result.errors = [errorMsg]
+      return result
+    }
+  }
+
+  /**
+   * 创建会话轨迹抽取使用的正则管理器（加载当前启用脚本）
+   */
+  private createTraceRegexManager() {
+    const regexManager = createRegexScriptManager()
+    const characterCardStore = useCharacterCardStore()
+
+    for (const script of characterCardStore.regexScripts || []) {
+      if (!script.disabled) {
+        regexManager.addScript(script)
+      }
+    }
+
+    return regexManager
+  }
+
+  /**
+   * 会话轨迹分析（解析+抽取+冲突）
+   */
+  async analyzeConversationTrace(
+    file: File,
+    options: ConversationTraceImportOptions = {}
+  ): Promise<ConversationTraceImportAnalysis> {
+    const parseResult = await parseConversationTraceFile(file, {
+      includeRoles: options.includeRoles,
+      includeEmptyContent: options.includeEmptyContent,
+      maxMessages: options.maxMessages,
+    })
+
+    const regexManager =
+      options.useRegexPreprocess === true ? this.createTraceRegexManager() : undefined
+
+    const extractResult = await extractTraceArtifacts(parseResult.messages, {
+      regexManager,
+    })
+
+    const worldbookStore = useWorldbookStore()
+    if (!worldbookStore.worldbook) {
+      await worldbookStore.loadWorldbook()
+    }
+
+    const knowledgeStore = useKnowledgeStore()
+    await knowledgeStore.loadKnowledge()
+
+    const projectStore = useProjectStore()
+
+    const reviewResult = buildTraceReviewQueue(extractResult.artifacts, {
+      worldbookEntries: worldbookStore.entries as unknown as Array<Record<string, unknown>>,
+      knowledgeEntries: knowledgeStore.entries as unknown as Array<Record<string, unknown>>,
+      hasWorldStructure: !!projectStore.currentProject?.world,
+      hasCharacterStructure: (projectStore.currentProject?.characters?.length || 0) > 0,
+    })
+
+    return {
+      parseResult,
+      extractResult,
+      reviewResult,
+    }
+  }
+
+  /**
+   * 应用会话轨迹审核结果
+   */
+  async applyConversationTraceReview(
+    fileName: string,
+    parseStats: TraceParseStats,
+    reviewItems: TraceReviewItem[]
+  ) {
+    return applyTraceReviewItems(reviewItems, {
+      fileName,
+      parseStats,
+    })
+  }
+
+  /**
+   * 从JSONL导入会话轨迹
+   */
+  async importFromJSONL(
+    file: File,
+    options: UnifiedImportOptions = {}
+  ): Promise<UnifiedImportResult> {
+    const traceOptions = options.conversationTraceOptions || {}
+
+    const result: UnifiedImportResult = {
+      success: false,
+    }
+
+    try {
+      const analysis = await this.analyzeConversationTrace(file, traceOptions)
+
+      result.reviewItems = traceOptions.reviewItems || analysis.reviewResult.items
+
+      result.conversationTrace = {
+        analyzed: true,
+        parsedMessages: analysis.parseResult.stats.includedMessages,
+        extractedArtifacts: analysis.extractResult.stats.artifacts,
+        reviewItems: result.reviewItems.length,
+      }
+
+      const warnings: string[] = []
+      if (analysis.parseResult.errors.length > 0) {
+        warnings.push(`解析失败行数: ${analysis.parseResult.errors.length}`)
+      }
+      if (analysis.extractResult.warnings.length > 0) {
+        warnings.push(...analysis.extractResult.warnings)
+      }
+      if (warnings.length > 0) {
+        result.warnings = warnings
+      }
+
+      const shouldApplyReviewed = traceOptions.applyReviewed === true
+      const shouldAutoApplyNoConflict = traceOptions.autoApplyNoConflict === true
+
+      if (shouldApplyReviewed || shouldAutoApplyNoConflict) {
+        const applyItems: TraceReviewItem[] = shouldApplyReviewed
+          ? result.reviewItems
+          : result.reviewItems.map(item => ({
+              ...item,
+              action: item.conflicts.length > 0 ? 'skip' : 'apply',
+            }))
+
+        const applyResult = await this.applyConversationTraceReview(
+          file.name,
+          analysis.parseResult.stats,
+          applyItems
+        )
+
+        result.conversationTrace.applied = applyResult.stats
+        result.conversationTrace.sessionId = applyResult.session.id
+
+        if (applyResult.warnings?.length) {
+          result.warnings = [...(result.warnings || []), ...applyResult.warnings]
+        }
+      }
+
+      result.success = true
+      return result
+    } catch (error) {
+      const errorMsg = error instanceof Error ? error.message : String(error)
+      logger.error('JSONL会话轨迹导入失败', error)
       result.errors = [errorMsg]
       return result
     }
@@ -144,27 +335,24 @@ export class UnifiedImporter {
       importPrompts = true,
       importAISettings = true,
       characterCardOptions = {},
-      worldbookOptions = {}
+      worldbookOptions = {},
     } = options
 
     const result: UnifiedImportResult = {
-      success: false
+      success: false,
     }
 
     try {
-      // 直接使用角色卡导入器（它会正确处理PNG）
       const characterCardImporter = createCharacterCardImporter()
       const characterCardResult = await characterCardImporter.importFromPNG(file, {
-        importWorldbook: importWorldbook,
-        importRegexScripts: importRegexScripts,
-        importPrompts: importPrompts,
-        importAISettings: importAISettings,
-        ...characterCardOptions
+        importWorldbook,
+        importRegexScripts,
+        importPrompts,
+        importAISettings,
+        ...characterCardOptions,
       })
 
-      // 如果角色卡导入成功（即使没有世界书）
       if (characterCardResult.success) {
-        // 保存角色卡数据
         if (importCharacterCard && characterCardResult.character) {
           const characterCardStore = useCharacterCardStore()
           characterCardStore.character = {
@@ -173,7 +361,7 @@ export class UnifiedImporter {
             personality: characterCardResult.character.personality,
             scenario: characterCardResult.character.scenario,
             first_mes: characterCardResult.character.first_mes,
-            mes_example: characterCardResult.character.mes_example
+            mes_example: characterCardResult.character.mes_example,
           }
 
           result.characterCard = {
@@ -182,43 +370,29 @@ export class UnifiedImporter {
             hasWorldbook: !!characterCardResult.worldbook,
             hasRegexScripts: !!characterCardResult.regexScripts,
             hasPrompts: !!characterCardResult.prompts,
-            result: characterCardResult
+            result: characterCardResult,
           }
         }
 
-        // 保存世界书数据（如果有）
         if (importWorldbook && characterCardResult.worldbook?.entries) {
           const worldbookStore = useWorldbookStore()
-
-          logger.info('准备导入世界书', {
-            条目总数: characterCardResult.worldbook.entries.length,
-            前5个条目: characterCardResult.worldbook.entries.slice(0, 5).map((e: any, i: number) => ({
-              index: i,
-              uid: e.uid,
-              keys长度: (e.keys || e.key || []).length,
-              content长度: e.content?.length
-            }))
-          })
-
-          // 确保世界书已初始化
           if (!worldbookStore.worldbook) {
             await worldbookStore.loadWorldbook()
           }
 
-          await worldbookStore.importEntries(characterCardResult.worldbook.entries, {
+          await worldbookStore.importEntries(characterCardResult.worldbook.entries as any, {
             merge: worldbookOptions.mergeDuplicates,
-            conflictResolution: worldbookOptions.conflictResolution,
+            conflictResolution: worldbookOptions.conflictResolution as any,
             deduplicate: worldbookOptions.deduplicate,
-            enableAllEntries: worldbookOptions.enableAllEntries
+            enableAllEntries: worldbookOptions.enableAllEntries,
           })
 
           result.worldbook = {
             imported: true,
-            entriesCount: characterCardResult.worldbook.entries.length
+            entriesCount: characterCardResult.worldbook.entries.length,
           }
         }
 
-        // 保存正则脚本（如果有）
         if (importRegexScripts && characterCardResult.regexScripts?.scripts) {
           const regexManager = createRegexScriptManager()
           for (const script of characterCardResult.regexScripts.scripts) {
@@ -227,71 +401,59 @@ export class UnifiedImporter {
 
           result.regexScripts = {
             imported: true,
-            count: characterCardResult.regexScripts.scripts.length
+            count: characterCardResult.regexScripts.scripts.length,
           }
         }
 
-        // 保存提示词（如果有）
         if (importPrompts && characterCardResult.prompts?.prompts) {
           const characterCardStore = useCharacterCardStore()
           characterCardStore.prompts = characterCardResult.prompts.prompts
 
           result.prompts = {
             imported: true,
-            count: characterCardResult.prompts.prompts.length
+            count: characterCardResult.prompts.prompts.length,
           }
         }
 
-        // 保存AI设置（如果有）
         if (importAISettings && characterCardResult.aiSettings) {
           const characterCardStore = useCharacterCardStore()
           characterCardStore.updateAISettings(characterCardResult.aiSettings)
 
           result.aiSettings = {
-            imported: true
+            imported: true,
           }
         }
 
         result.success = true
-
-        logger.info('PNG统一导入成功', {
-          hasCharacterCard: !!result.characterCard?.imported,
-          hasWorldbook: !!result.worldbook?.imported,
-          hasRegexScripts: !!result.regexScripts?.imported,
-          hasPrompts: !!result.prompts?.imported,
-          hasAISettings: !!result.aiSettings?.imported
-        })
-      } else {
-        // 角色卡导入失败，可能是纯世界书PNG
-        logger.info('PNG不是角色卡格式，尝试作为纯世界书解析')
-
-        const worldbookImporter = createWorldbookImporter()
-        const worldbookResult = await worldbookImporter.importWorldbook(file, worldbookOptions)
-
-        if (worldbookResult.success && worldbookResult.entries) {
-          const worldbookStore = useWorldbookStore()
-          await worldbookStore.importEntries(worldbookResult.entries, {
-            merge: worldbookOptions.mergeDuplicates,
-            conflictResolution: worldbookOptions.conflictResolution,
-            deduplicate: worldbookOptions.deduplicate,
-            enableAllEntries: worldbookOptions.enableAllEntries
-          })
-
-          result.worldbook = {
-            imported: true,
-            entriesCount: worldbookResult.entries.length
-          }
-          result.success = true
-
-          logger.info('PNG作为纯世界书导入成功', {
-            entriesCount: worldbookResult.entries.length
-          })
-        } else {
-          throw new Error('PNG文件不包含角色卡或世界书数据')
-        }
+        return result
       }
 
-      return result
+      const worldbookImporter = createWorldbookImporter()
+      const worldbookResult = await worldbookImporter.importWorldbook(file, worldbookOptions)
+      const worldbookEntries = this.extractWorldbookEntries(worldbookResult)
+
+      if (worldbookEntries.length > 0) {
+        const worldbookStore = useWorldbookStore()
+        if (!worldbookStore.worldbook) {
+          await worldbookStore.loadWorldbook()
+        }
+
+        await worldbookStore.importEntries(worldbookEntries as any, {
+          merge: worldbookOptions.mergeDuplicates,
+          conflictResolution: worldbookOptions.conflictResolution as any,
+          deduplicate: worldbookOptions.deduplicate,
+          enableAllEntries: worldbookOptions.enableAllEntries,
+        })
+
+        result.worldbook = {
+          imported: true,
+          entriesCount: worldbookEntries.length,
+        }
+        result.success = true
+        return result
+      }
+
+      throw new Error('PNG文件不包含角色卡或世界书数据')
     } catch (error) {
       const errorMsg = error instanceof Error ? error.message : String(error)
       logger.error('PNG统一导入失败', error)
@@ -314,34 +476,29 @@ export class UnifiedImporter {
       importPrompts = true,
       importAISettings = true,
       characterCardOptions = {},
-      worldbookOptions = {}
+      worldbookOptions = {},
     } = options
 
     const result: UnifiedImportResult = {
-      success: false
+      success: false,
     }
 
     try {
-      // 读取JSON内容
       const text = await file.text()
       const data = JSON.parse(text)
-
-      // 检测JSON格式
       const isCharacterCard = this.isCharacterCardFormat(data)
 
       if (isCharacterCard && importCharacterCard) {
-        // 作为角色卡导入
         const characterCardImporter = createCharacterCardImporter()
         const characterCardResult = await characterCardImporter.importCharacterCard(text, {
-          importWorldbook: importWorldbook,
-          importRegexScripts: importRegexScripts,
-          importPrompts: importPrompts,
-          importAISettings: importAISettings,
-          ...characterCardOptions
+          importWorldbook,
+          importRegexScripts,
+          importPrompts,
+          importAISettings,
+          ...characterCardOptions,
         })
 
         if (characterCardResult.success) {
-          // 保存角色卡数据
           if (characterCardResult.character) {
             const characterCardStore = useCharacterCardStore()
             characterCardStore.character = {
@@ -350,7 +507,7 @@ export class UnifiedImporter {
               personality: characterCardResult.character.personality,
               scenario: characterCardResult.character.scenario,
               first_mes: characterCardResult.character.first_mes,
-              mes_example: characterCardResult.character.mes_example
+              mes_example: characterCardResult.character.mes_example,
             }
 
             result.characterCard = {
@@ -359,27 +516,29 @@ export class UnifiedImporter {
               hasWorldbook: !!characterCardResult.worldbook,
               hasRegexScripts: !!characterCardResult.regexScripts,
               hasPrompts: !!characterCardResult.prompts,
-              result: characterCardResult
+              result: characterCardResult,
             }
           }
 
-          // 保存世界书数据
           if (importWorldbook && characterCardResult.worldbook?.entries) {
             const worldbookStore = useWorldbookStore()
-            await worldbookStore.importEntries(characterCardResult.worldbook.entries, {
+            if (!worldbookStore.worldbook) {
+              await worldbookStore.loadWorldbook()
+            }
+
+            await worldbookStore.importEntries(characterCardResult.worldbook.entries as any, {
               merge: worldbookOptions.mergeDuplicates,
-              conflictResolution: worldbookOptions.conflictResolution,
+              conflictResolution: worldbookOptions.conflictResolution as any,
               deduplicate: worldbookOptions.deduplicate,
-              enableAllEntries: worldbookOptions.enableAllEntries
+              enableAllEntries: worldbookOptions.enableAllEntries,
             })
 
             result.worldbook = {
               imported: true,
-              entriesCount: characterCardResult.worldbook.entries.length
+              entriesCount: characterCardResult.worldbook.entries.length,
             }
           }
 
-          // 保存正则脚本
           if (importRegexScripts && characterCardResult.regexScripts?.scripts) {
             const regexManager = createRegexScriptManager()
             for (const script of characterCardResult.regexScripts.scripts) {
@@ -388,68 +547,63 @@ export class UnifiedImporter {
 
             result.regexScripts = {
               imported: true,
-              count: characterCardResult.regexScripts.scripts.length
+              count: characterCardResult.regexScripts.scripts.length,
             }
           }
 
-          // 保存提示词
           if (importPrompts && characterCardResult.prompts?.prompts) {
             const characterCardStore = useCharacterCardStore()
             characterCardStore.prompts = characterCardResult.prompts.prompts
 
             result.prompts = {
               imported: true,
-              count: characterCardResult.prompts.prompts.length
+              count: characterCardResult.prompts.prompts.length,
             }
           }
 
-          // 保存AI设置
           if (importAISettings && characterCardResult.aiSettings) {
             const characterCardStore = useCharacterCardStore()
             characterCardStore.updateAISettings(characterCardResult.aiSettings)
 
             result.aiSettings = {
-              imported: true
+              imported: true,
             }
           }
 
           result.success = true
-
-          logger.info('JSON角色卡统一导入成功', {
-            hasCharacterCard: !!result.characterCard?.imported,
-            hasWorldbook: !!result.worldbook?.imported
-          })
-        } else {
-          result.errors = characterCardResult.errors
+          return result
         }
-      } else {
-        // 作为世界书导入
-        const worldbookImporter = createWorldbookImporter()
-        const worldbookResult = await worldbookImporter.importWorldbook(file, worldbookOptions)
 
-        if (worldbookResult.success && worldbookResult.entries) {
-          const worldbookStore = useWorldbookStore()
-          await worldbookStore.importEntries(worldbookResult.entries, {
-            merge: worldbookOptions.mergeDuplicates,
-            conflictResolution: worldbookOptions.conflictResolution,
-            deduplicate: worldbookOptions.deduplicate,
-            enableAllEntries: worldbookOptions.enableAllEntries
-          })
-
-          result.worldbook = {
-            imported: true,
-            entriesCount: worldbookResult.entries.length
-          }
-          result.success = true
-
-          logger.info('JSON世界书统一导入成功', {
-            entriesCount: worldbookResult.entries.length
-          })
-        } else {
-          result.errors = worldbookResult.errors
-        }
+        result.errors = characterCardResult.errors
+        return result
       }
 
+      const worldbookImporter = createWorldbookImporter()
+      const worldbookResult = await worldbookImporter.importWorldbook(file, worldbookOptions)
+      const worldbookEntries = this.extractWorldbookEntries(worldbookResult)
+
+      if (worldbookEntries.length > 0) {
+        const worldbookStore = useWorldbookStore()
+        if (!worldbookStore.worldbook) {
+          await worldbookStore.loadWorldbook()
+        }
+
+        await worldbookStore.importEntries(worldbookEntries as any, {
+          merge: worldbookOptions.mergeDuplicates,
+          conflictResolution: worldbookOptions.conflictResolution as any,
+          deduplicate: worldbookOptions.deduplicate,
+          enableAllEntries: worldbookOptions.enableAllEntries,
+        })
+
+        result.worldbook = {
+          imported: true,
+          entriesCount: worldbookEntries.length,
+        }
+        result.success = true
+        return result
+      }
+
+      result.errors = this.extractWorldbookErrors(worldbookResult) || ['世界书导入失败']
       return result
     } catch (error) {
       const errorMsg = error instanceof Error ? error.message : String(error)
@@ -460,15 +614,60 @@ export class UnifiedImporter {
   }
 
   /**
+   * 从 worldbook 导入结果提取条目
+   */
+  private extractWorldbookEntries(worldbookResult: unknown): unknown[] {
+    if (!worldbookResult || typeof worldbookResult !== 'object') {
+      return []
+    }
+
+    const directEntries = (worldbookResult as { entries?: unknown[] }).entries
+    if (Array.isArray(directEntries)) {
+      return directEntries
+    }
+
+    const nested = (worldbookResult as { worldbook?: { entries?: unknown[] } }).worldbook
+    if (nested && Array.isArray(nested.entries)) {
+      return nested.entries
+    }
+
+    return []
+  }
+
+  /**
+   * 从 worldbook 导入结果提取错误消息
+   */
+  private extractWorldbookErrors(worldbookResult: unknown): string[] | undefined {
+    if (!worldbookResult || typeof worldbookResult !== 'object') {
+      return undefined
+    }
+
+    const maybeErrors = (worldbookResult as { errors?: unknown }).errors
+    if (!Array.isArray(maybeErrors)) {
+      return undefined
+    }
+
+    const mapped = maybeErrors
+      .map(error => {
+        if (typeof error === 'string') return error
+        if (error && typeof error === 'object' && 'message' in error && typeof (error as any).message === 'string') {
+          return (error as any).message as string
+        }
+        return ''
+      })
+      .filter(Boolean)
+
+    return mapped.length > 0 ? mapped : undefined
+  }
+
+  /**
    * 检测是否为角色卡格式
    */
   private isCharacterCardFormat(data: any): boolean {
-    // V2/V3格式
     if (data.spec === 'chara_card_v2' || data.spec === 'chara_card_v3') {
       return true
     }
 
-    // SillyTavern扩展格式
     if (
       data.temperature !== undefined ||
       data.prompts ||
@@ -478,9 +677,7 @@ export class UnifiedImporter {
       return true
     }
 
-    // V1格式
     if (data.name || data.char_name) {
-      // 检查是否有角色卡特有字段
       if (
         data.first_mes ||
         data.mes_example ||
@@ -492,7 +689,6 @@ export class UnifiedImporter {
       }
     }
 
-    // 如果只有entries字段，则认为是世界书
     if (data.entries && Array.isArray(data.entries)) {
       return false
     }

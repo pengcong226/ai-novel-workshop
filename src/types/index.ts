@@ -1,8 +1,14 @@
 // 类型定义
 
+import type { KnowledgeBase } from './knowledge-base'
+import type { Preset } from './preset'
+import type { TraceImportSession } from './conversation-trace'
+import type { Worldbook } from './worldbook'
+
 // 导入世界书相关类型
 export type { Worldbook, WorldbookEntry, WorldbookGroup, WorldbookCondition } from './worldbook'
 export type { Preset, PresetExample } from './preset'
+export type { TraceImportSession } from './conversation-trace'
 
 // 项目状态
 export type ProjectStatus = 'draft' | 'writing' | 'completed'
@@ -35,6 +41,12 @@ export interface Project {
 
   // 世界书系统（酒馆生态兼容）
   worldbook?: Worldbook
+
+  // 知识库
+  knowledgeBase?: KnowledgeBase
+
+  // 会话轨迹导入历史
+  traceImportHistory?: TraceImportSession[]
 
   // 预设系统
   presets?: Preset[]
@@ -656,6 +668,12 @@ export interface VectorServiceConfig {
   apiKey?: string
   /** 基础URL */
   baseUrl?: string
+  /** 项目ID */
+  projectId?: string
+  /** 外部导入索引最大条数 */
+  maxExternalArtifactsToIndex?: number
+  /** 外部导入单条内容最大长度 */
+  maxExternalArtifactContentLength?: number
 }
 
 // ============================================================================
@@ -803,3 +821,9 @@ export * from './suggestions'
 // ============================================================================
 
 export * from './worldbook'
+
+// ============================================================================
+// 会话轨迹导入类型
+// ============================================================================
+
+export * from './conversation-trace'

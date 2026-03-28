@@ -291,6 +291,7 @@
 <script setup lang="ts">
 import { ref, computed, watch } from 'vue'
 import { marked } from 'marked'
+import DOMPurify from 'dompurify'
 import { ElMessage } from 'element-plus'
 import { useWorldbookStore } from '@/stores/worldbook'
 import { useProjectStore } from '@/stores/project'
@@ -399,7 +400,8 @@ const tokenCount = computed(() => {
 })
 
 const renderedContent = computed(() => {
-  return marked(formData.value.content)
+  const html = marked(formData.value.content)
+  return DOMPurify.sanitize(typeof html === 'string' ? html : '')
 })
 
 // 方法

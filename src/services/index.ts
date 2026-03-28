@@ -77,8 +77,6 @@ export type {
   InjectionContext,
   InjectionLogEntry,
   InjectionResult,
-  ConditionEvaluator,
-  TokenCounter,
 } from './worldbook-injector';
 
 // 世界书导出器
@@ -95,3 +93,12 @@ export type {
   PngExportOptions,
   MarkdownExportOptions,
 } from './worldbook-exporter';
+
+// 会话轨迹导入服务
+export {
+  parseConversationTraceFile,
+  parseConversationTraceText,
+} from './conversation-trace-parser';
+export { extractTraceArtifacts } from './conversation-trace-extractor';
+export { buildTraceReviewQueue } from './conversation-trace-conflict';
+export { applyTraceReviewItems } from './conversation-trace-apply';

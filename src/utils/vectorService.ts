@@ -9,6 +9,7 @@
  */
 
 import type { Project, Chapter, VectorServiceConfig, VectorSearchResult, VectorDocumentMetadata } from '@/types'
+import type { TraceExtractedArtifact } from '@/types/conversation-trace'
 import { createEmbeddingService, type EmbeddingService } from './embeddings'
 import { createVectorStore, type VectorDocument, VectorStore } from './vectorStore'
 
@@ -219,6 +220,62 @@ export class VectorService {
 
     console.log(`[VectorService] 检索到 ${results.length} 个相关文档`)
     return results
+  }
+
+  /**
+   * 索引外部导入产物（会话轨迹等）
+   */
+  async indexExternalArtifacts(
+    artifacts: TraceExtractedArtifact[]
+  ): Promise<number> {
+    if (!this.initialized) {
+      await this.initialize()
+    }
+
+    if (artifacts.length === 0) {
+      return 0
+    }
+
+    const docs: DocumentContent[] = artifacts.map(artifact => {
+      const payload = artifact.payload as Record<string, unknown>
+      const content = typeof payload.content === 'string' && payload.content.trim()
+        ? payload.content
+        : JSON.stringify(payload)
+
+      const typeMap: Record<TraceExtractedArtifact['type'], VectorDocumentMetadata['type']> = {
+        worldbook: 'rule',
+        knowledge: 'setting',
+        character_profile: 'character',
+        world_fact: 'setting',
+        timeline_event: 'event',
+      }
+
+      return {
+        id: `trace-${artifact.id}`,
+        content,
+        metadata: {
+          type: typeMap[artifact.type],
+          projectId: this.config.projectId!,
+          timestamp: Date.now(),
+          source: 'conversation-trace',
+          artifactType: artifact.type,
+          confidence: artifact.confidence,
+          title: artifact.title,
+        },
+      }
+    })
+
+    const embeddings = await this.embeddingService.embedBatch(docs.map(d => d.content))
+
+    const vectorDocs: VectorDocument[] = docs.map((doc, index) => ({
+      id: doc.id,
+      content: doc.content,
+      metadata: doc.metadata,
+      embedding: embeddings[index],
+    }))
+
+    await this.vectorStore.addDocuments(vectorDocs)
+    return vectorDocs.length
   }
 
   /**
@@ -576,6 +633,18 @@ export async function getVectorService(
   vectorServiceCache.set(projectId, service)
 
   return service
+}
+
+/**
+ * 索引外部导入产物
+ */
+export async function indexExternalArtifacts(
+  projectId: string,
+  artifacts: TraceExtractedArtifact[],
+  config?: Partial<VectorServiceConfig>
+): Promise<number> {
+  const service = await getVectorService(projectId, config)
+  return service.indexExternalArtifacts(artifacts)
 }
 
 /**
