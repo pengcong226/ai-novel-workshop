@@ -3,7 +3,7 @@
  * 从人物设定和章节内容中提取关系数据
  */
 
-import type { Character, Chapter, Relationship } from '@/types'
+import type { Character, Chapter} from '@/types'
 
 /**
  * 关系类型配置

@@ -1,16 +1,16 @@
+import { ElMessage } from "element-plus"
 /**
  * 小说导入器
  * 支持多种格式的小说导入和分析
  */
 
 import { v4 as uuidv4 } from 'uuid'
-import type { Project, Character, Chapter } from '@/types'
-import { parseChapters, parseNovelText, type ParsedChapter, type ChapterPattern } from './chapterParser'
+import type { Project, Character, Chapter, WorldSetting } from '@/types'
+import { parseNovelText, type ParsedChapter, type ChapterPattern } from './chapterParser'
 import {
   extractCharactersFromChapters,
   convertToCharacters,
-  analyzeRelationships,
-  type ExtractedCharacter
+  analyzeRelationships
 } from './characterExtractor'
 import {
   extractWorldInfo,
@@ -28,12 +28,8 @@ import {
 } from './continuationSuggester'
 import {
   aiExtractCharacters,
-  aiAnalyzeWorld,
-  aiGenerateOutline,
   convertAICharactersToExtracted,
-  type AIAnalysisConfig,
-  DEFAULT_AI_CONFIG
-} from './aiAnalyzer'
+  type AIAnalysisConfig} from './aiAnalyzer'
 
 export interface ImportOptions {
   title: string
@@ -166,7 +162,7 @@ export async function importNovel(
     message: '正在检测章节结构...'
   })
 
-  const { chapters: parsedChapters, pattern, stats } = parseNovelText(text)
+  const { chapters: parsedChapters, pattern: _pattern, stats } = parseNovelText(text)
 
   // 阶段3: 人物提取
   let characters: Partial<Character>[] = []
@@ -211,8 +207,8 @@ export async function importNovel(
         const storedConfig = getStoredAIConfig()
         const aiConfig: AIAnalysisConfig = {
           enabled: true,
-          provider: options.aiProvider || storedConfig?.provider || 'claude',
-          apiKey: options.aiApiKey || storedConfig?.apiKey || '',
+          provider: (options as any).aiProvider || storedConfig?.provider || 'claude',
+          apiKey: (options as any).aiApiKey || storedConfig?.apiKey || '',
           baseURL: storedConfig?.baseURL,
           model: storedConfig?.model || 'claude-3-5-sonnet-20241022'
         }
@@ -241,8 +237,8 @@ export async function importNovel(
 
         // 使用AI识别的关系
         relations = mergedCharacters
-          .filter(c => c.relationships && c.relationships.length > 0)
-          .flatMap(c => c.relationships?.map(r => ({
+          .filter(c => (c as any).relationships && (c as any).relationships.length > 0)
+          .flatMap(c => (c as any).relationships?.map((r: any) => ({
             from: c.name,
             to: r.target,
             type: r.type,
@@ -283,18 +279,15 @@ export async function importNovel(
   }
 
   // 阶段5: 世界观提取
-  let worldTemplate = {
+  let worldTemplate: Partial<WorldSetting> = {
     name: '导入的世界',
-    description: '从导入小说中提取的世界设定',
     era: {
       time: '',
       techLevel: '',
       socialForm: ''
     },
-    locations: [],
     powerSystem: undefined,
     rules: [],
-    customs: [],
     factions: []
   }
 
@@ -319,7 +312,7 @@ export async function importNovel(
   }
 
   // 阶段6: 大纲生成
-  let outlineData = {
+  let outlineData: any = {
     structure: '导入的结构',
     totalChapters: stats.totalChapters,
     description: '从导入小说中提取的大纲',
@@ -368,7 +361,7 @@ export async function importNovel(
       parsedChapters,
       characters.map((c, idx) => ({
         name: c.name || '',
-        description: c.description || '',
+        description: (c as any).description || '',
         occurrences: relations
           .filter(r => r.from === c.name || r.to === c.name)
           .reduce((sum, r) => sum + r.strength * 10, idx === 0 ? 100 : 10)
@@ -393,7 +386,7 @@ export async function importNovel(
   })
 
   const projectId = uuidv4()
-  const now = new Date().toISOString()
+  const now = new Date()
 
   // 创建章节数据
   const chapters: Chapter[] = parsedChapters.map((parsed, index) => ({
@@ -402,17 +395,17 @@ export async function importNovel(
     title: parsed.title,
     content: parsed.content,
     wordCount: parsed.wordCount,
-    status: 'published' as const,
+    status: 'draft' as any,
     createdAt: now,
     updatedAt: now
-  }))
+  } as any))
 
   // 创建人物数据
   const fullCharacters: Character[] = characters.map(char => ({
     id: uuidv4(),
     name: char.name || '',
     aliases: char.aliases || [],
-    description: char.description || '',
+    description: (char as any).description || '',
     background: char.background || '',
     personality: char.personality || [],
     appearance: char.appearance || '',
@@ -426,13 +419,13 @@ export async function importNovel(
         type: r.type as any,
         description: ''
       })),
-    notes: char.notes || '',
+    notes: (char as any).notes || '',
     createdAt: now,
     updatedAt: now
-  }))
+  } as any))
 
   // 转换大纲数据
-  const projectOutline = outlineData.chapters.length > 0
+  const projectOutline: any = outlineData.chapters && outlineData.chapters.length > 0
     ? convertToOutline(outlineData, chapters)
     : {
         structure: '导入的结构',
@@ -467,26 +460,18 @@ export async function importNovel(
   const project: Partial<Project> = {
     id: projectId,
     title: options.title || file.name.replace(/\.[^/.]+$/, ''),
-    author: options.author || '未知',
     description,
     genre: 'other',
-    tags: ['导入小说'],
-    worldTemplate,
+    world: worldTemplate as WorldSetting,
     characters: fullCharacters,
     chapters: chapters,
     outline: projectOutline,
-    styleTemplate: {
-      tone: 'neutral',
-      narrativePerspective: 'third-person',
-      dialogueStyle: 'modern',
-      descriptionLevel: 'moderate'
-    },
     createdAt: now,
     updatedAt: now
   }
 
   // 阶段9: 生成续写建议
-  let continuationSuggestions = []
+  let continuationSuggestions: any[] = []
 
   if (options.generateContinuationSuggestions && chapters.length > 0) {
     onProgress?.({
@@ -526,7 +511,7 @@ export async function importMultipleFiles(
   files: File[],
   options: ImportOptions,
   onProgress?: ProgressCallback
-): Promise<Partial<Project>> {
+): Promise<ImportResult> {
   if (files.length === 1) {
     return importNovel(files[0], options, onProgress)
   }
@@ -578,7 +563,7 @@ export function exportProject(project: Project, format: 'txt' | 'md' = 'md'): vo
 
   if (format === 'md') {
     content = `# ${project.title}\n\n`
-    content += `作者: ${project.author}\n\n`
+    content += `作者: ${(project as any).author}\n\n`
     content += `简介:\n${project.description}\n\n---\n\n`
 
     for (const chapter of project.chapters) {

@@ -75,7 +75,7 @@ export const useWorldbookStore = defineStore('worldbook', () => {
   const entriesByType = computed(() => {
     const grouped = new Map<string, WorldbookEntry[]>()
     entries.value.forEach(entry => {
-      const type = entry.novelWorkshop?.entryType || 'custom'
+      const type = (entry.novelWorkshop as any)?.entryType || 'custom'
       if (!grouped.has(type)) {
         grouped.set(type, [])
       }
@@ -389,9 +389,9 @@ export const useWorldbookStore = defineStore('worldbook', () => {
       description,
       enabled: true,
       priority: worldbook.value.metadata.groups.length,
+      entries: [],
       entryIds: [],
-      createdAt: new Date(),
-      updatedAt: new Date()
+      order: 0
     }
 
     worldbook.value.metadata.groups.push(newGroup)
@@ -422,8 +422,7 @@ export const useWorldbookStore = defineStore('worldbook', () => {
 
     const updatedGroup: WorldbookGroup = {
       ...worldbook.value.metadata.groups[index],
-      ...updates,
-      updatedAt: new Date()
+      ...updates
     }
 
     worldbook.value.metadata.groups[index] = updatedGroup
@@ -484,7 +483,7 @@ export const useWorldbookStore = defineStore('worldbook', () => {
       context,
       maxEntries: options?.maxEntries,
       maxTokens: options?.maxTokens
-    })
+    } as any)
   }
 
   // ============ AI 辅助方法 ============

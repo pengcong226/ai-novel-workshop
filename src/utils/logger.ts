@@ -14,7 +14,7 @@ export interface LogEntry {
   level: Exclude<LogLevel, 'silent'>
   namespace: string
   message: string
-  args: unknown[]
+  args: any[]
 }
 
 type RuntimeLogLevel = Exclude<LogLevel, 'silent'>
@@ -132,10 +132,10 @@ class LoggerManager {
 
   createLogger(namespace: string) {
     return {
-      debug: (message: string, ...args: unknown[]) => this.log('debug', namespace, message, ...args),
-      info: (message: string, ...args: unknown[]) => this.log('info', namespace, message, ...args),
-      warn: (message: string, ...args: unknown[]) => this.log('warn', namespace, message, ...args),
-      error: (message: string, ...args: unknown[]) => this.log('error', namespace, message, ...args)
+      debug: (message: string, ...args: any[]) => this.log('debug', namespace, message, ...args),
+      info: (message: string, ...args: any[]) => this.log('info', namespace, message, ...args),
+      warn: (message: string, ...args: any[]) => this.log('warn', namespace, message, ...args),
+      error: (message: string, ...args: any[]) => this.log('error', namespace, message, ...args)
     }
   }
 
@@ -155,7 +155,7 @@ class LoggerManager {
     }
   }
 
-  private log(level: RuntimeLogLevel, namespace: string, message: string, ...args: unknown[]): void {
+  private log(level: RuntimeLogLevel, namespace: string, message: string, ...args: any[]): void {
     if (!this.canLog(level, namespace)) {
       return
     }
@@ -172,16 +172,19 @@ class LoggerManager {
 
     this.pushToBuffer(entry)
 
-    const prefix = `[${entry.time}] [${entry.level.toUpperCase()}] [${entry.namespace}]`
+    // Only output to console in development environment
+    if (import.meta.env.DEV) {
+      const prefix = `[${entry.time}] [${entry.level.toUpperCase()}] [${entry.namespace}]`
 
-    if (level === 'debug') {
-      console.debug(prefix, message, ...args)
-    } else if (level === 'info') {
-      console.info(prefix, message, ...args)
-    } else if (level === 'warn') {
-      console.warn(prefix, message, ...args)
-    } else {
-      console.error(prefix, message, ...args)
+      if (level === 'debug') {
+        console.debug(prefix, message, ...args)
+      } else if (level === 'info') {
+        console.info(prefix, message, ...args)
+      } else if (level === 'warn') {
+        console.warn(prefix, message, ...args)
+      } else {
+        console.error(prefix, message, ...args)
+      }
     }
   }
 }
@@ -193,7 +196,7 @@ function exposeLoggerDebugTools(): void {
     return
   }
 
-  ;(window as any).__APP_LOGGER__ = {
+  (window as any).__APP_LOGGER__ = {
     getConfig: () => loggerManager.getConfig(),
     setEnabled: (enabled: boolean) => loggerManager.setEnabled(enabled),
     setLevel: (level: LogLevel) => loggerManager.setLevel(level),

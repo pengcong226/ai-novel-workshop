@@ -467,12 +467,12 @@ PromptEngineer
 | 层级 | 技术选型 | 选择理由 |
 |------|---------|---------|
 | 框架 | **Tauri 2.0** | 轻量级桌面应用，Rust后端性能优秀 |
-| UI框架 | **React 18 + TypeScript** | 类型安全，生态丰富 |
-| 状态管理 | **Zustand** | 轻量、简单、支持持久化 |
-| UI组件 | **Shadcn/ui + Tailwind CSS** | 现代化、可定制、美观 |
+| UI框架 | **Vue 3 + TypeScript** | 类型安全，响应式开发，生态丰富 |
+| 状态管理 | **Pinia** | Vue 3官方推荐，轻量、支持持久化 |
+| UI组件 | **Element Plus** | Vue 3原生支持，组件丰富，样式现代 |
 | 编辑器 | **TipTap** | 强大的富文本编辑器 |
-| 图表 | **React Flow** | 关系图谱、大纲可视化 |
-| 数据可视化 | **Recharts** | 进度、统计图表 |
+| 图表 | **vue-konva** | 关系图谱、世界地图可视化 |
+| 数据可视化 | **ECharts** | 进度、统计图表 |
 
 ### 5.2 后端技术栈
 
@@ -480,7 +480,8 @@ PromptEngineer
 |------|---------|---------|
 | 运行时 | **Rust (Tauri)** | 高性能、内存安全 |
 | 数据库 | **SQLite + SQLite FTS5** | 本地存储、全文搜索 |
-| 向量数据库 | **LanceDB** | 嵌入式向量数据库、Rust原生支持 |
+| 向量索引 | **instant-distance (HNSW)** | 高性能向量检索、Rust原生HNSW实现 |
+| 向量存储 | **SQLite BLOB** | 向量数据持久化、与项目数据共存 |
 | 缓存 | **moka** | Rust高性能内存缓存 |
 | 文件处理 | **tokio + async-std** | 异步文件操作 |
 

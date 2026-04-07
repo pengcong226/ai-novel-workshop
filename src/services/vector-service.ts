@@ -1,3 +1,4 @@
+import type { Project, Chapter } from '@/types';
 import { invoke } from '@tauri-apps/api/core';
 import { getLogger } from '@/utils/logger';
 
@@ -35,7 +36,7 @@ export interface DocumentMetadata {
   projectId: string;
   chapterNumber?: number;
   timestamp: number;
-  [key: string]: unknown;
+  [key: string]: any;
 }
 
 export interface SearchOptions {
@@ -391,13 +392,22 @@ export class VectorService {
       minScore,
     });
 
-    return results.map(r => ({
+    const searchResults = results.map(r => ({
       id: r.id,
       content: r.content,
       metadata: JSON.parse(r.metadata),
       score: r.score,
       source: r.source as 'vector',
     }));
+
+    // P1-⑤: OP-RAG 保序检索 — 按原文章节顺序时间线重排
+    searchResults.sort((a, b) => {
+      const aChapter = a.metadata?.chapterIndex ?? a.metadata?.chapterNumber ?? 0;
+      const bChapter = b.metadata?.chapterIndex ?? b.metadata?.chapterNumber ?? 0;
+      return aChapter - bChapter;
+    });
+
+    return searchResults;
   }
 
   async keywordSearch(
@@ -416,12 +426,21 @@ export class VectorService {
     return this.vectorSearch(collection, query, options);
   }
 
-  async search(
-    collection: string,
-    query: string,
-    options: SearchOptions = {}
-  ): Promise<SearchResult[]> {
-    return this.vectorSearch(collection, query, options);
+  async search(arg1: any, arg2?: any, arg3?: any): Promise<any[]> {
+    if (typeof arg2 === 'number' || (arg2 === undefined && arg3 === undefined)) {
+      // Signature: search(query, topK, options)
+      const query = arg1 as string;
+      const topK = arg2 as number | undefined ?? 10;
+      const options = arg3 as any;
+      await this.ensureInitialized();
+      return this.vectorSearch("chapter_content", query, { topK, minScore: options?.minScore }) as any;
+    } else {
+      // Signature: search(collection, query, options)
+      const collection = arg1 as string;
+      const query = arg2 as string;
+      const options = arg3 as SearchOptions ?? {};
+      return this.vectorSearch(collection, query, options);
+    }
   }
 
   async rebuildIndex(collection: string): Promise<void> {
@@ -451,6 +470,468 @@ export class VectorService {
     for (const [name] of this.collections) {
       await this.clearCollection(name);
     }
+  }
+
+async indexProject(project: Project): Promise<void> {
+    if (!this.initialized) {
+      await this.initialize()
+    }
+
+    console.log('[VectorService] 开始索引项目:', project.id)
+
+    const documents: any[] = []
+
+    // 1. 索引世界观设定
+    if (project.world) {
+      documents.push(...this.extractWorldDocuments(project))
+    }
+
+    // 2. 索引人物
+    if (project.characters && project.characters.length > 0) {
+      documents.push(...this.extractCharacterDocuments(project))
+    }
+
+    // 3. 索引大纲
+    if (project.outline) {
+      documents.push(...this.extractOutlineDocuments(project))
+    }
+
+    // 4. 索引章节
+    if (project.chapters && project.chapters.length > 0) {
+      documents.push(...this.extractChapterDocuments(project))
+    }
+
+    console.log(`[VectorService] 提取了 ${documents.length} 个文档`)
+
+    // 批量生成嵌入
+    const embeddings = await this.embeddingModel.embedBatch(
+      documents.map(d => d.content)
+    )
+
+    // 创建向量文档
+    const vectorDocs: VectorDocument[] = documents.map((doc, i) => ({
+      id: doc.id,
+      content: doc.content,
+      metadata: doc.metadata,
+      embedding: embeddings[i]
+    }))
+
+    // 批量添加到向量存储
+    await this.addDocuments("chapter_content", vectorDocs)
+
+    console.log(`[VectorService] 索引完成，共 ${vectorDocs.length} 个文档`)
+  }
+
+async indexChapter(chapter: Chapter, projectId: string): Promise<void> {
+    if (!this.initialized) {
+      await this.initialize()
+    }
+
+    const doc = this.extractSingleChapterDocument(chapter, projectId)
+    const embedding = await this.embeddingModel.embed(doc.content)
+
+    await this.addDocument("chapter_content", {
+      id: doc.id,
+      content: doc.content,
+      metadata: doc.metadata,
+      embedding
+    })
+
+    console.log(`[VectorService] 已索引章节: ${chapter.number} - ${chapter.title}`)
+  }
+
+async deleteChapter(chapterId: string): Promise<void> {
+    if (!this.initialized) {
+      await this.initialize()
+    }
+
+    await this.deleteDocument("chapter_content", chapterId)
+    console.log(`[VectorService] 已删除章节索引: ${chapterId}`)
+  }
+
+async retrieveRelevantContext(
+    currentChapter: Chapter,
+    project: Project,
+    options?: {
+      topK?: number
+      minScore?: number
+      includeTypes?: any['type'][]
+      excludeCurrentChapter?: boolean
+    }
+  ): Promise<SearchResult[]> {
+    if (!this.initialized) {
+      await this.initialize()
+    }
+
+    // 构建查询文本
+    const queryText = this.buildChapterQuery(currentChapter, project)
+
+    // 生成查询向量
+    const queryEmbedding = await this.embeddingModel.embed(queryText)
+
+    // 构建过滤器
+    const filter = (metadata: any): boolean => {
+      // 排除当前章节
+      if (options?.excludeCurrentChapter && metadata.chapterNumber === currentChapter.number) {
+        return false
+      }
+
+      // 过滤文档类型
+      if (options?.includeTypes && !options.includeTypes.includes(metadata.type)) {
+        return false
+      }
+
+      return true
+    }
+
+    // 执行搜索
+    const results = await (this as any).vectorStore.search(
+      queryEmbedding,
+      options?.topK || 10,
+      {
+        minScore: options?.minScore || 0.5,
+        filter
+      }
+    )
+
+    console.log(`[VectorService] 检索到 ${results.length} 个相关文档`)
+    return results
+  }
+
+async indexExternalArtifacts(
+    artifacts: any[]
+  ): Promise<number> {
+    if (!this.initialized) {
+      await this.initialize()
+    }
+
+    if (artifacts.length === 0) {
+      return 0
+    }
+
+    const docs: any[] = artifacts.map(artifact => {
+      const payload = artifact.payload as Record<string, unknown>
+      const content = typeof payload.content === 'string' && payload.content.trim()
+        ? payload.content
+        : JSON.stringify(payload)
+
+      const typeMap: Record<any['type'], any['type']> = {
+        worldbook: 'rule',
+        knowledge: 'setting',
+        character_profile: 'character',
+        world_fact: 'setting',
+        timeline_event: 'event',
+      }
+
+      return {
+        id: `trace-${artifact.id}`,
+        content,
+        metadata: {
+          type: typeMap[artifact.type],
+          projectId: (this as any).config.projectId!,
+          timestamp: Date.now(),
+          source: 'conversation-trace',
+          artifactType: artifact.type,
+          confidence: artifact.confidence,
+          title: artifact.title,
+        },
+      }
+    })
+
+    const embeddings = await this.embeddingModel.embedBatch(docs.map(d => d.content))
+
+    const vectorDocs: VectorDocument[] = docs.map((doc, index) => ({
+      id: doc.id,
+      content: doc.content,
+      metadata: doc.metadata,
+      embedding: embeddings[index],
+    }))
+
+    await this.addDocuments("chapter_content", vectorDocs)
+    return vectorDocs.length
+  }
+
+async getDocumentCount(): Promise<number> {
+    return await Promise.resolve(0) /* TODO */
+  }
+
+async clear(): Promise<void> {
+    await this.clearAll()
+    console.log('[VectorService] 已清空所有索引')
+  }
+
+private extractWorldDocuments(project: Project): any[] {
+    const documents: any[] = []
+    const world = project.world
+
+    // 世界观概述
+    if (world.name || world.era) {
+      documents.push({
+        id: `world-overview-${project.id}`,
+        content: `世界观：${world.name}\n时代：${world.era.time}\n科技水平：${world.era.techLevel}\n社会形态：${world.era.socialForm}`,
+        metadata: {
+          type: 'setting',
+          projectId: project.id,
+          timestamp: Date.now()
+        }
+      })
+    }
+
+    // 力量体系
+    if (world.powerSystem) {
+      const levels = world.powerSystem.levels?.map(l => `${l.name}: ${l.description}`).join('\n') || ''
+      documents.push({
+        id: `world-power-${project.id}`,
+        content: `力量体系：${world.powerSystem.name}\n等级划分：\n${levels}`,
+        metadata: {
+          type: 'setting',
+          projectId: project.id,
+          timestamp: Date.now()
+        }
+      })
+    }
+
+    // 势力
+    if (world.factions && world.factions.length > 0) {
+      world.factions.forEach(faction => {
+        documents.push({
+          id: `faction-${faction.id}`,
+          content: `势力：${faction.name}\n类型：${faction.type}\n描述：${faction.description}`,
+          metadata: {
+            type: 'setting',
+            projectId: project.id,
+            timestamp: Date.now()
+          }
+        })
+      })
+    }
+
+    // 地点
+    if (world.geography?.locations && world.geography.locations.length > 0) {
+      world.geography.locations.forEach(location => {
+        documents.push({
+          id: `location-${location.id}`,
+          content: `地点：${location.name}\n重要程度：${location.importance}\n描述：${location.description}`,
+          metadata: {
+            type: 'setting',
+            projectId: project.id,
+            timestamp: Date.now()
+          }
+        })
+      })
+    }
+
+    // 世界规则
+    if (world.rules && world.rules.length > 0) {
+      world.rules.forEach(rule => {
+        documents.push({
+          id: `rule-${rule.id}`,
+          content: `世界规则：${rule.name}\n描述：${rule.description}`,
+          metadata: {
+            type: 'rule',
+            projectId: project.id,
+            timestamp: Date.now()
+          }
+        })
+      })
+    }
+
+    return documents
+  }
+
+private extractCharacterDocuments(project: Project): any[] {
+    const documents: any[] = []
+
+    project.characters.forEach(char => {
+      const parts: string[] = []
+
+      parts.push(`人物：${char.name}`)
+      if (char.aliases && char.aliases.length > 0) {
+        parts.push(`别名：${char.aliases.join('、')}`)
+      }
+      parts.push(`性别：${char.gender === 'male' ? '男' : char.gender === 'female' ? '女' : '其他'}`)
+      parts.push(`年龄：${char.age}岁`)
+
+      if (char.appearance) {
+        parts.push(`外貌：${char.appearance}`)
+      }
+
+      if (char.personality && char.personality.length > 0) {
+        parts.push(`性格：${char.personality.join('、')}`)
+      }
+
+      if (char.background) {
+        parts.push(`背景：${char.background}`)
+      }
+
+      if (char.abilities && char.abilities.length > 0) {
+        parts.push(`能力：${char.abilities.map(a => `${a.name}(${a.level})`).join('、')}`)
+      }
+
+      if (char.powerLevel) {
+        parts.push(`实力等级：${char.powerLevel}`)
+      }
+
+      documents.push({
+        id: `character-${char.id}`,
+        content: parts.join('\n'),
+        metadata: {
+          type: 'character',
+          projectId: project.id,
+          timestamp: Date.now()
+        }
+      })
+    })
+
+    return documents
+  }
+
+private extractOutlineDocuments(project: Project): any[] {
+    const documents: any[] = []
+    const outline = project.outline
+
+    // 故事概述
+    if (outline.synopsis) {
+      documents.push({
+        id: `outline-synopsis-${project.id}`,
+        content: `故事概述：${outline.synopsis}`,
+        metadata: {
+          type: 'plot',
+          projectId: project.id,
+          timestamp: Date.now()
+        }
+      })
+    }
+
+    // 主题
+    if (outline.theme) {
+      documents.push({
+        id: `outline-theme-${project.id}`,
+        content: `故事主题：${outline.theme}`,
+        metadata: {
+          type: 'plot',
+          projectId: project.id,
+          timestamp: Date.now()
+        }
+      })
+    }
+
+    // 主线剧情
+    if (outline.mainPlot) {
+      documents.push({
+        id: `plot-main-${project.id}`,
+        content: `主线剧情：${outline.mainPlot.name}\n${outline.mainPlot.description}`,
+        metadata: {
+          type: 'plot',
+          projectId: project.id,
+          timestamp: Date.now()
+        }
+      })
+    }
+
+    // 支线剧情
+    if (outline.subPlots && outline.subPlots.length > 0) {
+      outline.subPlots.forEach(plot => {
+        documents.push({
+          id: `plot-${plot.id}`,
+          content: `支线剧情：${plot.name}\n${plot.description}\n开始章节：${plot.startChapter || '未知'}\n结束章节：${plot.endChapter || '未知'}`,
+          metadata: {
+            type: 'plot',
+            projectId: project.id,
+            timestamp: Date.now()
+          }
+        })
+      })
+    }
+
+    // 伏笔
+    if (outline.foreshadowings && outline.foreshadowings.length > 0) {
+      outline.foreshadowings.forEach(foreshadow => {
+        documents.push({
+          id: `foreshadow-${foreshadow.id}`,
+          content: `伏笔：${foreshadow.description}\n埋设章节：${foreshadow.plantChapter}\n揭示章节：${foreshadow.resolveChapter || '未揭示'}\n状态：${foreshadow.status}`,
+          metadata: {
+            type: 'plot',
+            projectId: project.id,
+            timestamp: Date.now()
+          }
+        })
+      })
+    }
+
+    return documents
+  }
+
+private extractChapterDocuments(project: Project): any[] {
+    const documents: any[] = []
+
+    project.chapters.forEach(chapter => {
+      const doc = this.extractSingleChapterDocument(chapter, project.id)
+      documents.push(doc)
+    })
+
+    return documents
+  }
+
+private extractSingleChapterDocument(chapter: Chapter, projectId: string): any {
+    const parts: string[] = []
+
+    parts.push(`第${chapter.number}章：${chapter.title}`)
+    parts.push(chapter.content)
+
+    // 添加大纲信息
+    if (chapter.outline) {
+      if (chapter.outline.goals && chapter.outline.goals.length > 0) {
+        parts.push(`\n章节目标：${chapter.outline.goals.join('、')}`)
+      }
+      if (chapter.outline.location) {
+        parts.push(`地点：${chapter.outline.location}`)
+      }
+      if (chapter.outline.characters && chapter.outline.characters.length > 0) {
+        parts.push(`出场人物：${chapter.outline.characters.join('、')}`)
+      }
+    }
+
+    return {
+      id: `chapter-${chapter.id}`,
+      content: parts.join('\n'),
+      metadata: {
+        type: 'chapter',
+        projectId,
+        chapterNumber: chapter.number,
+        timestamp: new Date(chapter.generationTime).getTime()
+      }
+    }
+  }
+
+private buildChapterQuery(chapter: Chapter, project: Project): string {
+    const parts: string[] = []
+
+    // 章节标题
+    parts.push(chapter.title)
+
+    // 章节大纲信息
+    if (chapter.outline) {
+      if (chapter.outline.goals && chapter.outline.goals.length > 0) {
+        parts.push(chapter.outline.goals.join(' '))
+      }
+      if (chapter.outline.conflicts && chapter.outline.conflicts.length > 0) {
+        parts.push(chapter.outline.conflicts.join(' '))
+      }
+      if (chapter.outline.characters && chapter.outline.characters.length > 0) {
+        parts.push(chapter.outline.characters.join(' '))
+      }
+      if (chapter.outline.location) {
+        parts.push(chapter.outline.location)
+      }
+    }
+
+    // 章节内容（取前 500 字）
+    if (chapter.content) {
+      parts.push(chapter.content.substring(0, 500))
+    }
+
+    return parts.join(' ')
   }
 
   private async ensureInitialized(): Promise<void> {
@@ -543,4 +1024,13 @@ export async function getVectorService(config?: Partial<EmbeddingConfig>): Promi
 
 export function resetVectorService(): void {
   defaultInstance = null;
+}
+
+export async function indexExternalArtifacts(
+  projectId: string,
+  artifacts: any[],
+  config?: any
+): Promise<number> {
+  const service = await getVectorService(config);
+  return service.indexExternalArtifacts(artifacts);
 }

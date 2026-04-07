@@ -9,7 +9,6 @@ import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import {
   VectorService,
-  getVectorService,
   createVectorService,
   type EmbeddingConfig,
   type VectorDocument,
@@ -530,7 +529,7 @@ export const useVectorStore = defineStore('vector', () => {
     return {
       id: result.id,
       content: result.content,
-      metadata: result.metadata as VectorDocumentMetadata,
+      metadata: result.metadata as any,
       score: result.score,
       source: result.source,
     }

@@ -42,6 +42,9 @@ export interface RegexScript {
   /** 编辑时运行 */
   runOnEdit: boolean
 
+  /** 备注说明 */
+  comment?: string
+
   // ============ 正则配置 ============
 
   /** 正则表达式（字符串格式，含标志） */

@@ -490,7 +490,7 @@ export function createSheetFromTemplate(
   const hashSheet: string[][] = [headerUids]
   const cells = new Map<string, { uid: string; value: string }>()
 
-  headerRow.forEach((value, i) => {
+  headerRow.forEach((_value, i) => {
     const cellUid = headerUids[i]
     cells.set(cellUid, {
       uid: cellUid,

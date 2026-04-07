@@ -64,7 +64,7 @@ export class CharacterCardExporter {
       let exportData: any
       let size = 0
 
-      switch (format) {
+      switch (format as any) {
         case 'v1':
           exportData = this.createV1Format(data, options)
           break
@@ -103,7 +103,7 @@ export class CharacterCardExporter {
         format: options.format,
         size: 0,
         errors: [errorMsg]
-      }
+      } as any
     }
   }
 
@@ -290,7 +290,7 @@ export class CharacterCardExporter {
         height: options.imageOptions?.height || 512,
         backgroundColor: options.imageOptions?.backgroundColor || '#667eea',
         customImage: options.imageOptions?.customImage
-      })
+      } as any)
 
       logger.info('PNG角色卡导出成功', { size: blob.size })
 
@@ -309,7 +309,7 @@ export class CharacterCardExporter {
         format: 'png',
         size: 0,
         errors: [errorMsg]
-      }
+      } as any
     }
   }
 

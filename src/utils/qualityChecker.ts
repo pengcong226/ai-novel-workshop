@@ -89,7 +89,7 @@ export class QualityChecker {
   private config: QualityCheckConfig
   private worldSetting?: WorldSetting
   private characters?: Character[]
-  private outline?: Outline
+  private _outline?: Outline
 
   constructor(
     config: QualityCheckConfig,
@@ -101,7 +101,7 @@ export class QualityChecker {
     this.config = config
     this.worldSetting = worldSetting
     this.characters = characters
-    this.outline = outline
+    this._outline = outline
   }
 
   /**
@@ -184,7 +184,7 @@ export class QualityChecker {
     const reports: QualityReport[] = []
 
     for (let i = 0; i < chapters.length; i++) {
-      const report = await this.checkChapter(chapters[i], (progress) => {
+      const report = await this.checkChapter(chapters[i], (_progress) => {
         onProgress?.(i + 1, chapters.length, chapters[i].number)
       })
       reports.push(report)
@@ -558,7 +558,7 @@ export class QualityChecker {
 
         // 检查外貌描述一致性
         if (character.appearance && content.includes(character.name)) {
-          const appearanceKeywords = character.appearance.split(/[，,、]/).filter(k => k.trim())
+          const _appearanceKeywords = character.appearance.split(/[，,、]/).filter(k => k.trim())
           // 可以检查外貌关键词是否出现
         }
       }

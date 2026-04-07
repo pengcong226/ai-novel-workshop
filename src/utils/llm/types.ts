@@ -66,7 +66,11 @@ export interface LLMWorldSetting {
 // LLM生成的大纲
 export interface LLMOutline {
   mainPlot: string
-  subPlots: string[]
+  subPlots: Array<{
+    name: string
+    description: string
+    relatedChapters: string
+  }>
   keyEvents: Array<{
     chapter: number
     event: string

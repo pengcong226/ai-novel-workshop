@@ -132,11 +132,11 @@ export class ExporterRegistry {
           projectId = data.content.projectId
         }
         
-        processedData = await this.processorRegistry.processPipeline(
+        processedData = (await this.processorRegistry.processPipeline(
           'pre-export',
           processedData,
           { project: projectObj, config: { params: options } }
-        )
+        )) as ExportData
       }
 
       const result = await exporter.export(processedData, options || {})
@@ -178,7 +178,7 @@ export class ExporterRegistry {
       // 执行 pre-export 插件管道 (批量情况下对每个item执行)
       if (this.processorRegistry) {
         console.log(`执行 pre-export 管道 (批量)`)
-        processedItems = await Promise.all(
+        processedItems = (await Promise.all(
           items.map(item => {
             let projectObj = undefined
             if (item.type === 'project') {
@@ -190,7 +190,7 @@ export class ExporterRegistry {
               { project: projectObj, config: { params: options } }
             )
           })
-        )
+        )) as ExportData[]
       }
 
       const result = await exporter.exportBatch(processedItems, options || {})

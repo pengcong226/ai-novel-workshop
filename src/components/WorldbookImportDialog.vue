@@ -306,7 +306,7 @@ function handleFileChange(file: UploadFile, files: UploadFiles) {
   fileList.value = files
 }
 
-function handleFileRemove(file: UploadFile, files: UploadFiles) {
+function handleFileRemove(_file: UploadFile, files: UploadFiles) {
   fileList.value = files
 }
 
@@ -434,8 +434,8 @@ async function handleImport() {
           continue
         } else if (importOptions.value.conflictResolution === 'overwrite') {
           const existing = worldbookStore.entries.find(e => e.title === entry.title)
-          if (existing) {
-            await worldbookStore.updateEntry(existing.id, entry)
+          if (existing && existing.uid !== undefined) {
+            await worldbookStore.updateEntry(existing.uid, entry)
             successCount++
             continue
           }

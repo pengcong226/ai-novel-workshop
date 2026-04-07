@@ -1,3 +1,4 @@
+import DOMPurify from "dompurify"
 /**
  * 质量报告导出工具
  * 支持导出为 PDF 和 JSON 格式
@@ -27,7 +28,7 @@ export async function exportQualityReportAsPDF(
 
     // 生成报告内容
     const html = generateReportHTML(reports, projectName)
-    container.innerHTML = html
+    container.innerHTML = DOMPurify.sanitize(html)
 
     // 使用 html2canvas 转换为图片
     const canvas = await html2canvas(container, {
@@ -105,7 +106,7 @@ export function exportQualityReportAsMarkdown(
 
   // 章节详情
   markdown += `## 章节详情\n\n`
-  reports.forEach((report, index) => {
+  reports.forEach((report, _index) => {
     markdown += `### 第 ${report.chapterNumber} 章\n\n`
     markdown += `**总体评分**：${report.overallScore.toFixed(1)} / 10\n\n`
 

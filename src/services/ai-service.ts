@@ -161,7 +161,7 @@ export class AIServiceError extends Error {
     public code: string,
     message: string,
     public provider?: AIProvider,
-    public details?: unknown
+    public details?: any
   ) {
     super(message);
     this.name = 'AIServiceError';
@@ -613,6 +613,7 @@ class OpenAIProvider {
         temperature: request.temperature ?? 0.7,
         max_tokens: request.maxTokens,
         stop: request.stopSequences,
+        response_format: request.response_format,
         stream: false,
       }),
     });
@@ -768,6 +769,30 @@ class ClaudeProvider {
     const systemMessage = request.messages.find(m => m.role === 'system');
     const conversationMessages = request.messages.filter(m => m.role !== 'system');
 
+    // V4-①: 结构化输出适配 (Claude通过Tool Calling实现强制JSON)
+    const claudePayload: any = {
+      model: request.model,
+      max_tokens: request.maxTokens ?? 4096,
+      system: systemMessage?.content,
+      messages: conversationMessages.map(m => ({
+        role: m.role === 'assistant' ? 'assistant' : 'user',
+        content: m.content,
+      })),
+      temperature: request.temperature ?? 0.7,
+      stop_sequences: request.stopSequences,
+      stream: false,
+    };
+
+    if (request.response_format?.type === 'json_schema' && request.response_format.json_schema) {
+      const schemaName = request.response_format.json_schema.name || "output_format";
+      claudePayload.tools = [{
+        name: schemaName,
+        description: request.response_format.json_schema.description || "Output the structured data",
+        input_schema: request.response_format.json_schema.schema
+      }];
+      claudePayload.tool_choice = { type: "tool", name: schemaName };
+    }
+
     const response = await fetch(`${this.baseUrl}/messages`, {
       method: 'POST',
       headers: {
@@ -776,18 +801,7 @@ class ClaudeProvider {
         'anthropic-version': '2023-06-01',
         'anthropic-dangerous-direct-browser-access': 'true',
       },
-      body: JSON.stringify({
-        model: request.model,
-        max_tokens: request.maxTokens ?? 4096,
-        system: systemMessage?.content,
-        messages: conversationMessages.map(m => ({
-          role: m.role === 'assistant' ? 'assistant' : 'user',
-          content: m.content,
-        })),
-        temperature: request.temperature ?? 0.7,
-        stop_sequences: request.stopSequences,
-        stream: false,
-      }),
+      body: JSON.stringify(claudePayload),
     });
 
     if (!response.ok) {
@@ -800,7 +814,17 @@ class ClaudeProvider {
       );
     }
 
-    return response.json();
+    const result = await response.json();
+    
+    // 如果是Claude的Tool Calling，需要提取内容
+    if (result.content) {
+      const toolUse = result.content.find((c: any) => c.type === 'tool_use');
+      if (toolUse && toolUse.input) {
+        result.content = [{ type: 'text', text: typeof toolUse.input === 'string' ? toolUse.input : JSON.stringify(toolUse.input) }];
+      }
+    }
+    
+    return result;
   }
 
   /**
@@ -1479,6 +1503,12 @@ export class AIService {
           error
         });
 
+        try {
+          const { useTaskManager } = await import('@/stores/taskManager');
+          const taskManager = useTaskManager();
+          taskManager.addToast(`大模型请求节流/重连中... 将在 ${Math.round(delay/1000)} 秒后发起第 ${attempt} 次重试`, 'warning');
+        } catch(e) { /* ignore pinia context errors if any */ }
+
         await this.delay(delay);
         return this.executeWithRetry(fn, attempt + 1);
       }
@@ -1490,7 +1520,7 @@ export class AIService {
   /**
    * 判断是否应该重试
    */
-  private shouldRetry(error: unknown): boolean {
+  private shouldRetry(error: any): boolean {
     if (error instanceof RateLimitError) {
       return true;
     }

@@ -2,7 +2,7 @@
  * 地图导出工具
  */
 
-import type { MapData, Location, MapRegion, MapRoute } from '@/types'
+import type { MapData, Location, MapRegion} from '@/types'
 
 /**
  * 导出地图为 JSON 数据
@@ -100,7 +100,7 @@ export function exportMapToSVG(
  * 导出地图为 PNG 图片（需要 canvas）
  */
 export async function exportMapToPNG(
-  mapData: MapData,
+  _mapData: MapData,
   stage: any // Konva Stage 对象
 ): Promise<Blob> {
   return new Promise((resolve, reject) => {

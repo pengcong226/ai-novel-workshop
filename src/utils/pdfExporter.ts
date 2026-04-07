@@ -427,7 +427,7 @@ function generateCoverHtml(project: Project): string {
 /**
  * 生成结尾 HTML
  */
-function generateEndingHtml(project: Project): string {
+function generateEndingHtml(_project: Project): string {
   const lines: string[] = []
 
   lines.push('<div class="ending">')
@@ -526,7 +526,7 @@ export function exportAllChaptersToPdf(
 /**
  * 打开打印窗口
  */
-function openPrintWindow(html: string, title: string): void {
+function openPrintWindow(html: string, _title: string): void {
   const printWindow = window.open('', '_blank')
 
   if (!printWindow) {

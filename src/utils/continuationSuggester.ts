@@ -144,7 +144,7 @@ export function generateContinuationSuggestions(
   chapters: Chapter[],
   characters: Character[],
   outline?: Outline,
-  worldSetting?: WorldSetting
+  _worldSetting?: WorldSetting
 ): ContinuationSuggestion[] {
   const suggestions: ContinuationSuggestion[] = []
 
@@ -266,7 +266,7 @@ export function generateContinuationSuggestions(
         priority: 'high',
         title: '按照大纲继续',
         description: `下一章: ${nextChapterOutline.title}`,
-        context: nextChapterOutline.summary || '',
+        context: (nextChapterOutline as any).summary || '',
         suggestions: [
           ...(nextChapterOutline.goals || []).map(g => `目标：${g}`),
           ...(nextChapterOutline.conflicts || []).map(c => `冲突：${c}`)
@@ -287,7 +287,7 @@ export function generateContinuationSuggestions(
  */
 export function generateChapterContinuationPoints(
   currentChapter: Chapter,
-  previousChapters: Chapter[],
+  _previousChapters: Chapter[],
   characters: Character[]
 ): string[] {
   const points: string[] = []

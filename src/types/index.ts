@@ -1,3 +1,5 @@
+export * from './entity'
+
 // 类型定义
 
 import type { KnowledgeBase } from './knowledge-base'
@@ -5,10 +7,16 @@ import type { Preset } from './preset'
 import type { TraceImportSession } from './conversation-trace'
 import type { Worldbook } from './worldbook'
 
-// 导入世界书相关类型
 export type { Worldbook, WorldbookEntry, WorldbookGroup, WorldbookCondition } from './worldbook'
 export type { Preset, PresetExample } from './preset'
 export type { TraceImportSession } from './conversation-trace'
+
+// V3 图元时序类型体系
+export type {
+  EntityNode, CharacterV3, CharacterStateSlice, InventoryItem, AbilityRecord,
+  EntityRelation, WorldEntityV3, WorldNarrative, PlotNarrative,
+  ChapterPlanV3, PlotBeat
+} from './entity'
 
 // 项目状态
 export type ProjectStatus = 'draft' | 'writing' | 'completed'
@@ -178,6 +186,8 @@ export interface PowerLevel {
 }
 
 export interface Skill {
+  /** 技能等级 */
+  level?: string
   id: string
   name: string
   description: string
@@ -199,6 +209,9 @@ export interface CharacterState {
   status: string        // 当前状态（健康、受伤、修炼中等）
   faction: string       // 所属势力
   updatedAt: number     // 更新时间戳
+  vitalStatus?: 'alive' | 'dead' | 'unknown' | string // V4-③ 记录生存状态
+  physicalState?: string   // V4-③ 记录身体状况
+  powerLevel?: string   // V4-④-D4 记录具体修为
 }
 
 // 人物状态历史记录
@@ -217,6 +230,9 @@ export interface Character {
   name: string
   aliases: string[]
 
+  // 状态与归档 (V4-③)
+  isArchived?: boolean
+  
   // 基本信息
   gender: 'male' | 'female' | 'other'
   age: number
@@ -313,6 +329,8 @@ export interface CharacterDevelopment {
 
 // 大纲
 export interface Outline {
+  /** 结构类型 */
+  structure?: string
   id: string
 
   // 总纲
@@ -340,6 +358,8 @@ export interface PlotLine {
 }
 
 export interface Volume {
+  /** 章节范围（兼容别名） */
+  chapterRange?: { start: number; end: number }
   id: string
   number: number
   title: string
@@ -504,6 +524,10 @@ export interface ProjectConfig {
   // AI建议
   enableAISuggestions: boolean
 
+  // 自动化工作流与哨兵
+  enableLogicValidator?: boolean      // 查杀落笔吃书
+  enableZeroTouchExtraction?: boolean // 背后零触感提取实体
+
   // 向量检索（RAG）
   enableVectorRetrieval: boolean  // 默认true
   vectorConfig?: VectorServiceConfig
@@ -635,7 +659,7 @@ export interface VectorDocumentMetadata {
   /** 时间戳 */
   timestamp: number
   /** 额外字段 */
-  [key: string]: unknown
+  [key: string]: any
 }
 
 /**
@@ -771,6 +795,12 @@ export interface PromptTemplates {
  * 小说模板
  */
 export interface NovelTemplate {
+  /** 世界观数据 */
+  world?: any
+  /** 角色数据 */
+  characters?: any[]
+  /** 大纲数据 */
+  outline?: any
   meta: {
     id: string
     name: string

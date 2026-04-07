@@ -248,7 +248,7 @@ export const useCharacterCardStore = defineStore('characterCard', () => {
       const result = await exporter.exportCharacterCard(
         {
           character: {
-            name: character.value.name,
+            name: character.value.name || '',
             description: character.value.description,
             personality: character.value.personality,
             scenario: character.value.scenario,
@@ -294,7 +294,7 @@ export const useCharacterCardStore = defineStore('characterCard', () => {
       const result = await exporter.exportCharacterCard(
         {
           character: {
-            name: character.value.name,
+            name: character.value.name || '',
             description: character.value.description,
             personality: character.value.personality,
             scenario: character.value.scenario,

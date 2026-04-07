@@ -8,7 +8,7 @@
  * 4. 占位符系统 - 表格间引用
  */
 
-import type { Project, Chapter, Character } from '@/types'
+import type { Project, Chapter} from '@/types'
 
 /**
  * 表格类型
@@ -349,8 +349,12 @@ export function initNovelMemory(project: Project): MemorySystem {
       }
     )
 
-    // 添加角色数据
+    // V4-③: 注入时跳过死亡/归档角色
     project.characters.forEach(char => {
+      const isDead = (char.currentState?.status || '').toLowerCase().includes('死') || (char.currentState?.status || '').toLowerCase().includes('dead')
+      const isArchived = (char as any).isArchived === true
+      if (isDead || isArchived) return
+
       insertRow(characterSheet, [
         char.name,
         char.background?.substring(0, 20) || '未知身份',
@@ -389,11 +393,20 @@ export function initNovelMemory(project: Project): MemorySystem {
     )
 
     // 从人物设定中提取关系
+    // V4-③: 关系表中跳过死亡/归档角色
     project.characters.forEach(char => {
+      const isDead1 = (char.currentState?.status || '').toLowerCase().includes('死') || (char.currentState?.status || '').toLowerCase().includes('dead')
+      const isArchived1 = (char as any).isArchived === true
+      if (isDead1 || isArchived1) return
+
       if (char.relationships && char.relationships.length > 0) {
         char.relationships.forEach(rel => {
           const target = project.characters?.find(c => c.id === rel.targetId)
           if (target) {
+            const isDead2 = (target.currentState?.status || '').toLowerCase().includes('死') || (target.currentState?.status || '').toLowerCase().includes('dead')
+            const isArchived2 = (target as any).isArchived === true
+            if (isDead2 || isArchived2) return
+
             insertRow(relationshipSheet, [
               char.name,
               target.name,
@@ -493,7 +506,7 @@ export function executeTableCommand(memory: MemorySystem, sheetName: string, com
   switch (parsed.type) {
     case 'update':
       if (parsed.rowIndex !== undefined && parsed.values) {
-        let values = parsed.values;
+        const values = parsed.values;
         const expectedColCount = sheet.hashSheet[0].length - 1;
         // 自动纠错：如果AI错误地把序号当作第一个参数传进来了
         if (values.length > expectedColCount && /^\d+$/.test(values[0])) {
@@ -528,7 +541,7 @@ export function executeTableCommand(memory: MemorySystem, sheetName: string, com
 
     case 'insert':
       if (parsed.values) {
-        let values = parsed.values;
+        const values = parsed.values;
         const expectedColCount = sheet.hashSheet[0].length - 1;
         // 自动纠错：如果AI错误地把序号当作第一个参数传进来了
         if (values.length > expectedColCount && /^\d+$/.test(values[0])) {

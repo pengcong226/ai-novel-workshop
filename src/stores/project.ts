@@ -82,7 +82,9 @@ export const useProjectStore = defineStore('project', () => {
       qualityThreshold: globalConfig.value?.qualityThreshold || 7,
       maxCostPerChapter: globalConfig.value?.maxCostPerChapter || 0.15,
       enableAISuggestions: globalConfig.value?.enableAISuggestions ?? true,
-      enableVectorRetrieval: globalConfig.value?.enableVectorRetrieval ?? true,  // 默认启用
+      enableLogicValidator: globalConfig.value?.enableLogicValidator ?? true,           // 默认开启防吃书查杀
+      enableZeroTouchExtraction: globalConfig.value?.enableZeroTouchExtraction ?? true, // 默认开启后台零触感提取
+      enableVectorRetrieval: globalConfig.value?.enableVectorRetrieval ?? true,
       vectorConfig: globalConfig.value?.vectorConfig || {
         provider: 'local',
         model: 'bge-small-zh-v1.5',  // 默认中文优化模型
@@ -196,7 +198,7 @@ export const useProjectStore = defineStore('project', () => {
   }
 
   function buildLineExportBlob(project: Project): Blob {
-    const projectMeta = { ...project } as unknown as Omit<Project, 'chapters'>
+    const projectMeta = { ...project } as any as Omit<Project, 'chapters'>
     delete (projectMeta as Partial<Project>).chapters
 
     const lines: string[] = []
@@ -306,15 +308,19 @@ export const useProjectStore = defineStore('project', () => {
       clearTimeout(saveDebounceTimer)
       saveDebounceTimer = null
 
-      // 尽最大努力触发一次立即保存，并提醒浏览器存在未决更改
-      void saveCurrentProject().catch((e) => {
-        logger.error('页面卸载时保存失败', e)
-      })
-
-      event.preventDefault()
-      event.returnValue = ''
+      // V3-fix: 修复 beforeunload 中的异步保存为同步操作 (localStorage)
+      try {
+        localStorage.setItem(`backup_${currentProject.value.id}`, JSON.stringify(currentProject.value))
+        logger.info('页面卸载，已将未保存更改同步写入 localStorage 备份')
+      } catch (e) {
+        logger.error('同步备份失败', e)
+      }
     })
   }
+
+  // V3: 保存锁，防止并发 saveCurrentProject 覆盖数据
+  let isSaving = false
+  let pendingSave = false
 
   // 立即保存当前项目（用于关键操作）
   async function saveCurrentProject() {
@@ -329,6 +335,14 @@ export const useProjectStore = defineStore('project', () => {
       saveDebounceTimer = null
     }
 
+    // V3: 若已在保存中，标记待保存，等当前完成后自动重新保存
+    if (isSaving) {
+      pendingSave = true
+      logger.debug('保存已在进行中，已排队等待')
+      return
+    }
+
+    isSaving = true
     loading.value = true
     error.value = null
     try {
@@ -350,11 +364,81 @@ export const useProjectStore = defineStore('project', () => {
     } catch (e) {
       logger.error('保存失败', e)
       error.value = e instanceof Error ? e.message : '保存项目失败'
+      pendingSave = false  // V3-fix: 保存失败时清除待保存标记，避免无限重试
+      throw e
+    } finally {
+      loading.value = false
+      isSaving = false
+      // 若有待保存，自动重新触发
+      if (pendingSave) {
+        pendingSave = false
+        void saveCurrentProject().catch(e => logger.error('重新保存失败', e))
+      }
+    }
+  }
+
+  // ============== 惰性加载：单章独立操作API ==============
+  
+  async function loadChapter(chapterId: string) {
+    if (!currentProject.value) return null
+    return await storage.loadChapter(currentProject.value.id, chapterId)
+  }
+
+  async function saveChapter(chapter: any) {
+    if (!currentProject.value) {
+      logger.error('保存章节失败：currentProject 为空')
+      return
+    }
+
+    loading.value = true
+    error.value = null
+    try {
+      logger.info('开始独立保存章节', { chapterId: chapter.id, title: chapter.title })
+      
+      // 1. 直通底层存储，保存完整带有 content 的章节数据
+      await storage.saveChapter(chapter, currentProject.value.id)
+      
+      // 2. 剥离 content 以维护前端状态机的轻量化（防OOM）
+      const shallowChapter = { ...chapter }
+      delete shallowChapter.content
+      
+      const index = currentProject.value.chapters.findIndex((c: any) => c.id === chapter.id)
+      if (index !== -1) {
+        currentProject.value.chapters[index] = shallowChapter
+      } else {
+        currentProject.value.chapters.push(shallowChapter)
+      }
+      
+      // 3. 级联更新主项目字数
+      currentProject.value.currentWords = currentProject.value.chapters.reduce((sum: number, c: any) => sum + (c.wordCount || 0), 0)
+
+      // V3-fix: 移除对 saveCurrentProject 的级联调用。章节保存应该是独立的，不触发全量项目序列化
+    } catch (e) {
+      logger.error('保存独立章节失败', e)
+      error.value = e instanceof Error ? e.message : '保存章节失败'
       throw e
     } finally {
       loading.value = false
     }
   }
+
+  async function deleteChapter(chapterId: string) {
+    if (!currentProject.value) return
+    loading.value = true
+    try {
+      await storage.deleteChapter(chapterId, currentProject.value.id)
+      currentProject.value.chapters = currentProject.value.chapters.filter((c: any) => c.id !== chapterId)
+      currentProject.value.currentWords = currentProject.value.chapters.reduce((sum: number, c: any) => sum + (c.wordCount || 0), 0)
+      await saveCurrentProject()
+    } catch (e) {
+      logger.error('删除章节失败', e)
+      throw e
+    } finally {
+      loading.value = false
+    }
+  }
+
+  // ===========================================
 
   // 删除项目
   async function deleteProject(projectId: string) {
@@ -454,6 +538,11 @@ export const useProjectStore = defineStore('project', () => {
     exportProject,
     importProject,
     loadGlobalConfig,
-    saveGlobalConfig
+    saveGlobalConfig,
+
+    // 章节级新接口
+    loadChapter,
+    saveChapter,
+    deleteChapter
   }
 })

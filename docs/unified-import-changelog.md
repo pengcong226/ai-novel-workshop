@@ -15,9 +15,10 @@
 **功能特性**:
 
 1. **自动格式检测**
-   - 自动识别PNG/JSON文件类型
+   - 自动识别PNG/JSON/JSONL/NDJSON文件类型
    - 自动检测角色卡格式（V1/V2/V3/SillyTavern扩展）
    - 自动检测世界书格式
+   - JSONL/NDJSON 自动路由到会话轨迹导入流水线
    - 智能区分纯世界书和角色卡
 
 2. **智能数据分发**
@@ -30,6 +31,14 @@
        ├─ 正则脚本   → regexScriptManager
        ├─ 提示词     → characterCardStore.prompts
        └─ AI设置     → characterCardStore.aiSettings
+
+   JSONL/NDJSON文件
+       ↓
+   会话轨迹流水线
+       ├─ parseConversationTraceFile
+       ├─ extractTraceArtifacts
+       ├─ buildTraceReviewQueue
+       └─ applyTraceReviewItems
    ```
 
 3. **灵活的导入选项**
@@ -52,6 +61,21 @@
        imported: boolean
        entriesCount: number
      }
+     conversationTrace?: {
+       analyzed: boolean
+       parsedMessages: number
+       extractedArtifacts: number
+       reviewItems: number
+       applied?: {
+         reviewed: number
+         applied: number
+         skipped: number
+         merged: number
+         conflicts: number
+       }
+       sessionId?: string
+     }
+     reviewItems?: TraceReviewItem[]
      regexScripts?: {
        imported: boolean
        count: number
@@ -64,6 +88,7 @@
        imported: boolean
      }
      errors?: string[]
+     warnings?: string[]
    }
    ```
 

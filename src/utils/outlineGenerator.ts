@@ -145,10 +145,13 @@ function autoDivideVolumes(
 
   if (strategy === 'single') {
     return [{
+      id: uuidv4(),
       number: 1,
       title: '第一卷',
       theme: '',
       chapterRange: { start: 1, end: totalChapters },
+      startChapter: 1,
+      endChapter: totalChapters,
       mainEvents: []
     }]
   }
@@ -164,10 +167,13 @@ function autoDivideVolumes(
       const end = Math.min((i + 1) * volumeSize, totalChapters)
 
       volumes.push({
+        id: uuidv4(),
         number: i + 1,
         title: `第${i + 1}卷`,
         theme: '',
         chapterRange: { start, end },
+        startChapter: start,
+        endChapter: end,
         mainEvents: []
       })
     }
@@ -198,10 +204,13 @@ function autoDivideVolumes(
           if (arc > currentArc) {
             // 新的故事弧开始
             volumes.push({
+              id: uuidv4(),
               number: volumes.length + 1,
               title: `第${volumes.length + 1}卷`,
               theme: inferArcTheme(arc),
               chapterRange: { start: arcStart, end: chapter.number - 1 },
+              startChapter: arcStart,
+              endChapter: chapter.number - 1,
               mainEvents: []
             })
             currentArc = arc
@@ -218,10 +227,13 @@ function autoDivideVolumes(
   // 添加最后一卷
   if (arcStart <= totalChapters) {
     volumes.push({
+      id: uuidv4(),
       number: volumes.length + 1,
       title: `第${volumes.length + 1}卷`,
       theme: '',
       chapterRange: { start: arcStart, end: totalChapters },
+      startChapter: arcStart,
+      endChapter: totalChapters,
       mainEvents: []
     })
   }
@@ -280,18 +292,18 @@ export async function generateOutline(
     chapterOutlines.push({
       chapterId: uuidv4(),
       title: chapter.title,
-      summary: generateChapterSummary(chapter.content),
+      scenes: [{
+        id: uuidv4(),
+        description: generateChapterSummary(chapter.content),
+        characters: [],
+        location: extractScenes(chapter.content)[0] || ''
+      }],
       goals: extractGoals(chapter.content),
       conflicts: extractConflicts(chapter.content),
-      resolution: '',
+      resolutions: [],
       location: extractScenes(chapter.content)[0] || '',
       characters: [],
-      foreshadowing: {
-        planted: [],
-        resolved: []
-      },
-      status: 'completed',
-      notes: ''
+      status: 'completed'
     })
 
     onProgress?.(i + 1, chapters.length)
@@ -303,7 +315,7 @@ export async function generateOutline(
   // 为每卷提取主要事件
   for (const volume of volumes) {
     const volumeChapters = chapters.filter(
-      ch => ch.number >= volume.chapterRange.start && ch.number <= volume.chapterRange.end
+      ch => ch.number >= (volume.chapterRange?.start || 0) && ch.number <= (volume.chapterRange?.end || 0)
     )
 
     const allContent = volumeChapters.map(ch => ch.content).join('\n')
@@ -332,9 +344,19 @@ export function convertToOutline(
   )
 
   return {
+    id: uuidv4(),
     structure: generated.structure,
-    totalChapters: generated.totalChapters,
-    description: generated.description,
+    synopsis: generated.description,
+    theme: '自动提取主题',
+    mainPlot: {
+      id: uuidv4(),
+      name: '主要剧情',
+      description: generated.description,
+      startChapter: 1,
+      endChapter: generated.totalChapters
+    },
+    subPlots: [],
+    foreshadowings: [],
     volumes: generated.volumes,
     chapters: generated.chapters.map((outline, index) => ({
       ...outline,

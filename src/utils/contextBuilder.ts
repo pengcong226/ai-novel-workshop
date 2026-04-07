@@ -1,16 +1,15 @@
 /**
- * 上下文构建器 - 借鉴酒馆/Tavern的记忆管理机制
+ * 上下文构建器 - V3 重构版
  *
  * 核心功能：
- * 1. 分层记忆系统（Author's Note > World Info > Character > Memory Tables > Summary > Recent）
- * 2. Token预算管理
- * 3. 动态注入关键设定
- * 4. 智能摘要压缩
- * 5. 表格记忆系统（借鉴 st-memory-enhancement）
- * 6. 向量检索相关章节（新增）
+ * 1. 动态 Token 预算（根据模型窗口自适应，告别 6000 硬编码）
+ * 2. 沙漏式上下文布局（头部放约束，尾部放指令，对抗 Lost in the Middle）
+ * 3. System / User 角色分离
+ * 4. 表格记忆系统（借鉴 st-memory-enhancement）
+ * 5. 向量检索相关章节
  */
 
-import type { Project, Chapter, ChapterOutline, VectorServiceConfig } from '@/types'
+import type { Project, Chapter, ChapterOutline, VectorServiceConfig, Character } from '@/types'
 import {
   initNovelMemory,
   generateMemoryPrompt,
@@ -20,21 +19,47 @@ import { sanitizeForPrompt, validateInput } from './inputSanitizer'
 import { buildSystemPrompt, getPromptDefinition } from './promptHelper'
 import { getVectorService, type VectorService } from './vectorService'
 import { countTokens as countLLMTokens } from './llm/tokenizer'
+import { WorldbookInjector } from '@/services/worldbook-injector'
 
-// Token预算配置
-const TOKEN_BUDGET = {
-  TOTAL: 6000,           // 总预算（输入token）
-  SYSTEM_PROMPT: 300,    // 系统提示
-  AUTHORS_NOTE: 200,     // 作者注释（最高优先级）
-  WORLD_INFO: 800,       // 世界观设定
-  CHARACTERS: 600,       // 人物设定
-  MEMORY_TABLES: 500,    // 表格记忆
-  VECTOR_CONTEXT: 600,   // 向量检索上下文（新增）
-  SUMMARY: 600,          // 摘要（调整）
-  RECENT_CHAPTERS: 2000, // 最近章节完整内容（调整）
-  OUTLINE: 400,          // 当前章节大纲
-  RESERVE: 400           // 预留空间
+// ===== 动态 Token 预算工厂 =====
+// 根据模型上下文窗口大小按比例分配，不再硬编码 6000
+interface TokenBudget {
+  TOTAL: number
+  SYSTEM_PROMPT: number
+  AUTHORS_NOTE: number
+  WORLD_INFO: number
+  CHARACTERS: number
+  MEMORY_TABLES: number
+  VECTOR_CONTEXT: number
+  SUMMARY: number
+  RECENT_CHAPTERS: number
+  OUTLINE: number
+  RESERVE: number
 }
+
+function createTokenBudget(modelContextWindow: number = 128000): TokenBudget {
+  // 预留 30% 给生成输出，70% 用于输入上下文
+  const inputBudget = Math.floor(modelContextWindow * 0.7)
+  // 设合理上限，避免把太多低质量信息塞进去
+  const effectiveBudget = Math.min(inputBudget, 60000)
+
+  return {
+    TOTAL: effectiveBudget,
+    SYSTEM_PROMPT: Math.floor(effectiveBudget * 0.05),
+    AUTHORS_NOTE: Math.floor(effectiveBudget * 0.03),
+    WORLD_INFO: Math.floor(effectiveBudget * 0.12),
+    CHARACTERS: Math.floor(effectiveBudget * 0.10),
+    MEMORY_TABLES: Math.floor(effectiveBudget * 0.08),
+    VECTOR_CONTEXT: Math.floor(effectiveBudget * 0.15),
+    SUMMARY: Math.floor(effectiveBudget * 0.10),
+    RECENT_CHAPTERS: Math.floor(effectiveBudget * 0.25),
+    OUTLINE: Math.floor(effectiveBudget * 0.05),
+    RESERVE: Math.floor(effectiveBudget * 0.07)
+  }
+}
+
+// 向后兼容：保持一个默认实例供旧代码路径使用
+const TOKEN_BUDGET = createTokenBudget(128000)
 
 /**
  * 章节摘要
@@ -58,6 +83,7 @@ export interface BuildContext {
   authorsNote: string
   worldInfo: string
   characters: string
+  stateConstraints: string  // V4-D4: 档案员前置约束
   memoryTables: string  // 表格记忆
   vectorContext: string // 向量检索上下文（新增）
   summary: string
@@ -153,21 +179,31 @@ function buildAuthorsNote(
 
 /**
  * 推断当前场景
+ * V3 重构：优先从角色 currentState 中读取真实位置，不再用硬编码关键词碰撞
  */
-function inferCurrentScene(recentChapters: Chapter[], _project: Project): string {
+function inferCurrentScene(recentChapters: Chapter[], project: Project): string {
   if (!recentChapters || recentChapters.length === 0) {
     return '故事开始'
   }
 
+  // 优先从角色的 currentState 中读取位置
+  const characters = project.characters || []
   const lastChapter = recentChapters[0]
-  const content = lastChapter.content || ''
+  const lastContent = lastChapter.content || ''
 
-  // 简单的场景推断（可以优化为AI提取）
-  const locationKeywords = ['山谷', '城市', '森林', '山脉', '宫殿', '洞府', '战场']
-  for (const keyword of locationKeywords) {
-    if (content.includes(keyword)) {
-      return keyword
-    }
+  // 只看在最近章节中出场的角色
+  const activeCharacters = characters.filter(c =>
+    lastContent.includes(c.name) && c.currentState?.location && c.currentState.location !== '未知'
+  )
+  if (activeCharacters.length > 0) {
+    const locations = [...new Set(activeCharacters.map(c => c.currentState!.location))]
+    return locations.join('、')
+  }
+
+  // 降级：提取前一章末尾 300 字作为场景线索
+  if (lastContent.length > 0) {
+    const tail = lastContent.slice(-300)
+    return `前文末段：...${tail.substring(0, 150)}`
   }
 
   return '未知场景'
@@ -175,7 +211,19 @@ function inferCurrentScene(recentChapters: Chapter[], _project: Project): string
 
 /**
  * 推断人物状态
+ * V3 重构：从 currentState 读取真实状态，而非仅返回姓名列表
  */
+export function isCharacterActive(c: Character): boolean {
+  if (c.isArchived) return false
+  
+  if (c.currentState?.vitalStatus === 'dead') return false
+  
+  const statusLower = (c.currentState?.status || '').toLowerCase()
+  const isDead = statusLower.includes('死亡') || statusLower.includes('dead') || statusLower.includes('殒落')
+  
+  return !isDead
+}
+
 function inferCharacterStates(recentChapters: Chapter[], project: Project): string {
   if (!recentChapters || recentChapters.length === 0) {
     return ''
@@ -184,16 +232,54 @@ function inferCharacterStates(recentChapters: Chapter[], project: Project): stri
   const lastChapter = recentChapters[0]
   const characters = project.characters || []
 
-  // 提取最后出场的人物
-  const mentionedCharacters = characters.filter(c =>
+  // 提取最后出场的人物，并附带状态信息
+  const mentioned = characters.filter(c =>
     (lastChapter.content || '').includes(c.name)
-  ).map(c => c.name)
+  )
 
-  if (mentionedCharacters.length > 0) {
-    return `主要人物：${mentionedCharacters.join('、')}`
+  if (mentioned.length === 0) return ''
+
+  return `主要人物：` + mentioned.map(c => {
+    const state = c.currentState
+    if (state && (state.status || state.location)) {
+      const parts = [c.name]
+      if (state.status) parts.push(state.status)
+      if (state.location) parts.push(`在${state.location}`)
+      return parts.join('/')
+    }
+    return c.name
+  }).join('、')
+}
+
+/**
+ * V4-D4: 提取前置状态约束，注入系统提示词头部
+ */
+function buildStateConstraints(characters: Character[], involvedNames: string[]): string {
+  const constraints: string[] = []
+  for (const name of involvedNames) {
+    const char = characters.find(c => c.name === name)
+    if (!char?.currentState) continue
+    const s = char.currentState
+    
+    // index.ts CharacterState doesn't have vitalStatus natively, but it might be in status
+    const isDead = (s.status || '').toLowerCase().includes('死') || (s.status || '').toLowerCase().includes('dead')
+    
+    const parts: string[] = []
+    if (isDead) parts.push(`生存状态:已死亡`)
+    else if (s.status) parts.push(`当前状态:${s.status}`)
+    
+    if (s.location) parts.push(`当前位置:${s.location}`)
+    if (s.faction) parts.push(`所属阵营:${s.faction}`)
+    
+    // ability levels could be added here if needed
+    if (char.powerLevel) parts.push(`修为境界:${char.powerLevel}`)
+    
+    if (parts.length > 0) {
+      constraints.push(`- ${char.name}: ${parts.join(', ')}`)
+    }
   }
-
-  return ''
+  if (constraints.length === 0) return ''
+  return `\n\n【⚠️ 角色状态约束 — 以下信息为铁律，正文中不得与之矛盾】\n${constraints.join('\n')}`
 }
 
 /**
@@ -288,9 +374,17 @@ function buildCharacterInfo(
   }
 
   // 2. 构建人物卡
-  const relevantCharacters = project.characters.filter(c =>
-    relevantCharacterNames.has(c.name)
-  )
+  // V4-③: 过滤死亡/归档角色，仅在大纲明确提及时才注入（RAG 唤醒）
+  const relevantCharacters = project.characters.filter(c => {
+    if (!relevantCharacterNames.has(c.name)) return false
+    
+    // 跳过死亡/归档角色，除非本章大纲明确提及
+    if (!isCharacterActive(c) && !currentChapter.outline?.characters?.includes(c.name)) {
+      return false
+    }
+    
+    return true
+  })
 
   if (relevantCharacters.length > 0) {
     parts.push(`【人物设定】`)
@@ -524,7 +618,7 @@ async function buildVectorContext(
   project: Project,
   currentChapter: Chapter,
   vectorService?: VectorService,
-  maxTokens: number = TOKEN_BUDGET.VECTOR_CONTEXT
+  maxTokens: number = 19200
 ): Promise<string> {
   if (!vectorService) {
     return ''
@@ -546,8 +640,16 @@ async function buildVectorContext(
       return ''
     }
 
+    // V3 OP-RAG: 按章节号升序排列，保持历史时间顺序
+    // 论据：OP-RAG 证明保序召回显著优于按相似度排序
+    results.sort((a, b) => {
+      const chapterA = Number((a.metadata as any)?.chapterNumber ?? (a.metadata as any)?.chapter ?? 0)
+      const chapterB = Number((b.metadata as any)?.chapterNumber ?? (b.metadata as any)?.chapter ?? 0)
+      return chapterA - chapterB
+    })
+
     const parts: string[] = []
-    parts.push(`【相关上下文 - 向量检索】`)
+    parts.push(`【相关上下文 - 向量检索（按时间顺序）】`)
 
     // 按类型分组
     const groupedResults = new Map<string, typeof results>()
@@ -572,7 +674,8 @@ async function buildVectorContext(
 
       parts.push(`\n${typeNames[type] || type}：`)
 
-      items.slice(0, 3).forEach(item => {
+      // 各组内也保持时间顺序，不再截断到3条（由 token 预算控制）
+      items.forEach(item => {
         const rawPreview = item.content.substring(0, 500)
         const validation = validateInput(rawPreview)
         if (!validation.valid) {
@@ -584,7 +687,8 @@ async function buildVectorContext(
           preserveLineBreaks: true
         })
 
-        parts.push(`  - <context source="${type}" score="${(item.score * 100).toFixed(0)}%">${preview}</context>`)
+        const chapterLabel = item.metadata?.chapterNumber ? `ch${item.metadata.chapterNumber}` : ''
+        parts.push(`  - <context source="${type}" ${chapterLabel} score="${(item.score * 100).toFixed(0)}%">${preview}</context>`)
       })
     }
 
@@ -609,8 +713,10 @@ export async function buildChapterContext(
   project: Project,
   currentChapter: Chapter,
   memorySystem?: MemorySystem,  // 表格记忆系统
-  vectorConfig?: VectorServiceConfig // 向量服务配置（新增）
+  vectorConfig?: VectorServiceConfig, // 向量服务配置（新增）
+  modelContextWindow: number = 128000
 ): Promise<BuildContext> {
+  const budget = createTokenBudget(modelContextWindow)
   const warnings: string[] = []
   const chapters = project.chapters || []
   const currentChapterNum = currentChapter.number
@@ -673,7 +779,39 @@ export async function buildChapterContext(
   warnings.push(`写作系统提示词已通过 Prompt Registry 注入，模板版本：v${promptDefinition.version}`)
   let authorsNote = buildAuthorsNote(currentChapterNum, recentChapters, project)
   let worldInfo = buildWorldInfo(project, currentChapter, recentChapters)
+
+  // V3: 接通 WorldbookInjector，动态注入世界书词条
+  if (project.worldbook?.entries && project.worldbook.entries.length > 0) {
+    try {
+      const injector = new WorldbookInjector(project.worldbook)
+      const injectionResult = injector.inject({
+        projectId: project.id,
+        currentChapter: currentChapterNum,
+        currentContent: recentContent,
+        characters: project.characters || [],
+        recentEvents: [],
+        worldState: {},
+        chapterContext: {
+          title: currentChapter.title,
+          location: currentChapter.outline?.location,
+          characterIds: currentChapter.outline?.characters,
+        },
+        tokenBudget: budget.WORLD_INFO
+      })
+      if (injectionResult.injectedContent) {
+        worldInfo += '\n\n【世界书动态注入】\n' + injectionResult.injectedContent
+        warnings.push(`世界书注入了 ${injectionResult.stats.injected} 个词条（共 ${injectionResult.totalTokens} tokens）`)
+      }
+    } catch (e) {
+      console.warn('[ContextBuilder] WorldbookInjector 注入失败，跳过:', e)
+    }
+  }
+
   let characters = buildCharacterInfo(project, currentChapter, recentChapters)
+
+  // V4-D4: 生成状态约束
+  const involvedCharNames = currentChapter.outline?.characters || []
+  const stateConstraints = buildStateConstraints(project.characters, involvedCharNames)
 
   // 生成表格记忆提示词
   let memoryTablesText = ''
@@ -689,8 +827,8 @@ export async function buildChapterContext(
   let vectorContextText = ''
   if (vectorConfig) {
     try {
-      const vectorService = await getVectorService(project.id, vectorConfig)
-      vectorContextText = await buildVectorContext(project, currentChapter, vectorService, TOKEN_BUDGET.VECTOR_CONTEXT)
+      const vectorService = await getVectorService({ ...vectorConfig, projectId: project.id } as any)
+      vectorContextText = await buildVectorContext(project, currentChapter, vectorService, budget.VECTOR_CONTEXT)
     } catch (error) {
       console.warn('[ContextBuilder] 向量检索失败，将使用降级方案:', error)
       warnings.push('向量检索失败，已使用降级方案')
@@ -701,15 +839,15 @@ export async function buildChapterContext(
   let recentChaptersText = buildRecentChapters(chapters, currentChapterNum, recentBudget, recentCount)
   let outline = buildOutline(currentChapter.outline)
 
-  systemPrompt = enforceSectionBudget('系统提示', systemPrompt, TOKEN_BUDGET.SYSTEM_PROMPT)
-  authorsNote = enforceSectionBudget('作者注释', authorsNote, TOKEN_BUDGET.AUTHORS_NOTE)
-  worldInfo = enforceSectionBudget('世界观设定', worldInfo, TOKEN_BUDGET.WORLD_INFO)
-  characters = enforceSectionBudget('人物设定', characters, TOKEN_BUDGET.CHARACTERS)
-  memoryTablesText = enforceSectionBudget('表格记忆', memoryTablesText, TOKEN_BUDGET.MEMORY_TABLES)
-  vectorContextText = enforceSectionBudget('向量检索上下文', vectorContextText, TOKEN_BUDGET.VECTOR_CONTEXT)
-  summary = enforceSectionBudget('历史摘要', summary, TOKEN_BUDGET.SUMMARY)
+  systemPrompt = enforceSectionBudget('系统提示', systemPrompt, budget.SYSTEM_PROMPT)
+  authorsNote = enforceSectionBudget('作者注释', authorsNote, budget.AUTHORS_NOTE)
+  worldInfo = enforceSectionBudget('世界观设定', worldInfo, budget.WORLD_INFO)
+  characters = enforceSectionBudget('人物设定', characters, budget.CHARACTERS)
+  memoryTablesText = enforceSectionBudget('表格记忆', memoryTablesText, budget.MEMORY_TABLES)
+  vectorContextText = enforceSectionBudget('向量检索上下文', vectorContextText, budget.VECTOR_CONTEXT)
+  summary = enforceSectionBudget('历史摘要', summary, budget.SUMMARY)
   recentChaptersText = enforceSectionBudget('最近章节', recentChaptersText, recentBudget)
-  outline = enforceSectionBudget('章节大纲', outline, TOKEN_BUDGET.OUTLINE)
+  outline = enforceSectionBudget('章节大纲', outline, budget.OUTLINE)
 
   // 2. 计算总token，并在超限时按优先级继续裁剪
   let totalTokens = calculateTotalTokens()
@@ -806,6 +944,7 @@ export async function buildChapterContext(
     authorsNote,
     worldInfo,
     characters,
+    stateConstraints,
     memoryTables: memoryTablesText,
     vectorContext: vectorContextText,
     summary,
@@ -817,72 +956,97 @@ export async function buildChapterContext(
 }
 
 /**
- * 将上下文转换为prompt
+ * Prompt 载荷：分离 system 和 user 角色
+ */
+export interface PromptPayload {
+  systemMessage: string
+  userMessage: string
+}
+
+/**
+ * 将上下文转换为分角色 Prompt（V3 沙漏布局）
+ *
+ * 头部 (system)：刚性约束 + 人物设定 → 模型注意力最强
+ * 中段 (user 前半)：世界观 + 记忆 + 向量召回 + 摘要 → 参考素材
+ * 尾部 (user 后半)：最近正文 + 大纲 + 执行指令 → 模型注意力最强
+ */
+export function contextToPromptPayload(context: BuildContext, chapterTitle: string, targetWords: number = 2000): PromptPayload {
+  // === System Message: 头部 — 最高注意力区，放不可违反的约束 ===
+  const systemParts: string[] = []
+  systemParts.push(context.systemPrompt)
+  if (context.authorsNote) systemParts.push(context.authorsNote)
+
+  // V4-D4: 档案员前置约束注入 — 让写手在生成时就知道哪些状态不可违背
+  if (context.stateConstraints) {
+    systemParts.push(context.stateConstraints)
+  }
+
+  // V3-fix: 只在 system 中放角色核心摘要（前 2000 字符），避免 system message 超限
+  // 完整角色设定放到 user message 的中段
+  const SYSTEM_CHAR_LIMIT = 2000
+  if (context.characters) {
+    const briefCharacters = context.characters.length > SYSTEM_CHAR_LIMIT
+      ? context.characters.substring(0, SYSTEM_CHAR_LIMIT) + '\n...(角色设定已截断，完整版见下方上下文)'
+      : context.characters
+    systemParts.push('【核心角色约束 — 必须严格遵循】')
+    systemParts.push(briefCharacters)
+  }
+
+  // === User Message: 中段素材 + 尾部指令 ===
+  const userParts: string[] = []
+
+  // 中段：参考素材（注意力相对弱，放次要信息）
+  // V3-fix: 如果角色设定被截断了，在 user 中放完整版
+  if (context.characters && context.characters.length > SYSTEM_CHAR_LIMIT) {
+    userParts.push('【完整角色设定】')
+    userParts.push(context.characters)
+  }
+  if (context.worldInfo) {
+    userParts.push('【世界观设定】')
+    userParts.push(context.worldInfo)
+  }
+  if (context.memoryTables) {
+    userParts.push('【记忆追踪】')
+    userParts.push(context.memoryTables)
+  }
+  if (context.vectorContext) {
+    userParts.push('【历史相关片段】')
+    userParts.push(context.vectorContext)
+  }
+  if (context.summary) {
+    userParts.push('【历史摘要】')
+    userParts.push(context.summary)
+  }
+
+  // 尾部：最近正文 + 大纲 + 执行指令（最高注意力区）
+  if (context.recentChapters) {
+    userParts.push('【最近章节正文】')
+    userParts.push(context.recentChapters)
+  }
+  if (context.outline) {
+    userParts.push('【本章大纲】')
+    userParts.push(context.outline)
+  }
+
+  userParts.push(`【写作执行指令 — 请严格遵循】`)
+  userParts.push(`章节标题：${chapterTitle}`)
+  userParts.push(`目标字数：约${targetWords}字`)
+  userParts.push(`必须严格承接前文剧情，保持连贯性。`)
+  userParts.push(`严格遵循记忆追踪中的角色状态、物品归属、关系等信息。`)
+  userParts.push(`情节紧凑，引人入胜，场景描写生动，对话自然流畅。`)
+  userParts.push(`直接返回章节内容文本，不要包含标题和其他说明。`)
+
+  return {
+    systemMessage: systemParts.join('\n\n'),
+    userMessage: userParts.join('\n\n')
+  }
+}
+
+/**
+ * 向后兼容：将上下文转换为单条 prompt 字符串
+ * 供 Chapters.vue 等旧调用方继续使用
  */
 export function contextToPrompt(context: BuildContext, chapterTitle: string, targetWords: number = 2000): string {
-  const parts: string[] = []
-
-  // 1. 系统提示（最高优先级）
-  parts.push(context.systemPrompt)
-  parts.push('')
-
-  // 2. Author's Note（强制指令）
-  parts.push(context.authorsNote)
-  parts.push('')
-
-  // 3. 世界观设定
-  if (context.worldInfo) {
-    parts.push(context.worldInfo)
-    parts.push('')
-  }
-
-  // 4. 人物设定
-  if (context.characters) {
-    parts.push(context.characters)
-    parts.push('')
-  }
-
-  // 5. 表格记忆系统（借鉴 st-memory-enhancement）
-  if (context.memoryTables) {
-    parts.push(context.memoryTables)
-    parts.push('')
-  }
-
-  // 6. 向量检索上下文（智能检索相关历史信息）
-  if (context.vectorContext) {
-    parts.push(context.vectorContext)
-    parts.push('')
-  }
-
-  // 7. 历史摘要
-  if (context.summary) {
-    parts.push(context.summary)
-    parts.push('')
-  }
-
-  // 8. 最近章节（完整内容）
-  if (context.recentChapters) {
-    parts.push(context.recentChapters)
-    parts.push('')
-  }
-
-  // 9. 章节大纲
-  if (context.outline) {
-    parts.push(context.outline)
-    parts.push('')
-  }
-
-  // 9. 写作要求
-  parts.push(`【写作要求】`)
-  parts.push(`1. 章节标题：${chapterTitle}`)
-  parts.push(`2. 字数：约${targetWords}字`)
-  parts.push(`3. 必须严格承接前文剧情，保持连贯性`)
-  parts.push(`4. 严格遵循表格记忆中的角色状态、物品归属、关系等信息`)
-  parts.push(`5. 情节紧凑，引人入胜`)
-  parts.push(`6. 场景描写生动`)
-  parts.push(`7. 对话自然流畅`)
-  parts.push('')
-  parts.push(`直接返回章节内容文本，不要包含标题和其他说明。`)
-
-  return parts.join('\n')
+  const payload = contextToPromptPayload(context, chapterTitle, targetWords)
+  return payload.systemMessage + '\n\n' + payload.userMessage
 }

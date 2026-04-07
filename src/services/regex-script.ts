@@ -7,7 +7,7 @@
  */
 
 import { v4 as uuidv4 } from 'uuid'
-import type {
+import {
   RegexScript,
   RegexScriptResult,
   RegexScriptExecutionOptions,
@@ -207,9 +207,9 @@ export class RegexScriptManager {
     const {
       enabledOnly = false,
       includeExtensions = true,
-      format = 'json',
+      _format = 'json',
       pretty = true
-    } = options
+    } = options as any
 
     let scripts = this.getAllScripts()
 
@@ -346,10 +346,10 @@ export class RegexScriptManager {
 
       // 执行正则替换
       if (script.replaceString !== undefined) {
-        replacedText = replacedText.replace(regex, (match, ...groups) => {
+        replacedText = replacedText.replace(regex, (_match, ...groups) => {
           matchCount++
           // 替换捕获组引用 ($1, $2, etc.)
-          return script.replaceString.replace(/\$(\d+)/g, (str, num) => {
+          return script.replaceString.replace(/\$(\d+)/g, (_str, num) => {
             return groups[num - 1] || ''
           })
         })

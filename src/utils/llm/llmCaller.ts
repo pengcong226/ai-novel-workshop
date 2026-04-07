@@ -234,7 +234,7 @@ export async function callLLMWithValidation(
   schema: AnySchema,
   config: LLMProviderConfig,
   options: LLMCallOptions = {}
-): Promise<any> {
+): Promise<unknown> {
   const maxRetries = options.maxRetries || 3
   const basePrompt = prompt
   let currentPrompt = basePrompt

@@ -379,7 +379,7 @@ export class WorldbookInjector {
 
     // 5. 更新日志中的注入状态
     budgetedEntries.forEach((entry, index) => {
-      const logEntry = injectionLog.find(log => log.entryId === entry.uid)
+      const logEntry = injectionLog.find(log => log.entryId === String(entry.uid))
       if (logEntry) {
         logEntry.injected = true
         logEntry.injectionOrder = index
@@ -430,7 +430,7 @@ export class WorldbookInjector {
 
     for (const entry of this.worldbook.entries) {
       // 跳过已注入的条目
-      if (entry.uid && injectedEntries.has(entry.uid)) {
+      if (entry.uid && injectedEntries.has(String(entry.uid))) {
         continue
       }
 
@@ -440,8 +440,8 @@ export class WorldbookInjector {
       }
 
       const logEntry: InjectionLogEntry = {
-        entryId: entry.uid || `entry-${Date.now()}`,
-        entryName: entry.name || entry.keys.join(', '),
+        entryId: entry.uid ? String(entry.uid) : `entry-${Date.now()}`,
+        entryName: entry.name || (entry.keys || []).join(', '),
         timestamp: Date.now(),
         triggerReason: 'keyword',
         evaluationResult: {
@@ -460,7 +460,7 @@ export class WorldbookInjector {
 
       if (keywordMatched) {
         stats.keywordMatched++
-        logEntry.matchedKeywords = entry.keys.filter(key =>
+        logEntry.matchedKeywords = (entry.keys || []).filter(key =>
           this.matchesKeyword(key, context)
         )
       }
@@ -507,7 +507,7 @@ export class WorldbookInjector {
     // 如果启用了选择性匹配
     if (selective) {
       // 需要同时匹配主关键词和次要关键词
-      const hasPrimary = keys.some(key => this.matchesKeyword(key, context))
+      const hasPrimary = (keys || []).some(key => this.matchesKeyword(key, context))
 
       if (!hasPrimary) {
         return false
@@ -522,7 +522,7 @@ export class WorldbookInjector {
     }
 
     // 标准匹配：匹配任意关键词
-    return keys.some(key => this.matchesKeyword(key, context))
+    return (keys || []).some(key => this.matchesKeyword(key, context))
   }
 
   /**
@@ -805,7 +805,7 @@ export class WorldbookInjector {
     // 获取所有启用组的条目ID
     const enabledEntryIds = new Set<string>()
     enabledGroups.forEach(g => {
-      g.entryIds.forEach(id => enabledEntryIds.add(id))
+      (g.entryIds || []).forEach(id => enabledEntryIds.add(String(id)))
     })
 
     // 过滤条目：保留属于启用组的条目或没有组的条目
@@ -816,7 +816,7 @@ export class WorldbookInjector {
       }
 
       // 如果条目属于启用的组，保留
-      return enabledEntryIds.has(entry.uid || entry.group)
+      return enabledEntryIds.has(String(entry.uid) || entry.group || '')
     })
   }
 
@@ -1022,7 +1022,7 @@ export class WorldbookInjector {
    * 查找特定条目
    */
   findEntry(entryId: string): WorldbookEntry | undefined {
-    return this.worldbook?.entries.find(e => e.uid === entryId)
+    return this.worldbook?.entries.find(e => String(e.uid) === entryId)
   }
 
   /**
@@ -1036,7 +1036,7 @@ export class WorldbookInjector {
     const lowerKeyword = keyword.toLowerCase()
 
     return this.worldbook.entries.filter(entry =>
-      entry.keys.some(key =>
+      entry.keys && entry.keys.some(key =>
         entry.case_sensitive
           ? key.includes(keyword)
           : key.toLowerCase().includes(lowerKeyword)
@@ -1172,7 +1172,7 @@ export function mergeWorldbooks(
 
   for (const worldbook of worldbooks) {
     for (const entry of worldbook.entries) {
-      const key = entry.uid || entry.keys.join(',')
+      const key = entry.uid ? String(entry.uid) : (entry.keys || []).join(',')
 
       if (options?.deduplicate && entryMap.has(key)) {
         const existing = entryMap.get(key)!

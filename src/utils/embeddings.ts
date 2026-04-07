@@ -205,7 +205,7 @@ export class OpenAIEmbeddingService implements EmbeddingService {
             const error = await response.json();
             errorMsg = error.error?.message || errorMsg;
           } else {
-            const text = await response.text();
+            const _text = await response.text();
             errorMsg += ` - 返回了非JSON格式 (可能是Base URL配置错误，例如少写了 /v1，或者接口不支持 /embeddings 路由)`;
           }
         } catch (e) {

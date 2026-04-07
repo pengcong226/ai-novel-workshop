@@ -41,7 +41,7 @@ export interface ApplyTraceReviewResult {
   warnings?: string[]
 }
 
-function toObject(value: unknown): Record<string, unknown> {
+function toObject(value: any): Record<string, unknown> {
   return value && typeof value === 'object' ? (value as Record<string, unknown>) : {}
 }
 

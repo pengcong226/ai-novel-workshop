@@ -426,7 +426,7 @@ async function doGenerate() {
       // 构建AI提示词
       const prompt = `请为"${generateForm.value.genre}"类型的小说创建一个世界观设定。
 主题：${generateForm.value.theme || '自由发挥'}
-风格：${generateForm.value.style || '史诗风格'}
+风格：${(generateForm.value as any).style || '史诗风格'}
 
 **重要：请直接输出JSON格式，不要有任何思考过程、解释或额外文字。**
 
@@ -507,9 +507,9 @@ async function generateDefault() {
     },
     geography: {
       locations: [
-        { id: uuidv4(), name: '中央帝国', description: '世界的中心，繁华的帝国首都', importance: 'high' },
-        { id: uuidv4(), name: '北方荒原', description: '寒冷的北方，神秘力量的发源地', importance: 'medium' },
-        { id: uuidv4(), name: '东海群岛', description: '散布在东海的岛屿群，贸易繁荣', importance: 'medium' }
+        { id: uuidv4(), name: '中央帝国', description: '世界的中心，繁华的帝国首都', importance: 'high' as const },
+        { id: uuidv4(), name: '北方荒原', description: '寒冷的北方，神秘力量的发源地', importance: 'medium' as const },
+        { id: uuidv4(), name: '东海群岛', description: '散布在东海的岛屿群，贸易繁荣', importance: 'medium' as const }
       ]
     },
     factions: [

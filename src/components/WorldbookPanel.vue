@@ -234,9 +234,9 @@ const filteredEntries = computed(() => {
   if (searchQuery.value) {
     const query = searchQuery.value.toLowerCase()
     entries = entries.filter(e =>
-      e.title.toLowerCase().includes(query) ||
+      (e.title || '').toLowerCase().includes(query) ||
       e.content.toLowerCase().includes(query) ||
-      e.keys.some(k => k.toLowerCase().includes(query))
+      (e.keys || []).some(k => k.toLowerCase().includes(query))
     )
   }
 
@@ -254,15 +254,15 @@ const filteredEntries = computed(() => {
   entries.sort((a, b) => {
     switch (sortBy.value) {
       case 'insertion_order':
-        return a.insertion_order - b.insertion_order
+        return (a.insertion_order ?? 0) - (b.insertion_order ?? 0)
       case 'priority':
-        return b.priority - a.priority
+        return (b.priority ?? 0) - (a.priority ?? 0)
       case 'title':
-        return a.title.localeCompare(b.title)
+        return (a.title || '').localeCompare((b.title || ''))
       case 'created_at':
-        return b.created_at - a.created_at
+        return (Number(b.created_at) || 0) - (Number(a.created_at) || 0)
       case 'updated_at':
-        return b.updated_at - a.updated_at
+        return (Number(b.updated_at) || 0) - (Number(a.updated_at) || 0)
       default:
         return 0
     }
@@ -406,11 +406,11 @@ async function handleBatchDelete() {
 }
 
 function handleCreateGroup() {
-  worldbookStore.createGroup('新分组', '#409EFF')
+  (worldbookStore as any).createGroup('新分组', '#409EFF')
 }
 
 function handleDeleteGroup(groupId: string) {
-  worldbookStore.deleteGroup(groupId)
+  (worldbookStore as any).deleteGroup(groupId)
 }
 
 onMounted(() => {

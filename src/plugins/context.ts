@@ -24,9 +24,7 @@ import type {
   SidebarPanelContribution,
   ToolbarButtonContribution,
   QuickCommandContribution,
-  AIActionHandlerContribution,
-  EditorContext
-} from './types'
+  AIActionHandlerContribution} from './types'
 
 /**
  * 创建插件上下文
@@ -147,14 +145,14 @@ export function createPluginContext(
    * 数据访问API
    */
   const dataAPI = {
-    async query(collection: string, query: VectorQuery): Promise<VectorSearchResult[]> {
+    async query(_collection: string, query: VectorQuery): Promise<VectorSearchResult[]> {
       requirePermission('storage', '查询向量数据')
       const projectStore = useProjectStore()
       const projectId = projectStore.currentProject?.id
       if (!projectId) throw new Error('未打开项目')
       const { getVectorService } = await import('@/utils/vectorService')
-      const vectorService = await getVectorService(projectId)
-      return await vectorService.search(query.query, query.topK, { minScore: query.minScore }) as unknown as VectorSearchResult[]
+      const vectorService = await getVectorService(projectId ? { projectId } as any : undefined)
+      return await vectorService.search(query.query, query.topK, { minScore: query.minScore }) as any as VectorSearchResult[]
     },
 
     async addDocument(doc: VectorDocument): Promise<void> {
@@ -163,7 +161,7 @@ export function createPluginContext(
       const projectId = projectStore.currentProject?.id
       if (!projectId) throw new Error('未打开项目')
       const { getVectorService } = await import('@/utils/vectorService')
-      const vectorService = await getVectorService(projectId)
+      const vectorService = await getVectorService(projectId ? { projectId } as any : undefined)
       // 使用 underlying store
       const store = (vectorService as any).vectorStore
       if (store && store.addDocument) {
@@ -176,7 +174,7 @@ export function createPluginContext(
       }
     },
 
-    async getMemory(contextType: string): Promise<MemoryContext> {
+    async getMemory(_contextType: string): Promise<MemoryContext> {
       requirePermission('storage', '获取记忆上下文')
       return {
         shortTerm: [],
@@ -198,8 +196,8 @@ export function createPluginContext(
       })
     },
 
-    async showDialog(options: DialogOptions): Promise<any> {
-      return new Promise((resolve, reject) => {
+    async showDialog(options: DialogOptions): Promise<unknown> {
+      return new Promise((resolve, _reject) => {
         ElMessageBox.confirm(
           options.message,
           options.title || '提示',

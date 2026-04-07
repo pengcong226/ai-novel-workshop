@@ -155,7 +155,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted } from 'vue'
+import { reactive, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
 import { useCharacterCardStore } from '@/stores/character-card'
 

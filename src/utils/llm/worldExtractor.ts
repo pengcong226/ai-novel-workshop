@@ -12,7 +12,7 @@ import { getWorldExtractionPrompt } from './prompts/worldPrompts'
  * 提取世界观
  */
 export async function extractWorldWithLLM(
-  text: string,
+  _text: string,
   chapters: Array<{ number: number; content: string }>,
   mode: AnalysisMode,
   config: LLMProviderConfig,
@@ -49,12 +49,12 @@ export async function extractWorldWithLLM(
     .map(ch => ch.content)
     .join('\n\n')
 
-  const worldSetting = await callLLMWithValidation(
+  const worldSetting = (await callLLMWithValidation(
     getWorldExtractionPrompt(textToAnalyze),
     worldSettingSchema,
     config,
     { maxRetries: 2 }
-  )
+  )) as any
 
   console.log('[世界观提取] 提取完成:', worldSetting.worldType)
 

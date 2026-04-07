@@ -187,7 +187,7 @@
           <el-form-item label="导入内容">
             <el-checkbox-group v-model="templateImportOptions">
               <el-checkbox label="world">世界观设定 ({{ Object.keys(selectedTemplate.world).length }} 项)</el-checkbox>
-              <el-checkbox label="characters">角色设定 ({{ selectedTemplate.characters.length }} 名)</el-checkbox>
+              <el-checkbox label="characters">角色设定 ({{ selectedTemplate.characters?.length || 0 }} 名)</el-checkbox>
               <el-checkbox label="outline">故事大纲</el-checkbox>
             </el-checkbox-group>
           </el-form-item>
@@ -248,7 +248,6 @@ import { useProjectStore } from '@/stores/project'
 import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'element-plus'
 import { Plus, Edit, Download, Delete, MoreFilled, UploadFilled, Upload } from '@element-plus/icons-vue'
 import TemplateLibrary from '@/components/TemplateLibrary.vue'
-import { templateManager } from '@/utils/templateManager'
 import type { NovelTemplate } from '@/types'
 
 const router = useRouter()

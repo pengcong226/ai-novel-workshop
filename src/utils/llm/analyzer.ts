@@ -3,16 +3,13 @@
  * 协调所有分析模块的执行流程
  */
 
-import type {
+import {
   AnalysisMode,
   LLMProviderConfig,
   AnalysisProgress,
   LLMAnalysisResult,
   LLMChapter,
   LLMCharacter,
-  LLMRelationship,
-  LLMWorldSetting,
-  LLMOutline,
   QuickModeSampling,
   DEFAULT_QUICK_MODE_SAMPLING
 } from './types'
@@ -36,7 +33,7 @@ export async function analyzeNovelWithLLM(
   const startTime = Date.now()
 
   // 检查缓存
-  const cache = await cacheManager.loadCache(text)
+  const _cache = await cacheManager.loadCache(text)
   const lastStage = await cacheManager.getLastStage(text)
 
   if (lastStage && lastStage !== 'complete') {
@@ -78,9 +75,13 @@ export async function analyzeNovelWithLLM(
       message: '识别人物...'
     })
 
+    const extractableChapters = chaptersResult.chapters
+      .filter(c => c.content !== undefined)
+      .map(c => ({ number: c.number, title: c.title, content: c.content as string }))
+
     const charactersResult = await extractCharactersWithLLM(
       text,
-      chaptersResult.chapters,
+      extractableChapters,
       mode,
       config,
       quickModeSampling,
@@ -106,7 +107,7 @@ export async function analyzeNovelWithLLM(
 
     const worldSetting = await extractWorldWithLLM(
       text,
-      chaptersResult.chapters,
+      extractableChapters,
       mode,
       config,
       quickModeSampling,
@@ -131,7 +132,7 @@ export async function analyzeNovelWithLLM(
     })
 
     const outline = await generateOutlineWithLLM(
-      chaptersResult.chapters,
+      extractableChapters,
       config,
       (progress) => {
         onProgress?.({
@@ -226,7 +227,7 @@ export async function analyzeNovelWithLLM(
  */
 function calculateStats(
   chapters: LLMChapter[],
-  characters: LLMCharacter[],
+  _characters: LLMCharacter[],
   startTime: number
 ): LLMAnalysisResult['stats'] {
   const totalWords = chapters.reduce((sum, ch) => sum + (ch.wordCount || 0), 0)

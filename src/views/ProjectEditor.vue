@@ -2,14 +2,20 @@
   <div class="project-editor">
     <el-container>
       <!-- 左侧导航 -->
-      <el-aside width="250px" class="sidebar">
-        <div class="project-info">
-          <h2>{{ project?.title }}</h2>
-          <div class="stats">
-            <div class="stat-item">
-              <span class="label">字数</span>
-              <span class="value">{{ formatNumber(project?.currentWords || 0) }}</span>
+      <transition name="el-zoom-in-left">
+        <el-aside v-show="!isZenMode" width="250px" class="sidebar">
+          <div class="project-info">
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+              <h2>{{ project?.title }}</h2>
+              <el-button @click="isZenMode = true" text circle title="沉浸专注模式">
+                <el-icon><Fold /></el-icon>
+              </el-button>
             </div>
+            <div class="stats">
+              <div class="stat-item">
+                <span class="label">字数</span>
+                <span class="value">{{ formatNumber(project?.currentWords || 0) }}</span>
+              </div>
             <div class="stat-item">
               <span class="label">目标</span>
               <span class="value">{{ formatNumber(project?.targetWords || 0) }}</span>
@@ -117,9 +123,22 @@
           </el-button>
         </div>
       </el-aside>
+      </transition>
 
       <!-- 主内容区 -->
-      <el-main class="main-content">
+      <el-main class="main-content" :class="{ 'is-zen': isZenMode }">
+        <el-button 
+          v-if="isZenMode" 
+          class="zen-exit-btn" 
+          type="primary"
+          circle
+          size="large"
+          @click="isZenMode = false"
+          title="退出沉浸模式"
+        >
+          <el-icon><Expand /></el-icon>
+        </el-button>
+
         <div v-if="projectStore.loading" class="loading-container">
           <el-icon class="is-loading" :size="40"><Loading /></el-icon>
           <p>加载项目中...</p>
@@ -181,7 +200,7 @@ import { ref, onMounted, computed, defineAsyncComponent } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useProjectStore } from '@/stores/project'
 import { usePluginStore } from '@/stores/plugin'
-import { Promotion, User, Document, Reading, Setting, ArrowLeft, Loading, Memo, Connection, Clock, DataAnalysis, DocumentCopy, Location, Tools, Notebook, Avatar } from '@element-plus/icons-vue'
+import { Promotion, User, Document, Reading, Setting, ArrowLeft, Loading, Memo, Connection, Clock, DataAnalysis, DocumentCopy, Location, Tools, Notebook, Avatar, Fold, Expand} from '@element-plus/icons-vue'
 import { getAIMockEnabled } from '@/utils/devFlags'
 
 // 懒加载组件 - 按需加载，优化首屏性能
@@ -209,6 +228,7 @@ const pluginStore = usePluginStore()
 const activeMenu = ref('world')
 const isDev = import.meta.env.DEV
 const isMockEnabled = ref(false)
+const isZenMode = ref(false)
 
 const project = computed(() => projectStore.currentProject)
 
@@ -348,6 +368,7 @@ function formatNumber(num?: number | null) {
   background: #f5f7fa;
   padding: 20px;
   overflow-y: auto;
+  position: relative;
 }
 
 .loading-container,
@@ -378,5 +399,24 @@ function formatNumber(num?: number | null) {
 
 .el-divider {
   margin: 10px 0;
+}
+
+.main-content.is-zen {
+  padding: 0;
+  transition: all 0.3s ease;
+}
+
+.zen-exit-btn {
+  position: absolute;
+  top: 20px;
+  left: 20px;
+  z-index: 999;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  opacity: 0.3;
+  transition: opacity 0.3s;
+}
+
+.zen-exit-btn:hover {
+  opacity: 1;
 }
 </style>

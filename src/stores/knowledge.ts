@@ -228,7 +228,7 @@ export const useKnowledgeStore = defineStore('knowledge', () => {
       disable: entry.disable ?? true,
       selective: entry.selective ?? false,
       order: entry.order ?? 0,
-      position: entry.position ?? 0,
+      position: entry.position ?? 'before_char',
       depth: entry.depth ?? 4,
       probability: entry.probability,
       useProbability: entry.useProbability,
@@ -236,7 +236,7 @@ export const useKnowledgeStore = defineStore('knowledge', () => {
       extensions: entry.extensions,
 
       // 知识库特有字段
-      category: entry.category || 'custom',
+      category: entry.category || ('custom' as any),
       tags: entry.tags || [],
       source: entry.source,
       author: entry.author,
@@ -275,10 +275,11 @@ export const useKnowledgeStore = defineStore('knowledge', () => {
       ...entries.value[index],
       ...updates,
       metadata: {
+        createdAt: entries.value[index].metadata?.createdAt || new Date(),
         ...entries.value[index].metadata,
         ...updates.metadata,
         updatedAt: new Date()
-      }
+      } as any
     }
 
     entries.value[index] = updatedEntry

@@ -12,9 +12,7 @@ import type {
   SuggestionQueueConfig,
   SuggestionQueueItem,
   SuggestionTriggerEvent,
-  SuggestionRule,
-  DEFAULT_QUEUE_CONFIG
-} from '@/types/suggestions'
+  SuggestionRule} from '@/types/suggestions'
 
 const STORAGE_KEY = 'ai-novel-suggestions'
 

@@ -260,8 +260,8 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue'
-import { InfoFilled, Warning, CircleCheck, CircleClose } from '@element-plus/icons-vue'
+import { ref} from 'vue'
+import { InfoFilled, Warning, CircleClose } from '@element-plus/icons-vue'
 import type { QualityMetrics } from '@/utils/qualityAnalyzer'
 import type { ContinuationSuggestion } from '@/utils/continuationSuggester'
 
@@ -273,7 +273,7 @@ interface Props {
   continuationSuggestions?: ContinuationSuggestion[]
 }
 
-const props = withDefaults(defineProps<Props>(), {
+const _props = withDefaults(defineProps<Props>(), {
   continuationSuggestions: () => []
 })
 
@@ -324,8 +324,8 @@ function getIssueIcon(type: string) {
 }
 
 // 获取建议类型
-function getSuggestionType(type: string): '' | 'success' | 'warning' | 'danger' | 'info' {
-  const types: Record<string, '' | 'success' | 'warning' | 'danger' | 'info'> = {
+function getSuggestionType(type: string): '' | 'success' | 'warning' | 'danger' | 'info' | 'primary' {
+  const types: Record<string, '' | 'success' | 'warning' | 'danger' | 'info' | 'primary'> = {
     plot: 'primary',
     character: 'success',
     scene: 'warning',

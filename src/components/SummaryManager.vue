@@ -72,13 +72,13 @@
             </div>
 
             <div class="quality-check" v-if="getQualityCheck(chapter)">
-              <el-tag :type="getQualityCheck(chapter).isValid ? 'success' : 'warning'" size="small">
-                质量评分: {{ getQualityCheck(chapter).score }}/10
+              <el-tag :type="getQualityCheck(chapter)!.isValid ? 'success' : 'warning'" size="small">
+                质量评分: {{ getQualityCheck(chapter)!.score }}/10
               </el-tag>
               <span class="quality-text">
-                完整度: {{ (getQualityCheck(chapter).completeness * 100).toFixed(0) }}% |
-                连贯性: {{ (getQualityCheck(chapter).coherence * 100).toFixed(0) }}% |
-                简洁性: {{ (getQualityCheck(chapter).conciseness * 100).toFixed(0) }}%
+                完整度: {{ (getQualityCheck(chapter)!.completeness * 100).toFixed(0) }}% |
+                连贯性: {{ (getQualityCheck(chapter)!.coherence * 100).toFixed(0) }}% |
+                简洁性: {{ (getQualityCheck(chapter)!.conciseness * 100).toFixed(0) }}%
               </span>
             </div>
 
@@ -182,7 +182,7 @@ import { ref, computed, onMounted } from 'vue'
 import { useProjectStore } from '@/stores/project'
 import { ElMessage } from 'element-plus'
 import { MagicStick, Refresh } from '@element-plus/icons-vue'
-import type { Chapter, ChapterSummaryData, SummaryDetail } from '@/types'
+import { Chapter, ChapterSummaryData, SummaryDetail } from '@/types'
 import {
   generateChapterSummary,
   batchGenerateSummaries,
@@ -254,7 +254,7 @@ function getQualityCheck(chapter: Chapter): SummaryQualityCheck | null {
 
   const cacheKey = chapter.id
   if (!qualityChecks.value.has(cacheKey)) {
-    const check = checkSummaryQuality(chapter.summaryData)
+    const check = checkSummaryQuality(chapter.summaryData as any)
     qualityChecks.value.set(cacheKey, check)
   }
 

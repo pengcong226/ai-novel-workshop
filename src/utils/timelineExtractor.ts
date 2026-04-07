@@ -3,7 +3,7 @@
  * 从大纲和章节内容中提取事件并生成时间线数据
  */
 
-import type { Project, Chapter, Outline, Volume, ChapterOutline, Foreshadowing } from '@/types'
+import type { Project, Chapter, Outline} from '@/types'
 
 /**
  * 时间线事件类型

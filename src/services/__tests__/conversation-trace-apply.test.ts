@@ -112,9 +112,9 @@ describe('conversation-trace-apply', () => {
       deps,
     })
 
-    const knowledgePayload = deps.applyKnowledge.mock.calls[0]?.[0] ?? []
+    const knowledgePayload = (deps.applyKnowledge as any).mock.calls[0]?.[0] ?? []
     expect(knowledgePayload).toHaveLength(1)
-    expect(knowledgePayload[0].type).toBe('world_fact')
+    expect((knowledgePayload[0] as any).type).toBe('world_fact')
   })
 
   it('reports applied stats based on successful writes', async () => {
@@ -174,4 +174,41 @@ describe('conversation-trace-apply', () => {
 
     expect(deps.saveImportSession).toHaveBeenCalledTimes(1)
   })
+
+  it('caps indexed artifacts to 300 and adds truncation warning', async () => {
+    const deps = {
+      applyWorldbook: vi.fn(async () => 0),
+      applyKnowledge: vi.fn(async () => 305),
+      applyCharacterProfile: vi.fn(async () => 0),
+      saveImportSession: vi.fn(async () => {}),
+      indexArtifacts: vi.fn(async () => {}),
+    }
+
+    const items: TraceReviewItem[] = Array.from({ length: 305 }, (_, index) => ({
+      ...createItem('knowledge', 'apply'),
+      id: `item-knowledge-apply-${index}`,
+      artifact: {
+        ...createItem('knowledge', 'apply').artifact,
+        id: `artifact-knowledge-${index}`,
+      },
+    }))
+
+    const result = await applyTraceReviewItems(items, {
+      fileName: 'trace-index-cap.jsonl',
+      parseStats: {
+        totalLines: 305,
+        parsedRecords: 305,
+        includedMessages: 305,
+        filteredMessages: 0,
+        parseErrors: 0
+      },
+      deps,
+    })
+
+    expect(deps.indexArtifacts).toHaveBeenCalledTimes(1)
+    expect((deps.indexArtifacts as any).mock.calls[0][0]).toHaveLength(300)
+    expect(result.warnings).toBeDefined()
+    expect(result.warnings?.some(message => message.includes('仅索引前 300 条'))).toBe(true)
+  })
+
 })

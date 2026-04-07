@@ -571,14 +571,14 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, onBeforeUnmount, nextTick } from 'vue'
+import { ref, computed, onMounted, onBeforeUnmount} from 'vue'
 import { useProjectStore } from '@/stores/project'
 import { ElMessage } from 'element-plus'
 import {
-  Grid, Refresh, Download, Check, Plus, ZoomIn, ZoomOut, FullScreen, MagicStick, Position, Picture, Location as LocationIcon, Pointer, Rank, LocationInformation, MapLocation, Share, CopyDocument
+  Grid, Refresh, Download, Check, Plus, ZoomIn, ZoomOut, MagicStick, Position, Picture, Location as LocationIcon, Pointer, Rank, LocationInformation, MapLocation, Share, CopyDocument
 } from '@element-plus/icons-vue'
 import { v4 as uuidv4 } from 'uuid'
-import type { Location, MapRegion, MapRoute, MapData, MapPosition, Faction, Character } from '@/types'
+import type { Location, MapRegion, MapRoute, MapData, MapPosition} from '@/types'
 import {
   exportMapToJSON,
   exportMapToSVG,
@@ -1301,7 +1301,7 @@ function getCharacterName(id: string): string {
 }
 
 // Stage click handler
-function handleStageClick(e: any) {
+function handleStageClick(_e: any) {
   if (currentTool.value === 'addLocation') {
     const stage = stageRef.value?.getStage()
     if (stage) {

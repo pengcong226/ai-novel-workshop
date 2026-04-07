@@ -278,7 +278,7 @@ describe('unified-importer conversation trace mode', () => {
     const result = await importer.importFromFile(file, {
       conversationTraceOptions: {
         applyReviewed: true,
-        reviewItems,
+        reviewItems: reviewItems as any,
       },
     })
 

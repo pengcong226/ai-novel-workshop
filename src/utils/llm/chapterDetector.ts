@@ -6,7 +6,7 @@ import type { LLMProviderConfig, AnalysisMode, LLMChapter, ChapterPattern, Analy
 import { callLLMWithValidation } from './llmCaller'
 import { chapterListSchema, chapterPatternSchema } from './schemas'
 import { sampleText } from './textChunker'
-import { getChapterPatternPrompt, getChapterListPrompt, getChapterValidationPrompt } from './prompts/chapterPrompts'
+import { getChapterPatternPrompt, getChapterListPrompt } from './prompts/chapterPrompts'
 
 /**
  * 检测章节
@@ -45,7 +45,7 @@ export async function detectChaptersWithLLM(
     { maxRetries: 2 }
   )
 
-  const pattern: ChapterPattern = patternResult
+  const pattern: ChapterPattern = patternResult as any
   console.log('[章节检测] 识别到模式:', pattern.pattern, '置信度:', pattern.confidence)
 
   // 等待1秒，避免QPS限制
@@ -65,12 +65,12 @@ export async function detectChaptersWithLLM(
       text.slice(-Math.floor(text.length * 0.2))
     : text
 
-  let chapters: LLMChapter[] = await callLLMWithValidation(
+  let chapters: LLMChapter[] = (await callLLMWithValidation(
     getChapterListPrompt(pattern.pattern, listText),
     chapterListSchema,
     config,
     { maxRetries: 2 }
-  )
+  )) as any
 
   console.log('[章节检测] 提取到章节数:', chapters.length)
 

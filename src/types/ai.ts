@@ -35,7 +35,7 @@ export interface CustomProviderConfig {
   /** 是否支持流式 */
   supportsStreaming?: boolean;
   /** 额外配置 */
-  [key: string]: unknown;
+  [key: string]: any;
 }
 
 /**
@@ -100,11 +100,13 @@ export interface ModelsConfig {
  * 任务类型
  */
 export type TaskType =
-  | 'worldbuilding'   // 世界观构建
-  | 'character'       // 人物设计
-  | 'outline'         // 大纲生成
-  | 'chapter'         // 章节生成
-  | 'check';          // 一致性检查
+  | 'worldbuilding'        // 世界观构建
+  | 'character'            // 人物设计
+  | 'outline'              // 大纲生成
+  | 'chapter'              // 章节生成
+  | 'check'                // 一致性检查（哨兵模型）
+  | 'state_extraction'     // 状态提取（档案员）
+  | 'memory_update';       // 记忆表更新（表格管理员）
 
 /**
  * 任务复杂度
@@ -173,6 +175,8 @@ export interface ChatRequest {
   stream?: boolean;
   /** 额外参数 */
   metadata?: Record<string, unknown>;
+  /** 结构化输出（JSON Schema） */
+  response_format?: { type: 'json_schema' | 'json_object', json_schema?: any };
 }
 
 /**
@@ -746,7 +750,7 @@ export interface AIServiceResponse<T> {
   error?: {
     code: string;
     message: string;
-    details?: unknown;
+    details?: any;
   };
   /** 元数据 */
   metadata: GenerationMetadata;

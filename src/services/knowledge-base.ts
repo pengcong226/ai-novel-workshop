@@ -6,10 +6,10 @@
  */
 
 import { v4 as uuidv4 } from 'uuid'
+import { KnowledgeCategory } from '@/types/knowledge-base'
 import type {
   KnowledgeBase,
   KnowledgeEntry,
-  KnowledgeCategory,
   KnowledgeImportOptions,
   KnowledgeExportOptions,
   KnowledgeSearchOptions,
@@ -197,8 +197,9 @@ export class KnowledgeBaseManager {
       }
 
       // 更新元数据
-      kb.metadata.totalEntries = kb.entries.length
-      kb.metadata.enabledEntries = kb.entries.filter(e => !e.disable).length
+      if (!kb.metadata) kb.metadata = {} as any
+      kb.metadata!.totalEntries = kb.entries.length
+      kb.metadata!.enabledEntries = kb.entries.filter(e => !e.disable).length
       kb.tags = this.collectTags(kb.entries)
 
       logger.info('知识库导入完成', {

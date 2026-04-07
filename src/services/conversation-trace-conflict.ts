@@ -22,7 +22,7 @@ export interface TraceConflictResult {
   conflicts: TraceConflict[]
 }
 
-function asStringArray(value: unknown): string[] {
+function asStringArray(value: any): string[] {
   if (!Array.isArray(value)) {
     return []
   }

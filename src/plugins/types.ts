@@ -10,7 +10,26 @@
 
 import type { Component } from 'vue'
 import type { Project, Chapter, Character, WorldSetting, Outline } from '@/types'
-import type { Message, ChatOptions, GenerateOptions } from '@/types/ai'
+
+// Inline AI types used by plugin context (not all exported from @/types/ai)
+type Message = { role: string; content: string }
+type ChatOptions = {
+  temperature?: number
+  maxTokens?: number
+  model?: string
+  stopSequences?: string[]
+  topP?: number
+  frequencyPenalty?: number
+  presencePenalty?: number
+  [key: string]: any
+}
+type GenerateOptions = {
+  temperature?: number
+  maxTokens?: number
+  model?: string
+  stopSequences?: string[]
+  [key: string]: any
+}
 
 // ==================== 基础类型 ====================
 
@@ -128,7 +147,7 @@ export interface ProcessorContribution {
   onError?: 'continue' | 'abort'      // 失败时继续或中断
 
   // 处理方法
-  process(data: any, context: ProcessorContext): Promise<any>
+  process(data: any, context: ProcessorContext): Promise<unknown>
 
   // 可选：UI配置组件
   getSettingsComponent?(): Component
@@ -270,6 +289,7 @@ export interface PluginManifest {
       default?: any
       description?: string
       required?: boolean
+      options?: Array<{ label: string; value: any }>
     }
   }
 }
@@ -342,7 +362,7 @@ export interface PluginContext {
   // UI交互
   ui: {
     showMessage(message: string, type?: 'success' | 'error' | 'warning' | 'info'): void
-    showDialog(options: DialogOptions): Promise<any>
+    showDialog(options: DialogOptions): Promise<unknown>
     showNotification(options: NotificationOptions): void
     confirm(message: string): Promise<boolean>
   }
@@ -423,8 +443,8 @@ export interface ChatRequest {
   temperature?: number
   maxTokens?: number
   stream?: boolean
+  stopSequences?: string[]
 }
-
 /**
  * Chat响应
  */
@@ -596,43 +616,3 @@ export interface NotificationOptions {
   position?: 'top-right' | 'top-left' | 'bottom-right' | 'bottom-left'
 }
 
-// ==================== 导出所有类型 ====================
-
-export type {
-  PluginPermission,
-  PluginStatus,
-  AIProviderContribution,
-  ExporterContribution,
-  ImporterContribution,
-  ProcessorContribution,
-  MenuItemContribution,
-  SidebarPanelContribution,
-  ToolbarButtonContribution,
-  ConfigPanelContribution,
-  QuickCommandContribution,
-  AIActionHandlerContribution,
-  PluginContributions,
-  PluginManifest,
-  PluginInstance,
-  PluginLifecycle,
-  PluginContext,
-  ModelInfo,
-  ProviderConfig,
-  ProviderInstance,
-  ChatRequest,
-  ChatResponse,
-  CostEstimate,
-  ExportData,
-  ExportOptions,
-  ImportOptions,
-  ImportResult,
-  ProcessorContext,
-  EditorContext,
-  ActionContext,
-  VectorQuery,
-  VectorDocument,
-  VectorSearchResult,
-  MemoryContext,
-  DialogOptions,
-  NotificationOptions
-}

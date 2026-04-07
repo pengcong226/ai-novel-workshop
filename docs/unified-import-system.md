@@ -2,7 +2,7 @@
 
 ## 系统概述
 
-统一导入系统将角色卡和世界书的导入功能合并在一起，支持SillyTavern常见的PNG图片同时包含角色卡和世界书数据的情况。
+统一导入系统将角色卡、世界书与会话轨迹（JSONL/NDJSON）导入功能合并在一起。支持SillyTavern常见的PNG图片混合数据，也支持会话轨迹的解析、抽取、冲突审核与应用。
 
 ## 核心功能
 
@@ -12,6 +12,7 @@
 
 - **PNG图片**: 自动提取嵌入的元数据
 - **JSON文件**: 自动识别角色卡格式（V1/V2/V3/SillyTavern扩展）或世界书格式
+- **JSONL/NDJSON**: 识别为会话轨迹模式（默认仅解析 `user + assistant`）
 
 ### 2. 智能数据分发
 
@@ -20,12 +21,20 @@
 ```
 PNG/JSON文件
     ↓
-解析内容
+统一导入器
     ├─ 角色卡数据 → characterCardStore.character
     ├─ 世界书数据 → worldbookStore.entries
     ├─ 正则脚本   → regexScriptManager
     ├─ 提示词     → characterCardStore.prompts
     └─ AI设置     → characterCardStore.aiSettings
+
+JSONL/NDJSON文件
+    ↓
+会话轨迹流水线
+    ├─ parseConversationTraceFile (解析)
+    ├─ extractTraceArtifacts (抽取)
+    ├─ buildTraceReviewQueue (冲突审核队列)
+    └─ applyTraceReviewItems (按审核结果落库)
 ```
 
 ### 3. 灵活导入选项
@@ -44,6 +53,14 @@ const options: UnifiedImportOptions = {
     deduplicate: true,
     autoCategorize: false,
     enableAllEntries: false
+  },
+  conversationTraceOptions: {   // 会话轨迹导入选项（JSONL/NDJSON）
+    includeRoles: ['user', 'assistant'],
+    includeEmptyContent: false,
+    maxMessages: 5000,
+    useRegexPreprocess: false,
+    autoApplyNoConflict: false,
+    applyReviewed: false
   }
 }
 ```
@@ -112,7 +129,34 @@ const pngResult = await importer.importFromPNG(pngFile, options)
 
 // 从JSON导入
 const jsonResult = await importer.importFromJSON(jsonFile, options)
+
+// 从JSONL/NDJSON会话轨迹导入
+const traceResult = await importer.importFromJSONL(jsonlFile, {
+  conversationTraceOptions: {
+    includeRoles: ['user', 'assistant'],
+    applyReviewed: false,
+    autoApplyNoConflict: false
+  }
+})
 ```
+
+## 会话轨迹导入流程（JSONL / NDJSON）
+
+当上传 `.jsonl/.ndjson` 时，统一导入会进入 5 步流程：
+1. 解析预览（默认仅 `user + assistant`）
+2. 抽取预览
+3. 冲突审核（默认人工审核优先）
+4. 应用结果
+
+可通过 `conversationTraceOptions` 控制：
+- `includeRoles`：扩展解析角色
+- `useRegexPreprocess`：是否启用正则预处理
+- `autoApplyNoConflict`：是否自动应用无冲突项
+- `applyReviewed`：是否按审核动作落库
+
+应用阶段会额外执行：
+- 保存导入会话历史（`traceImportHistory`）
+- 尝试向量索引（失败仅记 warning，不阻断导入）
 
 ## 导入结果
 
@@ -135,6 +179,23 @@ interface UnifiedImportResult {
     imported: boolean
     entriesCount: number
   }
+
+  conversationTrace?: {
+    analyzed: boolean
+    parsedMessages: number
+    extractedArtifacts: number
+    reviewItems: number
+    applied?: {
+      reviewed: number
+      applied: number
+      skipped: number
+      merged: number
+      conflicts: number
+    }
+    sessionId?: string
+  }
+
+  reviewItems?: TraceReviewItem[]
 
   regexScripts?: {
     imported: boolean
@@ -236,6 +297,13 @@ interface UnifiedImportResult {
    }
    ```
 
+### 会话轨迹格式（JSONL / NDJSON）
+
+- 每行一个 JSON 对象
+- 默认只纳入 `user` 与 `assistant`
+- 支持 `system/tool/other` 通过 `includeRoles` 扩展
+- 导入流程为「解析 → 抽取 → 冲突审核 → 应用」
+
 ## 典型用例
 
 ### 用例1: 导入包含世界书的角色卡PNG
@@ -286,6 +354,22 @@ const result = await importFromFile(file, {
 // - AI设置
 ```
 
+### 用例4: 导入会话轨迹JSONL并进入审核流程
+
+```typescript
+const result = await importFromFile(traceFile, {
+  conversationTraceOptions: {
+    includeRoles: ['user', 'assistant'],
+    applyReviewed: false,
+    autoApplyNoConflict: false
+  }
+})
+
+console.log(result.conversationTrace?.parsedMessages)
+console.log(result.conversationTrace?.reviewItems)
+// UI 可使用 result.reviewItems 进行逐项审核后再提交应用
+```
+
 ## 与原有系统的关系
 
 ### 统一导入 vs 独立导入
@@ -293,7 +377,7 @@ const result = await importFromFile(file, {
 **统一导入** (`UnifiedImporter`):
 - ✅ 一次导入所有数据
 - ✅ 自动分发到各个store
-- ✅ 适合PNG图片（可能同时包含多种数据）
+- ✅ 适合PNG/JSON/JSONL/NDJSON（混合数据与会话轨迹）
 - ✅ 用户友好的界面
 
 **独立导入** (`CharacterCardImporter`, `WorldbookImporter`):

@@ -108,11 +108,11 @@ export class ImporterRegistry {
       // 执行 pre-import 插件管道
       if (this.processorRegistry) {
         console.log(`执行 pre-import 管道`)
-        processedFile = await this.processorRegistry.processPipeline(
+        processedFile = (await this.processorRegistry.processPipeline(
           'pre-import',
           processedFile,
           { config: { projectId: options?.projectId || '', params: options } }
-        )
+        )) as File
       }
 
       // 预处理
@@ -141,7 +141,7 @@ export class ImporterRegistry {
           result,
           { config: { projectId: options?.projectId || '', params: options } }
         )
-        if (postResult && postResult.project) {
+        if (postResult && (postResult as any).project) {
           Object.assign(result, postResult)
         }
       }

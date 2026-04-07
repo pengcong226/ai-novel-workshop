@@ -26,7 +26,7 @@ const textCleanerProcessor: ProcessorContribution = {
    * @param context 处理上下文
    * @returns 清洗后的文本
    */
-  async process(data: any, context: ProcessorContext): Promise<any> {
+  async process(data: any, context: ProcessorContext): Promise<unknown> {
     console.log('文本清洗处理器: 开始处理')
 
     if (typeof data !== 'string') {
@@ -127,7 +127,7 @@ const styleConverterProcessor: ProcessorContribution = {
   /**
    * 处理方法
    */
-  async process(data: any, context: ProcessorContext): Promise<any> {
+  async process(data: any, context: ProcessorContext): Promise<unknown> {
     console.log('风格转换处理器: 开始处理')
 
     if (!data || typeof data !== 'object') {

@@ -325,7 +325,7 @@
         </el-tab-pane>
 
         <el-tab-pane label="当前状态" name="state">
-          <el-form :model="characterForm" label-width="100px">
+          <el-form :model="characterForm" label-width="100px" v-if="characterForm.currentState">
             <el-form-item label="当前位置">
               <el-input v-model="characterForm.currentState.location" placeholder="人物当前位置" />
             </el-form-item>
@@ -700,8 +700,8 @@ async function generateCharacter() {
 
 请只返回JSON，不要包含其他说明文字。`
 
-      const messages = [{ role: 'user', content: prompt }]
-      const context = { type: 'character', complexity: 'medium', priority: 'balanced' }
+      const messages = [{ role: 'user' as const, content: prompt }]
+      const context = { type: 'worldbuilding' as const, complexity: 'medium' as const, priority: 'balanced' as const }
 
       console.log('[人物生成] 开始调用AI服务...')
       const response = await aiStore.chat(messages, context, { maxTokens: 5000 })

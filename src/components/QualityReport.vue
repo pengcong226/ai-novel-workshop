@@ -99,6 +99,56 @@
         </el-row>
       </el-card>
 
+      <!-- V4-P2-⑨: CED质量看板 (哨兵拦截大盘) -->
+      <el-card class="ced-card">
+        <template #header>
+          <div class="card-header">
+            <span>CED 防跑偏拦截大盘 (一致性检测)</span>
+          </div>
+        </template>
+        <div v-if="cedLogs.length === 0" style="padding: 30px; text-align: center; color: #909399;">
+          <el-icon size="40"><CircleCheckFilled /></el-icon>
+          <p>当前生成暂无防吃书拦截记录，一致性良好</p>
+        </div>
+        <div v-else class="ced-logs-container">
+          <el-alert
+            type="warning"
+            show-icon
+            :closable="false"
+            style="margin-bottom: 20px;"
+          >
+            <template #title>
+              系统累计防御了 {{ cedLogs.length }} 次设定破坏/幻觉等严重一致性错误
+            </template>
+          </el-alert>
+          <el-timeline>
+            <el-timeline-item
+              v-for="log in cedLogs"
+              :key="log.id"
+              type="warning"
+              :timestamp="`第 ${log.chapterNumber} 章 - ${formatDate(log.timestamp)}`"
+              placement="top"
+            >
+              <el-card shadow="hover">
+                <h4 style="margin: 0 0 10px 0; color: #e6a23c;">{{ log.title }}</h4>
+                <p style="margin: 0; font-size: 13px;">{{ log.description }}</p>
+                <div v-if="log.metadata?.violations" style="margin-top: 10px;">
+                  <el-tag
+                    v-for="(v, idx) in log.metadata.violations"
+                    :key="idx"
+                    type="danger"
+                    size="small"
+                    style="margin-right: 5px; margin-bottom: 5px;"
+                  >
+                    {{ typeof v === 'string' ? v : `[${v.category}] ${v.description}` }}
+                  </el-tag>
+                </div>
+              </el-card>
+            </el-timeline-item>
+          </el-timeline>
+        </div>
+      </el-card>
+
       <!-- 章节详情 -->
       <el-card class="chapters-card">
         <template #header>
@@ -320,10 +370,10 @@
 import { ref, computed, onMounted, onBeforeUnmount, nextTick, watch } from 'vue'
 import { useProjectStore } from '@/stores/project'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Check, Download, Search, Warning } from '@element-plus/icons-vue'
-import type { Chapter } from '@/types'
+import { Check, Download, Search, Warning, CircleCheckFilled } from '@element-plus/icons-vue'
+import { useAuditLog } from '@/composables/useAuditLog'
 import { createQualityChecker, analyzeQualityTrend, type QualityReport } from '@/utils/qualityChecker'
-import { exportQualityReportAsJSON, exportQualityReportAsMarkdown, printQualityReport } from '@/utils/reportExporter'
+import { exportQualityReportAsJSON, exportQualityReportAsMarkdown} from '@/utils/reportExporter'
 import * as echarts from 'echarts'
 import { marked } from 'marked'
 import dompurify from 'dompurify'
@@ -338,6 +388,11 @@ const searchText = ref('')
 const showDetailDialog = ref(false)
 const currentReport = ref<QualityReport | null>(null)
 const activeTab = ref('dimensions')
+
+const { logs } = useAuditLog()
+const cedLogs = computed(() => {
+  return logs.value.filter(log => log.type === 'warning' && log.title.includes('哨兵'))
+})
 
 // 检查进度
 const showProgressDialog = ref(false)
@@ -592,7 +647,7 @@ function exportReport() {
     return
   }
 
-  const format = ['JSON', 'Markdown', '打印']
+  const _format = ['JSON', 'Markdown', '打印']
 
   ElMessageBox.confirm('请选择导出格式', '导出报告', {
     distinguishCancelAndClose: true,
@@ -741,6 +796,7 @@ watch(() => [trendChartRef.value, radarChartRef.value], () => {
 
 .overview-card,
 .dimensions-card,
+.ced-card,
 .chapters-card,
 .recommendations-card {
   margin-bottom: 0;

@@ -4,12 +4,9 @@
  */
 
 import type { ExtractedCharacter } from './characterExtractor'
-import type { ExtractedWorldInfo } from './worldExtractor'
-import type { GeneratedOutline } from './outlineGenerator'
-
 export interface AIAnalysisConfig {
   enabled: boolean
-  provider: 'claude' | 'openai' | 'local'
+  provider: 'claude' | 'openai' | 'local' | 'custom'
   apiKey?: string
   baseURL?: string
   model?: string
@@ -82,7 +79,7 @@ async function callAI(
   }
 
   let apiURL = ''
-  let headers: Record<string, string> = {
+  const headers: Record<string, string> = {
     'Content-Type': 'application/json'
   }
 
@@ -95,9 +92,9 @@ async function callAI(
     headers['anthropic-dangerous-direct-browser-access'] = 'true'
 
     // Claude使用不同的请求格式
-    body.messages = undefined
-    body.system = "You are a professional novel analysis expert."
-    body.prompt = prompt
+    delete (body as any).messages
+    ;(body as any).system = "You are a professional novel analysis expert."
+    ;(body as any).prompt = prompt
 
   } else if (config.provider === 'openai') {
     // OpenAI API - 使用代理
@@ -342,11 +339,11 @@ export function convertAICharactersToExtracted(
       existing.description = aiChar.background || existing.description
 
       // 添加关系信息
-      for (const rel of aiChar.relationships || []) {
-        if (!existing.relationships) {
-          existing.relationships = []
+      for (const rel of (aiChar as any).relationships || []) {
+        if (!(existing as any).relationships) {
+          (existing as any).relationships = []
         }
-        existing.relationships.push({
+        (existing as any).relationships.push({
           target: rel.target,
           type: rel.relation,
           strength: 0.8

@@ -55,7 +55,7 @@ export interface CharacterCardV1 {
   scenario?: string
   first_mes?: string
   mes_example?: string
-  [key: string]: unknown
+  [key: string]: any
 }
 
 /**
@@ -80,9 +80,9 @@ export interface CharacterCardV2 {
       recursive_scan_depth?: number
       extensions?: Record<string, unknown>
     }
-    [key: string]: unknown
+    [key: string]: any
   }
-  [key: string]: unknown
+  [key: string]: any
 }
 
 /**
@@ -107,9 +107,9 @@ export interface CharacterCardV3 {
       recursive_scan_depth?: number
       extensions?: Record<string, unknown>
     }
-    [key: string]: unknown
+    [key: string]: any
   }
-  [key: string]: unknown
+  [key: string]: any
 }
 
 /**

@@ -257,7 +257,7 @@
         <!-- LLM分析进度 -->
         <AnalysisProgressComponent
           v-if="importOptions.useAIAnalysis && hasImportModel"
-          :progress="llmAnalysisProgress"
+          :progress="llmAnalysisProgress || undefined"
           :status="llmAnalysisStatus"
           :token-usage="llmTokenUsage"
           :estimated-cost="llmEstimatedCost"
@@ -350,11 +350,11 @@
                   <el-descriptions-item label="世界类型">
                     {{ llmResult.worldSetting.worldType }}
                   </el-descriptions-item>
-                  <el-descriptions-item v-if="llmResult.worldSetting.timePeriod" label="时代背景">
-                    {{ llmResult.worldSetting.timePeriod }}
+                  <el-descriptions-item v-if="llmResult.worldSetting.era" label="时代背景">
+                    {{ llmResult.worldSetting.era }}
                   </el-descriptions-item>
-                  <el-descriptions-item v-if="llmResult.worldSetting.mainLocations?.length" label="主要地点">
-                    <el-tag v-for="loc in llmResult.worldSetting.mainLocations" :key="loc" style="margin-right: 5px;">
+                  <el-descriptions-item v-if="llmResult.worldSetting.keyLocations?.length" label="主要地点">
+                    <el-tag v-for="loc in llmResult.worldSetting.keyLocations" :key="loc" style="margin-right: 5px;">
                       {{ loc }}
                     </el-tag>
                   </el-descriptions-item>
@@ -367,12 +367,12 @@
                 <h3 style="margin-top: 0;">主线剧情</h3>
                 <p>{{ llmResult.outline.mainPlot }}</p>
 
-                <el-divider v-if="llmResult.outline.subplots?.length" />
+                <el-divider v-if="llmResult.outline.subPlots?.length" />
 
                 <h3>支线剧情</h3>
                 <el-collapse>
                   <el-collapse-item
-                    v-for="(subplot, index) in llmResult.outline.subplots"
+                    v-for="(subplot, index) in llmResult.outline.subPlots"
                     :key="index"
                     :title="subplot.name"
                   >
@@ -430,8 +430,8 @@
               <el-table-column prop="title" label="标题" min-width="200" />
               <el-table-column prop="wordCount" label="字数" width="100" />
             </el-table>
-            <div v-if="previewData?.chapters?.length > 10" class="more-hint">
-              仅显示前10章，共 {{ previewData.chapters.length }} 章
+            <div v-if="previewData?.chapters && previewData.chapters.length > 10" class="more-hint">
+              仅显示前10章，共 {{ previewData.chapters?.length }} 章
             </div>
           </el-tab-pane>
 
@@ -447,8 +447,8 @@
               </el-table-column>
               <el-table-column prop="description" label="描述" min-width="200" show-overflow-tooltip />
             </el-table>
-            <div v-if="previewData?.characters?.length > 20" class="more-hint">
-              仅显示前20位人物，共 {{ previewData.characters.length }} 位
+            <div v-if="previewData?.characters && previewData.characters.length > 20" class="more-hint">
+              仅显示前20位人物，共 {{ previewData.characters?.length }} 位
             </div>
           </el-tab-pane>
 
@@ -465,7 +465,7 @@
               <el-timeline-item
                 v-for="volume in previewData?.outline?.volumes"
                 :key="volume.number"
-                :timestamp="`第${volume.chapterRange.start}-${volume.chapterRange.end}章`"
+                :timestamp="`第${volume.startChapter}-${volume.endChapter}章`"
                 placement="top"
               >
                 <el-card>
@@ -511,22 +511,21 @@ import type { UploadFile } from 'element-plus'
 import {
   importNovel,
   type ImportOptions,
-  type ImportProgress,
-  type SupportedFormat
+  type ImportProgress
 } from '@/utils/novelImporter'
-import { detectChapterPattern, type ChapterPattern } from '@/utils/chapterParser'
+import { detectChapterPattern } from '@/utils/chapterParser'
 import type { Project, CharacterTag } from '@/types'
 import { useProjectStore } from '@/stores/project'
 import {
   analyzeNovelWithLLM,
   type LLMProviderConfig,
   type AnalysisMode,
-  type QuickModeSampling,
   type LLMAnalysisResult,
   type AnalysisProgress,
   DEFAULT_QUICK_MODE_SAMPLING
 } from '@/utils/llm'
 import { v4 as uuidv4 } from 'uuid'
+import { encryptApiKey, decryptApiKey } from '@/utils/crypto'
 import AnalysisProgressComponent from './novel-import/AnalysisProgress.vue'
 import ChapterPreviewComponent from './novel-import/ChapterPreview.vue'
 import CharacterPreviewComponent from './novel-import/CharacterPreview.vue'
@@ -535,11 +534,11 @@ interface Props {
   modelValue: boolean
 }
 
-const props = defineProps<Props>()
+const _props = defineProps<Props>()
 
 const emit = defineEmits<{
   (e: 'update:modelValue', value: boolean): void
-  (e: 'imported', project: Partial<Project>): void
+  (e: 'imported', project: any): void
 }>()
 
 const currentStep = ref(0)
@@ -603,7 +602,7 @@ const progress = ref({
   message: '准备处理...'
 })
 
-const previewData = ref<Partial<Project> | null>(null)
+const previewData = ref<(Partial<Project> & { stats?: any, author?: string, worldSetting?: any }) | null>(null)
 
 // 是否可以进入下一步
 const canNext = computed(() => {
@@ -623,20 +622,7 @@ watch(selectedFile, (file) => {
   }
 })
 
-// 检查AI配置
-function checkAIConfig() {
-  try {
-    const storedConfig = localStorage.getItem('ai-novel-ai-config')
-    if (storedConfig) {
-      const config = JSON.parse(storedConfig)
-      hasAIConfig.value = !!(config.apiKey && config.apiKey.trim())
-    } else {
-      hasAIConfig.value = false
-    }
-  } catch (error) {
-    hasAIConfig.value = false
-  }
-}
+
 
 // 组件挂载时检查AI配置
 onMounted(async () => {
@@ -652,7 +638,11 @@ onMounted(async () => {
 // 保存临时配置到localStorage
 function saveTempConfig() {
   try {
-    localStorage.setItem('ai-novel-temp-llm-config', JSON.stringify(tempLLMConfig.value))
+    const encryptedConfig = {
+      ...tempLLMConfig.value,
+      apiKey: encryptApiKey(tempLLMConfig.value.apiKey)
+    }
+    localStorage.setItem('ai-novel-temp-llm-config', JSON.stringify(encryptedConfig))
     ElMessage.success('临时配置已保存')
   } catch (error) {
     ElMessage.error('保存配置失败')
@@ -668,7 +658,7 @@ function loadTempConfig() {
       const config = JSON.parse(saved)
       tempLLMConfig.value = {
         provider: config.provider || 'anthropic',
-        apiKey: config.apiKey || '',
+        apiKey: decryptApiKey(config.apiKey) || '',
         baseURL: config.baseURL || '',
         model: config.model || ''
       }
@@ -788,7 +778,7 @@ function checkImportModel() {
 }
 
 // 获取项目配置的AI模型或临时配置
-function getProjectAIConfig(): AIAnalysisConfig | null {
+function getProjectAIConfig(): any {
   try {
     // 0. 优先使用临时配置（如果启用）
     if (useTempConfig.value && tempLLMConfig.value.apiKey && tempLLMConfig.value.model) {
@@ -997,7 +987,8 @@ async function processWithLLM(text: string) {
       apiKey: aiConfig.apiKey,
       baseURL: aiConfig.baseURL,
       maxTokens: 65536,
-      temperature: 0.7
+      temperature: 0.7,
+      pricing: { input: 0, output: 0 }
     }
 
     // 执行LLM分析
@@ -1025,12 +1016,20 @@ async function processWithLLM(text: string) {
     previewData.value = {
       title: importForm.value.title,
       author: importForm.value.author,
-      chapters: llmResult.value.chapters.map(ch => ({
+      chapters: llmResult.value.chapters.map((ch: any) => ({
+        id: uuidv4(),
         number: ch.number,
         title: ch.title,
         content: ch.content || '',
-        wordCount: ch.wordCount
-      })),
+        wordCount: ch.wordCount || 0,
+        status: 'completed' as const,
+        outline: {
+          chapterId: uuidv4(),
+          title: ch.title,
+          scenes: [],
+          status: 'completed' as const
+        }
+      }) as any),
       characters: llmResult.value.characters.map(char => ({
         id: uuidv4(),
         name: char.name,
@@ -1244,7 +1243,7 @@ async function handleImport() {
       }
       emit('imported', llmImportResult)
     } else {
-      emit('imported', importResult.value)
+      emit('imported', importResult.value.project || importResult.value)
     }
     emit('update:modelValue', false)
     ElMessage.success('导入成功!')

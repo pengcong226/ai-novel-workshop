@@ -207,7 +207,7 @@
                   <el-form-item label="主要事件">
                     <div class="events-list">
                       <div
-                        v-for="(event, i) in volume.mainEvents"
+                        v-for="(_event, i) in volume.mainEvents"
                         :key="i"
                         class="event-item"
                         draggable="true"
@@ -408,7 +408,7 @@
                   <el-form-item label="目标">
                     <div class="goals-list">
                       <div
-                        v-for="(goal, i) in chapter.goals"
+                        v-for="(_goal, i) in chapter.goals"
                         :key="i"
                         class="list-item"
                       >
@@ -428,7 +428,7 @@
                   <el-form-item label="冲突">
                     <div class="conflicts-list">
                       <div
-                        v-for="(conflict, i) in chapter.conflicts"
+                        v-for="(_conflict, i) in chapter.conflicts"
                         :key="i"
                         class="list-item"
                       >
@@ -448,7 +448,7 @@
                   <el-form-item label="解决方案">
                     <div class="resolutions-list">
                       <div
-                        v-for="(resolution, i) in chapter.resolutions"
+                        v-for="(_resolution, i) in chapter.resolutions"
                         :key="i"
                         class="list-item"
                       >
@@ -639,7 +639,6 @@ import { v4 as uuidv4 } from 'uuid'
 import type { Outline, ChapterOutline, Volume } from '@/types'
 import {
   outlineTemplates,
-  getTemplateByStructure,
   generateVolumesFromTemplate
 } from '@/data/outlineTemplates'
 
@@ -647,7 +646,7 @@ const projectStore = useProjectStore()
 const project = computed(() => projectStore.currentProject)
 const characters = computed(() => project.value?.characters || [])
 const locations = computed(() => project.value?.world?.geography?.locations || [])
-const chapters = computed(() => project.value?.chapters || [])
+const _chapters = computed(() => project.value?.chapters || [])
 
 const activeTab = ref('synopsis')
 const generating = ref(false)
@@ -801,7 +800,7 @@ function getVolumeProgress(volume: Volume): number {
 
 // 获取卷内的章节
 function getChaptersForVolume(volume: Volume): ChapterOutline[] {
-  return outlineForm.value.chapters.filter((chapter, index) => {
+  return outlineForm.value.chapters.filter((_chapter, index) => {
     const chapterNum = index + 1
     return chapterNum >= volume.startChapter && chapterNum <= volume.endChapter
   })
@@ -907,7 +906,7 @@ function handleEventDragStart(e: DragEvent, volumeIndex: number, eventIndex: num
   }
 }
 
-function handleEventDrop(e: DragEvent, volumeIndex: number, eventIndex: number) {
+function handleEventDrop(_e: DragEvent, volumeIndex: number, eventIndex: number) {
   if (!draggedEvent.value) return
 
   const { volumeIndex: fromVol, eventIndex: fromIdx } = draggedEvent.value
@@ -1047,8 +1046,8 @@ ${world?.factions?.length ? '主要势力：' + world.factions.map(f => f.name).
 
 请只返回JSON，不要包含其他说明文字。`
 
-      const messages = [{ role: 'user', content: prompt }]
-      const context = { type: 'outline', complexity: 'high', priority: 'quality' }
+      const messages: any[] = [{ role: 'user', content: prompt }]
+      const context = { type: 'planning' as any, complexity: 'high' as any, priority: 'quality' as any }
 
       console.log('[大纲生成] 开始调用AI服务...')
       const response = await aiStore.chat(messages, context, { maxTokens: 8000 })

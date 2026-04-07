@@ -286,6 +286,7 @@ import { useSuggestionsStore } from '@/stores/suggestions'
 import { ElMessage, ElNotification } from 'element-plus'
 import { ChatDotRound, MoreFilled } from '@element-plus/icons-vue'
 import * as echarts from 'echarts'
+import DOMPurify from 'dompurify'
 import type { Suggestion, SuggestionStatus, SuggestionAction } from '@/types/suggestions'
 
 const projectStore = useProjectStore()
@@ -420,8 +421,9 @@ function removeEventListeners() {
 }
 
 // 事件处理器
-async function handleChapterSave(event: CustomEvent) {
-  const { chapter } = event.detail
+async function handleChapterSave(event: Event) {
+  const customEvent = event as CustomEvent
+  const { chapter } = customEvent.detail
   await suggestionsStore.triggerCheck('chapter_save', { chapter })
 
   // 检查是否需要生成建议
@@ -440,13 +442,15 @@ async function handleChapterSave(event: CustomEvent) {
   }
 }
 
-async function handleCharacterUpdate(event: CustomEvent) {
-  const { character } = event.detail
+async function handleCharacterUpdate(event: Event) {
+  const customEvent = event as CustomEvent
+  const { character } = customEvent.detail
   await suggestionsStore.triggerCheck('character_update', { character })
 }
 
-async function handleOutlineChange(event: CustomEvent) {
-  const { outline } = event.detail
+async function handleOutlineChange(event: Event) {
+  const customEvent = event as CustomEvent
+  const { outline } = customEvent.detail
   await suggestionsStore.triggerCheck('outline_change', { outline })
 }
 
@@ -496,9 +500,11 @@ function toggleChat() {
 }
 
 function formatMessage(content: string): string {
-  return content
+  // Sanitize HTML to prevent XSS attacks
+  const html = content
     .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
     .replace(/\n/g, '<br>')
+  return DOMPurify.sanitize(html)
 }
 
 async function sendMessage() {
@@ -591,13 +597,13 @@ ${project.outline.mainPlot?.name || '主线'}: ${project.outline.mainPlot?.descr
 除了创建人物，如果你只是聊天或者给建议，正常用 Markdown 回复即可，不要输出任何动作 JSON。`
 
     // 2. 构建多轮对话记忆
-    // 截取最近的 10 条对话历史
+    // 截取最近的 10 条对话历史，并将最后一条用户消息的内容替换为实际指令(如果它们不同)
     const chatHistory = messages.value
       .filter(m => m.role === 'user' || m.role === 'assistant')
       .slice(-10)
-      .map(m => ({
+      .map((m, index, arr) => ({
         role: m.role,
-        content: m.content
+        content: index === arr.length - 1 && m.role === 'user' ? command : m.content
       }))
 
     // 为了防止把按钮文本等内部格式发给 AI，只传纯文本
@@ -687,6 +693,11 @@ async function handleAction(action: Action) {
   
   // 普通快捷指令
   processCommand(action.command)
+}
+
+function sendQuickCommand(cmd: Action) {
+  messages.value.push({ role: 'user', content: cmd.text })
+  processCommand(cmd.command)
 }
 
 function clearChat() {

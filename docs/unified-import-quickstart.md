@@ -38,26 +38,36 @@ import { importFromFile } from '@/services/unified-importer'
 // 上传文件后处理
 async function handleFileUpload(file: File) {
   const result = await importFromFile(file, {
-    importCharacterCard: true,  // 导入角色卡
-    importWorldbook: true,      // 导入世界书
-    importRegexScripts: true,   // 导入正则脚本
-    importPrompts: true,        // 导入提示词
-    importAISettings: true      // 导入AI设置
+    importCharacterCard: true,
+    importWorldbook: true,
+    importRegexScripts: true,
+    importPrompts: true,
+    importAISettings: true,
+    conversationTraceOptions: {
+      includeRoles: ['user', 'assistant'], // 默认仅解析 user+assistant
+      useRegexPreprocess: false,
+      applyReviewed: false,
+      autoApplyNoConflict: false
+    }
   })
 
-  if (result.success) {
-    // 检查导入了什么
-    if (result.characterCard?.imported) {
-      console.log(`角色卡: ${result.characterCard.name}`)
-    }
-    if (result.worldbook?.imported) {
-      console.log(`世界书: ${result.worldbook.entriesCount} 条`)
-    }
-    if (result.regexScripts?.imported) {
-      console.log(`正则脚本: ${result.regexScripts.count} 个`)
-    }
-  } else {
+  if (!result.success) {
     console.error('导入失败:', result.errors)
+    return
+  }
+
+  if (result.characterCard?.imported) {
+    console.log(`角色卡: ${result.characterCard.name}`)
+  }
+
+  if (result.worldbook?.imported) {
+    console.log(`世界书: ${result.worldbook.entriesCount} 条`)
+  }
+
+  if (result.conversationTrace?.analyzed) {
+    console.log(`会话轨迹解析: ${result.conversationTrace.parsedMessages}`)
+    console.log(`抽取候选: ${result.conversationTrace.extractedArtifacts}`)
+    console.log(`审核项: ${result.conversationTrace.reviewItems}`)
   }
 }
 ```
@@ -132,30 +142,27 @@ const result = await importFromFile(file, {
 })
 ```
 
-### 场景4: 批量导入多个文件
+### 场景4: 导入会话轨迹 JSONL 并进入审核
 
-用户想一次导入多个文件。
+当上传 `.jsonl/.ndjson` 会话轨迹时，统一导入会走解析-抽取-审核流程。
 
 **解决方案**:
 
 ```typescript
-async function handleMultipleFiles(files: File[]) {
-  for (const file of files) {
-    const result = await importFromFile(file, {
-      importCharacterCard: true,
-      importWorldbook: true,
-      worldbookOptions: {
-        conflictResolution: 'keep_both',
-        deduplicate: true
-      }
-    })
-
-    if (result.success) {
-      console.log(`${file.name} 导入成功`)
-    } else {
-      console.error(`${file.name} 导入失败:`, result.errors)
-    }
+const result = await importFromFile(traceFile, {
+  conversationTraceOptions: {
+    includeRoles: ['user', 'assistant'], // 默认角色
+    useRegexPreprocess: false,
+    applyReviewed: false,                // 先分析，不自动应用
+    autoApplyNoConflict: false
   }
+})
+
+if (result.success && result.conversationTrace?.analyzed) {
+  console.log(`已解析消息: ${result.conversationTrace.parsedMessages}`)
+  console.log(`抽取候选: ${result.conversationTrace.extractedArtifacts}`)
+  console.log(`审核项: ${result.conversationTrace.reviewItems}`)
+  // UI 中编辑 result.reviewItems 后再提交 applyReviewed
 }
 ```
 
@@ -200,6 +207,11 @@ console.log(`共有 ${scripts.length} 个正则脚本`)
 - ✅ SillyTavern世界书
 - ✅ TavernAI世界书
 
+### JSONL / NDJSON 文件
+- ✅ 会话轨迹导入（默认仅解析 `user + assistant`）
+- ✅ 解析预览 → 抽取预览 → 冲突审核 → 应用结果
+- ✅ 支持 `conversationTraceOptions.includeRoles` 扩展解析角色
+
 ## 故障排除
 
 ### Q: 导入PNG时提示"PNG文件不包含角色卡或世界书数据"
@@ -224,9 +236,14 @@ const result = await importFromFile(file, options)
 
 console.log('角色卡:', result.characterCard?.imported)
 console.log('世界书:', result.worldbook?.imported)
+console.log('会话轨迹分析:', result.conversationTrace?.analyzed)
+console.log('解析消息数:', result.conversationTrace?.parsedMessages)
+console.log('抽取候选数:', result.conversationTrace?.extractedArtifacts)
+console.log('审核项:', result.conversationTrace?.reviewItems)
 console.log('正则脚本:', result.regexScripts?.imported)
 console.log('提示词:', result.prompts?.imported)
 console.log('AI设置:', result.aiSettings?.imported)
+console.log('warnings:', result.warnings)
 ```
 
 ## 下一步

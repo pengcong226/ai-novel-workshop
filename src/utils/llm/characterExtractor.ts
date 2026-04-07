@@ -5,7 +5,6 @@
 import type { LLMProviderConfig, AnalysisMode, LLMCharacter, LLMRelationship, AnalysisProgress, QuickModeSampling } from './types'
 import { callLLMWithValidation } from './llmCaller'
 import { characterListSchema, relationshipListSchema } from './schemas'
-import { selectRepresentativeChapters } from './textChunker'
 import { getCharacterExtractionPrompt, getRelationshipExtractionPrompt } from './prompts/characterPrompts'
 
 /**
@@ -51,12 +50,12 @@ export async function extractCharactersWithLLM(
     .map(ch => ch.content)
     .join('\n\n')
 
-  const characters = await callLLMWithValidation(
+  const characters = (await callLLMWithValidation(
     getCharacterExtractionPrompt(textToAnalyze),
     characterListSchema,
     config,
     { maxRetries: 2 }
-  )
+  )) as any
 
   console.log('[人物识别] 识别到人物数:', characters.length)
 
@@ -68,12 +67,12 @@ export async function extractCharactersWithLLM(
     message: '提取人物关系...'
   })
 
-  const relationships = await callLLMWithValidation(
+  const relationships = (await callLLMWithValidation(
     getRelationshipExtractionPrompt(characters, textToAnalyze),
     relationshipListSchema,
     config,
     { maxRetries: 2 }
-  )
+  )) as any
 
   console.log('[人物识别] 提取到关系数:', relationships.length)
 

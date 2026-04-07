@@ -135,7 +135,7 @@ export class ProcessorRegistry {
     processorId: string,
     data: any,
     context: ProcessorContext
-  ): Promise<any> {
+  ): Promise<unknown> {
     const processor = this.processors.get(processorId)
     if (!processor) {
       throw new Error(`处理器 ${processorId} 未注册`)
@@ -174,7 +174,7 @@ export class ProcessorRegistry {
     stage: ProcessorStage,
     data: any,
     context: ProcessorContext
-  ): Promise<any> {
+  ): Promise<unknown> {
     const processors = this.getSortedStageProcessors(stage)
 
     if (processors.length === 0) {
@@ -222,7 +222,7 @@ export class ProcessorRegistry {
     processorIds: string[],
     data: any,
     context: ProcessorContext
-  ): Promise<any> {
+  ): Promise<unknown> {
     let result = data
 
     for (const processorId of processorIds) {

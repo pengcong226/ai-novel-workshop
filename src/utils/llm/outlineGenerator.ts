@@ -26,12 +26,12 @@ export async function generateOutlineWithLLM(
     message: '生成大纲...'
   })
 
-  const outline = await callLLMWithValidation(
+  const outline = (await callLLMWithValidation(
     getOutlineGenerationPrompt(chapters),
     outlineSchema,
     config,
     { maxRetries: 2 }
-  )
+  )) as any
 
   console.log('[大纲生成] 生成完成')
 
@@ -67,36 +67,52 @@ export async function extendOutlineWithLLM(
     `第${existingOutline.chapters.indexOf(c) + 1}章 ${c.title}\n目标: ${c.goals.join(',')}\n冲突: ${c.conflicts.join(',')}\n解决: ${c.resolutions.join(',')}`
   ).join('\n\n')
 
-  const prompt = `请为我的小说续写接下来的 ${count} 章大纲（从第 ${startChapter} 章开始）。
+  // 提取未解决的伏笔 (Horizon Pre-fetch)
+  const unresolvedForeshadowings = existingOutline.foreshadowings.filter(f => f.status === 'planted')
+  const foreshadowingText = unresolvedForeshadowings.length > 0 
+    ? unresolvedForeshadowings.map(f => `- [第${f.plantChapter}章埋下] ${f.description}`).join('\n')
+    : '无'
 
+  // 构建 Horizon Outline 推演 Prompt
+  const prompt = `你现在是一位顶级网文架构大神的独立人格。请为目前的小说做推演并续写接下来的 ${count} 章大纲（从第 ${startChapter} 章开始）。
+
+【设定坐标系】：
 ${world?.name ? '世界观：' + world.name : ''}
 ${world?.era ? '时代背景：' + world.era.time + '，科技水平：' + world.era.techLevel : ''}
-${world?.factions?.length ? '主要势力：' + world.factions.map(f => f.name).join('、') : ''}
+${world?.factions?.length ? '主要势力：' + world.factions.map((f: any) => f.name).join('、') : ''}
 
-【主线剧情】：${existingOutline.mainPlot.name} - ${existingOutline.mainPlot.description}
+【主线锚点】：${existingOutline.mainPlot.name} - ${existingOutline.mainPlot.description}
 
-【前文大纲参考（最近5章）】：
+【待回收/悬而未决的因果线（伏笔）】：
+${foreshadowingText}
+
+【当前剧情节点（最近5章，推演基石）】：
 ${recentOutlinesText}
 
-请务必保持剧情的连贯性，推动主线发展，并以以下 JSON 数组格式返回新大纲（只要一个名为 chapters 的数组）：
+【工作要求】：
+1. 剧情严密连贯：基于当前节点，推动主线锚点，不要原地灌水或突然跳跃。
+2. 填坑动作：若剧情合适可以利用起上述“未干预期”的因果线/伏笔并标明回收。
+3. 返回格式：必须以原生 JSON 返回，不要附加 markdown代码块之外的废话！
+
+返回的 JSON 的格式要求如下：
 {
+  "_thought": "简短的推演思考过程：分析当前困局，推导接下来这几十章如何打破僵局、主角如何升级/揭秘，如何布局高潮",
   "chapters": [
     {
       "title": "第X章标题",
       "scenes": [
-        { "description": "场景描述", "location": "地点", "characters": ["人物1"] }
+        { "description": "场景详细推演（什么人做了什么事）", "location": "某地点", "characters": ["张三", "李四"] }
       ],
-      "characters": ["主要人物"],
-      "location": "主要地点",
-      "goals": ["章节目标1"],
-      "conflicts": ["冲突1"],
-      "resolutions": ["解决方案1"],
-      "foreshadowingToPlant": ["要埋设的伏笔"],
-      "foreshadowingToResolve": ["要揭示的伏笔"]
+      "characters": ["本章所有出场人物"],
+      "location": "本章主舞台",
+      "goals": ["主角/反派本章的核心目的1"],
+      "conflicts": ["本章遭遇了什么阻力/冲突"],
+      "resolutions": ["如何解决上述冲突的，取得了什么进展"],
+      "foreshadowingToPlant": ["如果本章埋下了新伏笔，请写在这里，否则留空数组"],
+      "foreshadowingToResolve": ["如果本章解决或提到了过去的伏笔，请写在这里，否则留空数组"]
     }
   ]
-}
-请只返回 JSON 格式，不要有任何 Markdown 代码块标记以外的废话。`
+}`
 
   const messages = [{ role: 'user' as const, content: prompt }]
   const aiContext = { type: 'outline' as const, complexity: 'high' as const, priority: 'quality' as const }
@@ -136,7 +152,8 @@ ${recentOutlinesText}
       resolutions: c.resolutions || [],
       foreshadowingToPlant: c.foreshadowingToPlant || [],
       foreshadowingToResolve: c.foreshadowingToResolve || [],
-      status: 'planned'
+      status: 'planned',
+      generationPrompt: '' // 占位
     }))
   } catch (error) {
     console.error('解析续写大纲失败:', error, jsonStr)

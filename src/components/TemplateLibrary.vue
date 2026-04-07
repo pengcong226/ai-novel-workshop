@@ -373,7 +373,7 @@
 
       <template #footer>
         <el-button @click="showPreviewDialog = false">关闭</el-button>
-        <el-button type="primary" @click="useTemplate(previewData)">
+        <el-button type="primary" @click="previewData && useTemplate(previewData)">
           使用此模板
         </el-button>
       </template>
@@ -568,8 +568,8 @@ ${aiGenForm.value.extraPrompt ? '附加要求：' + aiGenForm.value.extraPrompt 
 请只返回一段纯净的 JSON 代码，不要添加任何额外的 Markdown 格式（如 \`\`\`json）或人类解释文字。`
 
     const response = await aiStore.chat(
-      [{ role: 'user', content: prompt }], 
-      { type: 'planning', complexity: 'high', priority: 'quality' }, 
+      [{ role: 'user', content: prompt }],
+      { type: 'planning' as any, complexity: 'high', priority: 'quality' },
       { maxTokens: 4000 }
     )
 

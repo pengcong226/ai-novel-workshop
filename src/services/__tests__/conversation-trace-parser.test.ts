@@ -155,4 +155,40 @@ describe('conversation-trace-parser', () => {
     expect(result.stats.parsedRecords).toBe(0)
     expect(result.stats.parseErrors).toBe(0)
   })
+
+  it('stops parsing after reaching maxErrors in text mode', async () => {
+    const text = [
+      '{ bad json 1',
+      '{ bad json 2',
+      JSON.stringify({ role: 'assistant', content: 'should-not-parse' })
+    ].join('\n')
+
+    const result = await parseConversationTraceText(text, { maxErrors: 1 })
+
+    expect(result.stats.parseErrors).toBe(1)
+    expect(result.errors).toHaveLength(1)
+    expect(result.messages).toHaveLength(0)
+  })
+
+  it('truncates parse error rawLine by maxErrorRawLineLength', async () => {
+    const badLine = '{ bad json with very long payload '
+    const text = [badLine].join('\n')
+
+    const result = await parseConversationTraceText(text, {
+      maxErrorRawLineLength: 8,
+    })
+
+    expect(result.errors).toHaveLength(1)
+    expect(result.errors[0].rawLine).toBe(badLine.slice(0, 8))
+  })
+
+  it('supports maxErrorRawLineLength = 0', async () => {
+    const result = await parseConversationTraceText('{ bad json', {
+      maxErrorRawLineLength: 0,
+    })
+
+    expect(result.errors).toHaveLength(1)
+    expect(result.errors[0].rawLine).toBe('')
+  })
+
 })

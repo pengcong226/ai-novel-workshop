@@ -39,7 +39,7 @@ export interface PngExportOptions extends WorldbookExportOptions {
     scenario?: string
     first_mes?: string
     mes_example?: string
-    [key: string]: unknown
+    [key: string]: any
   }
 
   /** 是否嵌入到角色卡 */
@@ -608,7 +608,7 @@ export class WorldbookExporter {
     width: number,
     height: number
   ): void {
-    const padding = 20
+    const _padding = 20
 
     // 标题背景
     ctx.fillStyle = 'rgba(0, 0, 0, 0.6)'
@@ -640,7 +640,7 @@ export class WorldbookExporter {
   private async embedDataInPng(pngBlob: Blob, data: any): Promise<Blob> {
     // 将数据转换为 Base64
     const jsonStr = JSON.stringify(data)
-    const base64Data = btoa(unescape(encodeURIComponent(jsonStr)))
+    const _base64Data = btoa(unescape(encodeURIComponent(jsonStr)))
 
     // 使用 Canvas 重绘 PNG 并嵌入数据
     return new Promise((resolve, reject) => {
@@ -735,7 +735,7 @@ export class WorldbookExporter {
    * 生成统计信息部分
    */
   private generateStatisticsSection(
-    worldbook: Worldbook,
+    _worldbook: Worldbook,
     entries: WorldbookEntry[]
   ): string {
     const enabled = entries.filter((e) => !e.disable).length

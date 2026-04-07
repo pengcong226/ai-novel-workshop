@@ -1,5 +1,5 @@
 import { v4 as uuidv4 } from 'uuid'
-import type { NovelTemplate, Project, WorldSetting, Character, Outline, Volume, ChapterOutline, PlotTemplate } from '@/types'
+import type { NovelTemplate, Project, WorldSetting, Character, Outline, ChapterOutline, PlotTemplate } from '@/types'
 import { getBuiltInTemplates } from './builtInTemplates'
 
 /**
@@ -104,7 +104,7 @@ export class TemplateManager {
         author: author,
         description: `基于项目"${project.title}"创建的模板`,
         tags: [project.genre],
-        category: this.detectCategory(project.genre),
+        category: this.detectCategory(project.genre) as any,
         createdAt: new Date(),
         updatedAt: new Date(),
         rating: 0,
@@ -217,6 +217,8 @@ export class TemplateManager {
       background: ct.template.background || '',
       motivation: ct.template.motivation || '',
       abilities: ct.template.abilities || [],
+      tags: ct.template.tags || [],
+      stateHistory: [],
       powerLevel: ct.template.powerLevel,
       relationships: [],
       appearances: [],
@@ -273,7 +275,8 @@ export class TemplateManager {
         enableQualityCheck: template.configTemplate?.enableQualityCheck ?? true,
         qualityThreshold: template.configTemplate?.qualityThreshold || 7,
         maxCostPerChapter: template.configTemplate?.maxCostPerChapter || 0.1,
-        enableAISuggestions: template.configTemplate?.enableAISuggestions ?? true
+        enableAISuggestions: template.configTemplate?.enableAISuggestions ?? true,
+        enableVectorRetrieval: true
       }
     }
   }

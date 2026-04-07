@@ -262,7 +262,7 @@ const handleDelete = async (index: number) => {
 }
 
 // 切换启用状态
-const handleToggle = (prompt: PromptConfig) => {
+const handleToggle = (_prompt: PromptConfig) => {
   // 直接修改数组中的元素，Vue会自动响应
 }
 </script>

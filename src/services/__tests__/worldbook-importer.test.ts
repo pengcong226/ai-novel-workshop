@@ -34,11 +34,11 @@ describe('WorldbookImporter', () => {
         { autoGenerateIds: false }
       )
 
-      expect(result.stats.total).toBe(1)
-      expect(result.stats.imported).toBe(1)
-      expect(result.worldbook.name).toBe('测试世界书')
-      expect(result.worldbook.entries).toHaveLength(1)
-      expect(result.worldbook.entries[0].keys).toEqual(['关键词1', '关键词2'])
+      expect(result.stats!.total).toBe(1)
+      expect(result.stats!.imported).toBe(1)
+      expect(result.worldbook!.name).toBe('测试世界书')
+      expect(result.worldbook!.entries).toHaveLength(1)
+      expect(result.worldbook!.entries[0].keys).toEqual(['关键词1', '关键词2'])
     })
 
     it('应该解析条目数组格式', async () => {
@@ -56,8 +56,8 @@ describe('WorldbookImporter', () => {
         { autoGenerateIds: false }
       )
 
-      expect(result.stats.imported).toBe(1)
-      expect(result.worldbook.entries).toHaveLength(1)
+      expect(result.stats!.imported).toBe(1)
+      expect(result.worldbook!.entries).toHaveLength(1)
     })
 
     it('应该处理无效 JSON', async () => {
@@ -84,8 +84,8 @@ describe('WorldbookImporter', () => {
         { autoGenerateIds: false }
       )
 
-      expect(result.stats.imported).toBe(2)
-      expect(result.worldbook.entries).toHaveLength(2)
+      expect(result.stats!.imported).toBe(2)
+      expect(result.worldbook!.entries).toHaveLength(2)
     })
   })
 
@@ -105,8 +105,8 @@ describe('WorldbookImporter', () => {
         { autoGenerateIds: true }
       )
 
-      expect(result.worldbook.entries[0].uid).toBeDefined()
-      expect(result.worldbook.entries[0].uid).toMatch(/^[0-9a-f-]{36}$/)
+      expect(result.worldbook!.entries[0].uid).toBeDefined()
+      expect(result.worldbook!.entries[0].uid).toMatch(/^[0-9a-f-]{36}$/)
     })
 
     it('应该推断条目分类', async () => {
@@ -128,8 +128,8 @@ describe('WorldbookImporter', () => {
         { inferCategories: true }
       )
 
-      expect(result.worldbook.entries[0].category).toBe('角色')
-      expect(result.worldbook.entries[1].category).toBe('世界观')
+      expect(result.worldbook!.entries[0].category).toBe('角色')
+      expect(result.worldbook!.entries[1].category).toBe('世界观')
     })
 
     it('应该过滤无效条目', async () => {
@@ -154,8 +154,8 @@ describe('WorldbookImporter', () => {
         new File([JSON.stringify(jsonData)], 'test.json', { type: 'application/json' })
       )
 
-      expect(result.stats.imported).toBe(1)
-      expect(result.stats.errors).toBe(2)
+      expect(result.stats!.imported).toBe(1)
+      expect(result.stats!.errors).toBe(2)
       expect(result.errors).toBeDefined()
       expect(result.errors).toHaveLength(2)
     })
@@ -171,12 +171,12 @@ describe('WorldbookImporter', () => {
       const result = await importer.importWorldbook(
         new File([JSON.stringify(jsonData)], 'test.json', { type: 'application/json' }),
         {
-          filter: (entry) => entry.keys.includes('a')
+          filter: (entry) => (entry.keys || []).includes('a')
         }
       )
 
-      expect(result.stats.imported).toBe(1)
-      expect(result.worldbook.entries[0].keys).toContain('a')
+      expect(result.stats!.imported).toBe(1)
+      expect(result.worldbook!.entries[0].keys).toContain('a')
     })
 
     it('应该支持条目转换', async () => {
@@ -196,7 +196,7 @@ describe('WorldbookImporter', () => {
         }
       )
 
-      expect(result.worldbook.entries[0].content).toBe('ORIGINAL')
+      expect(result.worldbook!.entries[0].content).toBe('ORIGINAL')
     })
   })
 
@@ -206,8 +206,9 @@ describe('WorldbookImporter', () => {
       description: '测试描述',
       entries: [
         {
-          uid: '1',
+          uid: 1,
           keys: ['test'],
+          key: ['test'],
           content: 'test content',
           enabled: true
         }
@@ -228,14 +229,14 @@ describe('WorldbookImporter', () => {
 
       expect(lines).toHaveLength(1)
       const entry = JSON.parse(lines[0])
-      expect(entry.uid).toBe('1')
+      expect(entry.uid).toBe(1)
     })
 
     it('应该支持过滤导出', async () => {
       const worldbook: WorldbookData = {
         entries: [
-          { uid: '1', keys: ['a'], content: 'a', enabled: true },
-          { uid: '2', keys: ['b'], content: 'b', enabled: false }
+          { uid: 1, keys: ['a'], key: ['a'], content: 'a', enabled: true },
+          { uid: 2, keys: ['b'], key: ['b'], content: 'b', enabled: false }
         ]
       }
 
@@ -245,7 +246,7 @@ describe('WorldbookImporter', () => {
 
       const parsed = JSON.parse(json)
       expect(parsed.entries).toHaveLength(1)
-      expect(parsed.entries[0].uid).toBe('1')
+      expect(parsed.entries[0].uid).toBe(1)
     })
   })
 })

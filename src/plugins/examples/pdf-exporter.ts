@@ -4,7 +4,7 @@
  * 演示如何创建PDF格式导出器
  */
 
-import type { ExporterContribution, ExportData, ExportOptions } from '@/types'
+import type { ExporterContribution, ExportData, ExportOptions } from '../types'
 import type { PluginManifest } from '../types'
 
 /**
@@ -64,9 +64,7 @@ const pdfExporter: ExporterContribution = {
    * 获取设置组件（可选）
    */
   getSettingsComponent() {
-    // 返回Vue组件用于配置导出选项
-    // 实际实现中应该返回一个配置组件
-    return undefined
+    return undefined as any
   }
 }
 
@@ -164,7 +162,7 @@ function formatChapterContent(chapter: any): string {
   if (chapter.content) {
     // 按段落分割
     const paragraphs = chapter.content.split('\n\n')
-    content += paragraphs.map(p => `<p>${p}</p>`).join('\n\n')
+    content += paragraphs.map((p: string) => `<p>${p}</p>`).join('\n\n')
   }
 
   return content

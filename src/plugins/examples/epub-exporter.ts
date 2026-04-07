@@ -4,7 +4,7 @@
  * 演示如何创建一个完整的导出器插件
  */
 
-import type { ExporterContribution, ExportData, ExportOptions } from '@/types'
+import type { ExporterContribution, ExportData, ExportOptions } from '../types'
 import type { PluginManifest } from '../types'
 
 /**
@@ -79,16 +79,14 @@ const epubExporter: ExporterContribution = {
    * 获取设置组件（可选）
    */
   getSettingsComponent() {
-    // 返回一个Vue组件用于配置导出选项
-    // 这里返回undefined表示使用默认设置
-    return undefined
+    return undefined as any
   }
 }
 
 /**
  * 生成EPUB结构
  */
-function generateEpubStructure(data: ExportData, options: ExportOptions): string {
+function generateEpubStructure(_data: ExportData, options: ExportOptions): string {
   // 这是一个简化的实现
   // 实际的EPUB生成需要使用JSZip等库创建ZIP文件
 

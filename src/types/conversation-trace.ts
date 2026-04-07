@@ -12,7 +12,7 @@ export type TraceRole = 'user' | 'assistant' | 'system' | 'tool' | 'other'
  * JSONL 原始记录
  */
 export interface ConversationTraceRecord {
-  [key: string]: unknown
+  [key: string]: any
 }
 
 /**
@@ -137,8 +137,8 @@ export interface TraceConflict {
   target: TraceConflictTarget
   type: TraceConflictType
   reason: string
-  existingValue?: unknown
-  incomingValue?: unknown
+  existingValue?: any
+  incomingValue?: any
   artifactId: string
 }
 

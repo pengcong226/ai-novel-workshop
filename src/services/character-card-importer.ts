@@ -16,11 +16,7 @@ import type {
   CharacterCardV3,
   SillyTavernCharacterCard,
   CharacterCardImportOptions,
-  CharacterCardImportResult,
-  CharacterBookEntry,
-  RegexScript,
-  PromptConfig
-} from '@/types/character-card'
+  CharacterCardImportResult} from '@/types/character-card'
 import { getLogger } from '@/utils/logger'
 import { parsePngCard } from './png-parser'
 

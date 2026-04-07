@@ -363,9 +363,9 @@ export function generateChapterTemplates(template: PlotTemplate) {
     keyEvents: string[]
   }> = []
 
-  const chaptersPerVolume = Math.floor(template.totalChapters / template.volumes.length)
+  // Calculate chapters per volume for planning
 
-  template.volumes.forEach((volume, vIndex) => {
+  template.volumes.forEach((volume, _vIndex) => {
     const start = volume.chapterRange.start
     const end = volume.chapterRange.end
     const count = end - start + 1

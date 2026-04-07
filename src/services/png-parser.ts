@@ -335,7 +335,7 @@ async function decompressZlib(compressed: Uint8Array, maxSize: number): Promise<
     const ds = new DecompressionStream('deflate')
     const writer = ds.writable.getWriter()
 
-    await writer.write(compressed)
+    await writer.write(compressed as unknown as BufferSource)
     await writer.close()
 
     const reader = ds.readable.getReader()

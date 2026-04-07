@@ -9,6 +9,9 @@
  */
 
 import type { Chapter, Character, WorldSetting, KeyEvent, ChapterSummary } from '../types/index';
+import { getLogger } from '@/utils/logger';
+
+const logger = getLogger('memory:service');
 
 // ============================================================================
 // 类型定义
@@ -215,7 +218,7 @@ class MemoryStorage {
     });
   }
 
-  async setMetadata(key: string, value: unknown): Promise<void> {
+  async setMetadata(key: string, value: any): Promise<void> {
     if (!this.db) await this.init();
 
     return new Promise((resolve, reject) => {
@@ -276,7 +279,7 @@ class TokenEstimator {
   /**
    * 估算对象的token数量
    */
-  estimateObject(obj: unknown): number {
+  estimateObject(obj: any): number {
     return this.estimate(JSON.stringify(obj));
   }
 }
@@ -930,7 +933,7 @@ export class MemoryService {
         const archived = await this.shortTerm.archive(keepNumbers);
 
         // 归档的内容已经在中期记忆中（摘要形式），这里只需清理短期记忆
-        console.log(`Archived ${archived.length} entries from short-term memory`);
+        logger.info(`Archived ${archived.length} entries from short-term memory`);
       }
     }
   }

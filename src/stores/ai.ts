@@ -5,6 +5,7 @@ import type { AIServiceConfig, BudgetConfig, ChatMessage, ChatRequest, TaskConte
 import { getAIMockEnabled } from '@/utils/devFlags'
 import { getLogger } from '@/utils/logger'
 import { useProjectStore } from './project'
+import { pluginManager } from '@/plugins/manager'
 
 export const useAIStore = defineStore('ai', () => {
   const aiService = ref<AIService | null>(null)
@@ -16,6 +17,26 @@ export const useAIStore = defineStore('ai', () => {
 
   function sleep(ms: number) {
     return new Promise(resolve => setTimeout(resolve, ms))
+  }
+
+  // V3: 共享模型路由逻辑，消除 chat/chatStream 中的重复代码
+  function resolvePreferredModel(
+    cfg: any,
+    contextType?: string,
+    fallbackModel?: string | null
+  ): string | null {
+    let model = fallbackModel || null
+    if (cfg) {
+      if (contextType === 'outline' || contextType === 'worldbuilding' || contextType === 'character') {
+        model = cfg.planningModel || model
+      } else if (contextType === 'chapter') {
+        model = cfg.writingModel || model
+      } else if (contextType === 'check' || contextType === 'state_extraction' || contextType === 'memory_update') {
+        // 哨兵、档案员、表格管理员共用校验模型（便宜模型即可）
+        model = cfg.checkingModel || model
+      }
+    }
+    return model
   }
 
   function createMockChatResponse(messages: ChatMessage[], context?: TaskContext): ChatResponse {
@@ -82,7 +103,6 @@ export const useAIStore = defineStore('ai', () => {
 
       if (!config) {
         error.value = '未找到配置，请先配置模型提供商'
-        logger.warn('未找到项目配置或全局配置')
         return
       }
 
@@ -114,13 +134,14 @@ export const useAIStore = defineStore('ai', () => {
       let hasEnabledProvider = false
       const preferredModels: Record<string, string> = {}
 
-      config.providers.forEach(provider => {
+      config.providers.forEach((provider: any, index: number) => {
         if (!provider.isEnabled) {
           logger.debug('提供商已禁用，跳过', { provider: provider.name })
           return
         }
 
-        if (!provider.apiKey) {
+        // 对于 local 类型的提供商，可以没有 apiKey
+        if (provider.type !== 'local' && !provider.apiKey) {
           logger.warn('提供商未配置 API 密钥', { provider: provider.name })
           return
         }
@@ -132,52 +153,65 @@ export const useAIStore = defineStore('ai', () => {
 
         hasEnabledProvider = true
 
-        // 获取第一个启用的模型
-        const enabledModel = provider.models.find(m => m.isEnabled)
+        const enabledModel = provider.models.find((m: any) => m.isEnabled)
         if (!enabledModel) {
           logger.warn('提供商没有启用的模型', { provider: provider.name })
           return
         }
 
-        // 根据provider类型添加到配置
-        if (provider.type === 'openai') {
-          aiConfig.providers.openai = {
-            apiKey: provider.apiKey,
-            baseUrl: provider.baseUrl || 'https://api.openai.com/v1',
+        const isBuiltIn = ['openai', 'anthropic', 'local'].includes(provider.type)
+        if (isBuiltIn) {
+          const providerKey = provider.type as 'openai' | 'anthropic' | 'local'
+          if (!aiConfig.providers[providerKey]) {
+            (aiConfig.providers as any)[providerKey] = {
+              apiKey: provider.apiKey,
+              baseUrl: provider.baseUrl || (provider.type === 'anthropic' ? 'https://api.anthropic.com/v1' : 'https://api.openai.com/v1'),
+              model: enabledModel.id
+            }
+            logger.info('已配置内置提供商', {
+              provider: provider.name,
+              type: provider.type,
+              key: providerKey,
+              model: enabledModel.id,
+            })
+          } else {
+            logger.info('同类型内置提供商已存在，跳过后续注册', {
+              existingKey: providerKey,
+              skipped: provider.name,
+              type: provider.type,
+            })
           }
-          preferredModels.worldbuilding = enabledModel.id
-          preferredModels.character = enabledModel.id
-          preferredModels.outline = enabledModel.id
-          preferredModels.chapter = enabledModel.id
-          preferredModels.check = enabledModel.id
-          logger.info('已配置 OpenAI 提供商', { provider: provider.name, model: enabledModel.id })
-        } else if (provider.type === 'anthropic') {
-          aiConfig.providers.anthropic = {
-            apiKey: provider.apiKey,
-            baseUrl: provider.baseUrl || 'https://api.anthropic.com/v1',
+        } else {
+          // Custom provider
+          if (!aiConfig.providers.custom) {
+            aiConfig.providers.custom = {}
           }
-          preferredModels.worldbuilding = enabledModel.id
-          preferredModels.character = enabledModel.id
-          preferredModels.outline = enabledModel.id
-          preferredModels.chapter = enabledModel.id
-          preferredModels.check = enabledModel.id
-          logger.info('已配置 Anthropic 提供商', { provider: provider.name, model: enabledModel.id })
-        } else if (provider.type === 'custom') {
-          // 自定义提供商，当作openai兼容处理
-          aiConfig.providers.openai = {
-            apiKey: provider.apiKey,
-            baseUrl: provider.baseUrl,
+          const providerKey = provider.name || provider.type || `provider_${index}`
+          aiConfig.providers.custom[providerKey] = {
+            id: providerKey,
+            name: provider.name,
+            providerType: provider.type || 'custom',
+            apiKey: provider.apiKey || '',
+            baseURL: provider.baseUrl,
+            model: enabledModel.id
           }
-          preferredModels.worldbuilding = enabledModel.id
-          preferredModels.character = enabledModel.id
-          preferredModels.outline = enabledModel.id
-          preferredModels.chapter = enabledModel.id
-          preferredModels.check = enabledModel.id
           logger.info('已配置自定义提供商', {
             provider: provider.name,
+            type: provider.type,
+            key: providerKey,
             model: enabledModel.id,
-            baseUrl: provider.baseUrl
           })
+        }
+
+        // V4-D1: 首个启用的提供商设为 fallback，但优先读取用户按角色配置的模型
+        if (!preferredModels.chapter) {
+          preferredModels.chapter = config?.writingModel || enabledModel.id
+          preferredModels.check = config?.checkingModel || enabledModel.id
+          preferredModels.outline = config?.planningModel || enabledModel.id
+          preferredModels.worldbuilding = config?.planningModel || enabledModel.id
+          preferredModels.character = config?.planningModel || enabledModel.id
+          preferredModels.state_extraction = config?.checkingModel || enabledModel.id
+          preferredModels.memory_update = config?.checkingModel || enabledModel.id
         }
       })
 
@@ -196,7 +230,7 @@ export const useAIStore = defineStore('ai', () => {
         return
       }
 
-      aiService.value = new AIService(aiConfig)
+      aiService.value = new AIService(aiConfig, pluginManager.getRegistries().aiProvider)
       aiService.value.setBudget(budgetConfig)
       isInitialized.value = true
       error.value = null
@@ -241,16 +275,7 @@ export const useAIStore = defineStore('ai', () => {
     const projectStore = useProjectStore()
     const config = projectStore.currentProject?.config || projectStore.globalConfig
 
-    let preferredModel = configuredModel.value
-    if (config) {
-      if (context?.type === 'outline' || context?.type === 'worldbuilding' || context?.type === 'character') {
-        preferredModel = config.planningModel || preferredModel
-      } else if (context?.type === 'chapter') {
-        preferredModel = config.writingModel || preferredModel
-      } else if (context?.type === 'check') {
-        preferredModel = config.checkingModel || preferredModel
-      }
-    }
+    let preferredModel = resolvePreferredModel(config, context?.type, configuredModel.value)
 
     if (!preferredModel && config?.providers) {
       const fallbackProvider = config.providers.find(provider =>
@@ -311,16 +336,7 @@ export const useAIStore = defineStore('ai', () => {
     const projectStore = useProjectStore()
     const config = projectStore.currentProject?.config || projectStore.globalConfig
 
-    let preferredModel = configuredModel.value
-    if (config) {
-      if (context?.type === 'outline' || context?.type === 'worldbuilding' || context?.type === 'character') {
-        preferredModel = config.planningModel || preferredModel
-      } else if (context?.type === 'chapter') {
-        preferredModel = config.writingModel || preferredModel
-      } else if (context?.type === 'check') {
-        preferredModel = config.checkingModel || preferredModel
-      }
-    }
+    let preferredModel = resolvePreferredModel(config, context?.type, configuredModel.value)
 
     if (!preferredModel && config?.providers) {
       const fallbackProvider = config.providers.find(provider =>

@@ -66,6 +66,7 @@ export const useProjectStore = defineStore('project', () => {
       qualityThreshold: 7,
       maxCostPerChapter: 0.15,
       enableAISuggestions: true,
+      enableVectorRetrieval: true,
       providers: []
     }
 

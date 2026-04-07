@@ -38,7 +38,7 @@ interface ParseLineResult {
   error?: TraceParseError
 }
 
-function normalizeRole(value: unknown): TraceRole {
+function normalizeRole(value: any): TraceRole {
   if (typeof value !== 'string') {
     return 'other'
   }
@@ -53,7 +53,7 @@ function normalizeRole(value: unknown): TraceRole {
   return 'other'
 }
 
-function extractTextBlocks(value: unknown): string[] {
+function extractTextBlocks(value: any): string[] {
   if (typeof value === 'string') {
     return [value]
   }
@@ -169,7 +169,7 @@ function parseLine(
   lineNumber: number,
   options: ParseLineOptions
 ): ParseLineResult {
-  let raw: unknown
+  let raw: any
 
   try {
     raw = JSON.parse(line)

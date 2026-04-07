@@ -251,7 +251,7 @@ function initGraph() {
   const width = container.offsetWidth
   const height = container.offsetHeight
 
-  graph = new G6.Graph({
+  graph = new (G6.Graph as any)({
     container,
     width,
     height,
@@ -327,13 +327,13 @@ function initGraph() {
   })
 
   // 注册事件
-  graph.on('node:click', handleNodeClick)
-  graph.on('node:contextmenu', handleNodeContextMenu)
-  graph.on('edge:click', handleEdgeClick)
-  graph.on('edge:contextmenu', handleEdgeContextMenu)
-  graph.on('canvas:click', () => {
-    graph!.getNodes().forEach(node => {
-      graph!.clearItemStates(node)
+  (graph as any)?.on('node:click', handleNodeClick)
+  (graph as any)?.on('node:contextmenu', handleNodeContextMenu)
+  (graph as any)?.on('edge:click', handleEdgeClick)
+  (graph as any)?.on('edge:contextmenu', handleEdgeContextMenu)
+  graph?.on('canvas:click', () => {
+    (graph as any)!.getNodes().forEach((node: any) => {
+      (graph as any)!.clearItemStates(node)
     })
   })
 
@@ -407,17 +407,17 @@ function applyFilters() {
       lineWidth: edge.strength,
       opacity: 0.6
     }
-  }))
+  }));
 
-  graph.changeData({ nodes, edges })
-  graph.fitView(20)
+  (graph as any).changeData({ nodes, edges } as any);
+  (graph as any).fitView(20)
 }
 
 /**
  * 节点点击事件
  */
 function handleNodeClick(evt: any) {
-  const nodeId = evt.item.getModel().id
+  const nodeId: string = (evt.item.getModel().id as any) + ''
   const character = characters.value.find(c => c.id === nodeId)
 
   if (character) {
@@ -445,19 +445,19 @@ function handleNodeClick(evt: any) {
  */
 function handleNodeContextMenu(evt: any) {
   evt.preventDefault()
-  const nodeId = evt.item.getModel().id
+  const evtNodeId: string = (evt.item.getModel().id as any) + '';
 
   // 高亮相关节点
-  graph!.getEdges().forEach(edge => {
+  (graph as any)!.getEdges().forEach((edge: any) => {
     const model = edge.getModel()
-    if (model.source === nodeId || model.target === nodeId) {
-      graph!.setItemState(edge, 'hover', true)
-      const relatedNodeId = model.source === nodeId ? model.target : model.source
-      graph!.setItemState(relatedNodeId as string, 'selected', true)
+    if (model.source === evtNodeId || model.target === evtNodeId) {
+      (graph as any)!.setItemState(edge, 'hover', true)
+      const relatedNodeId = model.source === evtNodeId ? model.target : model.source;
+      (graph as any)!.setItemState(relatedNodeId as string, 'selected', true)
     }
   })
 
-  graph!.setItemState(nodeId, 'selected', true)
+  (graph as any)!.setItemState(evtNodeId, 'selected', true)
 }
 
 /**
@@ -535,7 +535,7 @@ function focusCharacter(characterId: string) {
 
   // 高亮该节点
   nextTick(() => {
-    graph!.setItemState(characterId, 'selected', true)
+    (graph as any)!.setItemState(characterId, 'selected', true)
   })
 }
 
@@ -547,7 +547,7 @@ async function exportImage() {
 
   exporting.value = true
   try {
-    const canvas = graph.get('canvas') as HTMLCanvasElement
+    const canvas = (graph as any).get('canvas') as HTMLCanvasElement
     const blob = await new Promise<Blob>((resolve, reject) => {
       canvas.toBlob(
         blob => {
@@ -583,9 +583,9 @@ function handleResize() {
   if (!graph || !graphContainer.value) return
 
   const width = graphContainer.value.offsetWidth
-  const height = graphContainer.value.offsetHeight
-  graph.changeSize(width, height)
-  graph.fitView(20)
+  const height = graphContainer.value.offsetHeight;
+  (graph as any).changeSize(width, height);
+  (graph as any).fitView(20)
 }
 
 /**

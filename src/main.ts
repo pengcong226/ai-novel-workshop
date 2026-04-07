@@ -49,7 +49,7 @@ window.addEventListener('unhandledrejection', (event) => {
     typeof reason === 'string'
       ? reason
       : reason && typeof reason === 'object' && 'message' in reason
-        ? String((reason as { message?: unknown }).message ?? '')
+        ? String((reason as { message?: any }).message ?? '')
         : ''
 
   if (message.includes(RESIZE_OBSERVER_BENIGN_ERROR)) {

@@ -4,7 +4,7 @@
  */
 
 import { openDB, IDBPDatabase } from 'idb'
-import type { AnalysisCache, AnalysisMode, LLMAnalysisResult } from './types'
+import type { AnalysisCache, AnalysisMode} from './types'
 
 const DB_NAME = 'novel-analysis-cache'
 const STORE_NAME = 'analysis'
@@ -58,14 +58,14 @@ export class CacheManager {
     const fileId = await this.generateFileId(text)
 
     // 加载现有缓存或创建新缓存
-    let cache: AnalysisCache = await db.get(STORE_NAME, fileId) || {
+    const cache: AnalysisCache = await db.get(STORE_NAME, fileId) || {
       fileId,
       timestamp: Date.now(),
       mode
     }
 
     // 更新对应阶段
-    cache[stage] = {
+    ;(cache as any)[stage as string] = {
       result,
       timestamp: Date.now()
     }

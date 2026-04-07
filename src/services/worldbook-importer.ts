@@ -72,11 +72,13 @@ export class WorldbookImporter {
       imported: 0,
       skipped: 0,
       duplicates: 0,
+      invalid: 0,
+      categories: 0,
       errors: 0
     }
 
-    const errors: Array<{ entry?: WorldbookEntry; error: string }> = []
-    const warnings: Array<{ entry?: WorldbookEntry; warning: string }> = []
+    const errors: any[] = []
+    const warnings: any[] = []
     const idMapping = new Map<string, string>()
     const categoryMapping = new Map<string, string[]>()
 
@@ -115,7 +117,7 @@ export class WorldbookImporter {
           }
 
           // 重复检测（基于关键词）
-          const keySignature = entry.keys.sort().join(',')
+          const keySignature = (entry.keys || []).sort().join(',')
           if (mergeDuplicates && seenKeys.has(keySignature)) {
             const existing = seenKeys.get(keySignature)!
             const merged = this.mergeEntries(existing, entry)
@@ -133,9 +135,9 @@ export class WorldbookImporter {
             const oldId = entry.uid
             const newId = uuidv4()
             if (oldId) {
-              idMapping.set(oldId, newId)
+              idMapping.set(String(oldId), newId)
             }
-            entry.uid = newId
+            entry.uid = newId as any
           }
 
           // 分类推断
@@ -150,7 +152,7 @@ export class WorldbookImporter {
           // 更新分类映射
           if (entry.category) {
             const entries = categoryMapping.get(entry.category) || []
-            entries.push(entry.uid!)
+            entries.push(String(entry.uid!))
             categoryMapping.set(entry.category, entries)
           }
 
@@ -192,6 +194,9 @@ export class WorldbookImporter {
       onProgress?.(90, 100, '正在生成结果...')
 
       const result: WorldbookImportResult = {
+        success: true,
+        importedCount: stats.imported,
+        skippedCount: stats.skipped,
         worldbook: {
           entries: processedEntries,
           name: worldbook.name,
@@ -202,8 +207,6 @@ export class WorldbookImporter {
           extensions: worldbook.extensions
         },
         stats,
-        idMapping,
-        categoryMapping,
         errors: errors.length > 0 ? errors : undefined,
         warnings: warnings.length > 0 ? warnings : undefined
       }
@@ -218,6 +221,9 @@ export class WorldbookImporter {
       })
 
       return {
+        success: false,
+        importedCount: stats.imported,
+        skippedCount: stats.skipped,
         worldbook: { entries: [] },
         stats,
         errors
@@ -296,24 +302,24 @@ export class WorldbookImporter {
       // 如果是角色卡，尝试提取其中的世界书数据
       if (parsed.kind === 'character') {
         // Character Card V2/V3 格式可能包含 character_book
-        if (parsed.data?.character_book) {
+        if ((parsed.data as any)?.character_book) {
           return this.convertToNovelWorkshopFormat({
             kind: 'worldbook',
             format: parsed.format,
-            data: parsed.data.character_book,
+            data: (parsed.data as any).character_book,
             raw: parsed.raw
           })
         }
 
         // 如果角色卡没有世界书，返回空世界书而不是报错
         // 这样可以让统一导入器继续处理角色卡的其他数据
-        logger.info('角色卡不包含世界书数据')
+        console.log('角色卡不包含世界书数据')
         return {
+          name: parsed.data?.name || '角色卡',
+          description: '从角色卡导入，不包含世界书',
           entries: [],
           metadata: {
-            name: parsed.data?.name || '角色卡',
-            description: '从角色卡导入，不包含世界书',
-            source: 'character_card'
+            source: 'character_card_v3'
           }
         }
       }
@@ -358,7 +364,7 @@ export class WorldbookImporter {
           kind: 'worldbook',
           format: 'worldbook',
           data: { entries: data },
-          raw: data
+          raw: {}
         })
       }
 
@@ -398,7 +404,7 @@ export class WorldbookImporter {
     return this.convertToNovelWorkshopFormat({
       kind: 'worldbook',
       format: 'worldbook',
-      data: { entries },
+      data: { entries: entries as any },
       raw: { entries }
     })
   }
@@ -414,17 +420,17 @@ export class WorldbookImporter {
       const rawEntry = entry as any
 
       return {
-        uid: rawEntry.uid ?? rawEntry.id ?? uuidv4(),
-        // 注意：实际数据使用 keys (复数)，而不是 key
+        uid: Number(rawEntry.uid ?? rawEntry.id) || Date.now() + Math.floor(Math.random() * 1000),
+        key: rawEntry.keys || rawEntry.key || [],
         keys: rawEntry.keys || rawEntry.key || [],
         secondary_keys: rawEntry.secondary_keys || rawEntry.keysecondary || [],
         content: rawEntry.content || '',
         // 注意：实际数据使用 enabled，而不是 disable
-        enabled: rawEntry.enabled ?? !rawEntry.disable ?? true,
+        enabled: rawEntry.enabled ?? (rawEntry.disable !== undefined ? !rawEntry.disable : true),
         insertion_order: rawEntry.insertion_order ?? rawEntry.order ?? index,
         extensions: rawEntry.extensions,
-        type: this.inferType(entry),
-        category: this.inferCategory(entry),
+        type: this.inferType(entry as any),
+        category: this.inferCategory(entry as any),
         name: rawEntry.name || rawEntry.comment || `条目 ${index + 1}`,
         comment: rawEntry.comment,
         position: rawEntry.position as WorldbookEntry['position'],
@@ -451,7 +457,7 @@ export class WorldbookImporter {
       scan_depth: data.data.scan_depth,
       token_budget: data.data.token_budget,
       recursive_scanning: data.data.recursive_scanning,
-      extensions: data.data.extensions
+      extensions: (data.data as any).extensions
     }
   }
 
@@ -490,7 +496,7 @@ export class WorldbookImporter {
       custom: '自定义'
     }
 
-    return categoryMap[type] || '未分类'
+    return categoryMap[type || 'custom'] || '未分类'
   }
 
   /**
@@ -514,7 +520,7 @@ export class WorldbookImporter {
     incoming: WorldbookEntry
   ): WorldbookEntry {
     // 合并关键词
-    const mergedKeys = [...new Set([...existing.keys, ...incoming.keys])]
+    const mergedKeys = [...new Set([...(existing.keys || []), ...(incoming.keys || [])])]
 
     // 合并次要关键词
     const mergedSecondaryKeys = [
@@ -532,6 +538,7 @@ export class WorldbookImporter {
 
     return {
       uid: existing.uid,
+      key: mergedKeys,
       keys: mergedKeys,
       secondary_keys: mergedSecondaryKeys,
       content: mergedContent,
@@ -564,7 +571,7 @@ export class WorldbookImporter {
       errors.push('条目内容为空')
     }
 
-    if (entry.keys.some(key => key.trim().length === 0)) {
+    if ((entry.keys || []).some(key => key.trim().length === 0)) {
       errors.push('存在空关键词')
     }
 
@@ -794,12 +801,14 @@ export async function mergeWorldbooks(
 ): Promise<WorldbookImportResult> {
   const importer = new WorldbookImporter()
   const mergedEntries: WorldbookEntry[] = []
-  const allErrors: Array<{ entry?: WorldbookEntry; error: string }> = []
+  const allErrors: Array<any> = []
   const stats = {
     total: 0,
     imported: 0,
     skipped: 0,
     duplicates: 0,
+    invalid: 0,
+    categories: 0,
     errors: 0
   }
 
@@ -808,12 +817,12 @@ export async function mergeWorldbooks(
       autoGenerateIds: !options.preserveIds
     })
 
-    mergedEntries.push(...result.worldbook.entries)
-    stats.total += result.stats.total
-    stats.imported += result.stats.imported
-    stats.skipped += result.stats.skipped
-    stats.duplicates += result.stats.duplicates
-    stats.errors += result.stats.errors
+    mergedEntries.push(...(result.worldbook?.entries || []))
+    stats.total += result.stats?.total || 0
+    stats.imported += result.stats?.imported || 0
+    stats.skipped += result.stats?.skipped || 0
+    stats.duplicates += result.stats?.duplicates || 0
+    stats.errors += result.stats?.errors || 0
 
     if (result.errors) {
       allErrors.push(...result.errors)
@@ -826,6 +835,9 @@ export async function mergeWorldbooks(
   }
 
   return {
+    success: true,
+    importedCount: stats.imported,
+    skippedCount: stats.skipped,
     worldbook: {
       entries: mergedEntries,
       name: '合并的世界书',

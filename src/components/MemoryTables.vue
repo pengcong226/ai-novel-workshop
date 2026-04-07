@@ -601,7 +601,6 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import {
   Download,
   Upload,
-  Refresh,
   Plus,
   Edit,
   Document,
@@ -1009,7 +1008,7 @@ function editRow(rowIndex: number) {
   } else {
     const row = currentSheet.value.hashSheet[rowIndex + 1]
     editRowValues.value = row.slice(1).map(uid => {
-      const cell = currentSheet.value.cells.get(uid)
+      const cell = currentSheet.value!.cells.get(uid)
       return cell?.value || ''
     })
   }
@@ -1267,20 +1266,8 @@ function applyColumnChanges() {
   ElMessage.success('列设置已更新')
 }
 
-// 编辑单元格（对话框方式）- 保留用于单独编辑功能
-function openEditCellDialog(rowIndex: number, colIndex: number) {
-  if (!currentSheet.value) return
 
-  const row = currentSheet.value.hashSheet[rowIndex + 1]
-  if (!row) return
 
-  const cellUid = row[colIndex + 1]
-  const cell = currentSheet.value.cells.get(cellUid)
-
-  editCellUid.value = cellUid
-  editCellValue.value = cell?.value || ''
-  editCellDialog.value = true
-}
 
 function saveCell() {
   if (!currentSheet.value || !editCellUid.value) return
@@ -1332,7 +1319,7 @@ async function runAIUpdate() {
       
       const batchContent = batchChapters.map(c => `第${c.number}章 ${c.title}\n${c.content || ''}`).join('\n\n');
       
-      const aiExtractFunction = async (content: string, mem: any) => {
+      const aiExtractFunction = async (_contentStr: string, mem: any) => {
         const tablesText = mem.sheets.filter((s: any) => s.enable && s.tochat).map((s: any) => {
           return `表名: ${s.name}\n列: ${s.hashSheet[0].map((id: string) => s.cells.get(id)?.value || '').join(',')}`;
         }).join('\n\n');
@@ -1357,7 +1344,7 @@ ${batchContent}`;
         
         try {
           const maxTokens = project.value?.config?.advancedSettings?.maxTokens || 4000;
-          const res = await aiStore.chat(messages, { type: 'memory', complexity: 'low', priority: 'speed' }, { maxTokens });
+          const res = await aiStore.chat(messages, { type: 'memory_update', complexity: 'low', priority: 'speed' }, { maxTokens });
           const lines = res.content.split('\n').filter(line => line.trim().length > 0 && line.includes(':'));
           updatedCount += lines.length;
           return lines;
@@ -1557,7 +1544,7 @@ function getEditRules(sheet: Sheet | undefined) {
   return rules
 }
 
-function syncFromProject() {
+function _syncFromProject() {
   if (!project.value) {
     ElMessage.warning('请先打开项目')
     return

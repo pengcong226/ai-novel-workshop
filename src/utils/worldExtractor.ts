@@ -263,39 +263,35 @@ export function convertToWorldTemplate(
   projectName: string
 ): WorldSetting {
   return {
+    id: `world_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
     name: `${projectName}的世界`,
-    description: '从导入小说中提取的世界设定',
     era: extracted.era,
-    locations: extracted.locations.map(loc => ({
-      id: `loc_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-      name: loc.name,
-      description: loc.description,
-      type: loc.type,
-      attributes: [],
-      notes: ''
-    })),
+    aiGenerated: false,
+    geography: {
+      locations: extracted.locations.map(loc => ({
+        id: `loc_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+        name: loc.name,
+        description: loc.description,
+        type: loc.type as any,
+        importance: 'medium'
+      }))
+    },
     powerSystem: extracted.powerSystem ? {
       name: extracted.powerSystem.name,
-      description: extracted.powerSystem.description,
       levels: extracted.powerSystem.levels.map(level => ({
         name: level.name,
-        description: level.description,
-        abilities: []
-      }))
+        description: level.description
+      })),
+      skills: [],
+      items: []
     } : undefined,
     rules: [],
-    customs: [],
     factions: extracted.factions.map(fac => ({
       id: `fac_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
       name: fac.name,
       type: fac.type,
       description: fac.description,
-      members: [],
-      relationships: [],
-      territory: '',
-      resources: [],
-      goals: '',
-      history: ''
+      relationships: []
     }))
   }
 }

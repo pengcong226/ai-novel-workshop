@@ -4,20 +4,7 @@
  * 负责插件的安装、激活、停用、卸载等生命周期管理
  */
 
-import type {
-  PluginManifest,
-  PluginInstance,
-  PluginContext,
-  AIProviderContribution,
-  ExporterContribution,
-  ImporterContribution,
-  ProcessorContribution,
-  MenuItemContribution,
-  SidebarPanelContribution,
-  ToolbarButtonContribution,
-  QuickCommandContribution,
-  AIActionHandlerContribution
-} from './types'
+import type { PluginManifest, PluginInstance, PluginContext } from './types'
 import { createPluginContext, enhancePluginContext } from './context'
 import { PluginStorage } from './storage'
 import { getLogger } from '@/utils/logger'
@@ -54,7 +41,7 @@ export class PluginManager {
   /**
    * 安装插件
    */
-  async installPlugin(manifest: PluginManifest, entryPoint: () => Promise<any>): Promise<void> {
+  async installPlugin(manifest: PluginManifest, entryPoint: () => Promise<unknown>): Promise<void> {
     // 1. 验证插件
     this.validatePlugin(manifest)
 

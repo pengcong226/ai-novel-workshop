@@ -378,56 +378,57 @@ export class PluginLoader {
           console.log(`插件 ${manifest.id} 激活（基于贡献点）`)
 
           // 注册所有贡献点
-          if (manifest.contributes.aiProviders) {
-            for (const provider of manifest.contributes.aiProviders) {
+          const contributes = manifest.contributes
+          if (contributes?.aiProviders) {
+            for (const provider of contributes.aiProviders) {
               context.register.aiProvider(provider)
             }
           }
 
-          if (manifest.contributes.exporters) {
-            for (const exporter of manifest.contributes.exporters) {
+          if (contributes?.exporters) {
+            for (const exporter of contributes.exporters) {
               context.register.exporter(exporter)
             }
           }
 
-          if (manifest.contributes.importers) {
-            for (const importer of manifest.contributes.importers) {
+          if (contributes?.importers) {
+            for (const importer of contributes.importers) {
               context.register.importer(importer)
             }
           }
 
-          if (manifest.contributes.processors) {
-            for (const processor of manifest.contributes.processors) {
+          if (contributes?.processors) {
+            for (const processor of contributes.processors) {
               context.register.processor(processor)
             }
           }
 
-          if (manifest.contributes.menuItems) {
-            for (const menuItem of manifest.contributes.menuItems) {
+          if (contributes?.menuItems) {
+            for (const menuItem of contributes.menuItems) {
               context.register.menuItem(menuItem)
             }
           }
 
-          if (manifest.contributes.sidebarPanels) {
-            for (const panel of manifest.contributes.sidebarPanels) {
+          if (contributes?.sidebarPanels) {
+            for (const panel of contributes.sidebarPanels) {
               context.register.sidebarPanel(panel)
             }
           }
 
-          if (manifest.contributes.toolbarButtons) {
-            for (const button of manifest.contributes.toolbarButtons) {
+          if (contributes?.toolbarButtons) {
+            for (const button of contributes.toolbarButtons) {
               context.register.toolbarButton(button)
             }
           }
 
-          if (manifest.contributes.quickCommands) {
-            for (const command of manifest.contributes.quickCommands) {
+          if (contributes?.quickCommands) {
+            for (const command of contributes.quickCommands) {
               context.register.quickCommand(command)
             }
           }
 
-          if (manifest.contributes.aiActionHandlers) {
-            for (const handler of manifest.contributes.aiActionHandlers) {
+          if (contributes?.aiActionHandlers) {
+            for (const handler of contributes.aiActionHandlers) {
               context.register.aiActionHandler(handler)
             }
           }

@@ -113,7 +113,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed, watch } from 'vue'
+import { ref, reactive, watch } from 'vue'
 import { ElMessage } from 'element-plus'
 import { useCharacterCardStore } from '@/stores/character-card'
 import type { CharacterCardExportOptions } from '@/types/character-card'
@@ -124,7 +124,8 @@ const characterCardStore = useCharacterCardStore()
 
 const exporting = ref(false)
 
-const exportOptions = reactive<CharacterCardExportOptions & {
+const exportOptions = reactive<Omit<CharacterCardExportOptions, 'format'> & {
+  format: 'sillytavern' | 'v1' | 'v2' | 'v3' | 'png' | string
   includeCharacter: boolean
   imageOptions: {
     width: number
@@ -163,7 +164,7 @@ const handleExport = async () => {
   try {
     const filename = characterCardStore.characterName || 'character'
 
-    await characterCardStore.downloadCharacterCard(filename, exportOptions)
+    await characterCardStore.downloadCharacterCard(filename, exportOptions as any)
 
     ElMessage.success('角色卡导出成功')
     handleClose()

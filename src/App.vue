@@ -5,6 +5,12 @@
       <router-view />
     </el-config-provider>
 
+    <!-- 全局任务观察器 -->
+    <GlobalTaskObserver />
+
+    <!-- 核弹级全局替换器 -->
+    <GlobalMutator ref="globalMutatorRef" />
+
     <!-- 全局错误通知 -->
     <el-notification
       v-if="currentError"
@@ -23,7 +29,11 @@ import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { ElConfigProvider, ElNotification } from 'element-plus'
 import zhCn from 'element-plus/es/locale/lang/zh-cn'
 import { setupGlobalErrorHandler, errorHandler, ErrorSeverity, type AppError } from '@/utils/errorHandler'
+import GlobalTaskObserver from '@/components/GlobalTaskObserver.vue'
+import GlobalMutator from '@/components/GlobalMutator.vue'
+
 const currentError = ref<AppError | null>(null)
+const globalMutatorRef = ref<InstanceType<typeof GlobalMutator> | null>(null)
 
 const errorTitle = computed(() => {
   if (!currentError.value) return ''
@@ -100,15 +110,28 @@ function handleError(error: AppError) {
   }
 }
 
-onMounted(() => {
+
+
+const handleGlobalKeyDown = (e: KeyboardEvent) => {
+  if (e.ctrlKey && e.shiftKey && (e.key === 'H' || e.key === 'h')) {
+    e.preventDefault()
+    globalMutatorRef.value?.open()
+  }
+}
+
+onMounted(async () => {
   // 设置全局错误处理器
   setupGlobalErrorHandler()
 
   // 注册错误监听器
   const unsubscribe = errorHandler.onError(handleError)
+  
+  // 注册全局快捷键
+  document.addEventListener('keydown', handleGlobalKeyDown)
 
   onUnmounted(() => {
     unsubscribe()
+    document.removeEventListener('keydown', handleGlobalKeyDown)
   })
 })
 </script>

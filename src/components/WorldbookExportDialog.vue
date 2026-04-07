@@ -94,7 +94,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref} from 'vue'
 import { ElMessage } from 'element-plus'
 import { useWorldbookStore } from '@/stores/worldbook'
 import {
@@ -108,7 +108,7 @@ interface Props {
   selectedCount?: number
 }
 
-const props = withDefaults(defineProps<Props>(), {
+const _props = withDefaults(defineProps<Props>(), {
   selectedCount: 0
 })
 
@@ -155,12 +155,12 @@ async function handleExport() {
       return
     }
 
-    const worldbook = {
+    const worldbook: any = {
       entries,
       name: fileName.value,
       description: '从AI小说工坊导出的世界书',
       metadata: {
-        source: 'novel_workshop',
+        source: 'novel_workshop' as const,
         format: 'v3',
         createdAt: new Date(),
         updatedAt: new Date(),
@@ -180,9 +180,11 @@ async function handleExport() {
       ElMessage.success(`成功导出 ${entries.length} 个条目到PNG`)
     } else if (exportFormat.value === 'json') {
       // 导出JSON
-      const blob = await exportWorldbookAsJson(worldbook, {
+      const result = await exportWorldbookAsJson(worldbook, {
         pretty: prettyPrint.value
       })
+
+      const blob = new Blob([result.data as string], { type: 'application/json' })
 
       // 下载文件
       const url = URL.createObjectURL(blob)
@@ -195,7 +197,9 @@ async function handleExport() {
       ElMessage.success(`成功导出 ${entries.length} 个条目`)
     } else if (exportFormat.value === 'jsonl') {
       // 导出JSONL
-      const blob = await exportWorldbookAsJsonl(worldbook)
+      const result = await exportWorldbookAsJsonl(worldbook)
+
+      const blob = new Blob([result], { type: 'application/jsonl' })
 
       // 下载文件
       const url = URL.createObjectURL(blob)

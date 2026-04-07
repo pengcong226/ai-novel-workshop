@@ -52,7 +52,7 @@ function sourceRefFromMessage(message: TraceMessage, content: string): TraceSour
   }
 }
 
-function extractPreprocessedText(value: unknown, original: string): string {
+function extractPreprocessedText(value: any, original: string): string {
   if (!value || typeof value !== 'object') {
     return original
   }

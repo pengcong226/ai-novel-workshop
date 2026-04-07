@@ -194,7 +194,7 @@
 
         <el-form-item label="备注">
           <el-input
-            v-model="editForm.comment"
+            v-model="(editForm as any).comment"
             type="textarea"
             :rows="2"
             placeholder="脚本的说明或备注"
@@ -247,7 +247,7 @@ const formRules: FormRules = {
   findRegex: [
     { required: true, message: '请输入正则表达式', trigger: 'blur' },
     {
-      validator: (rule, value, callback) => {
+      validator: (_rule, value, callback) => {
         try {
           // 验证正则表达式
           if (value.startsWith('/') && value.match(/\/[gimsuy]*$/)) {

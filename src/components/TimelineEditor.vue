@@ -341,11 +341,11 @@ async function initTimeline() {
     const vis = await import('vis-timeline/standalone')
 
     // 创建数据集
-    items = new vis.DataSet([])
-    groups = new vis.DataSet([])
+    items = new (vis as any).DataSet([])
+    groups = new (vis as any).DataSet([])
 
     // 配置选项
-    const options = {
+    const options: any = {
       orientation: 'top',
       zoomable: true,
       moveable: true,
@@ -395,12 +395,12 @@ async function initTimeline() {
     }
 
     // 创建时间线实例
-    timeline = new vis.Timeline(timelineContainer.value, items, groups, options)
+    timeline = new vis.Timeline(timelineContainer.value, items as any, groups as any, options) as any
 
     // 添加事件监听
-    timeline.on('click', handleTimelineClick)
-    timeline.on('contextmenu', handleTimelineRightClick)
-    timeline.on('doubleClick', handleTimelineDoubleClick)
+    timeline!.on('click', handleTimelineClick)
+    timeline!.on('contextmenu', handleTimelineRightClick)
+    timeline!.on('doubleClick', handleTimelineDoubleClick)
 
     // 如果已有项目，提取事件
     if (project.value) {
@@ -622,7 +622,7 @@ async function exportTimeline() {
 function handleTimelineClick(params: any) {
   if (params.item) {
     // 点击了事件项
-    const item = items?.get(params.item)
+    const item = (items as any)?.get(params.item)
     if (item && item.data) {
       selectedEvent.value = item.data
       showDetailDialog.value = true
@@ -636,7 +636,7 @@ function handleTimelineClick(params: any) {
 function handleTimelineDoubleClick(params: any) {
   if (params.item) {
     // 双击编辑
-    const item = items?.get(params.item)
+    const item = (items as any)?.get(params.item)
     if (item && item.data) {
       editingEvent.value = item.data
       eventForm.value = { ...item.data }
@@ -697,7 +697,7 @@ function handleAddItem(item: any, callback: Function) {
  * 更新项目回调
  */
 function handleUpdateItem(item: any, callback: Function) {
-  const originalItem = items?.get(item.id)
+  const originalItem = (items as any)?.get(item.id)
   if (originalItem && originalItem.data) {
     editingEvent.value = originalItem.data
     eventForm.value = { ...originalItem.data }
@@ -711,7 +711,7 @@ function handleUpdateItem(item: any, callback: Function) {
  */
 function handleMoveItem(item: any, callback: Function) {
   const chapter = Math.ceil(item.start.getTime() / (24 * 60 * 60 * 1000))
-  const originalItem = items?.get(item.id)
+  const originalItem = (items as any)?.get(item.id)
 
   if (originalItem && originalItem.data) {
     // 更新事件数据
@@ -738,7 +738,7 @@ function handleMoveItem(item: any, callback: Function) {
  * 删除项目回调
  */
 function handleRemoveItem(item: any, callback: Function) {
-  const originalItem = items?.get(item.id)
+  const originalItem = (items as any)?.get(item.id)
   if (originalItem && originalItem.data) {
     editingEvent.value = originalItem.data
     ElMessageBox.confirm('确定要删除这个事件吗？', '删除事件', {

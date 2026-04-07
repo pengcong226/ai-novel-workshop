@@ -44,31 +44,30 @@
     </el-card>
 
     <div class="content">
-      <!-- 后台运行的迷你进度条 -->
-      <div v-if="batchGenerating && isBatchBackground" style="margin-bottom: 20px; padding: 15px; background-color: #f0f9ff; border-radius: 8px; border: 1px solid #c6e2ff;">
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
-          <span style="color: #409eff; font-weight: bold;">
-            <el-icon class="is-loading" style="margin-right: 5px;"><Loading /></el-icon>
-            批量生成后台运行中... (第 {{ batchCurrent }} / {{ batchForm.count }} 章)
-          </span>
-          <el-button size="small" type="danger" plain @click="cancelBatchGeneration">终止生成</el-button>
-        </div>
-        <el-progress :percentage="batchProgress" :format="() => `${batchProgress}%`" />
-      </div>
-
       <el-empty v-if="chapters.length === 0" description="还没有章节">
         <el-button type="primary" @click="addChapter">创建第一章</el-button>
       </el-empty>
 
       <!-- 章节列表 -->
-      <div v-else class="chapters-container">
-        <div class="chapters-list">
-          <el-card
-            v-for="chapter in chapters"
-            :key="chapter.id"
-            class="chapter-card"
+      <div v-else class="chapters-container" ref="scrollContainerRef" style="height: calc(100vh - 200px); overflow-y: auto;">
+        <div class="chapters-list" :style="{ height: `${rowVirtualizer.getTotalSize()}px`, position: 'relative' }">
+          <div
+            v-for="virtualRow in rowVirtualizer.getVirtualItems()"
+            :key="virtualRow.index"
+            :style="{
+              position: 'absolute',
+              top: 0,
+              left: 0,
+              width: '100%',
+              transform: `translateY(${virtualRow.start}px)`
+            }"
           >
-            <div class="chapter-header">
+            <template v-for="chapter in [chapters[virtualRow.index]]" :key="chapter?.id">
+              <el-card
+                v-if="chapter"
+                class="chapter-card"
+              >
+                <div class="chapter-header">
               <div class="chapter-info">
                 <span class="chapter-number">第{{ chapter.number }}章</span>
                 <span class="chapter-title">{{ chapter.title }}</span>
@@ -89,7 +88,8 @@
 
             <div class="chapter-content">
               <div class="content-preview">
-                {{ getContentPreview(chapter.content) }}
+                <!-- 我们不再全量加载 content，所以预览优先使用 summary 或提供友好提示 -->
+                {{ chapter.summaryData?.summary || chapter.summary || getContentPreview(chapter.content) || '由于防爆栈机制已启动，正文以惰性加载，请点击编辑查看。' }}
               </div>
             </div>
 
@@ -136,83 +136,72 @@
             <div v-if="chapter.qualityScore" class="quality-score">
               质量评分: {{ chapter.qualityScore }}/10
             </div>
-          </el-card>
+              </el-card>
+            </template>
+          </div>
         </div>
       </div>
     </div>
 
-    <!-- 章节编辑对话框 -->
+    <!-- 章节编辑全屏沉浸工作台 (Immersive Dual-Pane Workflow) -->
     <el-dialog
       v-model="showEditDialog"
-      :title="editingChapter ? `编辑第${editingChapter.number}章` : '新建章节'"
-      width="80%"
+      fullscreen
+      :show-close="false"
+      class="immersive-editor-dialog"
       :close-on-click-modal="false"
-      top="5vh"
     >
-      <el-tabs v-model="editActiveTab">
-        <el-tab-pane label="基本信息" name="basic">
-          <el-form :model="chapterForm" label-width="100px">
-            <el-form-item label="章节号">
-              <el-input-number v-model="chapterForm.number" :min="1" />
-            </el-form-item>
-
-            <el-form-item label="章节标题">
-              <el-input v-model="chapterForm.title" placeholder="章节标题" />
-            </el-form-item>
-
-            <el-form-item label="生成方式">
-              <el-radio-group v-model="chapterForm.generatedBy">
-                <el-radio value="ai">AI生成</el-radio>
-                <el-radio value="manual">手动编写</el-radio>
-                <el-radio value="hybrid">混合模式</el-radio>
-              </el-radio-group>
-            </el-form-item>
-          </el-form>
-        </el-tab-pane>
-
-        <el-tab-pane label="章节内容" name="content">
-          <div class="editor-section">
-            <div class="editor-toolbar">
-              <el-button @click="generateContent" :loading="generating">
-                <el-icon><MagicStick /></el-icon>
-                AI生成
-              </el-button>
-              <el-checkbox v-model="autoUpdateSettings" style="margin-right: 10px">生成后提取设定</el-checkbox>
-              <span v-if="generating" style="color: #409eff; font-size: 13px;">{{ generationStatus }}</span>
-              <el-button @click="optimizeContent">优化内容</el-button>
-              <el-button @click="checkQuality">质量检查</el-button>
-              <span class="word-count">字数: {{ chapterForm.content.length }}</span>
-              <span class="word-count" :style="{ color: saveStatusColor }">{{ saveStatusText }}</span>
-            </div>
-            <el-input
-              v-model="chapterForm.content"
-              type="textarea"
-              :rows="20"
-              placeholder="章节内容"
-              @keydown="handleEditorKeydown"
-            />
+      <template #header="{ titleId, titleClass }">
+        <div class="immersive-header">
+          <div class="header-left">
+            <el-button @click="showEditDialog = false" text circle class="back-btn"><el-icon><ArrowLeft /></el-icon></el-button>
+            <span :id="titleId" :class="titleClass" class="header-chapter-num">{{ editingChapter ? `第${editingChapter.number}章` : '新建章节' }}</span>
           </div>
-        </el-tab-pane>
-
-        <el-tab-pane label="AI建议" name="suggestions">
-          <div v-if="chapterForm.aiSuggestions && chapterForm.aiSuggestions.length > 0" class="suggestions-list">
-            <el-card
-              v-for="(suggestion, index) in chapterForm.aiSuggestions"
-              :key="index"
-              class="suggestion-item"
-            >
-              {{ suggestion }}
-            </el-card>
+          <div class="header-center">
+            <el-input v-model="chapterForm.title" placeholder="无尽航程的标题..." class="immersive-title-input" />
           </div>
-          <el-empty v-else description="还没有AI建议" />
-        </el-tab-pane>
-      </el-tabs>
-
-      <template #footer>
-        <el-button @click="showEditDialog = false">取消</el-button>
-        <el-button @click="saveCheckpoint" v-if="editingChapter">保存检查点</el-button>
-        <el-button type="primary" @click="saveChapter" :loading="saving">保存</el-button>
+          <div class="header-right">
+             <span class="immersive-status" :style="{ color: saveStatusColor }">{{ saveStatusText }}</span>
+             <el-button @click="saveCheckpoint" v-if="editingChapter" text>打点</el-button>
+             <el-button type="primary" @click="saveChapter" :loading="saving" round>保存</el-button>
+          </div>
+        </div>
       </template>
+
+      <!-- 双轨布局区 -->
+      <div class="immersive-dual-pane">
+        
+        <!-- 左侧打字机区 (Notion-like) -->
+        <div class="immersive-editor-area">
+          <div class="immersive-toolbar">
+            <el-button @click="generateContent" :loading="generating" type="primary" plain round size="small">
+              <el-icon><MagicStick /></el-icon> AI连载
+            </el-button>
+            <el-checkbox v-model="autoUpdateSettings" size="small" style="margin: 0 10px;">后台静默提词</el-checkbox>
+            <el-button @click="optimizeContent" text size="small">打磨文笔</el-button>
+            <el-button @click="checkQuality" text size="small">防吃书预警</el-button>
+            <span class="word-count">{{ chapterForm.content.length }} 墨</span>
+          </div>
+          
+          <el-input
+            v-model="chapterForm.content"
+            type="textarea"
+            :rows="30"
+            placeholder="此刻，命运的齿轮开始转动..."
+            @keydown="handleEditorKeydown"
+            class="immersive-textarea"
+          />
+        </div>
+
+        <!-- 右侧毛玻璃悬浮关联面板 (Glassmorphism Context) -->
+        <GlassContextPanel
+          v-model:activeTab="editActiveTab"
+          v-model:chapterForm="chapterForm"
+          :characters="activeContextCharacters"
+          :worldbook="activeContextWorldbook"
+        />
+
+      </div>
     </el-dialog>
 
     <!-- 检查点对话框 -->
@@ -354,7 +343,6 @@
       title="批量生成章节"
       width="600px"
       :close-on-click-modal="false"
-      :show-close="!batchGenerating"
     >
       <el-form :model="batchForm" label-width="120px">
         <el-form-item label="起始章节">
@@ -380,29 +368,20 @@
           <el-switch v-model="batchForm.autoUpdateSettings" />
           <span style="margin-left: 10px; font-size: 12px; color: #909399;">生成后自动更新人物/关系图/表格记忆</span>
         </el-form-item>
+
+        <!-- V4-P1-⑦: 断点审查 -->
+        <el-form-item label="断点审查">
+          <el-switch v-model="batchForm.enableCheckpoint" />
+          <el-input-number v-if="batchForm.enableCheckpoint" v-model="batchForm.checkpointInterval" :min="1" :max="10" style="margin-left: 10px;" />
+          <span style="margin-left: 10px; font-size: 12px; color: #909399;">每N章暂停等待确认，防止跑偏</span>
+        </el-form-item>
       </el-form>
 
-      <div v-if="batchGenerating" class="batch-progress">
-        <el-progress :percentage="batchProgress" :format="() => `${batchProgress}%`" />
-        <div class="progress-text">
-          正在生成第 {{ batchCurrent }} / {{ batchForm.count }} 章
-        </div>
-        <div class="progress-text" style="color: #409eff; font-size: 13px;">
-          {{ batchStatusText }}
-        </div>
-      </div>
-
       <template #footer>
-        <template v-if="!batchGenerating">
-          <el-button @click="showBatchDialog = false">取消</el-button>
-          <el-button type="primary" @click="executeBatchGeneration">
-            开始生成
-          </el-button>
-        </template>
-        <template v-else>
-          <el-button type="danger" @click="cancelBatchGeneration">终止生成</el-button>
-          <el-button type="primary" plain @click="runBatchInBackground">后台运行</el-button>
-        </template>
+        <el-button @click="showBatchDialog = false">取消</el-button>
+        <el-button type="primary" @click="executeBatchGeneration">
+          开始生成并在后台运行
+        </el-button>
       </template>
     </el-dialog>
 
@@ -464,33 +443,32 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, watch, onUnmounted } from 'vue'
+import { useVirtualizer } from '@tanstack/vue-virtual'
+import GlassContextPanel from './GlassContextPanel.vue'
+import { useContextRadar } from '@/composables/useContextRadar'
 import { useProjectStore } from '@/stores/project'
 import { usePluginStore } from '@/stores/plugin'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Plus, MagicStick, Download, ArrowDown, CircleCheck } from '@element-plus/icons-vue'
+import { Plus, MagicStick, Download, ArrowDown, CircleCheck, ArrowLeft } from '@element-plus/icons-vue'
 import { v4 as uuidv4 } from 'uuid'
 import type { Chapter, Checkpoint } from '@/types'
 import ExportSettings from './ExportSettings.vue'
-import {
-  exportChapterToMarkdown,
-  exportAllChaptersToMarkdown,
-  DEFAULT_MD_OPTIONS,
-} from '@/utils/markdownExporter'
-import {
-  exportChapterToPdf,
-  exportAllChaptersToPdf,
-  DEFAULT_PDF_OPTIONS,
-} from '@/utils/pdfExporter'
-import { saveAs } from 'file-saver'
-import { extractCharactersFromChapters, convertToCharacters, analyzeRelationships } from '@/utils/characterExtractor'
-import { importMemory, exportMemory, updateMemoryFromChapter } from '@/utils/tableMemory'
-import { mergeSystemPrompts } from '@/utils/systemPrompts'
+import { useChapterExport } from '@/composables/useChapterExport'
 import type { ChatMessage } from '@/types/ai'
 
 const projectStore = useProjectStore()
 const pluginStore = usePluginStore()
 const project = computed(() => projectStore.currentProject)
 const chapters = computed(() => project.value?.chapters || [])
+
+const scrollContainerRef = ref<HTMLElement | null>(null)
+const rowVirtualizerOptions = computed(() => ({
+  count: chapters.value.length,
+  getScrollElement: () => scrollContainerRef.value,
+  estimateSize: () => 180,
+  overscan: 5,
+}))
+const rowVirtualizer = useVirtualizer(rowVirtualizerOptions)
 
 // 获取插件提供的工具栏按钮
 const pluginToolbarButtons = computed(() => {
@@ -506,6 +484,8 @@ const autoUpdateSettings = ref(true)
 const editActiveTab = ref('basic')
 const saveStatus = ref<'idle' | 'saving' | 'saved' | 'error'>('idle')
 let autoSaveTimer: ReturnType<typeof setTimeout> | null = null
+
+import { generationScheduler } from '@/services/generation-scheduler'
 
 const chapterForm = ref<Chapter>({
   id: '',
@@ -533,151 +513,39 @@ const chapterForm = ref<Chapter>({
   aiSuggestions: []
 })
 
+const chapterContentProxy = computed(() => chapterForm.value.content)
+const { activeContextCharacters, activeContextWorldbook } = useContextRadar(project, chapterContentProxy, showEditDialog)
+
 const showCheckpointsDialog = ref(false)
 const selectedChapter = ref<Chapter | null>(null)
 
 const showBatchDialog = ref(false)
-const batchGenerating = ref(false)
-const batchProgress = ref(0)
-const batchCurrent = ref(0)
-const batchStatusText = ref('')
-const isBatchBackground = ref(false)
-const isBatchCancelled = ref(false)
 const batchForm = ref({
   startChapter: 1,
   count: 10,
   mode: 'realtime',
   autoSave: true,
-  autoUpdateSettings: true
+  autoUpdateSettings: true,
+  enableCheckpoint: false,
+  checkpointInterval: 5
 })
 
-let extractionQueue = Promise.resolve()
 
-function runExtractionInBackground(chapter: Chapter) {
-  extractionQueue = extractionQueue.then(async () => {
-    try {
-      await updateProjectSettings(chapter)
-      await projectStore.saveCurrentProject() // 保存提取后的设定
-      ElMessage({
-        message: `第${chapter.number}章 设定自动提取完成`,
-        type: 'success',
-        duration: 3000
-      })
-    } catch (err) {
-      ElMessage({
-        message: `第${chapter.number}章 设定提取失败`,
-        type: 'error',
-        duration: 3000
-      })
-    }
-  })
-}
-
-async function updateProjectSettings(chapter: Chapter) {
-  if (!project.value) return;
-
-  try {
-    // 1. 提取人物并合并 (完全免费且秒级的本地正则提取)
-    const charResult = await extractCharactersFromChapters([{ content: chapter.content, title: chapter.title }]);
-    if (charResult && charResult.characters.length > 0) {
-      const newChars = convertToCharacters(charResult.characters);
-      newChars.forEach(nc => {
-        const existing = project.value!.characters.find(c => c.name === nc.name);
-        if (!existing) {
-          project.value!.characters.push({
-            id: uuidv4(),
-            ...nc,
-            aiGenerated: true
-          } as any);
-        }
-      });
-      
-      // 增量分析并更新关系图
-      const allText = project.value.chapters.map(c => c.content).join('\n\n');
-      const extChars = project.value.characters.map(c => ({ name: c.name } as any));
-      const relations = analyzeRelationships(allText, extChars);
-      
-      relations.forEach(rel => {
-        const sourceChar = project.value!.characters.find(c => c.name === rel.from);
-        const targetChar = project.value!.characters.find(c => c.name === rel.to);
-        if (sourceChar && targetChar) {
-          const existingRel = sourceChar.relationships.find(r => r.targetId === targetChar.id);
-          if (!existingRel) {
-            sourceChar.relationships.push({
-              targetId: targetChar.id,
-              type: 'other',
-              description: '共现关系',
-              evolution: []
-            });
-          }
-        }
-      });
-    }
-
-    // 2. 提取表格记忆指令并更新
-    if (project.value.memory) {
-      let memorySystem = importMemory(project.value.memory);
-      
-      const aiExtractFunction = async (content: string, memory: any) => {
-        const { useAIStore } = await import('@/stores/ai');
-        const aiStore = useAIStore();
-        if (!aiStore.checkInitialized()) return [];
-        
-        const prompts = mergeSystemPrompts(project.value!.config?.systemPrompts);
-        
-        // 构建当前激活表的提示词
-        const tablesText = memory.sheets.filter((s: any) => s.enable && s.tochat).map((s: any) => {
-          return `表名: ${s.name}\n列: ${s.hashSheet[0].map((id: string) => s.cells.get(id)?.value || '').join(',')}`;
-        }).join('\n\n');
-        
-        if (!tablesText) return [];
-
-        const prompt = `分析以下小说章节内容，如果有需要更新到表格的状态变化、新物品、新人物等，请输出更新命令。
-
-【严格输出格式】
-每行必须是一条独立的命令，且必须以 "表名:" 开头！不要输出任何其他废话和Markdown标记！
-正确示例：
-角色状态:updateRow(1, "林风", "剑修", "山洞", "重伤", "铁剑")
-物品列表:insertRow("生锈铁剑", "普通", "在山洞中捡到")
-
-当前存在的表格结构：
-${tablesText}
-
-章节内容：
-${content}`;
-        
-        const messages: ChatMessage[] = [
-          { role: 'system', content: prompts.memory },
-          { role: 'user', content: prompt }
-        ];
-        
-        try {
-          const res = await aiStore.chat(messages, { type: 'check', complexity: 'low', priority: 'speed' }, { maxTokens: 1000 });
-          return res.content.split('\n').filter(line => line.trim().length > 0);
-        } catch (err) {
-          console.warn('提取记忆表更新命令失败', err);
-          return [];
-        }
-      };
-
-      memorySystem = await updateMemoryFromChapter(memorySystem, chapter, aiExtractFunction);
-      project.value.memory = exportMemory(memorySystem);
-    }
-  } catch (error) {
-    console.error('自动更新设定失败:', error);
-  }
-}
 
 // 质量检查相关
 const showQualityDialog = ref(false)
 const currentQualityReport = ref<any>(null)
 const qualityReportTab = ref('dimensions')
 
-// 导出相关
-const showExportSettings = ref(false)
-const exportMode = ref<'single' | 'all'>('all')
-const exportChapter = ref<Chapter | null>(null)
-const exporting = ref(false)
+// 导出相关 (通过 Composables 挂载)
+const {
+  showExportSettings,
+  exportMode,
+  exportChapter,
+  handleExportCommand,
+  handleChapterExport,
+  handleExportComplete
+} = useChapterExport(project, chapters)
 
 // 章节验证相关
 const validating = ref(false)
@@ -879,9 +747,26 @@ function addChapter() {
   showEditDialog.value = true
 }
 
-function editChapter(chapter: Chapter) {
+async function editChapter(chapter: any) {
   editingChapter.value = chapter
-  chapterForm.value = JSON.parse(JSON.stringify(chapter))
+  
+  // 先将浅层的 chapter 对象克隆一份
+  const form = JSON.parse(JSON.stringify(chapter))
+  
+  // 核心！触发 SQLite 惰性加载：真正将几十KB的文本拉入内存
+  try {
+    const fullChapter = await projectStore.loadChapter(chapter.id)
+    if (fullChapter && fullChapter.content) {
+      form.content = fullChapter.content
+    } else {
+      form.content = form.content || ''
+    }
+  } catch (err) {
+    console.error('加载章节正文失败:', err)
+    form.content = form.content || ''
+  }
+  
+  chapterForm.value = form
   showEditDialog.value = true
 }
 
@@ -898,22 +783,15 @@ async function saveChapter() {
 
     // 将 reactive 对象转换为普通对象
     const chapterData = JSON.parse(JSON.stringify(chapterForm.value))
-    chapterData.wordCount = chapterData.content.length
+    chapterData.wordCount = chapterData.content?.length || 0
 
-    if (editingChapter.value) {
-      const index = project.value.chapters.findIndex(c => c.id === chapterData.id)
-      if (index !== -1) {
-        project.value.chapters[index] = chapterData
-      }
-    } else {
+    if (!editingChapter.value) {
       chapterData.id = chapterData.id || uuidv4()
-      project.value.chapters.push(chapterData)
     }
 
-    // 更新当前字数
-    project.value.currentWords = project.value.chapters.reduce((sum, c) => sum + c.wordCount, 0)
+    // 调用惰性代理层的单章保存接口，彻底避免 OOM 并发重构
+    await projectStore.saveChapter(chapterData)
 
-    await projectStore.saveCurrentProject()
     ElMessage.success('保存成功')
     saveStatus.value = 'saved'
     showEditDialog.value = false
@@ -921,7 +799,7 @@ async function saveChapter() {
 
     // 后台运行设定提取
     if (autoUpdateSettings.value) {
-      runExtractionInBackground(chapterData)
+      generationScheduler.runExtractionInBackground(chapterData)
     }
 
     // 触发章节保存事件（用于AI建议系统）
@@ -950,9 +828,10 @@ async function confirmDeleteChapter(chapter: Chapter) {
     )
 
     if (!project.value) return
-    project.value.chapters = project.value.chapters.filter(c => c.id !== chapter.id)
-    project.value.currentWords = project.value.chapters.reduce((sum, c) => sum + c.wordCount, 0)
-    await projectStore.saveCurrentProject()
+    
+    // 调用单独删除底层接口
+    await projectStore.deleteChapter(chapter.id)
+    
     ElMessage.success('删除成功')
   } catch {
     // 用户取消
@@ -1026,7 +905,7 @@ async function generateContent() {
 
       // 使用酒馆风格的上下文构建器
       generationStatus.value = '正在构建AI记忆与上下文...'
-      const { buildChapterContext, contextToPrompt } = await import('@/utils/contextBuilder')
+      const { buildChapterContext, contextToPromptPayload } = await import('@/utils/contextBuilder')
 
       console.log('[章节生成] 使用上下文构建器构建记忆...')
 
@@ -1039,16 +918,19 @@ async function generateContent() {
       console.log(`  - Author Note 长度: ${context.authorsNote.length}`)
       console.log(`  - 最近章节: ${context.recentChapters ? '有' : '无'}`)
 
-      // 转换为prompt
+      // V3-fix: 使用 system/user 角色分离（与批量生成路径一致）
       generationStatus.value = '正在组合提示词...'
       const targetWords = project.config?.advancedSettings?.targetWordCount || 2000
-      const prompt = contextToPrompt(context, chapterForm.value.title || '未命名章节', targetWords)
+      const promptPayload = contextToPromptPayload(context, chapterForm.value.title || '未命名章节', targetWords)
 
       if (context.warnings.length > 0) {
         ElMessage.warning(`上下文提示: ${context.warnings[0]}`)
       }
 
-      const messages: ChatMessage[] = [{ role: 'user', content: prompt }]
+      const messages: ChatMessage[] = [
+        { role: 'system', content: promptPayload.systemMessage },
+        { role: 'user', content: promptPayload.userMessage }
+      ]
       const aiContext = { type: 'chapter' as const, complexity: 'high' as const, priority: 'quality' as const }
 
       console.log('[章节生成] 开始调用AI服务...')
@@ -1095,8 +977,8 @@ async function generateContent() {
           { chapter: chapterForm.value, project },
           { project, chapter: chapterForm.value, config: project.config }
         )
-        if (postResult && postResult.chapter && postResult.chapter.content) {
-          chapterForm.value.content = postResult.chapter.content
+        if (postResult && (postResult as any).chapter && (postResult as any).chapter.content) {
+          chapterForm.value.content = (postResult as any).chapter.content
         }
       } catch (err) {
         console.error('执行 post-generation 管道失败:', err)
@@ -1280,256 +1162,27 @@ function startBatchGeneration() {
   showBatchDialog.value = true
 }
 
-function cancelBatchGeneration() {
-  isBatchCancelled.value = true
-  batchStatusText.value = '正在取消...'
-}
-
-function runBatchInBackground() {
-  isBatchBackground.value = true
-  showBatchDialog.value = false
-  ElMessage.success('批量生成已转入后台运行')
-}
-
 async function executeBatchGeneration() {
   if (!project.value) {
     ElMessage.warning('请先打开或创建项目')
     return
   }
 
-  isBatchCancelled.value = false
-  isBatchBackground.value = false
-  batchGenerating.value = true
-  batchProgress.value = 0
-  batchCurrent.value = 0
-  batchStatusText.value = '正在准备批量生成环境...'
+  showBatchDialog.value = false
+  ElMessage.success('🚀 已在任务中心开启批量生成')
 
   try {
-    const { useAIStore } = await import('@/stores/ai')
-    const aiStore = useAIStore()
-
-    if (!aiStore.checkInitialized()) {
-      ElMessage.warning('请先配置AI模型')
-      showBatchDialog.value = false
-      return
-    }
-
-    const projectStore = await import('@/stores/project').then(m => m.useProjectStore())
-    const currentProject = projectStore.currentProject
-
-    if (!currentProject) {
-      ElMessage.warning('项目未加载')
-      return
-    }
-
-    // 导入上下文构建器
-    const { buildChapterContext, contextToPrompt } = await import('@/utils/contextBuilder')
-
-    // 导入大纲扩展函数
-    const { extendOutlineWithLLM } = await import('@/utils/llm/outlineGenerator')
-
-    for (let i = 0; i < batchForm.value.count; i++) {
-      if (isBatchCancelled.value) {
-        ElMessage.warning('批量生成已手动取消')
-        break
-      }
-
-      batchCurrent.value = i + 1
-      const chapterNumber = batchForm.value.startChapter + i
-
-      // ================= 滚动大纲生成检测 =================
-      const currentOutlineLength = project.value.outline.chapters.length
-      // 当剩余大纲不足5章时，自动续写后面20章大纲
-      if (currentOutlineLength > 0 && chapterNumber >= currentOutlineLength - 4) {
-        batchStatusText.value = `⚠️ 现有大纲即将耗尽，正在自动由AI续写第 ${currentOutlineLength + 1} 到 ${currentOutlineLength + 20} 章大纲...`
-        console.log(`[批量生成] 触发滚动大纲，续写第 ${currentOutlineLength + 1} 章之后的内容`)
-        
-        try {
-          const newOutlines = await extendOutlineWithLLM(project.value, currentOutlineLength + 1, 20)
-          if (newOutlines && newOutlines.length > 0) {
-            project.value.outline.chapters.push(...newOutlines)
-            
-            // 更新最后卷的 endChapter 或者新建卷
-            const lastVolume = project.value.outline.volumes[project.value.outline.volumes.length - 1]
-            if (lastVolume) {
-              lastVolume.endChapter += newOutlines.length
-            }
-            
-            await projectStore.saveCurrentProject()
-            ElMessage.success(`成功续写了 ${newOutlines.length} 章大纲！`)
-          }
-        } catch (err) {
-          console.error('[批量生成] 大纲续写失败，可能会影响后续生成质量:', err)
-          ElMessage.warning('大纲续写失败，将强制按空大纲继续生成本章')
-        }
-      }
-      // ===================================================
-
-      console.log(`[批量生成] 开始生成第 ${chapterNumber} 章 (${i + 1}/${batchForm.value.count})`)
-      batchStatusText.value = `初始化第 ${chapterNumber} 章数据...`
-
-      try {
-        // 检查章节是否已存在
-        let existingChapter = chapters.value.find(c => c.number === chapterNumber)
-
-        // 准备章节数据
-        const chapterData: Chapter = existingChapter ? {
-          ...existingChapter,
-          content: '',
-          wordCount: 0,
-          generatedBy: 'ai' as const,
-          generationTime: new Date()
-        } : {
-          id: uuidv4(),
-          number: chapterNumber,
-          title: `第${chapterNumber}章`,
-          content: '',
-          wordCount: 0,
-          summary: '',
-          outline: {
-            chapterId: uuidv4(),
-            title: `第${chapterNumber}章`,
-            scenes: [],
-            characters: [],
-            location: '',
-            goals: [],
-            conflicts: [],
-            resolutions: [],
-            foreshadowingToPlant: [],
-            foreshadowingToResolve: [],
-            status: 'planned'
-          },
-          status: 'draft',
-          generatedBy: 'ai' as const,
-          generationTime: new Date(),
-          checkpoints: [],
-          aiSuggestions: []
-        }
-
-        // 使用酒馆风格的上下文构建器
-        console.log(`[批量生成] 构建第 ${chapterNumber} 章上下文...`)
-        batchStatusText.value = `正在构建第 ${chapterNumber} 章记忆与设定上下文...`
-
-        // 重新读取项目数据，确保看到之前生成的章节
-        const freshProject = projectStore.currentProject
-        if (!freshProject) {
-          throw new Error('项目数据丢失')
-        }
-
-        const context = await buildChapterContext(freshProject, chapterData)
-
-        console.log(`[批量生成] 第 ${chapterNumber} 章上下文:`)
-        console.log(`  - 总Token数: ${context.totalTokens}`)
-        console.log(`  - 警告: ${context.warnings.length > 0 ? context.warnings.join(', ') : '无'}`)
-        console.log(`  - 最近章节: ${context.recentChapters ? '有' : '无'}`)
-
-        // 转换为prompt
-        const targetWords = currentProject.config?.advancedSettings?.targetWordCount || 2000
-        const prompt = contextToPrompt(context, chapterData.title, targetWords)
-
-        if (context.warnings.length > 0) {
-          ElMessage.warning(`第 ${chapterNumber} 章提示: ${context.warnings[0]}`)
-        }
-
-        const messages: ChatMessage[] = [{ role: 'user', content: prompt }]
-        const aiContext = { type: 'chapter' as const, complexity: 'high' as const, priority: 'quality' as const }
-
-        batchStatusText.value = `[前文长度 ${context.totalTokens} Tokens] 正在请求 AI 生成正文...`
-        const generationOptions = buildGenerationOptions(currentProject.config?.advancedSettings)
-        
-        chapterData.content = ''
-
-        let response
-        try {
-          response = await aiStore.chatStream(
-            messages,
-            (event) => {
-              if (event.type === 'chunk' && event.chunk) {
-                chapterData.content += event.chunk
-                batchStatusText.value = `正在生成第 ${chapterNumber} 章... 已生成 ${chapterData.content.length} 字`
-              }
-            },
-            aiContext,
-            generationOptions
-          )
-        } catch (streamError) {
-          console.warn(`[批量生成] 第 ${chapterNumber} 章流式失败，回退普通模式:`, streamError)
-          batchStatusText.value = `第 ${chapterNumber} 章流式中断，正在切换普通模式重试...`
-          response = await aiStore.chat(messages, aiContext, generationOptions)
-        }
-        
-        console.log(`[批量生成] 第 ${chapterNumber} 章生成完成，内容长度:`, response.content.length)
-
-        batchStatusText.value = `正在处理并保存第 ${chapterNumber} 章...`
-        chapterData.content = response.content.trim()
-        chapterData.wordCount = chapterData.content.length
-
-        // 执行 post-generation 插件管道
-        const { usePluginStore } = await import('@/stores/plugin')
-        const pluginStore = usePluginStore()
-        const processorRegistry = pluginStore.getRegistries().processor
-        try {
-          const postResult = await processorRegistry.processPipeline(
-            'post-generation',
-            { chapter: chapterData, project: currentProject },
-            { project: currentProject, chapter: chapterData, config: currentProject.config }
-          )
-          if (postResult && postResult.chapter && postResult.chapter.content) {
-            chapterData.content = postResult.chapter.content
-            chapterData.wordCount = chapterData.content.length
-          }
-        } catch (err) {
-          console.error('执行 post-generation 管道失败:', err)
-        }
-
-        await runQualityCheckSilently(chapterData, false)
-
-        // 保存或更新章节
-        if (existingChapter) {
-          const index = project.value.chapters.findIndex(c => c.id === existingChapter.id)
-          if (index !== -1) {
-            project.value.chapters[index] = chapterData
-          }
-        } else {
-          project.value.chapters.push(chapterData)
-        }
-
-        // 自动保存当前章节
-        if (batchForm.value.autoSave) {
-          await projectStore.saveCurrentProject()
-          console.log(`[批量生成] 第 ${chapterNumber} 章已保存`)
-        }
-
-        // 后台自动提取更新
-        if (batchForm.value.autoUpdateSettings) {
-          runExtractionInBackground(chapterData)
-        }
-
-        // 更新进度
-        batchProgress.value = Math.round(((i + 1) / batchForm.value.count) * 100)
-
-        // 短暂延迟，避免API请求过快
-        if (i < batchForm.value.count - 1) {
-          batchStatusText.value = `第 ${chapterNumber} 章完成，准备生成下一章...`
-          await new Promise(resolve => setTimeout(resolve, 500))
-        }
-
-      } catch (error) {
-        console.error(`[批量生成] 第 ${chapterNumber} 章生成失败:`, error)
-        ElMessage.error(`第 ${chapterNumber} 章生成失败: ${(error as Error).message}`)
-        // 继续生成下一章
-      }
-    }
-
-    batchStatusText.value = '批量生成任务全部完成！'
-    ElMessage.success(`批量生成完成！成功生成 ${batchForm.value.count} 章`)
-    showBatchDialog.value = false
+    await generationScheduler.executeBatchGeneration({
+      startChapter: batchForm.value.startChapter,
+      count: batchForm.value.count,
+      autoSave: batchForm.value.autoSave,
+      autoUpdateSettings: batchForm.value.autoUpdateSettings,
+      enableCheckpoint: batchForm.value.enableCheckpoint,
+      checkpointInterval: batchForm.value.checkpointInterval
+    })
   } catch (error) {
     console.error('[批量生成] 失败:', error)
     ElMessage.error('批量生成失败：' + (error as Error).message)
-  } finally {
-    batchGenerating.value = false
-    batchStatusText.value = ''
   }
 }
 
@@ -1576,142 +1229,7 @@ function getScoreColor(score: number) {
   return '#f56c6c'
 }
 
-// 导出处理
-function handleExportCommand(command: string) {
-  if (!project.value) {
-    ElMessage.warning('请先打开项目')
-    return
-  }
-
-  switch (command) {
-    case 'exportAllMarkdown':
-      handleExportAllMarkdown()
-      break
-    case 'exportAllPdf':
-      handleExportAllPdf()
-      break
-    case 'exportAllJson':
-      handleExportAllJson()
-      break
-    case 'exportSettings':
-      exportMode.value = 'all'
-      exportChapter.value = null
-      showExportSettings.value = true
-      break
-  }
-}
-
-// 导出单个章节
-function handleExportSingleChapter(chapter: Chapter, format: 'markdown' | 'pdf') {
-  if (!project.value) return
-
-  if (format === 'markdown') {
-    exportChapterToMarkdown(chapter, project.value.title, DEFAULT_MD_OPTIONS)
-    ElMessage.success(`已导出第${chapter.number}章为 Markdown`)
-  } else {
-    exportChapterToPdf(chapter, project.value, DEFAULT_PDF_OPTIONS)
-    ElMessage.success(`已导出第${chapter.number}章为 PDF`)
-  }
-}
-
-// 导出全部为 Markdown
-async function handleExportAllMarkdown() {
-  if (!project.value || chapters.value.length === 0) {
-    ElMessage.warning('没有可导出的章节')
-    return
-  }
-
-  exporting.value = true
-  try {
-    ElMessage.info('正在导出 Markdown 文件...')
-
-    exportAllChaptersToMarkdown(
-      chapters.value,
-      project.value.title,
-      DEFAULT_MD_OPTIONS,
-      (current, total) => {
-        console.log(`导出进度: ${current}/${total}`)
-      }
-    )
-
-    ElMessage.success('导出成功！')
-  } catch (error) {
-    console.error('导出失败:', error)
-    ElMessage.error('导出失败：' + (error as Error).message)
-  } finally {
-    exporting.value = false
-  }
-}
-
-// 导出全部为 PDF
-async function handleExportAllPdf() {
-  if (!project.value || chapters.value.length === 0) {
-    ElMessage.warning('没有可导出的章节')
-    return
-  }
-
-  exporting.value = true
-  try {
-    ElMessage.info('正在生成 PDF，请稍候...')
-
-    exportAllChaptersToPdf(
-      chapters.value,
-      project.value,
-      DEFAULT_PDF_OPTIONS,
-      (current, total) => {
-        console.log(`导出进度: ${current}/${total}`)
-      }
-    )
-
-    ElMessage.success('请在打印对话框中选择"保存为PDF"')
-  } catch (error) {
-    console.error('导出失败:', error)
-    ElMessage.error('导出失败：' + (error as Error).message)
-  } finally {
-    exporting.value = false
-  }
-}
-
-// 导出全部为 JSON
-async function handleExportAllJson() {
-  if (!project.value || chapters.value.length === 0) {
-    ElMessage.warning('没有可导出的章节')
-    return
-  }
-
-  try {
-    const data = JSON.stringify({
-      title: project.value.title,
-      exportTime: new Date().toISOString(),
-      chapters: chapters.value
-    }, null, 2)
-
-    const blob = new Blob([data], { type: 'application/json' })
-    const filename = `${project.value.title}_章节_${new Date().toISOString().split('T')[0]}.json`
-    saveAs(blob, filename)
-
-    ElMessage.success('导出成功！')
-  } catch (error) {
-    console.error('导出失败:', error)
-    ElMessage.error('导出失败：' + (error as Error).message)
-  }
-}
-
-// 单个章节导出处理
-function handleChapterExport(chapter: Chapter, format: string) {
-  if (!project.value) return
-
-  if (format === 'markdown') {
-    handleExportSingleChapter(chapter, 'markdown')
-  } else if (format === 'pdf') {
-    handleExportSingleChapter(chapter, 'pdf')
-  }
-}
-
-// 导出完成回调
-function handleExportComplete() {
-  ElMessage.success('导出完成！')
-}
+// 导出逻辑已重构至 src/composables/useChapterExport.ts
 </script>
 
 <style scoped>
@@ -1922,5 +1440,199 @@ function handleExportComplete() {
 
 .dimension-issues {
   margin-top: 10px;
+}
+
+/* --------------- 沉浸式双轨编辑器 (Immersive Zen Editor) CSS --------------- */
+:deep(.immersive-editor-dialog) {
+  --el-dialog-padding-primary: 0;
+  background-color: var(--el-bg-color-page);
+}
+:deep(.immersive-editor-dialog .el-dialog__header) {
+  padding: 0;
+  margin: 0;
+}
+:deep(.immersive-editor-dialog .el-dialog__body) {
+  padding: 0;
+  height: calc(100vh - 60px); 
+  overflow: hidden;
+  background: radial-gradient(circle at center, #ffffff 0%, #f4f6f9 100%);
+}
+html.dark :deep(.immersive-editor-dialog .el-dialog__body) {
+  background: radial-gradient(circle at center, #1a1a1a 0%, #0d0d0d 100%);
+}
+
+.immersive-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 60px;
+  padding: 0 20px;
+  background: rgba(255, 255, 255, 0.7);
+  backdrop-filter: blur(12px);
+  border-bottom: 1px solid rgba(0,0,0,0.05);
+}
+html.dark .immersive-header {
+  background: rgba(30, 30, 30, 0.7);
+  border-bottom: 1px solid rgba(255,255,255,0.05);
+}
+
+.header-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 250px;
+}
+.header-chapter-num {
+  font-weight: 600;
+  color: var(--el-text-color-primary);
+  opacity: 0.8;
+}
+
+.header-center {
+  flex: 1;
+  display: flex;
+  justify-content: center;
+}
+:deep(.immersive-title-input .el-input__wrapper) {
+  box-shadow: none !important;
+  background: transparent;
+  font-size: 20px;
+  font-weight: bold;
+  text-align: center;
+  width: 400px;
+}
+:deep(.immersive-title-input .el-input__inner) {
+  text-align: center;
+}
+
+.header-right {
+  display: flex;
+  align-items: center;
+  gap: 15px;
+  width: 250px;
+  justify-content: flex-end;
+}
+.immersive-status {
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.immersive-dual-pane {
+  display: flex;
+  height: 100%;
+  width: 100%;
+}
+
+.immersive-editor-area {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  padding: 0 15%;
+  position: relative;
+}
+
+.immersive-toolbar {
+  display: flex;
+  align-items: center;
+  height: 50px;
+  padding: 0 10;
+  opacity: 0.6;
+  transition: opacity 0.3s;
+}
+.immersive-toolbar:hover {
+  opacity: 1;
+}
+.word-count {
+  margin-left: auto;
+  font-size: 13px;
+  color: var(--el-text-color-secondary);
+  font-family: monospace;
+}
+
+:deep(.immersive-textarea .el-textarea__inner) {
+  box-shadow: none !important;
+  background: transparent !important;
+  font-size: 18px;
+  line-height: 2;
+  font-family: 'Songti SC', 'Noto Serif SC', STSong, serif;
+  color: var(--el-text-color-primary);
+  padding: 20px 0;
+  resize: none;
+  height: 100%;
+}
+html.dark :deep(.immersive-textarea .el-textarea__inner) {
+  color: #e0e0e0;
+}
+:deep(.immersive-textarea .el-textarea__inner:focus) {
+  box-shadow: none !important;
+}
+
+.immersive-insight-panel {
+  width: 320px;
+  background: rgba(255, 255, 255, 0.4);
+  backdrop-filter: blur(20px);
+  border-left: 1px solid rgba(0,0,0,0.05);
+  box-shadow: -10px 0 20px rgba(0,0,0,0.02);
+  display: flex;
+  flex-direction: column;
+}
+html.dark .immersive-insight-panel {
+  background: rgba(20, 20, 20, 0.4);
+  border-left: 1px solid rgba(255,255,255,0.05);
+}
+
+:deep(.insight-tabs .el-tabs__header) {
+  margin: 0;
+  padding: 0 20px;
+  border-bottom: 1px solid rgba(0,0,0,0.05);
+}
+:deep(.insight-tabs .el-tabs__content) {
+  padding: 20px;
+  flex: 1;
+  overflow-y: auto;
+}
+
+.context-cards-container {
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+}
+
+.glass-card {
+  background: rgba(255, 255, 255, 0.6);
+  border: 1px solid rgba(255, 255, 255, 0.8);
+  border-radius: 12px;
+  padding: 15px;
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.05);
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+
+html.dark .glass-card {
+  background: rgba(40, 40, 40, 0.6);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.glass-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 25px rgba(0, 0, 0, 0.1);
+}
+
+.card-title {
+  font-weight: 600;
+  font-size: 15px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.card-desc {
+  font-size: 13px;
+  color: var(--el-text-color-regular);
+  display: -webkit-box;
+  -webkit-line-clamp: 4;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  line-height: 1.5;
 }
 </style>

@@ -167,7 +167,7 @@ function analyzeConsistency(
   }
 
   // 检查术语一致性（简化版）
-  const terms = ['修炼', '境界', '灵气', '法术', '功法']
+  const _terms = ['修炼', '境界', '灵气', '法术', '功法']
   const termVariants: Record<string, string[]> = {
     '修炼': ['修练', '修行'],
     '境界': ['层级', '等级'],
@@ -245,7 +245,7 @@ function generateIssuesAndSuggestions(
   pacing: number,
   consistency: number,
   readability: number,
-  chapters: Array<{ content: string }>,
+  _chapters: Array<{ content: string }>,
   characters: Array<{ name: string; description: string; occurrences: number }>
 ): { issues: QualityIssue[]; suggestions: string[] } {
   const issues: QualityIssue[] = []

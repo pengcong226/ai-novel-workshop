@@ -9,7 +9,7 @@ import { ref, computed } from 'vue'
 import { pluginManager } from '@/plugins/manager'
 import { PluginStorage } from '@/plugins/storage'
 import { getLogger } from '@/utils/logger'
-import type { PluginManifest, PluginInstance, PluginStatus } from '@/plugins/types'
+import type { PluginManifest, PluginInstance} from '@/plugins/types'
 
 export const usePluginStore = defineStore('plugin', () => {
   // 状态
@@ -57,7 +57,7 @@ export const usePluginStore = defineStore('plugin', () => {
   /**
    * 安装插件
    */
-  async function installPlugin(manifest: PluginManifest, entryPoint: () => Promise<any>) {
+  async function installPlugin(manifest: PluginManifest, entryPoint: () => Promise<unknown>) {
     loading.value = true
     error.value = null
 

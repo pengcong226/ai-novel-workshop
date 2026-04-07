@@ -152,7 +152,7 @@
           <el-form-item label="扩展关键词">
             <div class="secondary-keys">
               <div
-                v-for="(keys, index) in formData.selective"
+                v-for="(keys, index) in (formData.selective as unknown as any[])"
                 :key="index"
                 class="secondary-key-group"
               >
@@ -204,16 +204,16 @@
             </el-select>
           </el-form-item>
 
-          <el-form-item label="章节范围">
+          <el-form-item label="章节范围" v-if="formData.extensions">
             <div class="chapter-range">
               <el-input-number
-                v-model="formData.extensions.chapter_range.start"
+                v-model="(formData.extensions as any).chapter_range.start"
                 placeholder="起始章节"
                 :min="0"
               />
               <span>至</span>
               <el-input-number
-                v-model="formData.extensions.chapter_range.end"
+                v-model="(formData.extensions as any).chapter_range.end"
                 placeholder="结束章节"
                 :min="0"
               />
@@ -221,9 +221,9 @@
             </div>
           </el-form-item>
 
-          <el-form-item label="角色出场">
+          <el-form-item label="角色出场" v-if="formData.extensions">
             <el-select
-              v-model="formData.extensions.character_presence"
+              v-model="(formData.extensions as any).character_presence"
               multiple
               placeholder="选择角色"
             >
@@ -236,9 +236,9 @@
             </el-select>
           </el-form-item>
 
-          <el-form-item label="地点访问">
+          <el-form-item label="地点访问" v-if="formData.extensions">
             <el-select
-              v-model="formData.extensions.location_visit"
+              v-model="(formData.extensions as any).location_visit"
               multiple
               placeholder="选择地点"
             >
@@ -319,9 +319,10 @@ const showBatchImport = ref(false)
 const batchImportText = ref('')
 
 const formData = ref<WorldbookEntry>({
+  uid: Date.now(),
   id: '',
   keys: [],
-  key: '',
+  key: [] as string[],
   keysecondary: [],
   comment: '',
   content: '',
@@ -329,16 +330,16 @@ const formData = ref<WorldbookEntry>({
   selective: false,
   selectiveLogic: 100,
   group: '',
-  group_priority: 0,
-  group_weight: 100,
-  group_override: false,
+  // group_priority: 0,
+  // group_weight: 100,
+  // group_override: false,
   order: 0,
   insertion_order: 0,
   priority: 50,
   enabled: true,
   position: 'after_char',
   excludeRecursion: false,
-  preventRecursion: false,
+  // preventRecursion: false,
   depth: 4,
   keylogic: 'AND',
   keyregex: '',
@@ -357,9 +358,10 @@ watch(() => props.entry, (entry) => {
     formData.value = { ...entry }
   } else {
     formData.value = {
+      uid: Date.now(),
       id: crypto.randomUUID(),
       keys: [],
-      key: '',
+      key: [] as string[],
       keysecondary: [],
       comment: '',
       content: '',
@@ -367,16 +369,16 @@ watch(() => props.entry, (entry) => {
       selective: false,
       selectiveLogic: 100,
       group: '',
-      group_priority: 0,
-      group_weight: 100,
-      group_override: false,
+  //  group_priority: 0,
+      // group_weight: 100,
+      // group_override: false,
       order: 0,
       insertion_order: worldbookStore.entryCount,
       priority: 50,
       enabled: true,
       position: 'after_char',
       excludeRecursion: false,
-      preventRecursion: false,
+      // preventRecursion: false,
       depth: 4,
       keylogic: 'AND',
       keyregex: '',
@@ -407,22 +409,25 @@ const renderedContent = computed(() => {
 // 方法
 function addKeyword() {
   if (newKeyword.value.trim()) {
+    if (!formData.value.keys) formData.value.keys = []
     formData.value.keys.push(newKeyword.value.trim())
-    if (!formData.value.key) {
-      formData.value.key = newKeyword.value.trim()
+    if (!formData.value.key || formData.value.key.length === 0) {
+      formData.value.key = [newKeyword.value.trim()]
     }
     newKeyword.value = ''
   }
 }
 
 function removeKeyword(index: number) {
-  formData.value.keys.splice(index, 1)
+  if (formData.value.keys) {
+    formData.value.keys.splice(index, 1)
+  }
 }
 
 async function extractKeywordsFromContent() {
   try {
     const keywords = await extractKeywords(formData.value.content)
-    formData.value.keys = [...new Set([...formData.value.keys, ...keywords])]
+    formData.value.keys = [...new Set([...(formData.value.keys || []), ...keywords])]
     ElMessage.success(`提取了 ${keywords.length} 个关键词`)
   } catch (error) {
     ElMessage.error('关键词提取失败')
@@ -435,35 +440,37 @@ function handleBatchImport() {
     .map(k => k.trim())
     .filter(k => k.length > 0)
 
-  formData.value.keys = [...new Set([...formData.value.keys, ...keywords])]
+  formData.value.keys = [...new Set([...(formData.value.keys || []), ...keywords])]
   showBatchImport.value = false
   batchImportText.value = ''
   ElMessage.success(`导入了 ${keywords.length} 个关键词`)
 }
 
 function addSecondaryKeyGroup() {
-  formData.value.selective.push([])
+  if (!formData.value.selective) (formData.value.selective as unknown as any[]) = []
+  ;(formData.value.selective as unknown as any[]).push([])
   newSecondaryKeys.value.push('')
 }
 
 function addSecondaryKey(groupIndex: number) {
   const key = newSecondaryKeys.value[groupIndex]
-  if (key && key.trim()) {
-    formData.value.selective[groupIndex].push(key.trim())
+  if (key && key.trim() && formData.value.selective) {
+    (formData.value.selective as unknown as any[])[groupIndex].push(key.trim())
     newSecondaryKeys.value[groupIndex] = ''
   }
 }
 
 function removeSecondaryKey(groupIndex: number, key: string) {
-  const index = formData.value.selective[groupIndex].indexOf(key)
+  if (!formData.value.selective) return
+  const index = (formData.value.selective as unknown as any[])[groupIndex].indexOf(key)
   if (index > -1) {
-    formData.value.selective[groupIndex].splice(index, 1)
+    (formData.value.selective as unknown as any[])[groupIndex].splice(index, 1)
   }
 }
 
 function handleSave() {
-  if (!formData.value.key && formData.value.keys.length > 0) {
-    formData.value.key = formData.value.keys[0]
+  if ((!formData.value.key || formData.value.key.length === 0) && formData.value.keys && formData.value.keys.length > 0) {
+    formData.value.key = [formData.value.keys[0]]
   }
 
   formData.value.updated_at = Date.now()

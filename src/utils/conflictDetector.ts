@@ -14,15 +14,7 @@ import type {
   ConflictReport,
   ConflictDetectionConfig,
   ConflictDetectionResult,
-  ConflictEvidence,
-  ConflictFixSuggestion,
-  ConflictType,
-  ConflictSeverity,
-  CharacterConflictData,
-  TimelineConflictData,
-  WorldConflictData,
-  PlotLogicConflictData
-} from '@/types/conflicts'
+  ConflictType} from '@/types/conflicts'
 import { v4 as uuidv4 } from 'uuid'
 
 /**
@@ -147,7 +139,7 @@ export class ConflictDetector {
     }
 
     // 获取人物性格设定
-    const basePersonalities = character.personality || []
+    const _basePersonalities = character.personality || []
 
     // 在各章节中搜索性格描述
     const appearances: Array<{ chapter: number; text: string; traits: string[] }> = []
@@ -526,12 +518,12 @@ export class ConflictDetector {
    */
   private async detectWorldRuleConflicts(
     world: WorldSetting,
-    chapters: Chapter[]
+    _chapters: Chapter[]
   ): Promise<void> {
     if (!world.rules || world.rules.length === 0) return
 
     // 提取关键规则
-    for (const rule of world.rules) {
+    for (const _rule of world.rules) {
       // 检查是否有章节违反该规则
       // （简化实现，实际需要AI辅助分析）
     }

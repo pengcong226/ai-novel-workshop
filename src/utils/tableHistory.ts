@@ -3,7 +3,7 @@
  * 支持撤销/重做功能
  */
 
-import type { Sheet, MemorySystem } from './tableMemory'
+import type { MemorySystem } from './tableMemory'
 import { exportMemory, importMemory } from './tableMemory'
 
 /**
@@ -33,11 +33,11 @@ export class TableHistoryManager {
   private history: HistoryEntry[] = []
   private currentIndex: number = -1
   private maxSize: number
-  private enableAutoSave: boolean
+  private _enableAutoSave: boolean
 
   constructor(options: HistoryManagerOptions = {}) {
     this.maxSize = options.maxSize || 50
-    this.enableAutoSave = options.enableAutoSave ?? true
+    this._enableAutoSave = options.enableAutoSave ?? true
   }
 
   /**
@@ -76,7 +76,7 @@ export class TableHistoryManager {
   /**
    * 撤销
    */
-  undo(memory: MemorySystem): MemorySystem | null {
+  undo(_memory: MemorySystem): MemorySystem | null {
     if (!this.canUndo()) {
       return null
     }
@@ -96,7 +96,7 @@ export class TableHistoryManager {
   /**
    * 重做
    */
-  redo(memory: MemorySystem): MemorySystem | null {
+  redo(_memory: MemorySystem): MemorySystem | null {
     if (!this.canRedo()) {
       return null
     }
@@ -223,6 +223,7 @@ export const HISTORY_ACTIONS = {
   SHEET_CREATE: 'sheet_create',
   SHEET_DELETE: 'sheet_delete',
   SHEET_RENAME: 'sheet_rename',
+  SHEET_EDIT: 'sheet_edit',
   IMPORT: 'import',
   BATCH_EDIT: 'batch_edit'
 } as const
@@ -267,6 +268,9 @@ export function generateActionDescription(
 
     case HISTORY_ACTIONS.SHEET_RENAME:
       return `重命名表格: ${details.oldName} → ${details.newName}`
+
+    case HISTORY_ACTIONS.SHEET_EDIT:
+      return `编辑表格属性`
 
     case HISTORY_ACTIONS.IMPORT:
       return `导入 ${details.count} 个表格`

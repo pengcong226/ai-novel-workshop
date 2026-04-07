@@ -10,9 +10,11 @@ import type {
   ProviderInstance,
   ChatRequest,
   ChatResponse,
-  ModelConfig
-} from '@/types'
-import type { CostBreakdown } from '@/types/ai'
+  CostEstimate
+} from '../types'
+
+type ModelConfig = any
+type CostBreakdown = CostEstimate
 
 /**
  * 智谱GLM Provider实现

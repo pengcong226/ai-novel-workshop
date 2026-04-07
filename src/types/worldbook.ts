@@ -66,6 +66,60 @@ export interface WorldbookEntry {
   /** 扩展字段 - SillyTavern兼容的自定义扩展数据 */
   extensions?: Record<string, unknown>
 
+  // ============ 兼容性别名字段 ============
+  // 以下字段为旧版代码和 SillyTavern 交互层广泛使用的别名
+
+  /** 别名：主关键词（等价于 key） */
+  keys?: string[]
+
+  /** 别名：条目标题/名称 */
+  title?: string
+
+  /** 别名：字符串ID */
+  id?: string
+
+  /** 别名：条目名称 */
+  name?: string
+
+  /** 别名：是否启用（与 disable 互为反义） */
+  enabled?: boolean
+
+  /** 别名：分组标识 */
+  group?: string
+
+  /** 别名：分类标识 */
+  category?: string
+
+  /** 别名：条目类型 */
+  type?: string
+
+  /** 别名：插入顺序 */
+  insertion_order?: number
+
+  /** 别名：优先级 */
+  priority?: number
+
+  /** 别名：关键词逻辑 */
+  keylogic?: string
+
+  /** 别名：关键词正则 */
+  keyregex?: string
+
+  /** 别名：选择性逻辑 */
+  selectiveLogic?: number
+
+  /** 别名：是否区分大小写 */
+  case_sensitive?: boolean
+
+  /** 别名：二级关键词（等价于 keysecondary） */
+  secondary_keys?: string[]
+
+  /** 别名：创建时间戳 */
+  created_at?: number | string | Date
+
+  /** 别名：更新时间戳 */
+  updated_at?: number | string | Date
+
   // ============ AI小说工坊扩展字段 ============
 
   /** AI小说工坊特有扩展 */
@@ -211,6 +265,26 @@ export interface Worldbook {
 
   /** 元数据 */
   metadata?: WorldbookMetadata
+
+  // ============ 兼容性扩展字段 ============
+
+  /** 分组列表 */
+  groups?: WorldbookGroup[]
+
+  /** 描述 */
+  description?: string
+
+  /** 扫描深度 */
+  scan_depth?: number
+
+  /** Token 预算 */
+  token_budget?: number
+
+  /** 递归扫描 */
+  recursive_scanning?: boolean
+
+  /** 扩展数据 */
+  extensions?: Record<string, unknown>
 }
 
 /**
@@ -241,6 +315,9 @@ export interface WorldbookMetadata {
 
   /** 标签 */
   tags?: string[]
+
+  /** 分组（旧版兼容） */
+  groups?: import('./worldbook').WorldbookGroup[]
 
   // ============ 来源追踪 ============
 
@@ -373,6 +450,20 @@ export interface WorldbookImportResult {
   /** 导入的条目 */
   entries?: WorldbookEntry[]
 
+  /** 导入的世界书（兼容） */
+  worldbook?: Worldbook
+
+  /** 导入统计（兼容别名） */
+  stats?: {
+    total: number
+    imported: number
+    skipped: number
+    duplicates: number
+    invalid: number
+    categories: number
+    errors: number
+  }
+
   /** 导入统计 */
   statistics?: {
     /** 总数 */
@@ -404,8 +495,17 @@ export interface WorldbookImportError {
   /** 错误消息 */
   message: string
 
+  /** 错误信息（兼容） */
+  error?: string
+
+  /** 条目引用 */
+  entry?: any
+
+  /** 警告 */
+  warning?: string
+
   /** 原始数据 */
-  rawData?: unknown
+  rawData?: any
 }
 
 /**
@@ -437,7 +537,7 @@ export interface WorldbookExportOptions {
   // ============ 格式设置 ============
 
   /** 导出格式 */
-  format: 'sillytavern' | 'tavernai' | 'json' | 'yaml' | 'markdown'
+  format?: 'sillytavern' | 'tavernai' | 'json' | 'yaml' | 'markdown'
 
   // ============ 内容控制 ============
 
@@ -559,6 +659,9 @@ export interface WorldbookEntryTemplate {
   /** 标签 */
   tags?: string[]
 
+  /** 分组（旧版兼容） */
+  groups?: import('./worldbook').WorldbookGroup[]
+
   /** 使用次数统计 */
   usageCount?: number
 
@@ -600,8 +703,17 @@ export interface WorldbookGroup {
   /** 是否折叠 */
   collapsed?: boolean
 
+  /** 是否启用 */
+  enabled?: boolean
+
+  /** 优先级 */
+  priority?: number
+
   /** 分组内的条目UID列表 */
   entries: number[]
+
+  /** 分组内的条目ID列表（别名） */
+  entryIds?: number[]
 
   /** 子分组ID列表 (支持分组嵌套) */
   subgroups?: string[]
@@ -804,4 +916,25 @@ export interface WorldbookActivationResult {
     constantEntries: number
     selectiveEntries: number
   }
+}
+
+/**
+ * Markdown 导出选项
+ */
+export interface MarkdownExportOptions {
+  format?: string
+  template?: 'detailed' | 'compact' | 'reference'
+  includeStatistics?: boolean
+  includeToc?: boolean
+  groupByCategory?: boolean
+  includeExtensions?: boolean
+}
+
+/**
+ * PNG 导出选项
+ */
+export interface PngExportOptions {
+  format?: string
+  includeMetadata?: boolean
+  customImage?: string
 }

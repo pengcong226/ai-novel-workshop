@@ -223,8 +223,8 @@ export class UnifiedImporter {
     const projectStore = useProjectStore()
 
     const reviewResult = buildTraceReviewQueue(extractResult.artifacts, {
-      worldbookEntries: worldbookStore.entries as unknown as Array<Record<string, unknown>>,
-      knowledgeEntries: knowledgeStore.entries as unknown as Array<Record<string, unknown>>,
+      worldbookEntries: worldbookStore.entries as any as Array<Record<string, unknown>>,
+      knowledgeEntries: knowledgeStore.entries as any as Array<Record<string, unknown>>,
       hasWorldStructure: !!projectStore.currentProject?.world,
       hasCharacterStructure: (projectStore.currentProject?.characters?.length || 0) > 0,
     })
@@ -616,17 +616,17 @@ export class UnifiedImporter {
   /**
    * 从 worldbook 导入结果提取条目
    */
-  private extractWorldbookEntries(worldbookResult: unknown): unknown[] {
+  private extractWorldbookEntries(worldbookResult: any): any[] {
     if (!worldbookResult || typeof worldbookResult !== 'object') {
       return []
     }
 
-    const directEntries = (worldbookResult as { entries?: unknown[] }).entries
+    const directEntries = (worldbookResult as { entries?: any[] }).entries
     if (Array.isArray(directEntries)) {
       return directEntries
     }
 
-    const nested = (worldbookResult as { worldbook?: { entries?: unknown[] } }).worldbook
+    const nested = (worldbookResult as { worldbook?: { entries?: any[] } }).worldbook
     if (nested && Array.isArray(nested.entries)) {
       return nested.entries
     }
@@ -637,12 +637,12 @@ export class UnifiedImporter {
   /**
    * 从 worldbook 导入结果提取错误消息
    */
-  private extractWorldbookErrors(worldbookResult: unknown): string[] | undefined {
+  private extractWorldbookErrors(worldbookResult: any): string[] | undefined {
     if (!worldbookResult || typeof worldbookResult !== 'object') {
       return undefined
     }
 
-    const maybeErrors = (worldbookResult as { errors?: unknown }).errors
+    const maybeErrors = (worldbookResult as { errors?: any }).errors
     if (!Array.isArray(maybeErrors)) {
       return undefined
     }

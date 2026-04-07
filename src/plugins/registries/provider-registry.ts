@@ -121,7 +121,7 @@ export class ProviderRegistry {
       throw new Error(`Provider ${id} 未配置或未注册`)
     }
 
-    return await instance.chat(request)
+    return (await instance.chat(request)) as any
   }
 
   /**
@@ -166,7 +166,7 @@ export class ProviderRegistry {
       throw new Error(`Provider ${id} 未配置或未注册`)
     }
 
-    return await instance.getModels()
+    return (await instance.getModels()) as any
   }
 
   /**

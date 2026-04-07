@@ -81,7 +81,7 @@
           </el-statistic>
         </el-col>
         <el-col :span="6">
-          <el-statistic title="AI设置" :value="aiSettingsConfigured ? '已配置' : '未配置'" />
+          <el-statistic title="AI设置" :value="aiSettingsConfigured ? 1 : 0" :formatter="() => aiSettingsConfigured ? '已配置' : '未配置'" />
         </el-col>
       </el-row>
 
@@ -127,7 +127,7 @@
             <el-button
               type="primary"
               class="mt-3"
-              @click="$emit('open-worldbook')"
+              @click="$emit('openWorldbook')"
             >
               管理世界书
             </el-button>

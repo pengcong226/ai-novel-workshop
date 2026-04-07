@@ -20,7 +20,6 @@ import type {
 import type {
   Worldbook,
   WorldbookEntry,
-  WorldbookCondition,
   NovelWorkshopWorldbookExtensions
 } from '../types/worldbook'
 
@@ -137,7 +136,7 @@ export interface MigrationError {
   /** 源数据类型 */
   sourceType?: string
   /** 原始数据 */
-  rawData?: unknown
+  rawData?: any
 }
 
 /**
@@ -1028,7 +1027,7 @@ export class WorldbookMigration {
   private extractKeywordsFromText(text: string, maxKeywords: number): string[] {
     // 简单的关键词提取：提取长度大于2的词汇
     // 在实际应用中，可以使用更复杂的NLP算法或AI提取
-    const keywords: string[] = []
+    const _keywords: string[] = []
 
     // 移除标点符号
     const cleaned = text.replace(/[^\u4e00-\u9fa5a-zA-Z0-9\s]/g, ' ')
@@ -1366,7 +1365,7 @@ export function mergeWorldbooks(
 ): Worldbook {
   const { conflictResolution = 'merge', updateTimestamps = true } = options
 
-  const allEntries: WorldbookEntry[] = []
+  const _allEntries: WorldbookEntry[] = []
   const uidMap = new Map<number, WorldbookEntry>()
 
   let maxUid = 0

@@ -23,7 +23,7 @@ export async function initializeBuiltinPlugins(): Promise<void> {
 
   try {
     // 安装OpenAI Provider
-    await pluginManager.installPlugin(openAIManifest as unknown as PluginManifest, async () => ({
+    await pluginManager.installPlugin(openAIManifest as any as PluginManifest, async () => ({
       activate: async (context: PluginContext) => {
         context.register.aiProvider(openAIProviderContribution)
         logger.info('内置插件已激活', { plugin: openAIManifest.name, id: openAIManifest.id })
@@ -37,7 +37,7 @@ export async function initializeBuiltinPlugins(): Promise<void> {
     await pluginManager.activatePlugin(openAIManifest.id)
 
     // 安装Anthropic Provider
-    await pluginManager.installPlugin(anthropicManifest as unknown as PluginManifest, async () => ({
+    await pluginManager.installPlugin(anthropicManifest as any as PluginManifest, async () => ({
       activate: async (context: PluginContext) => {
         context.register.aiProvider(anthropicProviderContribution)
         logger.info('内置插件已激活', { plugin: anthropicManifest.name, id: anthropicManifest.id })
@@ -51,7 +51,7 @@ export async function initializeBuiltinPlugins(): Promise<void> {
     await pluginManager.activatePlugin(anthropicManifest.id)
 
     // 安装Local Provider
-    await pluginManager.installPlugin(localManifest as unknown as PluginManifest, async () => ({
+    await pluginManager.installPlugin(localManifest as any as PluginManifest, async () => ({
       activate: async (context: PluginContext) => {
         context.register.aiProvider(localProviderContribution)
         logger.info('内置插件已激活', { plugin: localManifest.name, id: localManifest.id })
