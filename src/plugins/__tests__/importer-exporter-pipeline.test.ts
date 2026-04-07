@@ -6,7 +6,12 @@ describe('Importer/Exporter pipeline integration', () => {
   it('runs pre-import and post-import processor pipeline around importer', async () => {
     const registry = new ImporterRegistry()
     const processPipeline = vi.fn(async (stage: string, data: any) => {
-      if (stage === 'pre-import') return 'raw-from-pipeline'
+      if (stage === 'pre-import') {
+        return {
+          ...data,
+          text: async () => 'raw-from-pipeline'
+        }
+      }
       if (stage === 'post-import') return { ...data, project: { ...(data.project || {}), piped: true } }
       return data
     })
