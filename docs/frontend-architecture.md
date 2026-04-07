@@ -11,9 +11,11 @@
 | Vue Router | 4.x | 路由管理 |
 | Element Plus | 2.x | UI组件库 |
 | @vueuse/core | 10.x | 组合式工具函数 |
-| Mermaid | 10.x | 关系图渲染 |
+| @antv/g6 | 5.x | 关系图渲染 |
+| vis-timeline | 7.x | 时间线编辑器 |
+| vue-konva | 3.x | 世界观地图渲染 |
+| ECharts | 5.x | 统计图表渲染 |
 | Marked | 12.x | Markdown解析 |
-| CodeMirror | 6.x | 代码编辑器 |
 
 ## 2. 项目结构
 
@@ -23,71 +25,90 @@ ai-novel-workshop/
 │   └── favicon.ico
 ├── src/
 │   ├── assets/              # 静态资源
-│   │   ├── styles/
-│   │   │   ├── variables.scss
-│   │   │   ├── reset.scss
-│   │   │   └── global.scss
+│   │   ├── styles/          # 全局样式
 │   │   └── icons/
-│   ├── components/          # 组件
-│   │   ├── common/          # 通用组件
-│   │   │   ├── AppHeader.vue
-│   │   │   ├── AppSidebar.vue
-│   │   │   └── LoadingSpinner.vue
-│   │   ├── layout/          # 布局组件
-│   │   │   ├── ThreeColumnLayout.vue
-│   │   │   ├── LeftPanel.vue
-│   │   │   ├── CenterPanel.vue
-│   │   │   └── RightPanel.vue
-│   │   ├── settings/        # 设定面板组件
-│   │   │   ├── WorldBuilding.vue
-│   │   │   ├── CharacterManager.vue
-│   │   │   ├── OutlineTree.vue
-│   │   │   ├── CharacterCard.vue
-│   │   │   └── WorldSettingForm.vue
-│   │   ├── editor/          # 编辑器组件
-│   │   │   ├── MarkdownEditor.vue
-│   │   │   ├── EditorToolbar.vue
-│   │   │   ├── PreviewPane.vue
-│   │   │   └── ChapterList.vue
-│   │   ├── assistant/       # AI助手组件
-│   │   │   ├── ChatPanel.vue
-│   │   │   ├── ChatMessage.vue
-│   │   │   ├── SuggestionCard.vue
-│   │   │   └── PromptSelector.vue
-│   │   └── visualization/   # 可视化组件
-│   │       ├── RelationGraph.vue
-│   │       ├── TimelineView.vue
-│   │       └── NodeDetails.vue
-│   ├── composables/         # 组合式函数
-│   │   ├── useNovel.ts
-│   │   ├── useCharacters.ts
-│   │   ├── useOutline.ts
-│   │   ├── useAI.ts
-│   │   └── useMarkdown.ts
-│   ├── stores/              # Pinia状态管理
+│   ├── components/          # Vue组件 (40+)
+│   │   ├── config/          # AI配置相关组件
+│   │   │   ├── ModelSelector.vue
+│   │   │   ├── ProviderManager.vue
+│   │   │   └── StorytellerPanel.vue
+│   │   ├── AIAssistant.vue  # AI对话与审查辅助
+│   │   ├── Chapters.vue     # 核心编辑大盘(沉浸式章节面板)
+│   │   ├── Characters.vue   # 角色集与卡片管理
+│   │   ├── CharacterStateTracker.vue # 角色状态实时追踪
+│   │   ├── GlassContextPanel.vue     # 毛玻璃防抖上下文雷达
+│   │   ├── GlobalMutator.vue         # 跨章节核弹级正则替换
+│   │   ├── GlobalTaskObserver.vue    # 全局调度观察器
+│   │   ├── MemoryTables.vue          # SQLite挂载的表格记忆
+│   │   ├── NovelImportDialog.vue     # 智能小说解析导入器
+│   │   ├── Outline.vue               # 树状细纲(卷/章/幕)
+│   │   ├── ProjectConfig.vue         # 项目级别配置项
+│   │   ├── QualityReport.vue         # 文本防吃书质量检测报告
+│   │   ├── RelationshipGraph.vue     # AntV G6 关系图网络
+│   │   ├── TimelineEditor.vue        # 故事时间轴
+│   │   ├── UnifiedImportDialog.vue   # 统一设定导入向导
+│   │   ├── WorldMap.vue              # 世界地图编辑器
+│   │   ├── WorldSetting.vue          # 世界观架构编辑
+│   │   └── WorldbookPanel.vue        # SillyTavern 兼容世界书
+│   ├── composables/         # Vue 3 组合式函数
+│   │   ├── useAuditLog.ts   # 审查追踪器埋点
+│   │   ├── useChapterExport.ts
+│   │   └── useContextRadar.ts
+│   ├── stores/              # Pinia全局状态管理
 │   │   ├── index.ts
-│   │   ├── novel.ts
-│   │   ├── characters.ts
-│   │   ├── outline.ts
-│   │   ├── editor.ts
-│   │   └── assistant.ts
-│   ├── router/              # 路由配置
+│   │   ├── ai.ts            # AI 服务状态调度
+│   │   ├── character-card.ts# 角色卡片服务
+│   │   ├── knowledge.ts     # RAG知识库管理
+│   │   ├── project.ts       # SQLite大纲正文同步
+│   │   ├── storage.ts       # IPC通信层 (SQLite/IndexedDB路由)
+│   │   ├── taskManager.ts   # 异步后台任务队列
+│   │   └── worldbook.ts     # 动态词条注入挂载点
+│   ├── router/              # Vue Router 配置
 │   │   └── index.ts
-│   ├── services/            # API服务
-│   │   ├── api.ts
-│   │   ├── novelService.ts
-│   │   └── aiService.ts
-│   ├── types/               # TypeScript类型定义
-│   │   ├── novel.ts
-│   │   ├── character.ts
-│   │   ├── outline.ts
-│   │   └── api.ts
-│   ├── utils/               # 工具函数
-│   │   ├── storage.ts
-│   │   ├── markdown.ts
-│   │   └── format.ts
+│   ├── services/            # 核心业务服务层
+│   │   ├── ai/              # 模型调用控制层
+│   │   │   ├── ModelRouter.ts # 低成本路由拦截分发
+│   │   │   └── index.ts
+│   │   ├── conversation-trace-apply.ts # 对话应用层
+│   │   ├── conversation-trace-conflict.ts # 冲突检测层
+│   │   ├── conversation-trace-extractor.ts # 大模型提取层
+│   │   ├── conversation-trace-parser.ts # 对话解析层
+│   │   ├── generation-scheduler.ts # V4 核心：异步批量章节引擎
+│   │   ├── memory-service.ts  # 表格记忆提取器
+│   │   ├── state-updater.ts   # V4 核心：后台词条生成引擎
+│   │   ├── unified-importer.ts # 综合导入管线
+│   │   ├── vector-service.ts  # Chroma/本地 OP-RAG向量池
+│   │   └── worldbook-*.ts     # 世界书解析等各子业务
+│   ├── plugins/             # V1.0 可扩展插件管线
+│   │   ├── builtin/         # 内置模型插件(OpenAI/Claude等)
+│   │   ├── registries/      # 导入/导出/处理注册表
+│   │   └── examples/        # ePub导出/内容净化插件
+│   ├── types/               # 严格 TypeScript 类型定义
+│   │   ├── ai.ts
+│   │   ├── conversation-trace.ts
+│   │   ├── entity.ts
+│   │   ├── index.ts
+│   │   └── worldbook.ts
+│   ├── utils/               # 工具链
+│   │   ├── llm/             # 本地/大模型推理工具
+│   │   │   ├── antiRetconValidator.ts # V4 核心：防吃书十九项校验
+│   │   │   ├── schemas.ts       # OpenAI Tool Calling Schemas
+│   │   │   ├── tokenizer.ts     # Token 切片统计
+│   │   │   └── ...
+│   │   ├── contextBuilder.ts# Prompt沙漏构建（优先级拼装）
+│   │   ├── conflictDetector.ts# V2时空碰撞校验器
+│   │   ├── entityMigration.ts # 实体重构与对齐
+│   │   └── safeParseAIJson.ts # 强力 JSON 提取纠错机
 │   ├── App.vue
 │   └── main.ts
+│
+├── src-tauri/             # Rust IPC 宿主容器
+│   ├── src/
+│   │   ├── lib.rs         # SQLite 数据库游标封装
+│   │   ├── main.rs
+│   │   └── vector.rs      # HNSW 离线向量构建
+│   ├── tauri.conf.json
+│   └── Cargo.toml
 ├── index.html
 ├── vite.config.ts
 ├── tsconfig.json
@@ -95,364 +116,135 @@ ai-novel-workshop/
 └── README.md
 ```
 
-## 3. 三栏布局设计
+## 3. 架构理念：沉浸式工作台 (Immersive Layout)
+
+V4架构彻底放弃了经典的中台Dashboard界面，转向真正的全栈生产力（类似 Notion / Ulysses 混合）：
 
 ```
 ┌────────────────────────────────────────────────────────────────────┐
-│                           AppHeader                                 │
-│  [Logo] AI小说工坊          [项目名]              [设置] [用户]     │
+│                          AppHeader (极简状态栏)                     │
+│  [Logo]         [当前项目标题]          [后台调度进度] [设置] [返回] │
 ├──────────────┬──────────────────────────┬─────────────────────────┤
 │              │                          │                         │
-│   左侧面板    │        中间编辑区         │       右侧辅助区         │
-│   (设定区)    │                          │       (AI助手)          │
+│   资源视图区  │        核心书写区        │       情报矩阵区          │
+│   (左侧折叠)  │        (中央白板)        │       (右侧抽屉)          │
 │              │                          │                         │
 │  ┌─────────┐ │  ┌────────────────────┐  │  ┌───────────────────┐  │
-│  │世界观设定│ │  │     工具栏         │  │  │    AI对话面板     │  │
-│  └─────────┘ │  ├────────────────────┤  │  │                   │  │
-│  ┌─────────┐ │  │                    │  │  ├───────────────────┤  │
-│  │人物管理  │ │  │   Markdown编辑器   │  │  │   智能建议卡片     │  │
+│  │ 项目配置 │ │  │    编辑工具栏      │  │  │  GlassContextPanel│  │
+│  │ 大纲视图 │ │  ├────────────────────┤  │  │  毛玻璃上下文雷达  │  │
+│  │ 角色管理 │ │  │                    │  │  ├───────────────────┤  │
+│  │ 世界设定 │ │  │                    │  │  │  AIAssistant      │  │
+│  │ 记忆表格 │ │  │    Chapters.vue    │  │  │  (审查日志与对话)  │  │
+│  │ 质量报告 │ │  │    (虚拟长列表)    │  │  ├───────────────────┤  │
+│  │ (切换式) │ │  │                    │  │  │  AI建议 / 检阅    │  │
 │  │         │ │  │                    │  │  │                   │  │
-│  │ [人物1] │ │  │   (CodeMirror)     │  │  ├───────────────────┤  │
-│  │ [人物2] │ │  │                    │  │  │   提示词选择器     │  │
-│  │ [+]    │ │  ├────────────────────┤  │  │                   │  │
-│  └─────────┘ │  │    实时预览区域    │  │  └───────────────────┘  │
-│  ┌─────────┐ │  │                    │  │                         │
-│  │大纲树    │ │  │   (渲染HTML)       │  │                         │
-│  │         │ │  │                    │  │                         │
-│  │ 章节1   │ │  └────────────────────┘  │                         │
-│  │ 章节2   │ │                          │                         │
-│  └─────────┘ │                          │                         │
+│  └─────────┘ │  └────────────────────┘  │  └───────────────────┘  │
 │              │                          │                         │
-│   可调整宽度  │      可调整宽度          │     可调整宽度           │
-│   (拖拽)     │      (拖拽)             │     (拖拽)               │
+│   侧边栏自适应│      自适应宽度 + 聚焦   │     侧边栏抽屉式折叠      │
 └──────────────┴──────────────────────────┴─────────────────────────┘
 ```
 
-## 4. 状态管理设计 (Pinia)
+## 4. 核心状态流转 (Pinia 状态切片)
 
-### 4.1 Novel Store (小说核心状态)
+V4 重构中去除了大部分的响应式地狱，使用事件驱动+惰性加载。
+
+### 4.1 Project Store (核心持久层映射)
 
 ```typescript
-// stores/novel.ts
-interface NovelState {
-  // 当前项目
+// stores/project.ts
+interface ProjectState {
+  // 当前挂载项目(由 SQLite 返回并序列化)
   currentProject: Project | null;
-
-  // 世界观设定
-  worldSettings: WorldSettings;
-
-  // 章节列表
-  chapters: Chapter[];
-
-  // 当前编辑章节
-  currentChapter: Chapter | null;
-
-  // 加载状态
+  // 加载与脏数据保护
   loading: boolean;
-}
-
-interface WorldSettings {
-  name: string;           // 世界名称
-  era: string;            // 时代背景
-  magic: boolean;         // 是否有魔法体系
-  technology: string;     // 科技水平
-  geography: string;      // 地理环境
-  society: string;        // 社会结构
-  rules: Rule[];          // 世界规则
+  saving: boolean;
+  // 当前阅读的进度定位点
+  activeChapterId: string | null;
 }
 ```
 
-### 4.2 Characters Store (人物管理)
+### 4.2 Storage Store (IPC 路由通信网关)
 
 ```typescript
-// stores/characters.ts
-interface CharactersState {
-  // 人物列表
-  characters: Character[];
-
-  // 当前选中人物
-  selectedCharacter: Character | null;
-
-  // 人物关系图数据
-  relationships: Relationship[];
-
-  // 搜索过滤
-  searchQuery: string;
+// stores/storage.ts
+// 该 Store 根据平台动态决定是存入 IndexedDB 还是请求 Rust Tauri TauriStorage
+interface StorageState {
+  adapter: 'sqlite' | 'indexeddb';
+  isReady: boolean;
 }
-
-interface Character {
-  id: string;
-  name: string;
-  nickname: string;
-  age: number;
-  gender: string;
-  appearance: string;     // 外貌描述
-  personality: string;    // 性格特点
-  background: string;     // 背景故事
-  skills: string[];       // 技能/能力
-  relationships: {
-    targetId: string;
-    type: 'family' | 'friend' | 'enemy' | 'lover' | 'other';
-    description: string;
-  }[];
-  avatar?: string;        // 头像URL
-}
+// 暴露统一的增删改查方法，底层由适配器执行
 ```
 
-### 4.3 Outline Store (大纲管理)
+### 4.3 TaskManager Store (异步队列管理器)
 
 ```typescript
-// stores/outline.ts
-interface OutlineState {
-  // 大纲树结构
-  outlineTree: OutlineNode[];
-
-  // 当前选中节点
-  selectedNode: OutlineNode | null;
-
-  // 展开状态
-  expandedKeys: string[];
-}
-
-interface OutlineNode {
-  id: string;
-  title: string;
-  type: 'volume' | 'chapter' | 'scene';
-  summary: string;
-  wordCount: number;
-  status: 'planned' | 'drafting' | 'completed';
-  children: OutlineNode[];
-  order: number;
+// stores/taskManager.ts
+// V4 引入，让"章节生成" -> "实体提取" -> "记忆更新"不阻塞UI线程
+interface TaskState {
+  activeTasks: Record<string, Task>;
+  queue: Task[];
+  // 日志观测台
+  auditLogs: AuditEntry[]; 
 }
 ```
 
-### 4.4 Editor Store (编辑器状态)
+### 4.4 AI Store (推理管线调度)
 
 ```typescript
-// stores/editor.ts
-interface EditorState {
-  // 编辑器模式
-  mode: 'edit' | 'preview' | 'split';
-
-  // 编辑器内容
-  content: string;
-
-  // 光标位置
-  cursorPosition: { line: number; column: number };
-
-  // 选中文本
-  selectedText: string;
-
-  // 历史记录
-  history: {
-    undoStack: string[];
-    redoStack: string[];
-  };
-
-  // 自动保存状态
-  autoSaveStatus: 'saved' | 'saving' | 'unsaved' | 'error';
+// stores/ai.ts
+interface AIState {
+  // ModelRouter 初始化配置
+  selectedModel: string;
+  config: AIConfig;
+  // 临时对话栈
+  conversations: ChatMessage[];
+  isGenerating: boolean;
 }
 ```
 
-### 4.5 Assistant Store (AI助手状态)
+## 5. UI 高频组件与性能设计
 
-```typescript
-// stores/assistant.ts
-interface AssistantState {
-  // 对话历史
-  messages: ChatMessage[];
+### 5.1 Chapters.vue (无限长列表渲染)
 
-  // 当前输入
-  currentInput: string;
+使用了 `@tanstack/vue-virtual` 彻底解决了百万字时的 DOM 卡顿：
+- 渲染机制：虚拟长列表，只渲染当前视口上下各5章内容。
+- 回调：与 `GlobalTaskObserver` 绑定，异步侦听单个章节的 `isGenerating` 状态。
 
-  // AI状态
-  aiStatus: 'idle' | 'thinking' | 'responding' | 'error';
+### 5.2 抽屉系统 (GlassContextPanel.vue)
 
-  // 建议列表
-  suggestions: Suggestion[];
+V4 的交互创新。任何对长篇文本的操作（如一键查阅角色卡、翻阅大纲），都通过 `<el-drawer>` 的形式覆盖在右侧，使用 `backdrop-filter: blur(12px)` 实现毛玻璃效果，不打断用户当下的创作流。
 
-  // 选中的提示词模板
-  selectedPrompt: PromptTemplate | null;
-}
+### 5.3 异步防抖保存
 
-interface ChatMessage {
-  id: string;
-  role: 'user' | 'assistant';
-  content: string;
-  timestamp: Date;
-  context?: {
-    chapterId?: string;
-    characterId?: string;
-    selectedText?: string;
-  };
-}
+所有输入框（如 Markdown 编辑、表格更改）均通过 `lodash/debounce` 打包并在 Vue `onUnmounted` 生命周期主动挂起回收，彻底避免后台存盘时的脏写和内存泄漏。
 
-interface Suggestion {
-  id: string;
-  type: 'continuation' | 'dialogue' | 'description' | 'plot';
-  content: string;
-  confidence: number;
-}
+## 6. V4 特化：强约束推理管线调用图
+
 ```
-
-## 5. 路由结构
-
-```typescript
-// router/index.ts
-const routes = [
-  {
-    path: '/',
-    redirect: '/projects'
-  },
-  {
-    path: '/projects',
-    name: 'ProjectList',
-    component: () => import('@/views/ProjectList.vue'),
-    meta: { title: '我的项目' }
-  },
-  {
-    path: '/project/:id',
-    component: () => import('@/layouts/EditorLayout.vue'),
-    children: [
-      {
-        path: '',
-        name: 'Editor',
-        component: () => import('@/views/Editor.vue'),
-        meta: { title: '编辑器' }
-      },
-      {
-        path: 'settings',
-        name: 'ProjectSettings',
-        component: () => import('@/views/ProjectSettings.vue'),
-        meta: { title: '项目设置' }
-      },
-      {
-        path: 'characters',
-        name: 'CharacterManager',
-        component: () => import('@/views/CharacterManager.vue'),
-        meta: { title: '人物管理' }
-      },
-      {
-        path: 'outline',
-        name: 'OutlineView',
-        component: () => import('@/views/OutlineView.vue'),
-        meta: { title: '大纲视图' }
-      },
-      {
-        path: 'visualization',
-        name: 'Visualization',
-        component: () => import('@/views/Visualization.vue'),
-        meta: { title: '可视化' }
-      }
-    ]
-  }
-];
-```
-
-## 6. 组件API设计
-
-### 6.1 MarkdownEditor 组件
-
-```vue
-<!-- components/editor/MarkdownEditor.vue -->
-<script setup lang="ts">
-interface Props {
-  modelValue: string;
-  placeholder?: string;
-  readonly?: boolean;
-  height?: string;
-  theme?: 'light' | 'dark';
-}
-
-interface Emits {
-  (e: 'update:modelValue', value: string): void;
-  (e: 'save', content: string): void;
-  (e: 'selectionChange', text: string): void;
-}
-</script>
-```
-
-### 6.2 CharacterCard 组件
-
-```vue
-<!-- components/settings/CharacterCard.vue -->
-<script setup lang="ts">
-interface Props {
-  character: Character;
-  selected?: boolean;
-  compact?: boolean;
-}
-
-interface Emits {
-  (e: 'select', character: Character): void;
-  (e: 'edit', character: Character): void;
-  (e: 'delete', id: string): void;
-}
-</script>
-```
-
-### 6.3 RelationGraph 组件
-
-```vue
-<!-- components/visualization/RelationGraph.vue -->
-<script setup lang="ts">
-interface Props {
-  characters: Character[];
-  relationships: Relationship[];
-  highlightId?: string;
-  width?: number;
-  height?: number;
-}
-
-interface Emits {
-  (e: 'nodeClick', character: Character): void;
-  (e: 'edgeClick', relationship: Relationship): void;
-}
-</script>
-```
-
-### 6.4 ChatPanel 组件
-
-```vue
-<!-- components/assistant/ChatPanel.vue -->
-<script setup lang="ts">
-interface Props {
-  messages: ChatMessage[];
-  loading?: boolean;
-  placeholder?: string;
-}
-
-interface Emits {
-  (e: 'send', message: string): void;
-  (e: 'clear'): void;
-  (e: 'retry', messageId: string): void;
-}
-</script>
-```
-
-## 7. 性能优化策略
-
-1. **虚拟滚动**: 大纲树、章节列表使用虚拟滚动
-2. **懒加载**: 路由组件按需加载
-3. **防抖节流**: 编辑器输入、搜索使用防抖
-4. **缓存策略**: 使用 Pinia 持久化缓存
-5. **Web Worker**: Markdown渲染放入Worker
-
-## 8. 响应式设计断点
-
-```scss
-// 断点定义
-$breakpoints: (
-  'xs': 0,
-  'sm': 576px,
-  'md': 768px,
-  'lg': 992px,
-  'xl': 1200px,
-  'xxl': 1400px
-);
-
-// 三栏布局适配
-// >= 1400px: 三栏完整显示
-// 992px - 1400px: 右侧面板可折叠
-// < 992px: 切换为标签页模式
+用户点击「批量生成」
+    │
+    ▼
+ generation-scheduler.ts (挂载队列)
+    │
+    ▼ (1)
+ ModelRouter.ts (根据配置选用 GPT-4 或 Claude)
+    │
+    ▼ (2)
+ contextBuilder.ts (组装沙漏Prompt: 世界书 > 活跃角色 > RAG段落)
+    │
+    ▼ (3)
+ llmCaller.ts (强制使用 JSON Schema / Tool Calling)
+    │
+    ▼ (4)
+ safeParseAIJson.ts (接管并尝试提取/修复破损 JSON)
+    │
+    ▼ (5)
+ antiRetconValidator.ts (运行 19 项防吃书一致性审查)
+    ├─► 若未通过(吃书了) ─► 拦截 ─► consultPlanner() 规划师重新审查
+    │
+    ▼ (6)
+ state-updater.ts (章节落库，后台进行人物与设定扩写并入库)
+    │
+    ▼
+ 更新 UI 并在 GlassContextPanel.vue 输出 Audit Log
 ```
