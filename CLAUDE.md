@@ -15,10 +15,10 @@
 
 ## Code Style & Conventions
 - **Components**: PascalCase for Vue components (e.g. `RelationshipGraph.vue`)
-- **Refactoring & Architecture**: The codebase is currently transitioning to the **V3 Architecture** outlined in `gemini-deep-research/docs/`.
+- **Refactoring & Architecture**: The codebase has successfully transitioned to the **V4 Architecture**.
   - State management uses Pinia stores (`src/stores/`)
-  - The goal is to move away from RP-style stateless reactive prompts to stateful graph-based memory for long novel generation.
-  - Follow the directives in `gemini-deep-research/docs/V3-实施方案-ClaudeCode执行手册.md` for major refactoring tasks.
+  - The system relies on a stateful graph-based memory and table memory for long novel generation, eliminating hallucination deadlocks.
+  - Structured Outputs (JSON Schema/Tool Calling) and 19-point ConStory-Bench consistency checks are fully implemented.
 
 ## Project Structure
 - `src/components/` → Vue UI components
@@ -26,4 +26,4 @@
 - `src/services/` → Business logic and API connections
 - `src/utils/` → Helper functions (including prompt/context building)
 - `src-tauri/` → Rust backend and database interactions
-- `gemini-deep-research/` → Architecture V3 blueprint and new component iterations
+- `docs/` → Project documentation and architecture specs
