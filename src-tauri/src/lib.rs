@@ -1,6 +1,7 @@
+use log::warn;
 use rusqlite::{Connection, Result};
 use std::sync::Mutex;
-use tauri::State;
+use tauri::{Manager, State};
 
 mod vector;
 
@@ -8,35 +9,191 @@ struct AppState {
     db: Mutex<Connection>,
 }
 
+// Helper macro to safely lock the database
+macro_rules! lock_db {
+    ($state:expr) => {
+        $state
+            .db
+            .lock()
+            .map_err(|e| format!("Database lock poisoned: {}", e))?
+    };
+}
+
+fn process_and_save_project_blob(db: &Connection, id: &str, data: &str) -> Result<(), String> {
+    let mut v: serde_json::Value = serde_json::from_str(data).map_err(|e| e.to_string())?;
+
+    // Migrate & isolate characters
+    if let Some(chars) = v.get_mut("characters").and_then(|c| c.as_array_mut()) {
+        let mut seen_ids = Vec::new();
+        for ch in chars.iter() {
+            if let Some(ch_id) = ch.get("id").and_then(|id| id.as_str()) {
+                seen_ids.push(ch_id.to_string());
+                db.execute(
+                    "INSERT OR REPLACE INTO characters (id, project_id, data) VALUES (?1, ?2, ?3)",
+                    rusqlite::params![ch_id, id, ch.to_string()],
+                )
+                .map_err(|e| e.to_string())?;
+            }
+        }
+
+        // Sync deletions
+        if let Ok(mut stmt) = db.prepare("SELECT id FROM characters WHERE project_id = ?1") {
+            if let Ok(rows) = stmt.query_map(rusqlite::params![id], |row| row.get::<_, String>(0)) {
+                for ext_id in rows.filter_map(Result::ok) {
+                    if !seen_ids.contains(&ext_id) {
+                        if let Err(e) = db.execute(
+                            "DELETE FROM characters WHERE project_id = ?1 AND id = ?2",
+                            rusqlite::params![id, ext_id],
+                        ) {
+                            warn!(
+                                "Failed to delete orphaned character {} in project {}: {}",
+                                ext_id, id, e
+                            );
+                        }
+                    }
+                }
+            }
+        }
+
+        // Strip them from main blob
+        v["characters"] = serde_json::json!([]);
+    }
+
+    // Migrate & isolate worldbook entries
+    if let Some(wb) = v.get_mut("worldbook").and_then(|w| w.as_object_mut()) {
+        if let Some(entries) = wb.get_mut("entries").and_then(|e| e.as_array_mut()) {
+            let mut seen_ids = Vec::new();
+            for entry in entries.iter() {
+                if let Some(entry_id) = entry.get("id").and_then(|id| id.as_str()) {
+                    seen_ids.push(entry_id.to_string());
+                    db.execute(
+                        "INSERT OR REPLACE INTO worldbooks (id, project_id, data) VALUES (?1, ?2, ?3)",
+                        rusqlite::params![entry_id, id, entry.to_string()],
+                    ).map_err(|e| e.to_string())?;
+                }
+            }
+
+            // Sync deletions for worldbook entries
+            if let Ok(mut stmt) = db.prepare("SELECT id FROM worldbooks WHERE project_id = ?1") {
+                if let Ok(rows) =
+                    stmt.query_map(rusqlite::params![id], |row| row.get::<_, String>(0))
+                {
+                    for ext_id in rows.filter_map(Result::ok) {
+                        if !seen_ids.contains(&ext_id) {
+                            if let Err(e) = db.execute(
+                                "DELETE FROM worldbooks WHERE project_id = ?1 AND id = ?2",
+                                rusqlite::params![id, ext_id],
+                            ) {
+                                warn!("Failed to delete orphaned worldbook entry {} in project {}: {}", ext_id, id, e);
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Strip them
+            wb.insert("entries".to_string(), serde_json::json!([]));
+        }
+    }
+
+    let stripped_data = serde_json::to_string(&v).map_err(|e| e.to_string())?;
+
+    db.execute(
+        "INSERT OR REPLACE INTO projects (id, data) VALUES (?1, ?2)",
+        rusqlite::params![id, stripped_data],
+    )
+    .map_err(|e| e.to_string())?;
+
+    Ok(())
+}
+
+fn do_load_project_skeleton(db: &Connection, id: &str) -> Result<String, String> {
+    let mut stmt = db
+        .prepare("SELECT data FROM projects WHERE id = ?1")
+        .map_err(|e| e.to_string())?;
+    let mut rows = stmt
+        .query(rusqlite::params![id])
+        .map_err(|e| e.to_string())?;
+
+    let project_data: String = if let Some(row) = rows.next().map_err(|e| e.to_string())? {
+        row.get(0).map_err(|e| e.to_string())?
+    } else {
+        return Err("Project not found".to_string());
+    };
+
+    let mut v: serde_json::Value =
+        serde_json::from_str(&project_data).map_err(|e| e.to_string())?;
+
+    // Load characters
+    let mut char_stmt = db
+        .prepare("SELECT data FROM characters WHERE project_id = ?1")
+        .map_err(|e| e.to_string())?;
+    let mut char_rows = char_stmt
+        .query(rusqlite::params![id])
+        .map_err(|e| e.to_string())?;
+    let mut characters = Vec::new();
+    while let Some(row) = char_rows.next().map_err(|e| e.to_string())? {
+        let char_data: String = row.get(0).map_err(|e| e.to_string())?;
+        if let Ok(ch) = serde_json::from_str::<serde_json::Value>(&char_data) {
+            characters.push(ch);
+        }
+    }
+    v["characters"] = serde_json::Value::Array(characters);
+
+    // Load worldbook entries
+    let mut wb_stmt = db
+        .prepare("SELECT data FROM worldbooks WHERE project_id = ?1")
+        .map_err(|e| e.to_string())?;
+    let mut wb_rows = wb_stmt
+        .query(rusqlite::params![id])
+        .map_err(|e| e.to_string())?;
+    let mut wb_entries = Vec::new();
+    while let Some(row) = wb_rows.next().map_err(|e| e.to_string())? {
+        let wb_data: String = row.get(0).map_err(|e| e.to_string())?;
+        if let Ok(entry) = serde_json::from_str::<serde_json::Value>(&wb_data) {
+            wb_entries.push(entry);
+        }
+    }
+
+    if let Some(wb) = v.get_mut("worldbook").and_then(|w| w.as_object_mut()) {
+        wb.insert("entries".to_string(), serde_json::Value::Array(wb_entries));
+    } else if !wb_entries.is_empty() {
+        v["worldbook"] = serde_json::json!({ "entries": wb_entries });
+    }
+
+    serde_json::to_string(&v).map_err(|e| e.to_string())
+}
+
 #[tauri::command]
-fn save_project_with_chapters(state: State<'_, AppState>, id: String, project_data: String, chapters_data: Vec<String>) -> Result<(), String> {
-    let mut db = state.db.lock().unwrap();
+fn save_project_with_chapters(
+    state: State<'_, AppState>,
+    id: String,
+    project_data: String,
+    chapters_data: Vec<String>,
+) -> Result<(), String> {
+    let mut db = lock_db!(state);
     let tx = db.transaction().map_err(|e| e.to_string())?;
 
-    // 1. Save project meta
-    tx.execute(
-        "INSERT OR REPLACE INTO projects (id, data) VALUES (?1, ?2)",
-        rusqlite::params![&id, &project_data],
-    ).map_err(|e| e.to_string())?;
+    // 1. Process and save project meta (this strips arrays and inserts to sub-tables)
+    process_and_save_project_blob(&tx, &id, &project_data)?;
 
     // 2. Clear old chapters
     tx.execute(
         "DELETE FROM chapters WHERE project_id = ?1",
         rusqlite::params![&id],
-    ).map_err(|e| e.to_string())?;
+    )
+    .map_err(|e| e.to_string())?;
 
     // 3. Insert new chapters
-    let mut stmt = tx.prepare("INSERT INTO chapters (id, project_id, data) VALUES (?1, ?2, ?3)").map_err(|e| e.to_string())?;
+    let mut stmt = tx
+        .prepare("INSERT INTO chapters (id, project_id, data) VALUES (?1, ?2, ?3)")
+        .map_err(|e| e.to_string())?;
     for (i, chap_str) in chapters_data.iter().enumerate() {
-        // extract chapter id if possible, otherwise use index
-        let chap_id = format!("{}_chap_{}", id, i); // fallback id
-        // Actually we can parse a minimal part to get id, or just require it to be passed.
-        // But since we just want to save it, let's extract id from JSON string if possible.
-        // A simple string search for "id":"..."
+        let chap_id = format!("{}_chap_{}", id, i);
         let extracted_id = if let Some(id_idx) = chap_str.find(r#""id":""#) {
             let start = id_idx + 6;
             if let Some(end_idx) = chap_str[start..].find('"') {
-                chap_str[start..start+end_idx].to_string()
+                chap_str[start..start + end_idx].to_string()
             } else {
                 chap_id
             }
@@ -44,9 +201,10 @@ fn save_project_with_chapters(state: State<'_, AppState>, id: String, project_da
             chap_id
         };
 
-        stmt.execute(rusqlite::params![extracted_id, &id, chap_str]).map_err(|e| e.to_string())?;
+        stmt.execute(rusqlite::params![extracted_id, &id, chap_str])
+            .map_err(|e| e.to_string())?;
     }
-    drop(stmt); // must drop statement before committing transaction
+    drop(stmt);
 
     tx.commit().map_err(|e| e.to_string())?;
     Ok(())
@@ -54,18 +212,23 @@ fn save_project_with_chapters(state: State<'_, AppState>, id: String, project_da
 
 #[tauri::command]
 fn save_project(state: State<'_, AppState>, id: String, data: String) -> Result<(), String> {
-    let db = state.db.lock().unwrap();
-    db.execute(
-        "INSERT OR REPLACE INTO projects (id, data) VALUES (?1, ?2)",
-        rusqlite::params![id, data],
-    )
-    .map_err(|e| e.to_string())?;
+    let mut db = lock_db!(state);
+    let tx = db.transaction().map_err(|e| e.to_string())?;
+
+    process_and_save_project_blob(&tx, &id, &data)?;
+
+    tx.commit().map_err(|e| e.to_string())?;
     Ok(())
 }
 
 #[tauri::command]
-fn save_chapter(state: State<'_, AppState>, project_id: String, chapter_id: String, data: String) -> Result<(), String> {
-    let db = state.db.lock().unwrap();
+fn save_chapter(
+    state: State<'_, AppState>,
+    project_id: String,
+    chapter_id: String,
+    data: String,
+) -> Result<(), String> {
+    let db = lock_db!(state);
     db.execute(
         "INSERT OR REPLACE INTO chapters (id, project_id, data) VALUES (?1, ?2, ?3)",
         rusqlite::params![chapter_id, project_id, data],
@@ -76,42 +239,41 @@ fn save_chapter(state: State<'_, AppState>, project_id: String, chapter_id: Stri
 
 #[tauri::command]
 fn clear_project_chapters(state: State<'_, AppState>, project_id: String) -> Result<(), String> {
-    let db = state.db.lock().unwrap();
-    db.execute("DELETE FROM chapters WHERE project_id = ?1", rusqlite::params![project_id])
-        .map_err(|e| e.to_string())?;
+    let db = lock_db!(state);
+    db.execute(
+        "DELETE FROM chapters WHERE project_id = ?1",
+        rusqlite::params![project_id],
+    )
+    .map_err(|e| e.to_string())?;
     Ok(())
 }
 
 #[tauri::command]
 fn load_project(state: State<'_, AppState>, id: String) -> Result<String, String> {
-    let db = state.db.lock().unwrap();
-    
-    // Load project metadata
-    let mut stmt = db.prepare("SELECT data FROM projects WHERE id = ?1").map_err(|e| e.to_string())?;
-    let mut rows = stmt.query(rusqlite::params![id]).map_err(|e| e.to_string())?;
+    let db = lock_db!(state);
 
-    let project_data: String = if let Some(row) = rows.next().map_err(|e| e.to_string())? {
-        row.get(0).map_err(|e| e.to_string())?
-    } else {
-        return Err("Project not found".to_string());
-    };
+    // Load assembled project skeleton
+    let project_data = do_load_project_skeleton(&db, &id)?;
 
     // Load chapters
-    let mut chap_stmt = db.prepare("SELECT data FROM chapters WHERE project_id = ?1").map_err(|e| e.to_string())?;
-    let mut chap_rows = chap_stmt.query(rusqlite::params![id]).map_err(|e| e.to_string())?;
-    
+    let mut chap_stmt = db
+        .prepare("SELECT data FROM chapters WHERE project_id = ?1")
+        .map_err(|e| e.to_string())?;
+    let mut chap_rows = chap_stmt
+        .query(rusqlite::params![id])
+        .map_err(|e| e.to_string())?;
+
     let mut chapters = Vec::new();
     while let Some(row) = chap_rows.next().map_err(|e| e.to_string())? {
         let chap_data: String = row.get(0).map_err(|e| e.to_string())?;
         chapters.push(chap_data);
     }
 
-    // String concatenation instead of serde_json to avoid heavy parsing
     let mut p = project_data.trim_end().to_string();
     if p.ends_with('}') {
-        p.pop(); // remove last '}'
+        p.pop();
         let chapters_json = format!("\"chapters\":[{}]", chapters.join(","));
-        
+
         let final_json = if p.ends_with('{') {
             format!("{}{}}}", p, chapters_json)
         } else {
@@ -124,9 +286,69 @@ fn load_project(state: State<'_, AppState>, id: String) -> Result<String, String
 }
 
 #[tauri::command]
+fn load_project_skeleton(state: State<'_, AppState>, id: String) -> Result<String, String> {
+    let db = lock_db!(state);
+    do_load_project_skeleton(&db, &id)
+}
+
+#[tauri::command]
+fn load_chapters_metadata(
+    state: State<'_, AppState>,
+    project_id: String,
+) -> Result<String, String> {
+    let db = lock_db!(state);
+    let mut chap_stmt = db
+        .prepare("SELECT data FROM chapters WHERE project_id = ?1")
+        .map_err(|e| e.to_string())?;
+    let mut chap_rows = chap_stmt
+        .query(rusqlite::params![project_id])
+        .map_err(|e| e.to_string())?;
+
+    let mut chapters = Vec::new();
+    while let Some(row) = chap_rows.next().map_err(|e| e.to_string())? {
+        let chap_data: String = row.get(0).map_err(|e| e.to_string())?;
+
+        if let Ok(mut v) = serde_json::from_str::<serde_json::Value>(&chap_data) {
+            if let Some(obj) = v.as_object_mut() {
+                obj.remove("content");
+            }
+            if let Ok(stripped) = serde_json::to_string(&v) {
+                chapters.push(stripped);
+            }
+        }
+    }
+
+    Ok(format!("[{}]", chapters.join(",")))
+}
+
+#[tauri::command]
+fn load_chapter(
+    state: State<'_, AppState>,
+    project_id: String,
+    chapter_id: String,
+) -> Result<String, String> {
+    let db = lock_db!(state);
+    let mut stmt = db
+        .prepare("SELECT data FROM chapters WHERE project_id = ?1 AND id = ?2")
+        .map_err(|e| e.to_string())?;
+    let mut rows = stmt
+        .query(rusqlite::params![project_id, chapter_id])
+        .map_err(|e| e.to_string())?;
+
+    if let Some(row) = rows.next().map_err(|e| e.to_string())? {
+        let data: String = row.get(0).map_err(|e| e.to_string())?;
+        Ok(data)
+    } else {
+        Err("Chapter not found".to_string())
+    }
+}
+
+#[tauri::command]
 fn load_projects_list(state: State<'_, AppState>) -> Result<String, String> {
-    let db = state.db.lock().unwrap();
-    let mut stmt = db.prepare("SELECT data FROM projects_meta").map_err(|e| e.to_string())?;
+    let db = lock_db!(state);
+    let mut stmt = db
+        .prepare("SELECT data FROM projects_meta")
+        .map_err(|e| e.to_string())?;
     let mut rows = stmt.query([]).map_err(|e| e.to_string())?;
 
     if let Some(row) = rows.next().map_err(|e| e.to_string())? {
@@ -139,7 +361,7 @@ fn load_projects_list(state: State<'_, AppState>) -> Result<String, String> {
 
 #[tauri::command]
 fn save_projects_list(state: State<'_, AppState>, data: String) -> Result<(), String> {
-    let db = state.db.lock().unwrap();
+    let db = lock_db!(state);
     db.execute(
         "INSERT OR REPLACE INTO projects_meta (id, data) VALUES (1, ?1)",
         rusqlite::params![data],
@@ -150,25 +372,129 @@ fn save_projects_list(state: State<'_, AppState>, data: String) -> Result<(), St
 
 #[tauri::command]
 fn delete_project(state: State<'_, AppState>, id: String) -> Result<(), String> {
-    let db = state.db.lock().unwrap();
+    let db = lock_db!(state);
     db.execute("DELETE FROM projects WHERE id = ?1", rusqlite::params![&id])
         .map_err(|e| e.to_string())?;
-    db.execute("DELETE FROM chapters WHERE project_id = ?1", rusqlite::params![&id])
-        .map_err(|e| e.to_string())?;
+    db.execute(
+        "DELETE FROM chapters WHERE project_id = ?1",
+        rusqlite::params![&id],
+    )
+    .map_err(|e| e.to_string())?;
+    db.execute(
+        "DELETE FROM characters WHERE project_id = ?1",
+        rusqlite::params![&id],
+    )
+    .map_err(|e| e.to_string())?;
+    db.execute(
+        "DELETE FROM worldbooks WHERE project_id = ?1",
+        rusqlite::params![&id],
+    )
+    .map_err(|e| e.to_string())?;
     Ok(())
 }
 
-fn init_db() -> Connection {
-    // 放在上一级目录(项目根目录)，防止触发 src-tauri 的文件热更新导致无限重启
-    let conn = Connection::open("../ai_novel_workshop.db").expect("Failed to open db");
-    
+#[tauri::command]
+fn delete_single_chapter(
+    state: State<'_, AppState>,
+    project_id: String,
+    chapter_id: String,
+) -> Result<(), String> {
+    let db = lock_db!(state);
+    db.execute(
+        "DELETE FROM chapters WHERE project_id = ?1 AND id = ?2",
+        rusqlite::params![project_id, chapter_id],
+    )
+    .map_err(|e| e.to_string())?;
+    Ok(())
+}
+
+#[tauri::command]
+fn save_character(
+    state: State<'_, AppState>,
+    project_id: String,
+    character_id: String,
+    data: String,
+) -> Result<(), String> {
+    let db = lock_db!(state);
+    db.execute(
+        "INSERT OR REPLACE INTO characters (id, project_id, data) VALUES (?1, ?2, ?3)",
+        rusqlite::params![character_id, project_id, data],
+    )
+    .map_err(|e| e.to_string())?;
+    Ok(())
+}
+
+#[tauri::command]
+fn delete_character(
+    state: State<'_, AppState>,
+    project_id: String,
+    character_id: String,
+) -> Result<(), String> {
+    let db = lock_db!(state);
+    db.execute(
+        "DELETE FROM characters WHERE project_id = ?1 AND id = ?2",
+        rusqlite::params![project_id, character_id],
+    )
+    .map_err(|e| e.to_string())?;
+    Ok(())
+}
+
+#[tauri::command]
+fn save_worldbook_entry(
+    state: State<'_, AppState>,
+    project_id: String,
+    entry_id: String,
+    data: String,
+) -> Result<(), String> {
+    let db = lock_db!(state);
+    db.execute(
+        "INSERT OR REPLACE INTO worldbooks (id, project_id, data) VALUES (?1, ?2, ?3)",
+        rusqlite::params![entry_id, project_id, data],
+    )
+    .map_err(|e| e.to_string())?;
+    Ok(())
+}
+
+#[tauri::command]
+fn delete_worldbook_entry(
+    state: State<'_, AppState>,
+    project_id: String,
+    entry_id: String,
+) -> Result<(), String> {
+    let db = lock_db!(state);
+    db.execute(
+        "DELETE FROM worldbooks WHERE project_id = ?1 AND id = ?2",
+        rusqlite::params![project_id, entry_id],
+    )
+    .map_err(|e| e.to_string())?;
+    Ok(())
+}
+
+fn init_db(app_handle: &tauri::AppHandle) -> Result<Connection, String> {
+    // Get application data directory
+    let app_dir = app_handle
+        .path()
+        .app_data_dir()
+        .map_err(|e| format!("Failed to get app data directory: {}", e))?;
+
+    // Create directory if it doesn't exist
+    std::fs::create_dir_all(&app_dir)
+        .map_err(|e| format!("Failed to create app data directory: {}", e))?;
+
+    // Use secure path for database
+    let db_path = app_dir.join("ai_novel_workshop.db");
+
+    let conn = Connection::open(&db_path)
+        .map_err(|e| format!("Failed to open database at {:?}: {}", db_path, e))?;
+
     conn.execute(
         "CREATE TABLE IF NOT EXISTS projects (
             id TEXT PRIMARY KEY,
             data TEXT NOT NULL
         )",
         [],
-    ).expect("Failed to create projects table");
+    )
+    .map_err(|e| format!("Failed to create projects table: {}", e))?;
 
     conn.execute(
         "CREATE TABLE IF NOT EXISTS chapters (
@@ -177,7 +503,8 @@ fn init_db() -> Connection {
             data TEXT NOT NULL
         )",
         [],
-    ).expect("Failed to create chapters table");
+    )
+    .map_err(|e| format!("Failed to create chapters table: {}", e))?;
 
     conn.execute(
         "CREATE TABLE IF NOT EXISTS projects_meta (
@@ -185,19 +512,58 @@ fn init_db() -> Connection {
             data TEXT NOT NULL
         )",
         [],
-    ).expect("Failed to create projects_meta table");
+    )
+    .map_err(|e| format!("Failed to create projects_meta table: {}", e))?;
 
-    // Initialize vector tables
-    vector::init_vector_table(&conn).expect("Failed to init vector table");
+    conn.execute(
+        "CREATE TABLE IF NOT EXISTS characters (
+            id TEXT PRIMARY KEY,
+            project_id TEXT NOT NULL,
+            data TEXT NOT NULL
+        )",
+        [],
+    )
+    .map_err(|e| format!("Failed to create characters table: {}", e))?;
 
-    conn
+    conn.execute(
+        "CREATE TABLE IF NOT EXISTS worldbooks (
+            id TEXT PRIMARY KEY,
+            project_id TEXT NOT NULL,
+            data TEXT NOT NULL
+        )",
+        [],
+    )
+    .map_err(|e| format!("Failed to create worldbooks table: {}", e))?;
+
+    vector::init_vector_table(&conn)
+        .map_err(|e| format!("Failed to initialize vector table: {}", e))?;
+
+    Ok(conn)
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
-        .manage(AppState {
-            db: Mutex::new(init_db()),
+        .setup(|app| {
+            // Initialize database with app handle
+            let db = init_db(app.handle())
+                .expect("Failed to initialize database");
+
+            // Manage app state
+            app.manage(AppState {
+                db: Mutex::new(db),
+            });
+
+            // Setup logging in debug mode
+            if cfg!(debug_assertions) {
+                app.handle().plugin(
+                    tauri_plugin_log::Builder::default()
+                        .level(log::LevelFilter::Info)
+                        .build(),
+                )?;
+            }
+
+            Ok(())
         })
         .invoke_handler(tauri::generate_handler![
             save_project,
@@ -205,9 +571,17 @@ pub fn run() {
             save_chapter,
             clear_project_chapters,
             load_project,
+            load_project_skeleton,
+            load_chapters_metadata,
+            load_chapter,
             load_projects_list,
             save_projects_list,
             delete_project,
+            delete_single_chapter,
+            save_character,
+            delete_character,
+            save_worldbook_entry,
+            delete_worldbook_entry,
             vector::add_vector_documents,
             vector::delete_vector_document,
             vector::delete_vector_documents,
@@ -216,16 +590,6 @@ pub fn run() {
             vector::vector_search,
             vector::get_vector_document_count
         ])
-        .setup(|app| {
-            if cfg!(debug_assertions) {
-                app.handle().plugin(
-                    tauri_plugin_log::Builder::default()
-                        .level(log::LevelFilter::Info)
-                        .build(),
-                )?;
-            }
-            Ok(())
-        })
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }

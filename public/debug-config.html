@@ -85,8 +85,8 @@
         function log(elementId, message, type = 'info') {
             const element = document.getElementById(elementId);
             const div = document.createElement('div');
-            div.className = `test-section ${type}`;
-            div.innerHTML = message;
+            div.className = `test-section ${type}`);
+            div.innerHTML = DOMPurify.sanitize(message);
             element.appendChild(div);
         }
 

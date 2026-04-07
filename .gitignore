@@ -41,3 +41,4 @@ st-memory-enhancement/
 
 # Local git worktrees
 .worktrees/
+.claude/worktrees/

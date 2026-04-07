@@ -4,6 +4,13 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use instant_distance::{Builder, HnswMap, Point, Search};
 
+// Helper macro to safely lock the database
+macro_rules! lock_db {
+    ($state:expr) => {
+        $state.db.lock().map_err(|e| format!("Database lock poisoned: {}", e))?
+    };
+}
+
 #[derive(Deserialize, Serialize)]
 pub struct VectorDocument {
     pub id: String,
@@ -127,12 +134,12 @@ pub fn add_vector_documents(
         return Ok(());
     }
 
-    let mut db = state.db.lock().unwrap();
-    let tx = db.transaction().map_err(|e| e.to_string())?;
+    let mut db = lock_db!(state);
+    let tx = db.transaction().map_err(|e| format!("Failed to start transaction: {}", e))?;
 
     let now = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
-        .unwrap()
+        .map_err(|e| format!("System time error: {}", e))?
         .as_millis() as i64;
 
     {
@@ -142,7 +149,7 @@ pub fn add_vector_documents(
                 (id, collection, project_id, content, metadata, embedding, keywords, created_at, updated_at)
                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
             )
-            .map_err(|e| e.to_string())?;
+            .map_err(|e| format!("Failed to prepare insert statement: {}", e))?;
 
         for doc in &documents {
             let embedding_bytes = floats_to_bytes(&doc.embedding);
@@ -157,7 +164,7 @@ pub fn add_vector_documents(
                 now,
                 now
             ])
-            .map_err(|e| e.to_string())?;
+            .map_err(|e| format!("Failed to insert vector document {}: {}", doc.id, e))?;
         }
     }
 
@@ -171,13 +178,13 @@ pub fn add_vector_documents(
                     "UPDATE vector_index_meta SET doc_count = -1 WHERE collection = ?1 AND project_id = ?2",
                     rusqlite::params![doc.collection, doc.project_id],
                 )
-                .map_err(|e| e.to_string())?;
+                .map_err(|e| format!("Failed to invalidate index for {}/{}: {}", doc.collection, doc.project_id, e))?;
                 seen_keys.insert(key);
             }
         }
     }
 
-    tx.commit().map_err(|e| e.to_string())?;
+    tx.commit().map_err(|e| format!("Failed to commit transaction: {}", e))?;
 
     Ok(())
 }
@@ -187,7 +194,7 @@ pub fn delete_vector_document(
     state: State<'_, crate::AppState>,
     id: String,
 ) -> std::result::Result<(), String> {
-    let db = state.db.lock().unwrap();
+    let db = lock_db!(state);
 
     let result = db.query_row(
         "SELECT collection, project_id FROM vectors WHERE id = ?1",
@@ -216,7 +223,7 @@ pub fn delete_vector_documents(
     project_id: Option<String>,
     filter: Option<String>,
 ) -> std::result::Result<i64, String> {
-    let mut db = state.db.lock().unwrap();
+    let mut db = lock_db!(state);
 
     let parsed_filter: Option<serde_json::Map<String, Value>> = match filter {
         Some(raw) if !raw.trim().is_empty() => {
@@ -310,22 +317,25 @@ pub fn get_vector_document(
     collection: String,
     id: String,
 ) -> std::result::Result<Option<VectorDocument>, String> {
-    let db = state.db.lock().unwrap();
+    let db = lock_db!(state);
 
     let result = db.query_row(
         "SELECT id, collection, project_id, content, metadata, embedding, keywords FROM vectors WHERE collection = ?1 AND id = ?2",
         rusqlite::params![collection, id],
         |row| {
             let embedding_bytes: Vec<u8> = row.get(5)?;
-            Ok(VectorDocument {
-                id: row.get(0)?,
-                collection: row.get(1)?,
-                project_id: row.get(2)?,
-                content: row.get(3)?,
-                metadata: row.get(4)?,
-                embedding: bytes_to_floats(&embedding_bytes),
-                keywords: row.get(6)?,
-            })
+            match bytes_to_floats(&embedding_bytes) {
+                Ok(embedding) => Ok(VectorDocument {
+                    id: row.get(0)?,
+                    collection: row.get(1)?,
+                    project_id: row.get(2)?,
+                    content: row.get(3)?,
+                    metadata: row.get(4)?,
+                    embedding,
+                    keywords: row.get(6)?,
+                }),
+                Err(e) => Err(rusqlite::Error::ToSqlConversionFailure(Box::new(std::io::Error::new(std::io::ErrorKind::InvalidData, e)))),
+            }
         },
     );
 
@@ -341,7 +351,7 @@ pub fn clear_vector_collection(
     state: State<'_, crate::AppState>,
     collection: String,
 ) -> std::result::Result<(), String> {
-    let db = state.db.lock().unwrap();
+    let db = lock_db!(state);
     db.execute(
         "DELETE FROM vectors WHERE collection = ?1",
         rusqlite::params![collection],
@@ -361,7 +371,7 @@ pub fn get_vector_document_count(
     collection: String,
     project_id: Option<String>,
 ) -> std::result::Result<i64, String> {
-    let db = state.db.lock().unwrap();
+    let db = lock_db!(state);
     let count: i64 = if let Some(ref pid) = project_id {
         db.query_row(
             "SELECT COUNT(*) FROM vectors WHERE collection = ?1 AND project_id = ?2",
@@ -399,7 +409,7 @@ fn build_index(
     let mut docs: Vec<(String, Vec<f32>)> = Vec::new();
     for row in rows {
         let (id, embedding_bytes) = row.map_err(|e| e.to_string())?;
-        let embedding = bytes_to_floats(&embedding_bytes);
+        let embedding = bytes_to_floats(&embedding_bytes)?;
         docs.push((id, embedding));
     }
 
@@ -414,7 +424,7 @@ fn build_index(
     // Save metadata
     let now = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
-        .unwrap()
+        .map_err(|e| format!("System time error: {}", e))?
         .as_millis() as i64;
 
     db.execute(
@@ -461,7 +471,7 @@ pub fn vector_search(
     top_k: usize,
     min_score: f32,
 ) -> std::result::Result<Vec<SearchResult>, String> {
-    let db = state.db.lock().unwrap();
+    let db = lock_db!(state);
 
     // Use HNSW index for project-specific search (O(log n))
     if let Some(ref pid) = project_id {
@@ -539,7 +549,7 @@ fn brute_force_search(
         let metadata: String = row.get(2).map_err(|e| e.to_string())?;
         let embedding_bytes: Vec<u8> = row.get(3).map_err(|e| e.to_string())?;
 
-        let doc_embedding = bytes_to_floats(&embedding_bytes);
+        let doc_embedding = bytes_to_floats(&embedding_bytes)?;
         let score = cosine_similarity(query_embedding, &doc_embedding);
 
         if score >= min_score {
@@ -568,10 +578,19 @@ fn floats_to_bytes(floats: &[f32]) -> Vec<u8> {
     floats.iter().flat_map(|f| f.to_le_bytes()).collect()
 }
 
-fn bytes_to_floats(bytes: &[u8]) -> Vec<f32> {
+fn bytes_to_floats(bytes: &[u8]) -> Result<Vec<f32>, String> {
+    if bytes.len() % 4 != 0 {
+        return Err(format!("Invalid embedding data length: {} bytes (not divisible by 4)", bytes.len()));
+    }
+
     bytes
         .chunks_exact(4)
-        .map(|chunk| f32::from_le_bytes(chunk.try_into().unwrap()))
+        .map(|chunk| {
+            chunk
+                .try_into()
+                .map(f32::from_le_bytes)
+                .map_err(|_| "Invalid embedding data: expected 4 bytes per float".to_string())
+        })
         .collect()
 }
 
