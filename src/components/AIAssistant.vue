@@ -537,6 +537,22 @@ async function processCommand(command: string) {
   isTyping.value = true
 
   try {
+    const { routeAssistantInput } = await import('@/assistant/commands/inputRouter')
+    const result = await routeAssistantInput(command, { messages: messages.value })
+
+    if (result.type === 'command') {
+      if (result.output) {
+        addAssistantMessage(result.output)
+      }
+      return
+    } else if (result.type === 'error') {
+      addAssistantMessage('执行命令失败：' + result.error)
+      return
+    }
+
+    // Result type is chat
+    command = result.text
+
     const { useAIStore } = await import('@/stores/ai')
     const aiStore = useAIStore()
 
