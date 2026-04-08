@@ -636,22 +636,19 @@ ${project.outline.mainPlot?.name || '主线'}: ${project.outline.mainPlot?.descr
     // 3. 解析 AI 意图 (Action Parsing)
     let rawContent = response.content.trim()
     const actions: Action[] = []
-    
-    const jsonMatch = rawContent.match(/```json\s*(\{[\s\S]*?"action"\s*:\s*"create_character"[\s\S]*?\})\s*```/)
-    if (jsonMatch) {
-      try {
-        const actionData = JSON.parse(jsonMatch[1])
-        if (actionData.action === 'create_character' && actionData.data) {
-          // 把提取到的 JSON 从聊天界面隐藏
-          rawContent = rawContent.replace(jsonMatch[0], '').trim()
-          // 附带一个可操作的 UI 按钮
-          actions.push({
-            text: `✨ 一键将【${actionData.data.name}】加入人物设定`,
-            command: `__sys_create_char:${JSON.stringify(actionData.data)}`
-          })
-        }
-      } catch (e) {
-        console.warn('解析 AI 动作指令失败', e)
+
+    const { parseActionEnvelope } = await import('@/assistant/actions/actionEnvelope')
+    const { parsed, rawMatch } = parseActionEnvelope(rawContent)
+
+    if (parsed) {
+      if (parsed.action === 'create_character' && parsed.data) {
+        // 把提取到的 JSON 从聊天界面隐藏
+        rawContent = rawContent.replace(rawMatch, '').trim()
+        // 附带一个可操作的 UI 按钮
+        actions.push({
+          text: `✨ 一键将【${parsed.data.name}】加入人物设定`,
+          command: `__sys_create_char:${JSON.stringify(parsed.data)}`
+        })
       }
     }
 
