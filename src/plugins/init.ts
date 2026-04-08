@@ -7,6 +7,7 @@
 import { openAIProviderContribution, manifest as openAIManifest } from './builtin/openai-provider'
 import { anthropicProviderContribution, manifest as anthropicManifest } from './builtin/anthropic-provider'
 import { localProviderContribution, manifest as localManifest } from './builtin/local-provider'
+import { createCharacterActionContribution, manifest as assistantActionsManifest } from './builtin/assistant-actions'
 import { pluginManager } from './manager'
 import { getLogger } from '@/utils/logger'
 import type { PluginContext, PluginManifest } from './types'
@@ -63,6 +64,20 @@ export async function initializeBuiltinPlugins(): Promise<void> {
 
     // 激活Local Provider
     await pluginManager.activatePlugin(localManifest.id)
+
+    // 安装 Assistant Actions
+    await pluginManager.installPlugin(assistantActionsManifest as any as PluginManifest, async () => ({
+      activate: async (context: PluginContext) => {
+        context.register.aiActionHandler(createCharacterActionContribution)
+        logger.info('内置插件已激活', { plugin: assistantActionsManifest.name, id: assistantActionsManifest.id })
+      },
+      deactivate: async () => {
+        logger.info('内置插件已停用', { plugin: assistantActionsManifest.name, id: assistantActionsManifest.id })
+      }
+    }))
+
+    // 激活 Assistant Actions
+    await pluginManager.activatePlugin(assistantActionsManifest.id)
 
     logger.info('内置插件初始化完成')
   } catch (error) {

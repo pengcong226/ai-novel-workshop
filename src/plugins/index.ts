@@ -78,6 +78,7 @@ export { createPluginContext, enhancePluginContext } from './context'
 export { openAIProviderContribution, manifest as openAIManifest } from './builtin/openai-provider'
 export { anthropicProviderContribution, manifest as anthropicManifest } from './builtin/anthropic-provider'
 export { localProviderContribution, manifest as localManifest } from './builtin/local-provider'
+export { createCharacterActionContribution, manifest as assistantActionsManifest } from './builtin/assistant-actions'
 
 // 示例插件
 // export { epubExporterContribution, manifest as epubManifest } from './examples/epub-exporter'

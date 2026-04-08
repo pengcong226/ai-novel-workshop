@@ -647,7 +647,7 @@ ${project.outline.mainPlot?.name || '主线'}: ${project.outline.mainPlot?.descr
         // 附带一个可操作的 UI 按钮
         actions.push({
           text: `✨ 一键将【${parsed.data.name}】加入人物设定`,
-          command: `__sys_create_char:${JSON.stringify(parsed.data)}`
+          command: `__sys_action:${JSON.stringify(parsed)}`
         })
       }
     }
@@ -665,45 +665,29 @@ ${project.outline.mainPlot?.name || '主线'}: ${project.outline.mainPlot?.descr
 }
 
 async function handleAction(action: Action) {
-  if (action.command.startsWith('__sys_create_char:')) {
+  if (action.command.startsWith('__sys_action:')) {
     try {
-      const charData = JSON.parse(action.command.substring(18))
-      const projectStore = useProjectStore()
-      if (projectStore.currentProject) {
-        projectStore.currentProject.characters.push({
-          id: crypto.randomUUID(),
-          name: charData.name || '新角色',
-          aliases: [],
-          gender: charData.gender || 'other',
-          age: charData.age || 20,
-          appearance: charData.appearance || '',
-          personality: [],
-          values: [],
-          background: charData.background || '',
-          motivation: '',
-          abilities: [],
-          relationships: [],
-          appearances: [],
-          development: [],
-          tags: ['supporting'],
-          stateHistory: [],
-          aiGenerated: true
-        } as any)
-        await projectStore.saveCurrentProject()
-        
+      const actionEnv = JSON.parse(action.command.substring(13))
+      const { executeAssistantAction } = await import('@/assistant/actions/executeAssistantAction')
+
+      const success = await executeAssistantAction(actionEnv)
+
+      if (success) {
         // 自动发一条消息确认
         messages.value.push({
           role: 'assistant',
-          content: `✅ 已经成功将人物 **${charData.name}** 添加到项目的人物库中！您可以去“人物设定”页面查看并进一步修改。`
+          content: `✅ 已经成功执行动作！`
         })
         scrollToBottom()
+      } else {
+        ElMessage.error('执行动作失败')
       }
     } catch (e) {
-      ElMessage.error('应用人物失败')
+      ElMessage.error('解析动作失败')
     }
     return
   }
-  
+
   // 普通快捷指令
   processCommand(action.command)
 }
