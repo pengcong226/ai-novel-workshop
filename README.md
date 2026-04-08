@@ -537,9 +537,17 @@ window.__APP_LOGGER__.clearLogs()                  // 清空缓冲
 - 自主创作与架构设计 (`update_outline`, `create_character`, `save_chapter`)
 - 记忆矩阵操作 (`read_memory_tables`, `update_memory_table`)
 
-通过系统提示词编排，可让 Agent 成为完全“无人值守”的驻场小说家，**自动循环推演、写作并维护状态**。详细请见 [MCP 接入与工作流指南](./docs/MCP_AGENT_GUIDE.md)。
+### 8. 命令化助手与审校工作流
+
+**通过命令行级交互完成重度审阅**:
+系统内置了类似于 IDE 的 AI 命令控制台，支持直接输入斜杠命令调用专属能力：
+- 支持 `/review consistency`（一致性审查员）、`/review quality`（质量评估员）、`/review editor`（主编）等不同预设角色对文本进行深度审阅。
+- AI 审校结果会被**自动化提取为结构化建议卡片**，分发至建议面板。
+- 审校卡片支持动作按钮（Action Registry），如一键创建人物、一键跳转到对应章节等工作流，让交互不仅仅停留在“文字建议”层面，而是能自动落地操作。
+详细使用方式请参考 [助手命令指南](./docs/assistant/commands.md) 与 [审校工作流指南](./docs/assistant/review-workflow.md)。
 
 ## 技术亮点
+
 
 ### 1. 表格记忆系统
 - Token效率提升40%
