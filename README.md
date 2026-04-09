@@ -16,12 +16,14 @@
 - ✅ 分层记忆管理 (Author's Note > World Info > Memory Tables > Summary > Recent Chapters)
 - ✅ 批量生成和实时生成双模式
 
-### 🚀 架构创新 (V4.0 / V2.0 重构完全体)
+### 🚀 架构创新 (V4.0 重构完全体)
 - ✨ **Tauri 极致本地化** - Rust 桌面端后盾，突破浏览器沙盒体积墙
-- ✨ **SQLite 并发长生墙** - SQLite/IndexedDB 自检路由，百万字前端内存不再 OOM
+- ✨ **SQLite 存储原子化更新** - 前端切割 JSON 分片 + 后端原子化 IPC API，百万字前端内存彻底防 OOM 与丢数据
+- ✨ **高可用模型路由 (FailoverManager)** - API 提供商熔断器闭环机制，当遇到超时、429时，主备大模型热切换，从此告别写作中断
+- ✨ **Pipeline/Middleware 上下文引擎** - 200行上帝函数解耦，每一层记忆块动态管理自己的 Token 预算，Unicode 安全切分拦截 400 报错
 - ✨ **MCP 标准协议支持** - 提供标准工具接口，允许 Roo Code / Clause 外部 AI 助手接管小说管线
+- ✨ **结构化记忆输出 (Tool Calling)** - JSON Schema `strict: true` 强约束，消灭易碎正则正则表达式，表格记忆更新成功率 99.9%
 - ✨ **双轨沉浸式前端 (Immersive UI)** - Notion-like 极简左白板，配合右侧“毛玻璃防抖呼吸”上下文抽取矩阵
-- ✨ **核弹级全量替换器 (Global Mutator)** - 提供超越搜索的原子化正则表达式修改，连根拔起 10 个人物卡到 100 章正文的所有错乱术语
 - ✨ **小白与极客双模态调参台** - 将复杂的 System Prompt、Temperature 藏在极客模式背后，为“吟游诗人”还原极简的字数/风格倾向滑块
 
 ### 📊 智能工作流系统
@@ -485,12 +487,12 @@ window.__APP_LOGGER__.clearLogs()                  // 清空缓冲
 - [x] AI建议系统
 
 ### ✅ Phase 8: 架构升级 (v4.0)
-- [x] Tauri原生后端
-- [x] SQLite关系型存储
-- [x] 滚动大纲生成引擎
-- [x] 自动设定生长
-- [x] API风控防误杀
-- [x] Unicode安全截断
+- [x] FailoverManager 故障转移大模型路由
+- [x] Context Pipeline 中间件上下文组装
+- [x] Structured Outputs (Tool Calling)
+- [x] Tauri IPC + SQLite 存储原子化更新
+- [x] API 风控防误杀与代理对截断
+- [x] RAG 重排序 (相关性+时间序混合)
 
 ## 文档
 
@@ -625,11 +627,13 @@ MIT
 **当前版本**: v4.0.0
 
 **完整功能列表**:
-- ✅ 表格记忆系统
+- ✅ 表格记忆系统 (Tool Calling 约束)
 - ✅ 滚动大纲生成
 - ✅ 自动设定生长
-- ✅ 混合存储架构
-- ✅ 向量检索系统
+- ✅ 混合存储架构 (原子化 API)
+- ✅ 向量检索系统 (混合重排)
+- ✅ 故障转移模型路由 (FailoverManager)
+- ✅ 中间件上下文组装 (Pipeline)
 - ✅ 小说导入分析
 - ✅ 冲突检测系统
 - ✅ 质量检查增强

@@ -124,7 +124,7 @@ interface ChapterOutline {
   foreshadowing: string[]; // 伏笔
 }
 
-// 世界观
+// 世界观 (V4 原子化存储节点)
 interface Worldview {
   basicRules: BasicRules;
   history: HistoricalEvent[];
@@ -134,7 +134,7 @@ interface Worldview {
   technology?: Technology;
 }
 
-// 人物
+// 人物 (V4 原子化存储节点)
 interface Character {
   id: string;
   name: string;
@@ -177,6 +177,12 @@ interface Chapter {
   };
 }
 ```
+
+### 2.3 存储分离与原子化 IPC (V4 架构新增)
+在 V4 Tauri+SQLite 架构下，千万字的文本一旦以整棵 Project 树序列化，会直接导致大 JSON OOM 或者吃书截断。因此在 `stores/storage.ts` 层：
+1. **数据剥离**: 将 Project 主体树中的 `chapters`, `characters`, `worldbook.entries` 脱水。
+2. **批量发送**: 将脱水的主体配置和数组通过多个独立的原子化后端 API (如 `save_character_atomic` 等) 以分离的形式发送到 Rust 端。
+3. **原生入库**: 后端接收的不再是大块 JSON 字符串，而是具体的每个条目的 JSON，从而快速、安全地插入 SQLite。
 
 ---
 

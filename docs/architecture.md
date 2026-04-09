@@ -7,13 +7,13 @@ AI小说工坊是一个支持100万字以上长篇小说智能生成的桌面应
 
 ### 1.2 核心特性
 - 支持所有类型小说创作，用户自定义篇幅
-- 分层AI模型策略（规划用高智商模型、写作用性价比模型）
+- 分层AI模型策略（规划用高智商模型、写作用性价比模型，带故障转移容错）
 - 批量生成和实时生成双模式
 - 完整的设定系统（世界观、人物、大纲）
-- 智能记忆系统（支持100万字+上下文）
+- 智能记忆系统（支持100万字+上下文，基于 Middleware Pipeline 构建）
 - 质量检查与自动修复
 - 模板系统（可导出分享）
-- 纯桌面应用，本地存储
+- 纯桌面应用，基于原子化 API IPC 更新 SQLite，彻底消除 OOM 与吃书风险
 
 ---
 
@@ -263,10 +263,10 @@ interface IQualityChecker {
 #### 3.2.1 模型调度器 (ModelRouter)
 ```
 ModelRouter
+├── FailoverManager         # 故障转移与容错 (候选队列降级机制)
 ├── ModelSelector           # 模型选择策略
 ├── LoadBalancer            # 负载均衡
 ├── CostOptimizer           # 成本优化
-├── FailoverHandler         # 故障转移
 └── RateLimiter             # 速率限制
 ```
 
@@ -296,8 +296,8 @@ interface ModelStrategy {
 PromptEngineer
 ├── TemplateManager         # 模板管理
 ├── VariableInjector        # 变量注入
-├── ContextBuilder          # 上下文构建
-├── OutputParser            # 输出解析
+├── ContextPipeline         # 基于 Middleware 的上下游流水线组装
+├── StructuredOutput        # JSON Schema Tool Calling 强类型输出
 └── PromptOptimizer         # 提示词优化
 ```
 
@@ -678,11 +678,11 @@ interface Chapter {
   content: string;
   wordCount: number;
 
-  // 元数据
-  summary: string;                 // AI生成的摘要
-  keywords: string[];              // 关键词
-  characters: string[];            // 出场人物
-  locations: string[];             // 地点
+  // 严格结构化的 JSON 输出记忆
+  summary: string;
+  keywords: string[];
+  characters: string[];
+  locations: string[];
 
   // 状态
   status: ChapterStatus;
@@ -775,6 +775,12 @@ async fn export_project(id: String, format: ExportFormat) -> Result<Vec<u8>, Str
 async fn create_character(project_id: String, data: CharacterData) -> Result<Character, String>;
 
 #[tauri::command]
+async fn save_character_atomic(project_id: String, data: String) -> Result<(), String>; // 避免大JSON解析 OOM
+
+#[tauri::command]
+async fn save_worldbook_entry_atomic(project_id: String, data: String) -> Result<(), String>;
+
+#[tauri::command]
 async fn update_character(id: String, data: PartialCharacterData) -> Result<Character, String>;
 
 #[tauri::command]
@@ -854,20 +860,17 @@ interface CompletionResponse {
 **问题：** LLM有Token限制，无法直接处理超长小说上下文
 
 **解决方案：**
-1. **分层记忆系统**
-   - 短期记忆：最近3-5章全文（精确截断算法，防 Unicode Surrogate 断裂）
-   - 中期记忆：更早章节摘要（每章压缩为500-1000字）
-   - 长期记忆：向量数据库存储关键信息
+1. **Pipeline & Middleware 组装器**
+   - 彻底取代旧的拼接方法，使得上下文组装模块化。各中间件自行处理 Token 截断（采用严格 Unicode 截取），规避因 Token 断裂引起的 API 400 错误。
 
-2. **智能检索与滚动大纲**
+2. **智能检索与混合重排**
    - Embedding + 向量数据库检索相关历史
+   - 设定类（角色/世界观）按相关度降序，剧情类按时间序拼接。
    - **自动滚动大纲**：大纲余量不足5章时，自动提取前文触发AI续写20章，确保剧情无限延伸而不脱轨。
-   - 基于当前章节大纲动态检索相关设定和事件
-   - 人物出场追踪，自动提取新章节登场人物合并至设定库。
 
 3. **渐进式摘要**
    - 每5章生成一次阶段性摘要
-   - 章节生成后自动投喂轻量级模型提取 `updateRow` 指令，刷新表格记忆状态。
+   - 章节生成后自动投喂轻量级模型，通过 **Tool Calling** (Structured Outputs) 更新表格状态，消灭正则提取的不稳定性。
 
 ### 8.2 一致性保证
 
