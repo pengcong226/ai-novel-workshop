@@ -662,7 +662,7 @@ If there are no changes, return an empty array.`;
                   { role: 'user', content: extractionPrompt }
                 ],
                 { type: 'check', complexity: 'medium', priority: 'speed' },
-                { maxTokens: 1000 }
+                { maxTokens: 1000, tools: [schemaPayload], toolChoice: { type: "function", function: { name: "update_entity_state" } } } as any
               );
 
               // In real implementation, parse extractionRes.toolCalls and dispatch to sandboxStore
