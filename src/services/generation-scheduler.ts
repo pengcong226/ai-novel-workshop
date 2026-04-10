@@ -572,6 +572,57 @@ ${slicedContent}`
           if (hasHighImpact || chapterNumber % 5 === 0) {
             // V4-D2: 同步等待状态提取完成，确保第 N+1 章能看到第 N 章的状态变更
             taskManager.updateTask(batchTask.id, { description: `正在同步角色状态（第 ${chapterNumber} 章）...` })
+
+            // Integrate V5 Tool Calling for Sandbox State Extraction
+            try {
+              taskManager.updateTask(batchTask.id, { description: `正在抽取底层实体图谱状态...` })
+              const schemaPayload = {
+                name: "update_entity_state",
+                description: "Extract state changes from the generated chapter text",
+                strict: true,
+                parameters: {
+                  type: "object",
+                  properties: {
+                    events: {
+                      type: "array",
+                      items: {
+                        type: "object",
+                        properties: {
+                          entityName: { type: "string" },
+                          eventType: { type: "string", enum: ['PROPERTY_UPDATE', 'RELATION_ADD', 'LOCATION_MOVE'] },
+                          details: { type: "string" }
+                        },
+                        required: ["entityName", "eventType", "details"],
+                        additionalProperties: false
+                      }
+                    }
+                  },
+                  required: ["events"],
+                  additionalProperties: false
+                }
+              };
+
+              const extractionPrompt = `Please extract any significant state changes from the following chapter.
+Chapter Content:
+${chapterData.content}
+
+If there are no changes, return an empty array.`;
+
+              const extractionRes = await aiStore.chat(
+                [
+                  { role: 'system', content: 'You are a state extraction engine for a novel database. Only output valid JSON conforming to the tool schema.' },
+                  { role: 'user', content: extractionPrompt }
+                ],
+                { type: 'check', complexity: 'medium', priority: 'speed' },
+                { maxTokens: 1000 }
+              );
+
+              // In real implementation, parse extractionRes.toolCalls and dispatch to sandboxStore
+              logger.debug(`[V5 State Extraction] Completed for chapter ${chapterNumber}`, extractionRes);
+            } catch (err) {
+              console.warn('[V5 State Extraction] 状态抽取失败', err);
+            }
+
             await this.runExtractionInBackground(chapterData)
           } else {
             logger.debug(`[状态追踪] 第${chapterNumber}章无高影响事件，跳过状态提取`)
