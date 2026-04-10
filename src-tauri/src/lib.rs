@@ -470,6 +470,56 @@ fn delete_worldbook_entry(
     Ok(())
 }
 
+#[tauri::command]
+fn save_entity(
+    state: State<'_, AppState>,
+    project_id: String,
+    entity_json: String,
+) -> Result<(), String> {
+    // For V5, we just store the JSON dump directly into the `entities` table for now
+    // or parse it to insert into columns if strictly needed.
+    // Based on the SQL schema we created: id, project_id, entity_type, name, category, system_prompt, visual_meta, created_at
+    let mut v: serde_json::Value = serde_json::from_str(&entity_json).map_err(|e| e.to_string())?;
+    let id = v["id"].as_str().unwrap_or_default().to_string();
+    let entity_type = v["type"].as_str().unwrap_or_default().to_string();
+    let name = v["name"].as_str().unwrap_or_default().to_string();
+    let category = v["category"].as_str().unwrap_or_default().to_string();
+    let system_prompt = v["systemPrompt"].as_str().unwrap_or_default().to_string();
+    let visual_meta = v["visualMeta"].to_string();
+    let created_at = v["createdAt"].as_i64().unwrap_or(0);
+
+    let db = lock_db!(state);
+    db.execute(
+        "INSERT OR REPLACE INTO entities (id, project_id, entity_type, name, category, system_prompt, visual_meta, created_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
+        rusqlite::params![id, project_id, entity_type, name, category, system_prompt, visual_meta, created_at],
+    )
+    .map_err(|e| e.to_string())?;
+    Ok(())
+}
+
+#[tauri::command]
+fn save_state_event(
+    state: State<'_, AppState>,
+    project_id: String,
+    event_json: String,
+) -> Result<(), String> {
+    let mut v: serde_json::Value = serde_json::from_str(&event_json).map_err(|e| e.to_string())?;
+    let id = v["id"].as_str().unwrap_or_default().to_string();
+    let chapter_number = v["chapterNumber"].as_i64().unwrap_or(0);
+    let entity_id = v["entityId"].as_str().unwrap_or_default().to_string();
+    let event_type = v["eventType"].as_str().unwrap_or_default().to_string();
+    let payload = v["payload"].to_string();
+    let source = v["source"].as_str().unwrap_or_default().to_string();
+
+    let db = lock_db!(state);
+    db.execute(
+        "INSERT OR REPLACE INTO state_events (id, project_id, chapter_number, entity_id, event_type, payload, source) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
+        rusqlite::params![id, project_id, chapter_number, entity_id, event_type, payload, source],
+    )
+    .map_err(|e| e.to_string())?;
+    Ok(())
+}
+
 fn init_db(app_handle: &tauri::AppHandle) -> Result<Connection, String> {
     // Get application data directory
     let app_dir = app_handle
@@ -611,6 +661,8 @@ pub fn run() {
             delete_character,
             save_worldbook_entry,
             delete_worldbook_entry,
+            save_entity,
+            save_state_event,
             vector::add_vector_documents,
             vector::delete_vector_document,
             vector::delete_vector_documents,
