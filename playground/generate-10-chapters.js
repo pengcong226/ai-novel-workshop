@@ -1,5 +1,4 @@
 import puppeteer from 'puppeteer';
-import fs from 'fs';
 
 (async () => {
   console.log("🚀 开始全自动化 10 章写作测试 (使用真实 API 连通全链路)...");

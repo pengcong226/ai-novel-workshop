@@ -4,7 +4,7 @@
 
 import { describe, it, expect, beforeEach } from 'vitest'
 import { WorldbookImporter, createWorldbookImporter, exportWorldbook } from '../worldbook-importer'
-import type { WorldbookData, WorldbookEntry } from '@/types/worldbook'
+import type { WorldbookData } from '@/types/worldbook'
 
 describe('WorldbookImporter', () => {
   let importer: WorldbookImporter

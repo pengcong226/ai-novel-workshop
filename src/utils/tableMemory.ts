@@ -455,11 +455,47 @@ export function initNovelMemory(project: Project): MemorySystem {
 /**
  * 解析 AI 返回的表格命令
  */
-export function parseTableCommand(command: string): {
+export function parseTableCommand(command: any): {
   type: 'update' | 'insert' | 'delete'
   rowIndex?: number
   values?: string[]
 } | null {
+  // 匹配已经是 JSON 解析完的结构 (防备一些高级调度直接丢进对象)
+  if (typeof command === 'object' && command !== null) {
+    const cmd = command as any;
+    if (cmd.action === 'updateRow' || cmd.action === 'update') {
+        return { type: 'update', rowIndex: cmd.rowIndex, values: cmd.values };
+    }
+    if (cmd.action === 'insertRow' || cmd.action === 'insert') {
+        return { type: 'insert', values: cmd.values };
+    }
+    if (cmd.action === 'deleteRow' || cmd.action === 'delete') {
+        return { type: 'delete', rowIndex: cmd.rowIndex };
+    }
+  }
+
+  if (typeof command !== 'string') {
+    return null;
+  }
+
+  // 尝试将纯文本 JSON 化
+  if (command.trim().startsWith('{') || command.trim().startsWith('[')) {
+      try {
+          const cmd = JSON.parse(command);
+          if (cmd.action === 'updateRow' || cmd.action === 'update') {
+              return { type: 'update', rowIndex: cmd.rowIndex, values: cmd.values };
+          }
+          if (cmd.action === 'insertRow' || cmd.action === 'insert') {
+              return { type: 'insert', values: cmd.values };
+          }
+          if (cmd.action === 'deleteRow' || cmd.action === 'delete') {
+              return { type: 'delete', rowIndex: cmd.rowIndex };
+          }
+      } catch(e) {
+          // Fallback to regex if JSON parse fails
+      }
+  }
+
   // 匹配 updateRow(1, "值1", "值2", ...)
   const updateMatch = command.match(/updateRow\((\d+),\s*(.+)\)/)
   if (updateMatch) {
@@ -490,7 +526,7 @@ export function parseTableCommand(command: string): {
 /**
  * 执行表格命令
  */
-export function executeTableCommand(memory: MemorySystem, sheetName: string, command: string): MemorySystem {
+export function executeTableCommand(memory: MemorySystem, sheetName: string, command: any): MemorySystem {
   const parsed = parseTableCommand(command)
   if (!parsed) {
     console.warn('无法解析表格命令:', command)
@@ -680,7 +716,7 @@ export function generateMemoryPrompt(
 export async function updateMemoryFromChapter(
   memory: MemorySystem,
   chapter: Chapter,
-  aiExtractFunction?: (content: string, memory: MemorySystem) => Promise<string[]>
+  aiExtractFunction?: (content: string, memory: MemorySystem) => Promise<any[]>
 ): Promise<MemorySystem> {
   // 更新当前章节和位置
   memory.currentChapter = chapter.number
@@ -691,10 +727,15 @@ export async function updateMemoryFromChapter(
 
     // 执行命令
     commands.forEach(cmd => {
-      // 假设命令格式为 "表格名:命令"
-      const [sheetName, ...commandParts] = cmd.split(':')
-      const command = commandParts.join(':').trim()
-      executeTableCommand(memory, sheetName.trim(), command)
+      if (typeof cmd === 'string') {
+        // 假设命令格式为 "表格名:命令"
+        const [sheetName, ...commandParts] = cmd.split(':')
+        const command = commandParts.join(':').trim()
+        executeTableCommand(memory, sheetName.trim(), command)
+      } else if (typeof cmd === 'object' && cmd !== null) {
+        // 结构化输出对象
+        executeTableCommand(memory, cmd.sheetName, cmd)
+      }
     })
   }
 

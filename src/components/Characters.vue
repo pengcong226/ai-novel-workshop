@@ -707,13 +707,11 @@ async function generateCharacter() {
       const response = await aiStore.chat(messages, context, { maxTokens: 5000 })
       console.log('[人物生成] AI响应:', response)
 
-      const content = response.content.trim()
-      let jsonStr = content
-      const jsonMatch = jsonStr.match(/```json\s*([\s\S]*?)\s*```/)
-      if (jsonMatch) jsonStr = jsonMatch[1]
-      else if (jsonStr.includes('```')) jsonStr = jsonStr.replace(/```\w*\n?/g, '').trim()
-
-      const parsed = JSON.parse(jsonStr)
+      const { safeParseAIJson } = await import('@/utils/safeParseAIJson')
+      const parsed = safeParseAIJson(response.content)
+      if (!parsed) {
+        throw new Error('无法解析AI返回的JSON内容')
+      }
       const character: Character = {
         id: uuidv4(),
         ...parsed,

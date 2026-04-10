@@ -147,40 +147,81 @@ export class ModelRouter {
   }
 
   /**
-   * 选择最优模型
+   * 获取排序后的模型备选队列
    * @param context 任务上下文
-   * @returns 最优模型配置
+   * @returns 排序后的模型数组
    */
-  selectModel(context: TaskContext): ModelConfig {
-    // 1. 检查用户偏好模型
+  getRankedCandidates(context: TaskContext): ModelConfig[] {
+    const candidates: ModelConfig[] = [];
+
+    // 1. 用户偏好模型最高优
     if (context.preferredModel && this.models.has(context.preferredModel)) {
       const model = this.models.get(context.preferredModel)!;
       if (model.enabled && this.checkQuota(model)) {
-        return model;
+        candidates.push(model);
       }
     }
 
     // 2. 检查全局偏好模型
     if (this.preferredModels[context.type]) {
       const model = this.models.get(this.preferredModels[context.type]!);
-      if (model?.enabled && this.checkQuota(model)) {
-        return model;
+      if (model?.enabled && this.checkQuota(model) && !candidates.includes(model)) {
+        candidates.push(model);
       }
     }
 
-    // 3. 确定模型层级
+    // 3. 确定模型层级并获取可用模型
     const tier = this.determineTier(context);
+    const availableModels = this.getAvailableModels(tier);
 
-    // 4. 获取该层级的可用模型
-    const candidates = this.getAvailableModels(tier);
+    // 计算得分并排序
+    const scoredCandidates = availableModels.map(model => ({
+      model,
+      score: this.calculateScore(model, context),
+    })).sort((a, b) => b.score - a.score);
 
-    if (candidates.length === 0) {
-      // 降级到下一层级
-      return this.getFallbackModel(tier);
+    for (const item of scoredCandidates) {
+      if (!candidates.includes(item.model)) {
+        candidates.push(item.model);
+      }
     }
 
-    // 5. 根据优先级和成本优化选择最优模型
-    return this.optimizeSelection(candidates, context);
+    // 4. 兜底模型：如果以上都没有，尝试降级
+    if (candidates.length === 0) {
+      const fallback = this.getFallbackModel(tier);
+      if (fallback) {
+        candidates.push(fallback);
+      }
+    }
+
+    // 5. 将所有启用的模型中还没加入的，按照得分优先级垫底（用于深度故障转移）
+    const allOtherModels = Array.from(this.models.values())
+      .filter(m => m.enabled && !candidates.includes(m))
+      .map(model => ({
+        model,
+        score: this.calculateScore(model, context)
+      }))
+      .sort((a, b) => b.score - a.score);
+
+    for (const item of allOtherModels) {
+       candidates.push(item.model);
+    }
+
+    return candidates;
+  }
+
+  /**
+   * 选择最优模型
+   * @param context 任务上下文
+   * @returns 最优模型配置
+   */
+  selectModel(context: TaskContext): ModelConfig {
+    const candidates = this.getRankedCandidates(context);
+    if (candidates.length > 0) {
+      return candidates[0];
+    }
+    const defaultModel = DEFAULT_MODELS.writing[0];
+    return defaultModel;
   }
 
   /**

@@ -1,4 +1,4 @@
-import type { AIActionHandlerContribution, PluginContext, ActionContext } from '../types';
+import type { AIActionHandlerContribution, ActionContext } from '../types';
 import { useProjectStore } from '@/stores/project';
 import { ElMessage } from 'element-plus';
 

@@ -455,18 +455,11 @@ async function doGenerate() {
 
       // 解析AI返回的JSON
       try {
-        // 尝试提取JSON部分
-        let jsonStr = content.trim()
-        // 如果包含markdown代码块，提取JSON
-        const jsonMatch = jsonStr.match(/```json\s*([\s\S]*?)\s*```/)
-        if (jsonMatch) {
-          jsonStr = jsonMatch[1]
-        } else if (jsonStr.includes('```')) {
-          // 去除代码块标记
-          jsonStr = jsonStr.replace(/```\w*\n?/g, '').trim()
+        const { safeParseAIJson } = await import('@/utils/safeParseAIJson')
+        const parsed = safeParseAIJson(content)
+        if (!parsed) {
+          throw new Error('无法解析AI返回的JSON内容')
         }
-
-        const parsed = JSON.parse(jsonStr)
         const generated = {
           id: uuidv4(),
           ...parsed,

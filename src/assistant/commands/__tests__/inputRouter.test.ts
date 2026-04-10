@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { routeAssistantInput } from '../inputRouter';
 import { builtinCommandRegistry } from '../builtinCommands';
 
@@ -9,7 +9,7 @@ describe('inputRouter', () => {
     const result = await routeAssistantInput('/help');
 
     expect(result.type).toBe('command');
-    expect(result.output).toBe('command output');
+    expect((result as any).output).toBe('command output');
     expect(executeSpy).toHaveBeenCalledWith('/help', undefined);
 
     executeSpy.mockRestore();
@@ -31,7 +31,7 @@ describe('inputRouter', () => {
     const result = await routeAssistantInput('hello world');
 
     expect(result.type).toBe('chat');
-    expect(result.text).toBe('hello world');
+    expect((result as any).text).toBe('hello world');
   });
 
   it('should handle command execution errors', async () => {
@@ -40,7 +40,7 @@ describe('inputRouter', () => {
     const result = await routeAssistantInput('/unknown');
 
     expect(result.type).toBe('error');
-    expect(result.error).toBe('Test error');
+    expect((result as any).error).toBe('Test error');
 
     executeSpy.mockRestore();
   });

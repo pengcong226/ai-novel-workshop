@@ -12,6 +12,7 @@
 import type { Chapter } from '@/types'
 import { useAIStore } from '@/stores/ai'
 import { SUMMARY_SYSTEM_PROMPT } from './systemPrompts'
+import { safeParseAIJson } from './safeParseAIJson'
 
 /**
  * 摘要层级
@@ -357,22 +358,8 @@ function parseSummaryResponse(
   targetLength: number
 ): Omit<ChapterSummaryData, 'wordCount' | 'summaryWordCount' | 'tokenCount' | 'createdAt' | 'updatedAt' | 'level' | 'detail'> {
   try {
-    // 尝试提取JSON部分
-    let jsonStr = response
-
-    // 如果响应包含markdown代码块，提取其中的JSON
-    const jsonMatch = response.match(/```json\s*([\s\S]*?)\s*```/)
-    if (jsonMatch) {
-      jsonStr = jsonMatch[1]
-    } else {
-      // 尝试直接提取JSON对象
-      const objectMatch = response.match(/\{[\s\S]*\}/)
-      if (objectMatch) {
-        jsonStr = objectMatch[0]
-      }
-    }
-
-    const data = JSON.parse(jsonStr)
+    const data = safeParseAIJson<any>(response)
+    if (!data) throw new Error('无法解析摘要 JSON')
 
     return {
       id: `summary-${chapter.id}`,
@@ -564,7 +551,8 @@ export async function mergeToVolumeSummary(
       temperature: 0.7
     })
 
-    const data = JSON.parse(response.content)
+    const data = safeParseAIJson<any>(response.content)
+    if (!data) throw new Error('无法解析摘要 JSON')
 
     return {
       id: `volume-summary-${volumeNumber}`,

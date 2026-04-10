@@ -52,9 +52,14 @@ const reviewCommand: AssistantCommand = {
       // If we can't find an active chapter in context, try finding the last modified chapter.
       if (project && project.chapters && project.chapters.length > 0) {
         chapter = project.chapters.reduce((latest, current) => {
-          if (!latest.updatedAt) return current;
-          if (!current.updatedAt) return latest;
-          return new Date(current.updatedAt) > new Date(latest.updatedAt) ? current : latest;
+          const l = latest as any;
+          const c = current as any;
+          const lDate = l.updatedAt || l.generationTime;
+          const cDate = c.updatedAt || c.generationTime;
+
+          if (!lDate) return current;
+          if (!cDate) return latest;
+          return new Date(cDate) > new Date(lDate) ? current : latest;
         }, project.chapters[0]);
       }
 
@@ -67,8 +72,8 @@ const reviewCommand: AssistantCommand = {
       const promptContext = { project, chapter };
       const apiMessages = buildReviewPrompt(profile, promptContext) as any[];
 
-      const response = await aiStore.chat(apiMessages, { type: 'assistant', complexity: 'high' });
-      let rawContent = response.content;
+      const response = await aiStore.chat(apiMessages, { type: 'assistant' as any, complexity: 'high', priority: 'balanced' });
+      const rawContent = response.content;
 
       // Extract JSON from response
       const jsonMatch = rawContent.match(/```json\s*([\s\S]*?)\s*```/);
@@ -86,6 +91,7 @@ const reviewCommand: AssistantCommand = {
                   priority: item.priority || 'medium',
                   title: `[${profile}] ${item.title}`,
                   message: item.message,
+                  location: { type: 'global' } as any,
                   actions: item.actions
                 });
                 suggestionsAdded++;

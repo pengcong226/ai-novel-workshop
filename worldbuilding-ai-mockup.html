@@ -1,0 +1,816 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AI小说工坊 - 多维设定沙盘(全景交互演示版)</title>
+  <link href="https://cdn.jsdelivr.net/npm/remixicon@3.5.0/fonts/remixicon.css" rel="stylesheet">
+  <style>
+    :root {
+      --bg-base: #0a0a0f;
+      --bg-panel: rgba(20, 20, 30, 0.7);
+      --bg-panel-hover: rgba(30, 30, 45, 0.8);
+      --border-color: rgba(60, 130, 246, 0.2);
+      --border-glow: rgba(60, 130, 246, 0.5);
+      --text-main: #e2e8f0;
+      --text-muted: #94a3b8;
+      --accent-primary: #3b82f6;
+      --accent-glow: #60a5fa;
+      --accent-secondary: #8b5cf6;
+      --accent-success: #10b981;
+      --accent-warning: #f59e0b;
+      --font-family: 'PingFang SC', 'Microsoft YaHei', sans-serif;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: var(--font-family);
+      background-color: var(--bg-base);
+      color: var(--text-main);
+      height: 100vh;
+      overflow: hidden;
+      background-image:
+        radial-gradient(circle at 15% 50%, rgba(59, 130, 246, 0.08) 0%, transparent 50%),
+        radial-gradient(circle at 85% 30%, rgba(139, 92, 246, 0.08) 0%, transparent 50%);
+    }
+
+    .glass-panel {
+      background: var(--bg-panel);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border: 1px solid var(--border-color);
+      border-radius: 12px;
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+    }
+
+    .app-container {
+      display: flex;
+      height: 100vh;
+      padding: 16px;
+      gap: 16px;
+    }
+
+    /* Left Sidebar */
+    .sidebar-left { width: 280px; display: flex; flex-direction: column; gap: 12px; }
+
+    /* Middle Content */
+    .main-content { flex: 1; display: flex; flex-direction: column; position: relative; overflow: hidden; }
+
+    /* Right Sidebar */
+    .sidebar-right { width: 380px; display: flex; flex-direction: column; border: 1px solid var(--border-glow); box-shadow: 0 0 20px rgba(59, 130, 246, 0.1) inset; transition: all 0.3s;}
+
+    /* Headers */
+    .panel-header {
+      padding: 16px;
+      border-bottom: 1px solid var(--border-color);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-weight: 600;
+    }
+
+    .sci-fi-title {
+      background: linear-gradient(90deg, #fff, var(--accent-glow));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    /* View Tabs */
+    .view-tabs {
+      display: flex;
+      gap: 4px;
+      padding: 12px 24px 0 24px;
+      border-bottom: 1px solid var(--border-color);
+      background: rgba(0,0,0,0.2);
+    }
+    .tab {
+      padding: 10px 20px;
+      color: var(--text-muted);
+      cursor: pointer;
+      border-top-left-radius: 8px;
+      border-top-right-radius: 8px;
+      border: 1px solid transparent;
+      border-bottom: none;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      transition: all 0.2s;
+    }
+    .tab:hover { color: #fff; background: rgba(255,255,255,0.05); }
+    .tab.active {
+      color: var(--accent-glow);
+      background: var(--bg-panel);
+      border-color: var(--border-color);
+      border-bottom: 1px solid var(--bg-panel);
+      margin-bottom: -1px;
+      box-shadow: 0 -4px 12px rgba(59, 130, 246, 0.1);
+    }
+
+    /* Sidebar Navigation */
+    .entity-search { padding: 12px 16px; }
+    .entity-search input {
+      width: 100%; background: rgba(0,0,0,0.3); border: 1px solid var(--border-color);
+      color: white; padding: 8px 12px; border-radius: 6px; outline: none;
+    }
+    .entity-nav { flex: 1; overflow-y: auto; padding: 8px; }
+    .nav-group-title { font-size: 12px; color: var(--text-muted); text-transform: uppercase; padding: 8px; margin-top: 8px; display: flex; justify-content: space-between; }
+    .nav-item { padding: 10px 12px; border-radius: 6px; cursor: pointer; display: flex; align-items: center; gap: 10px; margin-bottom: 2px; }
+    .nav-item:hover { background: var(--bg-panel-hover); }
+    .nav-item.active { background: rgba(59, 130, 246, 0.15); border-left: 3px solid var(--accent-primary); color: #fff; }
+    .nav-item i { color: var(--accent-primary); }
+    .entity-badge { font-size: 10px; background: rgba(255,255,255,0.1); padding: 2px 6px; border-radius: 10px; margin-left: auto; transition: all 0.5s ease;}
+    .pulse-badge { animation: pulseBadge 2s infinite; }
+    @keyframes pulseBadge { 0% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.4); } 70% { box-shadow: 0 0 0 6px rgba(16, 185, 129, 0); } 100% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); } }
+
+    /* Views Content Area */
+    .view-content {
+      flex: 1;
+      padding: 24px;
+      overflow-y: auto;
+      display: none;
+      flex-direction: column;
+      gap: 24px;
+    }
+    .view-content.active { display: flex; animation: fadeInView 0.3s ease; }
+    @keyframes fadeInView { from { opacity: 0; } to { opacity: 1; } }
+
+    /* --- Document View --- */
+    .field-group { background: rgba(0,0,0,0.2); border: 1px solid rgba(255,255,255,0.05); border-radius: 8px; padding: 20px; }
+    .field-title { font-size: 14px; color: var(--accent-glow); margin-bottom: 16px; display: flex; align-items: center; gap: 8px; }
+    .field-row { display: flex; gap: 16px; margin-bottom: 16px; }
+    .field { flex: 1; }
+    .field label { display: block; font-size: 12px; color: var(--text-muted); margin-bottom: 6px; }
+    .field input, .field textarea, .field select {
+      width: 100%; background: rgba(0,0,0,0.4); border: 1px solid var(--border-color);
+      color: white; padding: 10px; border-radius: 6px; outline: none; font-family: inherit;
+    }
+    .tag-container { display: flex; flex-wrap: wrap; gap: 8px; }
+    .tag {
+      background: rgba(139, 92, 246, 0.15); border: 1px solid rgba(139, 92, 246, 0.4);
+      color: #c4b5fd; padding: 4px 10px; border-radius: 12px; font-size: 12px; display: flex; align-items: center; gap: 4px;
+      transition: all 0.5s ease;
+    }
+    .tag.new-tag { background: rgba(16, 185, 129, 0.2); border-color: var(--accent-success); color: var(--accent-success); animation: popIn 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275); }
+    @keyframes popIn { 0% { transform: scale(0); opacity: 0; } 100% { transform: scale(1); opacity: 1; } }
+    .status-badge { display: inline-block; padding: 4px 8px; border-radius: 4px; font-size: 12px; background: rgba(16, 185, 129, 0.2); color: var(--accent-success); border: 1px solid var(--accent-success); margin-bottom: 10px; transition: all 0.5s ease;}
+
+    /* --- Timeline/Outline View --- */
+    .volume-header {
+      background: linear-gradient(90deg, rgba(59, 130, 246, 0.1), transparent);
+      border-left: 4px solid var(--accent-primary);
+      padding: 16px;
+      border-radius: 0 8px 8px 0;
+      margin-bottom: 20px;
+    }
+    .volume-title { font-size: 18px; color: #fff; font-weight: bold; margin-bottom: 8px;}
+    .volume-desc { color: var(--text-muted); font-size: 13px; line-height: 1.5;}
+
+    .outline-node {
+      background: rgba(0,0,0,0.3);
+      border: 1px solid var(--border-color);
+      border-radius: 8px;
+      padding: 16px;
+      position: relative;
+      margin-left: 24px;
+      transition: all 0.3s;
+    }
+    .outline-node::before {
+      content: ''; position: absolute; left: -29px; top: 20px; width: 14px; height: 14px;
+      border-radius: 50%; background: var(--bg-base); border: 2px solid var(--accent-primary);
+      z-index: 2; transition: all 0.3s;
+    }
+    .outline-node::after {
+      content: ''; position: absolute; left: -23px; top: 34px; bottom: -40px; width: 2px;
+      background: var(--border-color); z-index: 1; transition: all 0.3s;
+    }
+    .outline-node:last-child::after { display: none; }
+
+    /* Pending (Future) Nodes */
+    .outline-node.pending {
+      border-style: dashed;
+      opacity: 0.8;
+    }
+    .outline-node.pending::before {
+      border-color: var(--text-muted);
+      border-style: dashed;
+    }
+    .outline-node.pending::after {
+      background: transparent;
+      border-left: 2px dashed var(--border-color);
+      left: -23px;
+      width: 0;
+    }
+
+    /* Active (Writing) Node */
+    .outline-node.active {
+      border-color: var(--accent-primary);
+      box-shadow: 0 0 15px rgba(59, 130, 246, 0.1);
+    }
+    .outline-node.active::before {
+      background: var(--accent-primary);
+      box-shadow: 0 0 10px var(--accent-glow);
+    }
+
+    .outline-header { display: flex; justify-content: space-between; margin-bottom: 12px; align-items: center;}
+    .outline-title { font-weight: bold; color: var(--accent-glow); font-size: 15px;}
+    .outline-text { color: var(--text-main); font-size: 14px; line-height: 1.6; margin-bottom: 12px; }
+
+    .predicted-states {
+      background: rgba(245, 158, 11, 0.05);
+      border: 1px dashed var(--accent-warning);
+      border-radius: 6px;
+      padding: 10px;
+      font-size: 12px;
+      color: var(--text-muted);
+      margin-top: 10px;
+    }
+
+    .automated-state-changes {
+      background: rgba(16, 185, 129, 0.05);
+      border: 1px dashed var(--accent-success);
+      border-radius: 6px;
+      padding: 12px;
+      font-size: 12px;
+      margin-top: 12px;
+      animation: fadeIn 0.5s ease-out;
+    }
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(-10px); } to { opacity: 1; transform: translateY(0); } }
+    .state-change-header { color: var(--accent-success); display: flex; align-items: center; gap: 6px; margin-bottom: 8px; font-weight: bold;}
+    .state-change-item { display: flex; gap: 12px; margin-bottom: 4px; color: var(--text-muted); }
+    .state-entity { color: #fff; width: 60px; }
+    .state-diff { color: var(--accent-success); }
+
+    .timeline-actions {
+      display: flex; gap: 12px; margin-left: 24px; margin-top: 10px; padding: 16px;
+      background: rgba(0,0,0,0.2); border-radius: 8px; border: 1px dashed var(--border-color); justify-content: center;
+    }
+
+    /* --- Graph View --- */
+    .graph-container {
+      flex: 1;
+      background: radial-gradient(circle at center, rgba(30,41,59,0.8) 0%, rgba(0,0,0,0.5) 100%);
+      border-radius: 8px;
+      border: 1px solid var(--border-color);
+      position: relative;
+      min-height: 400px;
+      overflow: hidden;
+    }
+    .graph-node {
+      position: absolute;
+      padding: 8px 16px;
+      border-radius: 20px;
+      font-size: 13px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      cursor: pointer;
+      box-shadow: 0 0 15px rgba(0,0,0,0.5);
+      transition: all 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    }
+    .graph-node:hover { transform: scale(1.1); z-index: 20; box-shadow: 0 0 20px var(--accent-glow); }
+    .node-center { top: 45%; left: 40%; background: rgba(59, 130, 246, 0.2); border: 1px solid var(--accent-primary); color: #fff; z-index: 10;}
+    .node-faction { top: 20%; left: 25%; background: rgba(139, 92, 246, 0.2); border: 1px solid var(--accent-secondary); color: #c4b5fd; }
+    .node-item { top: 70%; left: 35%; background: rgba(245, 158, 11, 0.2); border: 1px solid var(--accent-warning); color: #fcd34d; }
+    .node-enemy { top: 40%; left: 75%; background: rgba(239, 68, 68, 0.2); border: 1px solid #ef4444; color: #fca5a5; }
+
+    /* New Dynamic Graph Nodes */
+    .node-pet { top: 50%; left: 40%; background: rgba(16, 185, 129, 0.2); border: 1px solid var(--accent-success); color: #6ee7b7; opacity: 0; transform: scale(0); }
+    .node-jade { top: 35%; left: 55%; background: rgba(16, 185, 129, 0.2); border: 1px solid var(--accent-success); color: #6ee7b7; opacity: 0; transform: scale(0); }
+
+    .graph-node.show-node { opacity: 1; transform: scale(1); }
+
+    .graph-edge {
+      position: absolute;
+      background: var(--border-color);
+      height: 2px;
+      transform-origin: 0 50%;
+      z-index: 0;
+      transition: all 0.5s ease;
+    }
+    /* Hardcoded edges */
+    .edge-1 { top: 48%; left: 30%; width: 120px; transform: rotate(195deg); }
+    .edge-2 { top: 48%; left: 43%; width: 100px; transform: rotate(100deg); }
+    .edge-3 { top: 48%; left: 46%; width: 250px; transform: rotate(-5deg); background: rgba(239, 68, 68, 0.4); }
+
+    /* New Dynamic Edges */
+    .edge-pet { top: 48%; left: 43%; width: 0px; transform: rotate(90deg); background: var(--accent-success); box-shadow: 0 0 8px var(--accent-success); }
+    .edge-jade { top: 48%; left: 46%; width: 0px; transform: rotate(-35deg); background: var(--accent-success); box-shadow: 0 0 8px var(--accent-success); }
+
+    .graph-edge.show-edge { width: 100px; } /* Expand width for animation */
+    .graph-edge.show-edge-jade { width: 120px; }
+
+    .edge-label { position: absolute; font-size: 10px; color: var(--text-muted); background: var(--bg-base); padding: 2px 6px; border-radius: 4px; z-index: 1; transition: opacity 0.5s ease;}
+    .label-pet { top: 58%; left: 42%; opacity: 0; color: var(--accent-success);}
+    .label-jade { top: 40%; left: 50%; opacity: 0; color: var(--accent-success);}
+    .edge-label.show-label { opacity: 1; }
+
+    /* --- Map View --- */
+    .map-container {
+      flex: 1;
+      background: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="400" height="400" viewBox="0 0 400 400"><path d="M50,150 Q100,50 200,100 T350,150 Q380,250 300,300 T150,350 Q50,300 50,150 Z" fill="none" stroke="rgba(60,130,246,0.1)" stroke-width="2"/><path d="M100,200 Q150,150 250,200 T300,280" fill="none" stroke="rgba(60,130,246,0.1)" stroke-width="1" stroke-dasharray="5,5"/></svg>') center/cover;
+      background-color: rgba(10, 10, 15, 0.9);
+      border-radius: 8px;
+      border: 1px solid var(--border-color);
+      position: relative;
+      min-height: 400px;
+      overflow: hidden;
+    }
+    .map-pin {
+      position: absolute;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      cursor: pointer;
+      transition: transform 0.2s;
+      z-index: 5;
+    }
+    .map-pin:hover { transform: translateY(-5px); }
+    .map-pin i { font-size: 24px; color: var(--accent-primary); text-shadow: 0 0 10px var(--accent-glow); }
+    .map-pin-label { background: rgba(0,0,0,0.7); border: 1px solid var(--border-color); padding: 4px 8px; border-radius: 4px; font-size: 11px; margin-top: 4px; white-space: nowrap;}
+    .pin-1 { top: 30%; left: 35%; }
+    .pin-2 { top: 50%; left: 65%; i { color: var(--accent-warning); text-shadow: 0 0 10px var(--accent-warning); } }
+    .pin-3 { top: 75%; left: 20%; i { color: var(--accent-secondary); text-shadow: 0 0 10px var(--accent-secondary); } }
+
+    /* Map Path Animation */
+    .map-path {
+        position: absolute;
+        top: 36%; left: 37%;
+        width: 0px;
+        height: 2px;
+        background: linear-gradient(90deg, var(--accent-primary), transparent);
+        transform-origin: 0 50%;
+        transform: rotate(32deg);
+        z-index: 1;
+        transition: width 1.5s ease-in-out;
+        opacity: 0;
+    }
+    .map-path.show-path {
+        width: 330px;
+        opacity: 0.5;
+        border-top: 1px dashed var(--accent-glow);
+        background: transparent;
+    }
+
+    .map-avatar {
+      position: absolute;
+      width: 28px; height: 28px;
+      background: var(--bg-base);
+      border-radius: 50%;
+      border: 2px solid var(--accent-primary);
+      top: 28%; left: 36%; /* Initial Pos: near pin-1 */
+      box-shadow: 0 0 15px var(--accent-glow);
+      display: flex; justify-content: center; align-items: center; font-size: 12px; color: #fff; font-weight: bold;
+      z-index: 10;
+      transition: all 1.5s cubic-bezier(0.45, 0, 0.15, 1);
+    }
+
+    /* State changes for avatar */
+    .map-avatar.moved {
+        top: 48%; left: 66%; /* New Pos: near pin-2 */
+        border-color: var(--accent-success);
+        box-shadow: 0 0 15px var(--accent-success);
+    }
+
+    /* Map Notification overlay */
+    .map-notification {
+        position: absolute;
+        bottom: 20px;
+        left: 50%;
+        transform: translateX(-50%) translateY(20px);
+        background: rgba(16, 185, 129, 0.9);
+        color: white;
+        padding: 8px 16px;
+        border-radius: 20px;
+        font-size: 13px;
+        opacity: 0;
+        transition: all 0.3s ease;
+        box-shadow: 0 4px 15px rgba(0,0,0,0.5);
+    }
+    .map-notification.show {
+        opacity: 1;
+        transform: translateX(-50%) translateY(0);
+    }
+
+    /* --- Chat --- */
+    .chat-container { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+    .chat-messages { flex: 1; overflow-y: auto; padding: 16px; display: flex; flex-direction: column; gap: 16px; scroll-behavior: smooth;}
+    .msg { max-width: 90%; padding: 12px 16px; border-radius: 12px; font-size: 13px; line-height: 1.5; animation: slideIn 0.3s ease-out;}
+    @keyframes slideIn { from { opacity: 0; transform: translateX(20px); } to { opacity: 1; transform: translateX(0); } }
+    .msg-ai { align-self: flex-start; background: rgba(30, 41, 59, 0.6); border: 1px solid rgba(255,255,255,0.05); border-top-left-radius: 2px; }
+    .msg-system { align-self: center; background: transparent; border: 1px dashed var(--accent-success); color: var(--accent-success); font-size: 12px; text-align: center; max-width: 100%; width: 100%;}
+    .msg-user { align-self: flex-end; background: rgba(59, 130, 246, 0.2); border: 1px solid rgba(59, 130, 246, 0.4); border-top-right-radius: 2px; }
+
+    .chat-input { padding: 16px; background: rgba(0,0,0,0.2); border-top: 1px solid var(--border-color); }
+    .chat-input-wrapper { position: relative; }
+    .chat-input textarea { width: 100%; background: rgba(0,0,0,0.4); border: 1px solid var(--border-color); color: white; padding: 12px; padding-right: 40px; border-radius: 8px; outline: none; resize: none; height: 80px; font-family: inherit; }
+    .chat-input textarea:focus { border-color: var(--accent-glow); box-shadow: 0 0 12px rgba(59, 130, 246, 0.2) inset; }
+    .send-btn { position: absolute; right: 8px; bottom: 12px; background: var(--accent-primary); color: white; border: none; width: 32px; height: 32px; border-radius: 6px; cursor: pointer; display: flex; align-items: center; justify-content: center; }
+
+    /* Buttons */
+    .btn { background: rgba(59, 130, 246, 0.1); border: 1px solid var(--accent-primary); color: var(--accent-glow); padding: 6px 16px; border-radius: 6px; cursor: pointer; font-size: 13px; transition: all 0.3s; display: flex; align-items: center; gap: 6px; }
+    .btn:hover { background: var(--accent-primary); color: white; box-shadow: 0 0 12px rgba(59, 130, 246, 0.4); }
+    .btn-success { background: rgba(16, 185, 129, 0.1); border-color: var(--accent-success); color: var(--accent-success); }
+    .btn-success:hover { background: var(--accent-success); color: white; box-shadow: 0 0 12px rgba(16, 185, 129, 0.4); }
+    .btn-warning { background: rgba(245, 158, 11, 0.1); border-color: var(--accent-warning); color: var(--accent-warning); }
+    .btn-warning:hover { background: var(--accent-warning); color: white; box-shadow: 0 0 12px rgba(245, 158, 11, 0.4); }
+
+    /* Loaders */
+    .loader { display: inline-block; width: 16px; height: 16px; border: 2px solid rgba(255,255,255,0.3); border-radius: 50%; border-top-color: #fff; animation: spin 1s ease-in-out infinite; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+  </style>
+</head>
+<body>
+
+<div class="app-container">
+
+  <!-- Left Sidebar: Entity Explorer -->
+  <div class="sidebar-left glass-panel">
+    <div class="panel-header">
+      <div class="sci-fi-title">
+        <i class="ri-database-2-line"></i> 沙盘实体库
+      </div>
+      <i class="ri-add-line" style="cursor: pointer; color: var(--accent-primary);"></i>
+    </div>
+
+    <div class="entity-search">
+      <input type="text" placeholder="搜索实体、标签...">
+    </div>
+
+    <div class="entity-nav">
+      <div class="nav-group-title"><span>人物 (Characters)</span><i class="ri-arrow-down-s-line"></i></div>
+      <div class="nav-item active"><i class="ri-user-3-line"></i> 林渊 (主角) <span class="entity-badge" id="badge-level">练气三层</span></div>
+      <div class="nav-item"><i class="ri-user-3-line"></i> 叶清雪</div>
+      <div class="nav-item" id="nav-item-shadow" style="display:none;"><i class="ri-ghost-line"></i> 影傀 <span class="entity-badge pulse-badge" style="color:var(--accent-success); border:1px solid var(--accent-success);">New</span></div>
+
+      <div class="nav-group-title"><span>势力/门派 (Factions)</span><i class="ri-arrow-down-s-line"></i></div>
+      <div class="nav-item"><i class="ri-sword-line"></i> 青云宗</div>
+      <div class="nav-item"><i class="ri-skull-line"></i> 血魔教</div>
+
+      <div class="nav-group-title"><span>地点 (Locations)</span><i class="ri-arrow-down-s-line"></i></div>
+      <div class="nav-item"><i class="ri-map-pin-line"></i> 青云宗后山禁地</div>
+      <div class="nav-item"><i class="ri-map-pin-line"></i> 妖兽森林</div>
+
+      <div class="nav-group-title"><span>物品/功法 (Lore)</span><i class="ri-arrow-down-s-line"></i></div>
+      <div class="nav-item"><i class="ri-book-open-line"></i> 太虚剑意</div>
+      <div class="nav-item" id="nav-item-jade" style="display:none;"><i class="ri-vip-diamond-line"></i> 太虚玉简 <span class="entity-badge pulse-badge" style="color:var(--accent-success); border:1px solid var(--accent-success);">New</span></div>
+    </div>
+  </div>
+
+  <!-- Middle Content: Multi-View -->
+  <div class="main-content glass-panel">
+
+    <!-- View Tabs -->
+    <div class="view-tabs">
+      <div class="tab" onclick="switchTab('doc')"><i class="ri-file-text-line"></i> 文档视图 (百科) <span id="doc-dot" style="display:none; width:6px;height:6px;background:var(--accent-success);border-radius:50%;"></span></div>
+      <div class="tab active" onclick="switchTab('timeline')"><i class="ri-time-line"></i> 大纲时间线 (状态流)</div>
+      <div class="tab" onclick="switchTab('graph')"><i class="ri-bubble-chart-line"></i> 关系图谱 (联动) <span id="graph-dot" style="display:none; width:6px;height:6px;background:var(--accent-success);border-radius:50%;"></span></div>
+      <div class="tab" onclick="switchTab('map')"><i class="ri-earth-line"></i> 势力地图 (GIS) <span id="map-dot" style="display:none; width:6px;height:6px;background:var(--accent-success);border-radius:50%;"></span></div>
+    </div>
+
+    <!-- 1. Document View -->
+    <div id="view-doc" class="view-content">
+      <div class="field-group">
+        <div class="field-title"><i class="ri-fingerprint-line"></i> 基础档案 (静态背景)</div>
+        <div class="field-row">
+          <div class="field"><label>实体名称</label><input type="text" value="林渊" readonly></div>
+          <div class="field"><label>分类</label><input type="text" value="核心人物" readonly></div>
+        </div>
+        <div class="field-row">
+          <div class="field"><label>核心设定 (系统约束)</label><textarea rows="2" readonly>穿越者，性格杀伐果断，底牌层出不穷。</textarea></div>
+        </div>
+      </div>
+
+      <div class="field-group" id="doc-dynamic-section" style="border-color: rgba(16, 185, 129, 0.2); transition: all 0.5s;">
+        <div class="field-title" style="color: var(--accent-success);"><i class="ri-node-tree"></i> 当前状态快照 (由大纲自动维护)</div>
+        <div class="status-badge" id="doc-status-level">当前境界：练气三层</div>
+        <div class="field-row">
+          <div class="field">
+            <label>持有物品/羁绊 (双向链接)</label>
+            <div class="tag-container" id="doc-tags">
+              <span class="tag"><i class="ri-link"></i> #青云宗</span>
+              <span class="tag"><i class="ri-link"></i> #太虚剑意</span>
+              <span class="tag" id="doc-loc-tag"><i class="ri-map-pin-line"></i> @青云宗后山禁地</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 2. Timeline / Outline View (Active) -->
+    <div id="view-timeline" class="view-content active">
+
+      <div class="volume-header">
+        <div class="volume-title">第一卷：潜龙出渊 (宏观剧情线)</div>
+        <div class="volume-desc">林渊在门派底层蛰伏，于后山禁地获得机缘，最终在外门大比中一鸣惊人。预计字数：20万字。</div>
+      </div>
+
+      <!-- Completed Node -->
+      <div class="outline-node">
+        <div class="outline-header">
+          <div class="outline-title">第15章：暗流涌动</div>
+          <div style="color: var(--text-muted); font-size: 12px;"><i class="ri-check-double-line"></i> 完稿入库</div>
+        </div>
+        <div class="outline-text">林渊在门派小比中故意隐藏实力，只展现练气三层修为，引发外门李执事的轻视。夜间，林渊悄悄潜入后山。</div>
+      </div>
+
+      <!-- Active Node (Ready to write) -->
+      <div class="outline-node active" id="node-16">
+        <div class="outline-header">
+          <div class="outline-title" style="color: #fff;">第16章：禁地奇遇 & 离开后山</div>
+          <div style="color: var(--accent-primary); font-size: 12px;"><i class="ri-edit-line"></i> 当前进度</div>
+        </div>
+        <div class="outline-text">林渊在后山禁地意外跌入上古剑阵，发现太虚玉简。突破至练气七层，降服影傀。为避开宗门耳目，他连夜离开后山，前往妖兽森林外围猎杀妖兽稳固境界。</div>
+
+        <div style="display:flex; gap: 10px; margin-top: 15px;" id="action-write-16">
+            <button class="btn btn-success" onclick="executeChapter16()"><i class="ri-quill-pen-line"></i> AI 生成正文并全盘同步状态</button>
+            <button class="btn"><i class="ri-edit-box-line"></i> 手动撰写</button>
+        </div>
+
+        <!-- Hidden until execution -->
+        <div class="automated-state-changes" id="state-sync-16" style="display: none;">
+          <div class="state-change-header"><i class="ri-database-2-line"></i> 正文落地，已触发底层引擎全盘同步</div>
+          <div class="state-change-item"><div class="state-entity">[林渊]</div><div>境界更新: 练气三层 <i class="ri-arrow-right-line"></i> <span class="state-diff">练气七层</span></div></div>
+          <div class="state-change-item"><div class="state-entity">[林渊]</div><div>新增持有: <span class="state-diff">#太虚玉简</span>, <span class="state-diff">#影傀 (伴生)</span></div></div>
+          <div class="state-change-item"><div class="state-entity">[林渊]</div><div>位置变更: @青云宗后山 <i class="ri-arrow-right-line"></i> <span class="state-diff">@妖兽森林</span></div></div>
+        </div>
+      </div>
+
+      <!-- Future Nodes Container -->
+      <div id="future-nodes"></div>
+
+      <!-- Batch Action -->
+      <div class="timeline-actions" id="batch-action-bar">
+        <button class="btn btn-warning" onclick="simulateBatchPlanning()" id="btn-batch"><i class="ri-magic-line"></i> AI 批量推演后续 5 章大纲</button>
+      </div>
+
+    </div>
+
+    <!-- 3. Graph View -->
+    <div id="view-graph" class="view-content">
+      <div style="display:flex; justify-content: space-between; align-items:center; margin-bottom: 10px;">
+          <p style="font-size: 12px; color: var(--text-muted);"><i class="ri-information-line"></i> 图谱由实体的双向链接(#标签)自动生成，无需手动绘制。自动监听底层状态变更。</p>
+          <div class="status-badge" id="graph-status" style="display:none; margin:0;"><i class="ri-refresh-line"></i> 节点已自动热更新</div>
+      </div>
+      <div class="graph-container">
+        <!-- Edges -->
+        <div class="graph-edge edge-1"></div>
+        <div class="graph-edge edge-2"></div>
+        <div class="graph-edge edge-3"></div>
+
+        <!-- Dynamic Edges (hidden initially) -->
+        <div class="graph-edge edge-pet" id="edge-pet"></div>
+        <div class="graph-edge edge-jade" id="edge-jade"></div>
+
+        <!-- Edge Labels -->
+        <div class="edge-label" style="top: 46%; left: 35%;">所属</div>
+        <div class="edge-label" style="top: 55%; left: 42%;">主修</div>
+        <div class="edge-label" style="top: 49%; left: 63%; color: #fca5a5;">敌对</div>
+
+        <!-- Dynamic Edge Labels -->
+        <div class="edge-label label-pet" id="label-pet">伴生</div>
+        <div class="edge-label label-jade" id="label-jade">持有</div>
+
+        <!-- Nodes -->
+        <div class="graph-node node-center"><i class="ri-user-3-fill"></i> 林渊</div>
+        <div class="graph-node node-faction"><i class="ri-sword-fill"></i> 青云宗</div>
+        <div class="graph-node node-item"><i class="ri-book-open-fill"></i> 太虚剑意</div>
+        <div class="graph-node node-enemy"><i class="ri-skull-fill"></i> 血魔教</div>
+
+        <!-- Dynamic Nodes (hidden initially) -->
+        <div class="graph-node node-pet" id="node-pet"><i class="ri-ghost-fill"></i> 影傀</div>
+        <div class="graph-node node-jade" id="node-jade"><i class="ri-vip-diamond-fill"></i> 太虚玉简</div>
+      </div>
+    </div>
+
+    <!-- 4. Map View -->
+    <div id="view-map" class="view-content">
+      <div style="display:flex; justify-content: space-between; align-items:center; margin-bottom: 10px;">
+          <p style="font-size: 12px; color: var(--text-muted);"><i class="ri-information-line"></i> 角色位置根据时间线中提取的 @地点 自动同步。基于 GIS 坐标渲染。</p>
+      </div>
+      <div class="map-container">
+        <!-- Map Overlay Notification -->
+        <div class="map-notification" id="map-notify"><i class="ri-navigation-line"></i> [林渊] 坐标已更新至 [妖兽森林]</div>
+
+        <div class="map-pin pin-1">
+          <i class="ri-map-pin-fill"></i>
+          <div class="map-pin-label">青云宗后山禁地</div>
+        </div>
+        <div class="map-pin pin-2">
+          <i class="ri-fire-fill"></i>
+          <div class="map-pin-label">妖兽森林</div>
+        </div>
+        <div class="map-pin pin-3">
+          <i class="ri-skull-fill" style="color: var(--accent-secondary);"></i>
+          <div class="map-pin-label">血魔教分舵</div>
+        </div>
+
+        <!-- Map Path (hidden initially) -->
+        <div class="map-path" id="map-path"></div>
+
+        <!-- Active Character Indicator -->
+        <div class="map-avatar" id="map-avatar" title="林渊当前位置">林</div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- Right Sidebar: AI Co-creator Chat -->
+  <div class="sidebar-right glass-panel" id="ai-sidebar">
+    <div class="panel-header">
+      <div class="sci-fi-title">
+        <i class="ri-robot-2-line"></i> 自动化主脑 (Automaton)
+      </div>
+    </div>
+
+    <div class="chat-container">
+      <div class="chat-messages" id="chat-box">
+        <div class="msg msg-system">
+          <i class="ri-dashboard-line"></i> 系统：已切换至多维沙盘模式。所有视图受底层 State Engine 驱动。
+        </div>
+      </div>
+
+      <div class="chat-input">
+        <div class="chat-input-wrapper">
+          <textarea placeholder="请先在时间线执行大纲推演或生成正文..." readonly style="opacity: 0.7;"></textarea>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+  function switchTab(tabId) {
+    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+    document.querySelectorAll('.view-content').forEach(v => v.classList.remove('active'));
+    event.currentTarget.classList.add('active');
+    document.getElementById('view-' + tabId).classList.add('active');
+
+    // Clear notification dot when viewed
+    const dot = document.getElementById(tabId + '-dot');
+    if(dot) dot.style.display = 'none';
+  }
+
+  function addChatMessage(role, html) {
+    const chatBox = document.getElementById('chat-box');
+    const msgDiv = document.createElement('div');
+    msgDiv.className = `msg msg-${role}`;
+    msgDiv.innerHTML = html;
+    chatBox.appendChild(msgDiv);
+    chatBox.scrollTop = chatBox.scrollHeight;
+  }
+
+  // Step 1: Simulate Batch Planning
+  function simulateBatchPlanning() {
+    const btn = document.getElementById('btn-batch');
+    btn.innerHTML = '<span class="loader"></span> 正在推演剧情树并提取预测状态...';
+    btn.disabled = true;
+
+    // Highlight AI sidebar
+    document.getElementById('ai-sidebar').style.boxShadow = "0 0 30px rgba(245, 158, 11, 0.2) inset";
+    document.getElementById('ai-sidebar').style.borderColor = "var(--accent-warning)";
+
+    setTimeout(() => {
+        btn.style.display = 'none';
+
+        // Add pending nodes
+        const futureNodes = document.getElementById('future-nodes');
+        futureNodes.innerHTML = `
+          <div class="outline-node pending">
+            <div class="outline-header">
+              <div class="outline-title">第17章：外门风云</div>
+              <div style="color: var(--text-muted); font-size: 12px;"><i class="ri-time-line"></i> 计划中 (预测)</div>
+            </div>
+            <div class="outline-text">林渊带着影傀回到外门，正逢外门执事为难平民弟子。林渊出手解围，展现出练气七层的实力，震慑全场。</div>
+            <div class="predicted-states"><i class="ri-eye-line"></i> 预测状态: [林渊] 获得声望/仇恨 (暂不修改物理实体)</div>
+          </div>
+        `;
+
+        // Send AI Message
+        addChatMessage('ai', `
+          <b>已批量生成后续大纲。</b><br><br>
+          <div style="font-size: 12px; border-left: 2px solid var(--accent-warning); padding-left: 8px; margin-top: 8px;">
+            <i class="ri-bar-chart-grouped-line"></i> <b>大纲宏观状态预测清单：</b><br>
+            - 暴露真实实力（练气七层）<br>
+            - 与外门执事产生直接冲突<br>
+          </div>
+          <br>
+          <i style="color: var(--text-muted); font-size:12px;">当前为预测阶段，图谱和地图未做任何改变。请执行第16章正文落地。</i>
+        `);
+
+        // Reset sidebar styling
+        setTimeout(() => {
+            document.getElementById('ai-sidebar').style.boxShadow = "0 0 20px rgba(59, 130, 246, 0.1) inset";
+            document.getElementById('ai-sidebar').style.borderColor = "var(--border-glow)";
+        }, 2000);
+    }, 1500);
+  }
+
+  // Step 2: Execute Chapter 16 (Solidifying the state across ALL VIEWS)
+  function executeChapter16() {
+    const actionBox = document.getElementById('action-write-16');
+    actionBox.innerHTML = '<div style="color: var(--accent-primary);"><span class="loader" style="border-top-color: var(--accent-primary);"></span> 正在写入底层引擎，广播状态同步事件...</div>';
+
+    // Highlight AI sidebar for action
+    document.getElementById('ai-sidebar').style.boxShadow = "0 0 30px rgba(16, 185, 129, 0.2) inset";
+    document.getElementById('ai-sidebar').style.borderColor = "var(--accent-success)";
+
+    setTimeout(() => {
+        actionBox.style.display = 'none';
+
+        // === 1. TIMELINE VIEW UPDATES ===
+        const node16 = document.getElementById('node-16');
+        node16.classList.remove('active');
+        node16.querySelector('.outline-header div:nth-child(2)').innerHTML = '<i class="ri-check-double-line"></i> 完稿入库';
+        node16.querySelector('.outline-header div:nth-child(2)').style.color = 'var(--text-muted)';
+        document.getElementById('state-sync-16').style.display = 'block';
+
+        // === 2. SIDEBAR NAVIGATION UPDATES ===
+        document.getElementById('badge-level').innerText = '练气七层';
+        document.getElementById('badge-level').style.color = 'var(--accent-success)';
+        document.getElementById('badge-level').classList.add('pulse-badge');
+        document.getElementById('nav-item-shadow').style.display = 'flex';
+        document.getElementById('nav-item-jade').style.display = 'flex';
+
+        // === 3. DOCUMENT VIEW UPDATES ===
+        document.getElementById('doc-status-level').innerText = '当前境界：练气七层';
+        document.getElementById('doc-status-level').style.boxShadow = '0 0 15px rgba(16, 185, 129, 0.4)';
+        const docTags = document.getElementById('doc-tags');
+        // Add new items
+        docTags.innerHTML += '<span class="tag new-tag"><i class="ri-link"></i> #太虚玉简</span>';
+        docTags.innerHTML += '<span class="tag new-tag"><i class="ri-link"></i> #影傀</span>';
+        // Update Location tag
+        const locTag = document.getElementById('doc-loc-tag');
+        locTag.innerHTML = '<i class="ri-map-pin-line"></i> @妖兽森林';
+        locTag.classList.add('new-tag');
+        document.getElementById('doc-dynamic-section').style.boxShadow = "0 0 20px rgba(16, 185, 129, 0.1) inset";
+
+        // === 4. GRAPH VIEW UPDATES ===
+        // Reveal nodes
+        document.getElementById('node-pet').classList.add('show-node');
+        document.getElementById('node-jade').classList.add('show-node');
+        // Reveal edges
+        document.getElementById('edge-pet').classList.add('show-edge');
+        document.getElementById('edge-jade').classList.add('show-edge-jade');
+        // Reveal labels
+        document.getElementById('label-pet').classList.add('show-label');
+        document.getElementById('label-jade').classList.add('show-label');
+        document.getElementById('graph-status').style.display = 'inline-block';
+
+        // === 5. MAP VIEW UPDATES ===
+        // Show path
+        document.getElementById('map-path').classList.add('show-path');
+        // Move Avatar
+        setTimeout(() => {
+            document.getElementById('map-avatar').classList.add('moved');
+            // Show notification
+            setTimeout(() => {
+                document.getElementById('map-notify').classList.add('show');
+                setTimeout(() => { document.getElementById('map-notify').classList.remove('show'); }, 3000);
+            }, 1000);
+        }, 500);
+
+        // === SHOW NOTIFICATION DOTS ON TABS ===
+        document.getElementById('doc-dot').style.display = 'inline-block';
+        document.getElementById('graph-dot').style.display = 'inline-block';
+        document.getElementById('map-dot').style.display = 'inline-block';
+
+        // === AI CHAT REPORT ===
+        addChatMessage('ai', `
+          <b>第 16 章正文完稿！底层状态机已全盘同步。</b><br><br>
+          <i class="ri-broadcast-line"></i> <b>系统广播完成：</b><br>
+          <ul style="padding-left: 20px; font-size: 12px; margin-top: 8px;">
+            <li><span style="color:var(--accent-glow);">[文档视图]</span> 境界与持有物品标签已更新</li>
+            <li><span style="color:var(--accent-glow);">[图谱视图]</span> 已动态生成“影傀”、“太虚玉简”节点并连线</li>
+            <li><span style="color:var(--accent-glow);">[地图视图]</span> GIS坐标刷新，林渊光标已移动至妖兽森林</li>
+          </ul>
+          <br>
+          您可以点击上方的各个 <b>Tab</b>，查看系统如何基于这一个核心修改，自动渲染所有视图！
+        `);
+
+        // Make next node active if it exists
+        const pendingNodes = document.querySelectorAll('.outline-node.pending');
+        if(pendingNodes.length > 0) {
+            pendingNodes[0].classList.remove('pending');
+            pendingNodes[0].classList.add('active');
+            pendingNodes[0].querySelector('.outline-header div:nth-child(2)').innerHTML = '<i class="ri-edit-line"></i> 当前进度';
+            pendingNodes[0].querySelector('.outline-header div:nth-child(2)').style.color = 'var(--accent-primary)';
+            pendingNodes[0].querySelector('.outline-title').style.color = '#fff';
+        }
+
+        // Reset sidebar styling
+        setTimeout(() => {
+            document.getElementById('ai-sidebar').style.boxShadow = "0 0 20px rgba(59, 130, 246, 0.1) inset";
+            document.getElementById('ai-sidebar').style.borderColor = "var(--border-glow)";
+        }, 3000);
+
+    }, 2000);
+  }
+</script>
+</body>
+</html>

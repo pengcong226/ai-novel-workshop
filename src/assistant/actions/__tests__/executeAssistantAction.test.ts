@@ -4,7 +4,7 @@ import { pluginManager } from '@/plugins/manager';
 
 describe('executeAssistantAction', () => {
   it('should call executeAction on pluginManager with correct action payload', async () => {
-    const executeSpy = vi.spyOn(pluginManager, 'executeAction').mockResolvedValue(true);
+    const executeSpy = vi.spyOn(pluginManager, 'executeAction').mockResolvedValue(undefined);
 
     const action = {
       action: 'create_character',
