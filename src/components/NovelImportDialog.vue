@@ -705,11 +705,11 @@ function checkImportModel() {
     const project = projectStore.currentProject
     console.log('[导入] 当前项目:', project?.title || 'null')
     console.log('[导入] 项目配置:', project?.config ? '存在' : 'null')
-    console.log('[导入] 导入模型ID:', project?.config?.importModel || 'null')
+    console.log('[导入] 导入模型ID:', project?.config?.extractorModel || 'null')
 
-    if (project?.config?.importModel) {
+    if (project?.config?.extractorModel) {
       const config = project.config
-      const modelId = config.importModel
+      const modelId = config.extractorModel
 
       for (const provider of config.providers || []) {
         if (!provider.isEnabled) continue
@@ -726,13 +726,13 @@ function checkImportModel() {
     // 2. 检查全局配置
     const globalConfig = projectStore.globalConfig
     console.log('[导入] 全局配置:', globalConfig ? '存在' : 'null')
-    console.log('[导入] 全局导入模型ID:', globalConfig?.importModel || 'null')
+    console.log('[导入] 全局导入模型ID:', globalConfig?.extractorModel || 'null')
     console.log('[导入] 全局providers数量:', globalConfig?.providers?.length || 0)
 
     if (globalConfig) {
       // 如果有指定的导入模型，使用指定的
-      if (globalConfig.importModel) {
-        const modelId = globalConfig.importModel
+      if (globalConfig.extractorModel) {
+        const modelId = globalConfig.extractorModel
         console.log('[导入] 查找全局配置模型ID:', modelId)
 
         for (const provider of globalConfig.providers || []) {
@@ -794,9 +794,9 @@ function getProjectAIConfig(): any {
 
     // 1. 优先使用当前项目配置
     const project = projectStore.currentProject
-    if (project?.config?.importModel) {
+    if (project?.config?.extractorModel) {
       const config = project.config
-      const modelId = config.importModel
+      const modelId = config.extractorModel
       console.log('[导入] 查找项目模型ID:', modelId)
 
       for (const provider of config.providers || []) {
@@ -821,8 +821,8 @@ function getProjectAIConfig(): any {
     const globalConfig = projectStore.globalConfig
     if (globalConfig) {
       // 如果有指定的导入模型，使用指定的
-      if (globalConfig.importModel) {
-        const modelId = globalConfig.importModel
+      if (globalConfig.extractorModel) {
+        const modelId = globalConfig.extractorModel
         console.log('[导入] 查找全局配置模型ID:', modelId)
 
         for (const provider of globalConfig.providers || []) {

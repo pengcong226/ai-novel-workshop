@@ -2,11 +2,11 @@
  * 系统提示词辅助函数
  */
 
-import type { ProjectConfig } from '@/types'
+import type { ProjectConfig } from '../types'
 import { DEFAULT_SYSTEM_PROMPTS } from './systemPrompts'
 import { sanitizeForPrompt, validateInput } from './inputSanitizer'
 
-export type ModelType = 'planning' | 'writing' | 'checking' | 'assistant' | 'memory'
+export type ModelType = 'planning' | 'writing' | 'checking' | 'assistant' | 'memory' | 'planner' | 'writer' | 'sentinel' | 'extractor'
 
 export interface PromptTemplateDefinition {
   type: ModelType
@@ -15,11 +15,10 @@ export interface PromptTemplateDefinition {
 }
 
 const promptRegistry = new Map<ModelType, PromptTemplateDefinition>([
-  ['planning', { type: 'planning', version: 1, template: DEFAULT_SYSTEM_PROMPTS.planning }],
-  ['writing', { type: 'writing', version: 1, template: DEFAULT_SYSTEM_PROMPTS.writing }],
-  ['checking', { type: 'checking', version: 1, template: DEFAULT_SYSTEM_PROMPTS.checking }],
-  ['assistant', { type: 'assistant', version: 1, template: DEFAULT_SYSTEM_PROMPTS.assistant }],
-  ['memory', { type: 'memory', version: 1, template: DEFAULT_SYSTEM_PROMPTS.memory }]
+  ['planner', { type: 'planner', version: 1, template: DEFAULT_SYSTEM_PROMPTS.planner }],
+  ['writer', { type: 'writer', version: 1, template: DEFAULT_SYSTEM_PROMPTS.writer }],
+  ['sentinel', { type: 'sentinel', version: 1, template: DEFAULT_SYSTEM_PROMPTS.sentinel }],
+  ['extractor', { type: 'extractor', version: 1, template: DEFAULT_SYSTEM_PROMPTS.extractor }]
 ])
 
 /**
@@ -29,9 +28,24 @@ export function getSystemPrompt(
   config: ProjectConfig | undefined,
   modelType: ModelType
 ): string {
+  // 暂时做一些向后兼容的映射
+  const typeMap: Record<string, keyof typeof DEFAULT_SYSTEM_PROMPTS> = {
+    planning: 'planner',
+    writing: 'writer',
+    checking: 'sentinel',
+    assistant: 'writer',
+    memory: 'extractor',
+    planner: 'planner',
+    writer: 'writer',
+    sentinel: 'sentinel',
+    extractor: 'extractor'
+  }
+
+  const mappedType = typeMap[modelType] || 'writer'
+
   const prompts = config?.systemPrompts || DEFAULT_SYSTEM_PROMPTS
-  const registeredTemplate = promptRegistry.get(modelType)?.template || DEFAULT_SYSTEM_PROMPTS[modelType]
-  return prompts[modelType] || registeredTemplate
+  const registeredTemplate = promptRegistry.get(mappedType as ModelType)?.template || DEFAULT_SYSTEM_PROMPTS[mappedType]
+  return prompts[mappedType] || registeredTemplate
 }
 
 export function registerPrompt(
@@ -85,7 +99,7 @@ export function buildSystemPrompt(
       return [
         key,
         sanitizeForPrompt(value || '', {
-          maxLength: modelType === 'writing' ? 1200 : 800,
+          maxLength: (modelType === 'writing' || modelType === 'writer') ? 1200 : 800,
           preserveLineBreaks: true
         })
       ]
@@ -125,6 +139,7 @@ export function getPromptVariables(
 
   switch (modelType) {
     case 'planning':
+    case 'planner':
       variables.genre = context?.genre || '未指定'
       variables.targetWords = context?.targetWords?.toString() || '100000'
       variables.currentProgress = context?.currentProgress || '刚开始'
@@ -132,6 +147,7 @@ export function getPromptVariables(
       break
 
     case 'writing':
+    case 'writer':
       variables.chapter = context?.chapter || '当前章节'
       variables.characters = context?.characters || '相关人物'
       variables.scenes = context?.scenes || '场景信息'
@@ -142,6 +158,7 @@ export function getPromptVariables(
       break
 
     case 'checking':
+    case 'sentinel':
       variables.chapter = context?.chapter || '待检查章节'
       variables.previousChapters = context?.previousChapters || '前文内容'
       variables.outline = context?.outline || '大纲设定'
@@ -154,6 +171,7 @@ export function getPromptVariables(
       break
 
     case 'memory':
+    case 'extractor':
       variables.table = context?.table || '表格结构'
       variables.content = context?.content || '新内容'
       variables.context = context?.context || '上下文信息'

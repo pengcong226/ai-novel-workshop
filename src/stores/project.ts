@@ -69,12 +69,10 @@ export const useProjectStore = defineStore('project', () => {
   async function createProject(title: string, genre: string = '玄幻', targetWords: number = 100000) {
     const defaultConfig: ProjectConfig = {
       preset: globalConfig.value?.preset || 'standard',
-      planningModel: globalConfig.value?.planningModel || 'gpt-4-turbo',
-      writingModel: globalConfig.value?.writingModel || 'gpt-3.5-turbo',
-      checkingModel: globalConfig.value?.checkingModel || 'gpt-3.5-turbo',
-      memoryModel: globalConfig.value?.memoryModel || '',
-      assistantModel: globalConfig.value?.assistantModel || '',
-      importModel: globalConfig.value?.importModel || '',
+      plannerModel: globalConfig.value?.plannerModel || 'gpt-4-turbo',
+      writerModel: globalConfig.value?.writerModel || 'gpt-3.5-turbo',
+      sentinelModel: globalConfig.value?.sentinelModel || 'gpt-3.5-turbo',
+      extractorModel: globalConfig.value?.extractorModel || '',
       systemPrompts: globalConfig.value?.systemPrompts || undefined,
       planningDepth: globalConfig.value?.planningDepth || 'medium',
       writingDepth: globalConfig.value?.writingDepth || 'standard',

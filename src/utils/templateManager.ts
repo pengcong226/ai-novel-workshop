@@ -266,9 +266,10 @@ export class TemplateManager {
       config: {
         preset: template.configTemplate?.preset || 'standard',
         providers: template.configTemplate?.providers || [],
-        planningModel: template.configTemplate?.planningModel || '',
-        writingModel: template.configTemplate?.writingModel || '',
-        checkingModel: template.configTemplate?.checkingModel || '',
+        plannerModel: template.configTemplate?.plannerModel || '',
+        writerModel: template.configTemplate?.writerModel || '',
+        sentinelModel: template.configTemplate?.sentinelModel || '',
+        extractorModel: template.configTemplate?.extractorModel || '',
         systemPrompts: template.configTemplate?.systemPrompts,
         planningDepth: template.configTemplate?.planningDepth || 'medium',
         writingDepth: template.configTemplate?.writingDepth || 'standard',

@@ -27,12 +27,52 @@
         @save="saveConfig"
       />
 
-      <!-- AI模型选择 (已拆解至 ModelSelector) -->
-      <ModelSelector
-        v-show="configMode === 'engineer'"
-        v-model:config="configForm"
-        :providers="configForm.providers"
-      />
+      <!-- AI模型选择 -->
+      <el-card class="config-card" v-show="configMode === 'engineer'">
+        <template #header>
+          <div class="card-header">
+            <span>AI 模型分配</span>
+          </div>
+        </template>
+        <el-form :model="configForm" label-width="150px">
+          <el-form-item label="大纲规划师 (Planner)">
+            <el-select v-model="configForm.plannerModel" placeholder="选择规划模型" style="width: 100%;">
+              <el-option-group v-for="provider in configForm.providers" :key="provider.id" :label="provider.name">
+                <el-option v-for="model in provider.models" :key="model.id" :label="model.name" :value="model.id" />
+              </el-option-group>
+            </el-select>
+            <div class="form-tip">负责推演大纲节点、预测状态变更（建议使用高推理模型）</div>
+          </el-form-item>
+
+          <el-form-item label="正文写手 (Writer)">
+            <el-select v-model="configForm.writerModel" placeholder="选择写作模型" style="width: 100%;">
+              <el-option-group v-for="provider in configForm.providers" :key="provider.id" :label="provider.name">
+                <el-option v-for="model in provider.models" :key="model.id" :label="model.name" :value="model.id" />
+              </el-option-group>
+            </el-select>
+            <div class="form-tip">负责根据上下文撰写小说正文（建议使用文笔好的模型）</div>
+          </el-form-item>
+
+          <el-form-item label="防吃书审查 (Sentinel)">
+            <el-select v-model="configForm.sentinelModel" placeholder="选择审查模型" style="width: 100%;">
+              <el-option-group v-for="provider in configForm.providers" :key="provider.id" :label="provider.name">
+                <el-option v-for="model in provider.models" :key="model.id" :label="model.name" :value="model.id" />
+              </el-option-group>
+            </el-select>
+            <div class="form-tip">负责在每次生成后校验一致性（建议使用高速响应模型）</div>
+          </el-form-item>
+
+          <el-form-item label="沙盘状态提取 (Extractor)">
+            <el-select v-model="configForm.extractorModel" placeholder="选择提取模型" style="width: 100%;">
+              <el-option-group v-for="provider in configForm.providers" :key="provider.id" :label="provider.name">
+                <el-option v-for="model in provider.models" :key="model.id" :label="model.name" :value="model.id" />
+              </el-option-group>
+            </el-select>
+            <div class="form-tip">执行 Tool Calling 输出规范 JSON 以更新底层沙盘数据</div>
+          </el-form-item>
+        </el-form>
+      </el-card>
+
       <!-- 系统提示词配置 -->
       <el-card class="config-card">
         <template #header>
@@ -53,77 +93,62 @@
         </el-alert>
 
         <el-tabs v-model="activePromptTab">
-          <el-tab-pane label="规划模型" name="planning">
+          <el-tab-pane label="大纲规划师" name="planner">
             <div class="prompt-editor">
               <el-input
-                v-model="systemPrompts.planning"
+                v-model="systemPrompts.planner"
                 type="textarea"
                 :rows="10"
                 placeholder="规划模型的系统提示词..."
               />
               <div class="prompt-tips">
                 <div class="prompt-tip-title">可用变量：</div>
-                <el-tag size="small" v-for="v in promptVariables.planning" :key="v" style="margin-right: 8px;">{{ v }}</el-tag>
+                <el-tag size="small" v-for="v in promptVariables.planner" :key="v" style="margin-right: 8px;">{{ v }}</el-tag>
               </div>
             </div>
           </el-tab-pane>
 
-          <el-tab-pane label="写作模型" name="writing">
+          <el-tab-pane label="正文写手" name="writer">
             <div class="prompt-editor">
               <el-input
-                v-model="systemPrompts.writing"
+                v-model="systemPrompts.writer"
                 type="textarea"
                 :rows="10"
                 placeholder="写作模型的系统提示词..."
               />
               <div class="prompt-tips">
                 <div class="prompt-tip-title">可用变量：</div>
-                <el-tag size="small" v-for="v in promptVariables.writing" :key="v" style="margin-right: 8px;">{{ v }}</el-tag>
+                <el-tag size="small" v-for="v in promptVariables.writer" :key="v" style="margin-right: 8px;">{{ v }}</el-tag>
               </div>
             </div>
           </el-tab-pane>
 
-          <el-tab-pane label="检查模型" name="checking">
+          <el-tab-pane label="防吃书审查" name="sentinel">
             <div class="prompt-editor">
               <el-input
-                v-model="systemPrompts.checking"
+                v-model="systemPrompts.sentinel"
                 type="textarea"
                 :rows="10"
-                placeholder="检查模型的系统提示词..."
+                placeholder="审查模型的系统提示词..."
               />
               <div class="prompt-tips">
                 <div class="prompt-tip-title">可用变量：</div>
-                <el-tag size="small" v-for="v in promptVariables.checking" :key="v" style="margin-right: 8px;">{{ v }}</el-tag>
+                <el-tag size="small" v-for="v in promptVariables.sentinel" :key="v" style="margin-right: 8px;">{{ v }}</el-tag>
               </div>
             </div>
           </el-tab-pane>
 
-          <el-tab-pane label="助手模型" name="assistant">
+          <el-tab-pane label="沙盘状态提取" name="extractor">
             <div class="prompt-editor">
               <el-input
-                v-model="systemPrompts.assistant"
+                v-model="systemPrompts.extractor"
                 type="textarea"
                 :rows="10"
-                placeholder="助手模型的系统提示词..."
+                placeholder="状态提取引擎的系统提示词..."
               />
               <div class="prompt-tips">
                 <div class="prompt-tip-title">可用变量：</div>
-                <el-tag size="small" v-for="v in promptVariables.assistant" :key="v" style="margin-right: 8px;">{{ v }}</el-tag>
-              </div>
-            </div>
-          </el-tab-pane>
-
-          <el-tab-pane label="表格记忆模型" name="memory">
-            <div class="prompt-editor">
-              <el-input
-                v-model="systemPrompts.memory"
-                type="textarea"
-                :rows="10"
-                placeholder="表格记忆模型的系统提示词..."
-              />
-              <div class="prompt-tips">
-                <div class="prompt-tip-title">可用变量：</div>
-                <el-tag size="small" v-for="v in promptVariables.memory" :key="v" style="margin-right: 8px;">{{ v }}</el-tag>
+                <el-tag size="small" v-for="v in promptVariables.extractor" :key="v" style="margin-right: 8px;">{{ v }}</el-tag>
               </div>
             </div>
           </el-tab-pane>
@@ -716,11 +741,10 @@ async function refreshPlugins() {
 const configForm = ref<ProjectConfig>({
   preset: 'standard',
   providers: [],
-  planningModel: '',
-  writingModel: '',
-  checkingModel: '',
-  assistantModel: '',
-  memoryModel: '',
+  plannerModel: '',
+  writerModel: '',
+  sentinelModel: '',
+  extractorModel: '',
   systemPrompts: { ...DEFAULT_SYSTEM_PROMPTS },
   planningDepth: 'medium',
   writingDepth: 'standard',
@@ -779,13 +803,12 @@ const averageChapterCost = computed(() => {
 })
 
 // 系统提示词配置
-const activePromptTab = ref('planning')
+const activePromptTab = ref('planner')
 const systemPrompts = ref({
-  planning: DEFAULT_SYSTEM_PROMPTS.planning,
-  writing: DEFAULT_SYSTEM_PROMPTS.writing,
-  checking: DEFAULT_SYSTEM_PROMPTS.checking,
-  assistant: DEFAULT_SYSTEM_PROMPTS.assistant,
-  memory: DEFAULT_SYSTEM_PROMPTS.memory
+  planner: DEFAULT_SYSTEM_PROMPTS.planner,
+  writer: DEFAULT_SYSTEM_PROMPTS.writer,
+  sentinel: DEFAULT_SYSTEM_PROMPTS.sentinel,
+  extractor: DEFAULT_SYSTEM_PROMPTS.extractor
 })
 
 const promptVariables = SYSTEM_PROMPT_VARIABLES
@@ -898,11 +921,10 @@ function importConfig(file: File) {
       // 导入主配置
       if (data.preset) configForm.value.preset = data.preset
       if (data.providers) configForm.value.providers = data.providers
-      if (data.planningModel) configForm.value.planningModel = data.planningModel
-      if (data.writingModel) configForm.value.writingModel = data.writingModel
-      if (data.checkingModel) configForm.value.checkingModel = data.checkingModel
-      if (data.assistantModel !== undefined) configForm.value.assistantModel = data.assistantModel
-      if (data.memoryModel !== undefined) configForm.value.memoryModel = data.memoryModel
+      if (data.plannerModel) configForm.value.plannerModel = data.plannerModel
+      if (data.writerModel) configForm.value.writerModel = data.writerModel
+      if (data.sentinelModel) configForm.value.sentinelModel = data.sentinelModel
+      if (data.extractorModel !== undefined) configForm.value.extractorModel = data.extractorModel
       if (data.planningDepth) configForm.value.planningDepth = data.planningDepth
       if (data.writingDepth) configForm.value.writingDepth = data.writingDepth
       if (data.enableQualityCheck !== undefined) configForm.value.enableQualityCheck = data.enableQualityCheck
@@ -952,11 +974,10 @@ function resetConfig() {
   configForm.value = {
     preset: 'standard',
     providers: [],
-    planningModel: '',
-    writingModel: '',
-    checkingModel: '',
-    assistantModel: '',
-    memoryModel: '',
+    plannerModel: '',
+    writerModel: '',
+    sentinelModel: '',
+    extractorModel: '',
     systemPrompts: { ...DEFAULT_SYSTEM_PROMPTS },
     planningDepth: 'medium',
     writingDepth: 'standard',

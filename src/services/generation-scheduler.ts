@@ -270,7 +270,7 @@ ${slicedContent}
 请注意，你的输出将通过工具调用(Tool Calling)进行解析，因此你需要调用提供的工具来输出这些命令，而非返回纯文本。`;
 
         const messages: ChatMessage[] = [
-          { role: 'system', content: prompts.memory },
+          { role: 'system', content: prompts.extractor },
           { role: 'user', content: prompt }
         ];
 
