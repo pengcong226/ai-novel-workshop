@@ -535,6 +535,35 @@ fn init_db(app_handle: &tauri::AppHandle) -> Result<Connection, String> {
     )
     .map_err(|e| format!("Failed to create worldbooks table: {}", e))?;
 
+    conn.execute(
+        "CREATE TABLE IF NOT EXISTS entities (
+            id TEXT PRIMARY KEY,
+            project_id TEXT NOT NULL,
+            entity_type TEXT NOT NULL,
+            name TEXT NOT NULL,
+            category TEXT,
+            system_prompt TEXT,
+            visual_meta TEXT,
+            created_at INTEGER NOT NULL
+        )",
+        [],
+    )
+    .map_err(|e| format!("Failed to create entities table: {}", e))?;
+
+    conn.execute(
+        "CREATE TABLE IF NOT EXISTS state_events (
+            id TEXT PRIMARY KEY,
+            project_id TEXT NOT NULL,
+            chapter_number INTEGER NOT NULL,
+            entity_id TEXT NOT NULL,
+            event_type TEXT NOT NULL,
+            payload TEXT NOT NULL,
+            source TEXT NOT NULL
+        )",
+        [],
+    )
+    .map_err(|e| format!("Failed to create state_events table: {}", e))?;
+
     vector::init_vector_table(&conn)
         .map_err(|e| format!("Failed to initialize vector table: {}", e))?;
 
