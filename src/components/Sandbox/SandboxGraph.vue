@@ -28,6 +28,8 @@ const sandboxStore = useSandboxStore()
 const nodes = computed(() => {
   const result: any[] = []
   const activeState = sandboxStore.activeEntitiesState
+  const visibleSet = new Set<string>()
+
   for (const [id, state] of Object.entries(activeState)) {
     // Only render if entity has some relations or is related to
     if (state.relations?.length > 0 || Object.values(activeState).some((s: any) => s.relations?.some((r: any) => r.targetId === id))) {
@@ -38,14 +40,37 @@ const nodes = computed(() => {
         style: getStyleForCategory(state.category),
         labelCfg: { style: { fill: '#e2e8f0', fontSize: 12 } }
       })
+      visibleSet.add(id);
     }
   }
+
+  // Append Draft Nodes
+  if (sandboxStore.isWizardMode) {
+    for (const draft of sandboxStore.draftEntities) {
+      result.push({
+        id: draft.id,
+        label: draft.name,
+        type: 'circle',
+        style: {
+          ...getStyleForCategory(draft.category),
+          lineDash: [4, 4], // Dashed border indicates draft
+          shadowColor: '#fcd34d',
+          shadowBlur: 20
+        },
+        labelCfg: { style: { fill: '#fcd34d', fontSize: 12, fontWeight: 'bold' } }
+      });
+      visibleSet.add(draft.id);
+    }
+  }
+
   return result
 })
 
 const edges = computed(() => {
   const result: any[] = []
   const activeState = sandboxStore.activeEntitiesState
+  const visibleNodes = new Set<string>(nodes.value.map(n => n.id))
+
   for (const [sourceId, state] of Object.entries(activeState)) {
     if (state.relations && state.relations.length > 0) {
       state.relations.forEach((rel: any) => {
@@ -68,6 +93,38 @@ const edges = computed(() => {
       })
     }
   }
+
+  // Append Draft Edges
+  if (sandboxStore.isWizardMode) {
+    sandboxStore.draftRelations.forEach(draftRel => {
+      if (visibleNodes.has(draftRel.sourceId) && visibleNodes.has(draftRel.relation.targetId)) {
+        let labelText = draftRel.relation.type || '';
+        if (draftRel.relation.attitude) {
+          const shortAttitude = draftRel.relation.attitude.length > 8 ? draftRel.relation.attitude.substring(0, 8) + '...' : draftRel.relation.attitude;
+          labelText = `${labelText} (${shortAttitude})`;
+        }
+
+        result.push({
+          source: draftRel.sourceId,
+          target: draftRel.relation.targetId,
+          label: labelText,
+          style: {
+            stroke: 'rgba(245, 158, 11, 0.8)', // Gold/Amber to signify draft
+            lineWidth: 2,
+            lineDash: [4, 4],
+            endArrow: {
+              path: 'M 0,0 L 8,4 L 8,-4 Z',
+              fill: 'rgba(245, 158, 11, 0.8)'
+            }
+          },
+          labelCfg: {
+            style: { fill: '#fcd34d', fontSize: 10, background: { fill: '#0a0a0f', padding: [2, 4], radius: 4 } }
+          }
+        });
+      }
+    });
+  }
+
   return result
 })
 
