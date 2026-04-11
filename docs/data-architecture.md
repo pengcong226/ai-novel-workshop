@@ -8,9 +8,9 @@
 ┌─────────────────────────────────────────────────────────────────┐
 │                        长期记忆 (Long-term Memory)                │
 │  ┌──────────────┐  ┌──────────────┐  ┌──────────────────────┐   │
-│  │ 世界观设定    │  │ 人物档案     │  │ 关键事件向量库        │   │
-│  │ - 世界规则    │  │ - 角色信息   │  │ - ChromaDB/FAISS      │   │
-│  │ - 历史背景    │  │ - 关系网络   │  │ - 语义检索           │   │
+│  │ 实体库        │  │ 状态事件      │  │ 关键事件向量库        │   │
+│  │ - 角色/地点等 │  │ - 事件追踪   │  │ - ChromaDB/FAISS      │   │
+│  │ - 关系网络    │  │ - 历史记录   │  │ - 语义检索           │   │
 │  └──────────────┘  └──────────────┘  └──────────────────────┘   │
 └─────────────────────────────────────────────────────────────────┘
                               ▲
@@ -43,7 +43,7 @@
 |---------|------|-----------|----------|
 | 短期记忆 | 3章完整文本 | 9,000-15,000 | 直接拼接 |
 | 中期记忆 | 10章摘要 | 5,000-10,000 | 直接拼接 |
-| 长期记忆 | 全书设定+事件 | 无限制 | 向量检索Top-K |
+| 长期记忆 | 全书实体+事件 | 无限制 | 向量检索Top-K |
 
 **总上下文预算：15,000-25,000 tokens（不含新生成内容）**
 
@@ -60,10 +60,11 @@ ai-novel-workshop/
 │   │   └── {novel-id}/
 │   │       ├── metadata.json      # 项目元数据
 │   │       ├── outline.json       # 大纲结构
-│   │       ├── worldview.json     # 世界观设定
-│   │       ├── characters/        # 人物档案
-│   │       │   ├── {char-id}.json
+│   │       ├── entities/          # 实体信息
+│   │       │   ├── {entity-id}.json
 │   │       │   └── relations.json
+│   │       ├── state_events/      # 状态事件流
+│   │       │   └── events.jsonl
 │   │       ├── chapters/          # 章节内容
 │   │       │   ├── chapter_001.json
 │   │       │   ├── chapter_002.json
@@ -178,10 +179,10 @@ interface Chapter {
 }
 ```
 
-### 2.3 存储分离与原子化 IPC (V4 架构新增)
-在 V4 Tauri+SQLite 架构下，千万字的文本一旦以整棵 Project 树序列化，会直接导致大 JSON OOM 或者吃书截断。因此在 `stores/storage.ts` 层：
-1. **数据剥离**: 将 Project 主体树中的 `chapters`, `characters`, `worldbook.entries` 脱水。
-2. **批量发送**: 将脱水的主体配置和数组通过多个独立的原子化后端 API (如 `save_character_atomic` 等) 以分离的形式发送到 Rust 端。
+### 2.3 存储分离与原子化 IPC (V5 架构新增)
+在 V5 Tauri+SQLite 架构下，千万字的文本一旦以整棵 Project 树序列化，会直接导致大 JSON OOM 或者吃书截断。因此在 `stores/storage.ts` 层：
+1. **数据剥离**: 将 Project 主体树中的 `chapters`, `entities`, `state_events` 脱水。
+2. **批量发送**: 将脱水的主体配置和数组通过多个独立的原子化后端 API (如 `save_entity_atomic` 等) 以分离的形式发送到 Rust 端。
 3. **原生入库**: 后端接收的不再是大块 JSON 字符串，而是具体的每个条目的 JSON，从而快速、安全地插入 SQLite。
 
 ---
@@ -205,9 +206,8 @@ interface Chapter {
 class VectorContentType(Enum):
     CHAPTER_SUMMARY = "chapter_summary"      # 章节摘要
     KEY_EVENT = "key_event"                  # 关键事件
-    CHARACTER_MOMENT = "character_moment"    # 人物重要时刻
+    ENTITY_MOMENT = "entity_moment"          # 实体状态事件
     FORESHADOWING = "foreshadowing"          # 伏笔
-    WORLDVIEW_RULE = "worldview_rule"        # 世界观规则
     DIALOGUE = "dialogue"                    # 重要对话
 
 # 向量记录结构
@@ -218,7 +218,7 @@ class VectorRecord:
     metadata: {
         type: str,         # 内容类型
         chapter_id: str,   # 所属章节
-        character_ids: List[str], # 相关人物
+        entity_ids: List[str], # 相关实体
         importance: float, # 重要程度 0-1
         timestamp: str
     }
@@ -242,7 +242,7 @@ class MemoryRetriever:
         long_term = self.vector_search(
             query=query,
             filters={
-                "character_ids": context.characters,
+                "entity_ids": context.entities,
                 "min_importance": 0.3
             },
             top_k=20
