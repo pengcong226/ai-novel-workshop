@@ -41,7 +41,7 @@ AI小说工坊是一个支持100万字以上长篇小说智能生成的桌面应
 │  └──────────────────────────────────────────────────────────────────────┘  │
 │  ┌──────────────────────────────────────────────────────────────────────┐  │
 │  │                        设定管理服务                                    │  │
-│  │  - 世界观管理  - 人物管理  - 物品/地点管理  - 关系图谱                │  │
+│  │  - 世界观管理  - 实体管理  - 物品/地点管理  - 关系图谱                │  │
 │  └──────────────────────────────────────────────────────────────────────┘  │
 │  ┌──────────────────────────────────────────────────────────────────────┐  │
 │  │                        大纲管理服务                                    │  │
@@ -138,7 +138,7 @@ interface IProjectManager {
 
 ```
 SandboxData
-├── EntityService           # 实体管理（替代旧角色卡/世界观）
+├── EntityService           # 实体管理（替代旧角色卡/世界书）
 ├── StateEventService       # 历史状态流管理
 ├── TimelineService         # 状态与章节时间线关联
 ├── ThemeRegistry           # 全局UI主题隔离服务
@@ -773,19 +773,19 @@ async fn export_project(id: String, format: ExportFormat) -> Result<Vec<u8>, Str
 
 // 设定管理
 #[tauri::command]
-async fn create_character(project_id: String, data: CharacterData) -> Result<Character, String>;
+async fn create_entity(project_id: String, data: EntityData) -> Result<Entity, String>;
 
 #[tauri::command]
-async fn save_character_atomic(project_id: String, data: String) -> Result<(), String>; // 避免大JSON解析 OOM
+async fn save_entity_atomic(project_id: String, data: String) -> Result<(), String>; // 避免大JSON解析 OOM
 
 #[tauri::command]
-async fn save_worldbook_entry_atomic(project_id: String, data: String) -> Result<(), String>;
+async fn save_state_event_atomic(project_id: String, data: String) -> Result<(), String>;
 
 #[tauri::command]
-async fn update_character(id: String, data: PartialCharacterData) -> Result<Character, String>;
+async fn update_entity(id: String, data: PartialEntityData) -> Result<Entity, String>;
 
 #[tauri::command]
-async fn get_character_relations(id: String) -> Result<Vec<Relation>, String>;
+async fn get_entity_relations(id: String) -> Result<Vec<Relation>, String>;
 
 // 大纲管理
 #[tauri::command]
