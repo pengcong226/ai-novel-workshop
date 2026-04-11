@@ -131,11 +131,6 @@ onMounted(async () => {
   // 注册全局快捷键
   document.addEventListener('keydown', handleGlobalKeyDown)
 
-  // Give plugins a tiny tick to finish registering before applying theme
-  setTimeout(() => {
-    themeStore.applyTheme()
-  }, 100)
-
   onUnmounted(() => {
     unsubscribe()
     document.removeEventListener('keydown', handleGlobalKeyDown)

@@ -87,6 +87,14 @@ app.mount('#app')
 initializePluginSystem()
   .then(() => {
     appLogger.info('应用启动完成')
+
+    // V5: Theme loading race condition fix
+    // Wait until all plugins are initialized before applying the theme
+    // This avoids FOUC and race conditions.
+    import('./stores/theme').then(module => {
+      const themeStore = module.useThemeStore()
+      themeStore.applyTheme()
+    })
   })
   .catch(error => {
     appLogger.error('插件系统初始化失败', error)
