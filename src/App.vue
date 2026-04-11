@@ -31,9 +31,11 @@ import zhCn from 'element-plus/es/locale/lang/zh-cn'
 import { setupGlobalErrorHandler, errorHandler, ErrorSeverity, type AppError } from '@/utils/errorHandler'
 import GlobalTaskObserver from '@/components/GlobalTaskObserver.vue'
 import GlobalMutator from '@/components/GlobalMutator.vue'
+import { useThemeStore } from '@/stores/theme'
 
 const currentError = ref<AppError | null>(null)
 const globalMutatorRef = ref<InstanceType<typeof GlobalMutator> | null>(null)
+const themeStore = useThemeStore()
 
 const errorTitle = computed(() => {
   if (!currentError.value) return ''
@@ -125,9 +127,14 @@ onMounted(async () => {
 
   // 注册错误监听器
   const unsubscribe = errorHandler.onError(handleError)
-  
+
   // 注册全局快捷键
   document.addEventListener('keydown', handleGlobalKeyDown)
+
+  // Give plugins a tiny tick to finish registering before applying theme
+  setTimeout(() => {
+    themeStore.applyTheme()
+  }, 100)
 
   onUnmounted(() => {
     unsubscribe()
