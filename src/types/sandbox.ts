@@ -15,7 +15,7 @@ export interface Entity {
   createdAt: number;
 }
 
-export type StateEventType = 'PROPERTY_UPDATE' | 'RELATION_ADD' | 'RELATION_REMOVE' | 'LOCATION_MOVE';
+export type StateEventType = 'PROPERTY_UPDATE' | 'RELATION_ADD' | 'RELATION_REMOVE' | 'RELATION_UPDATE' | 'LOCATION_MOVE';
 
 export interface StateEvent {
   id: string;
@@ -28,6 +28,7 @@ export interface StateEvent {
     value?: string;
     targetId?: string;
     relationType?: string;
+    attitude?: string;
     coordinates?: { x: number; y: number };
   };
   source: 'MANUAL' | 'AI_EXTRACTED';

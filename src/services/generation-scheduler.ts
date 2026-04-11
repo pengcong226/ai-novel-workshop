@@ -637,8 +637,9 @@ ${slicedContent}
                         type: "object",
                         properties: {
                           entityName: { type: "string" },
-                          eventType: { type: "string", enum: ['PROPERTY_UPDATE', 'RELATION_ADD', 'LOCATION_MOVE'] },
-                          details: { type: "string" }
+                          eventType: { type: "string", enum: ['PROPERTY_UPDATE', 'RELATION_ADD', 'RELATION_UPDATE', 'LOCATION_MOVE'] },
+                          details: { type: "string" },
+                          attitude: { type: "string", description: "Only used for RELATION_UPDATE to describe psychological attitude/affinity, max 20 chars" }
                         },
                         required: ["entityName", "eventType", "details"],
                         additionalProperties: false
@@ -651,6 +652,7 @@ ${slicedContent}
               };
 
               const extractionPrompt = `Please extract any significant state changes from the following chapter.
+If there is a significant shift in psychological attitude or affinity between characters, output a RELATION_UPDATE event and provide a short 'attitude' description (under 20 chars).
 Chapter Content:
 ${chapterData.content}
 

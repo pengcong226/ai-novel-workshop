@@ -5,6 +5,7 @@ import type { Entity, StateEvent } from '../types/sandbox';
 export interface EntityRelation {
   targetId: string;
   type: string;
+  attitude?: string;
 }
 
 export interface ActiveEntityState extends Entity {
@@ -79,12 +80,24 @@ export const useSandboxStore = defineStore('sandbox', () => {
           break;
         case 'RELATION_ADD':
           if (event.payload.targetId && event.payload.relationType) {
-            target.relations.push({ targetId: event.payload.targetId, type: event.payload.relationType });
+            target.relations.push({
+              targetId: event.payload.targetId,
+              type: event.payload.relationType,
+              attitude: event.payload.attitude
+            });
           }
           break;
         case 'RELATION_REMOVE':
           if (event.payload.targetId) {
             target.relations = target.relations.filter((r: EntityRelation) => r.targetId !== event.payload.targetId);
+          }
+          break;
+        case 'RELATION_UPDATE':
+          if (event.payload.targetId && event.payload.attitude) {
+            const rel = target.relations.find(r => r.targetId === event.payload.targetId);
+            if (rel) {
+              rel.attitude = event.payload.attitude;
+            }
           }
           break;
         case 'LOCATION_MOVE':

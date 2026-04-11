@@ -138,16 +138,33 @@ const edges = computed(() => {
     if (visibleNodes.has(sourceId) && state.relations && state.relations.length > 0) {
       state.relations.forEach((rel) => {
         if (visibleNodes.has(rel.targetId)) {
+          let labelText = rel.type || '';
+          if (rel.attitude) {
+            const shortAttitude = rel.attitude.length > 8 ? rel.attitude.substring(0, 8) + '...' : rel.attitude;
+            labelText = `${labelText} (${shortAttitude})`;
+          }
+
+          let edgeColor = 'rgba(60, 130, 246, 0.4)'; // Default blue
+          if (rel.attitude) {
+            const negativeWords = ['恨', '敌', '杀', '死', '仇', '怒', '厌', '利用', '背叛', '嫌隙'];
+            const positiveWords = ['爱', '喜', '信任', '生死', '倾心', '护', '忠'];
+            if (negativeWords.some(w => rel.attitude.includes(w))) {
+              edgeColor = 'rgba(239, 68, 68, 0.6)'; // Red
+            } else if (positiveWords.some(w => rel.attitude.includes(w))) {
+              edgeColor = 'rgba(16, 185, 129, 0.6)'; // Green
+            }
+          }
+
           result.push({
             source: sourceId,
             target: rel.targetId,
-            label: rel.type || '',
+            label: labelText,
             style: {
-              stroke: 'rgba(60, 130, 246, 0.4)',
+              stroke: edgeColor,
               lineWidth: 2,
               endArrow: {
                 path: 'M 0,0 L 8,4 L 8,-4 Z',
-                fill: 'rgba(60, 130, 246, 0.4)'
+                fill: edgeColor
               }
             },
             labelCfg: {
