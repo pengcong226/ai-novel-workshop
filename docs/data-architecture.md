@@ -125,7 +125,7 @@ interface ChapterOutline {
   foreshadowing: string[]; // 伏笔
 }
 
-// 世界观 (V4 原子化存储节点)
+// 世界观 (V5 原子化存储节点)
 interface Worldview {
   basicRules: BasicRules;
   history: HistoricalEvent[];
@@ -135,7 +135,7 @@ interface Worldview {
   technology?: Technology;
 }
 
-// 人物 (V4 原子化存储节点)
+// 实体 (V5 原子化存储节点)
 interface Character {
   id: string;
   name: string;
