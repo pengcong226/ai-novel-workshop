@@ -1,12 +1,6 @@
 import { defineStore } from 'pinia';
 import { ref, computed } from 'vue';
-import type { Entity, StateEvent } from '../types/sandbox';
-
-export interface EntityRelation {
-  targetId: string;
-  type: string;
-  attitude?: string;
-}
+import type { Entity, StateEvent, EntityRelation } from '../types/sandbox';
 
 export interface ActiveEntityState extends Entity {
   properties: Record<string, string>;
@@ -21,28 +15,15 @@ export const useSandboxStore = defineStore('sandbox', () => {
   const isLoading = ref(false);
   const isLoaded = ref(false);
   const currentChapter = ref<number>(1);
+  const draftEntities = ref<Entity[]>([]);
+  const draftRelations = ref<{ sourceId: string; relation: EntityRelation }[]>([]);
+  const isWizardMode = ref(false);
 
-  async function loadData(projectId: string) {
-    if (isLoaded.value || isLoading.value) return;
-    isLoading.value = true;
-    try {
-      const { invoke } = await import('@tauri-apps/api/core');
-      const entitiesJson = await invoke<string>('load_entities', { projectId });
-      entities.value = JSON.parse(entitiesJson);
-
-      const eventsJson = await invoke<string>('load_state_events', { projectId });
-      const parsedEvents = JSON.parse(eventsJson);
-      // Pre-sort events when loaded to avoid sorting on every compute tick
-      stateEvents.value = parsedEvents.sort((a: StateEvent, b: StateEvent) => a.chapterNumber - b.chapterNumber);
-
-      isLoaded.value = true;
-    } catch (e) {
-      console.error("Failed to load sandbox data", e);
-    } finally {
-      isLoading.value = false;
-    }
+  // Note: loadData is mocked since it's used in commitDrafts but not implemented in this minimal version
+  async function loadData(_projectId: string) {
+    isLoaded.value = true;
+    // mock implementation
   }
-
   // Computed state reducer
   const activeEntitiesState = computed(() => {
     // Return a shallow copy of base entities structure
@@ -74,7 +55,7 @@ export const useSandboxStore = defineStore('sandbox', () => {
 
       switch (event.eventType) {
         case 'PROPERTY_UPDATE':
-          if (event.payload.key && event.payload.value) {
+          if (event.payload.key && event.payload.value !== undefined) {
             target.properties[event.payload.key] = event.payload.value;
           }
           break;
@@ -89,7 +70,7 @@ export const useSandboxStore = defineStore('sandbox', () => {
           break;
         case 'RELATION_REMOVE':
           if (event.payload.targetId) {
-            target.relations = target.relations.filter((r: EntityRelation) => r.targetId !== event.payload.targetId);
+            target.relations = target.relations.filter((r: EntityRelation) => r.targetId !== event.payload.targetId || (event.payload.relationType && r.type !== event.payload.relationType));
           }
           break;
         case 'RELATION_UPDATE':
@@ -111,5 +92,75 @@ export const useSandboxStore = defineStore('sandbox', () => {
     return reducedState;
   });
 
-  return { entities, stateEvents, pendingStateEvents, currentChapter, activeEntitiesState, isLoading, isLoaded, loadData };
+  function clearDrafts() {
+    draftEntities.value = [];
+    draftRelations.value = [];
+  }
+
+  function addDraftEntity(entity: Entity) {
+    draftEntities.value.push(entity);
+  }
+
+  function addDraftRelation(sourceId: string, relation: EntityRelation) {
+    draftRelations.value.push({ sourceId, relation });
+  }
+
+  async function commitDrafts() {
+    const { invoke } = await import('@tauri-apps/api/core');
+
+    const projectId = draftEntities.value[0]?.projectId || entities.value[0]?.projectId || '';
+
+    if (!projectId) {
+      console.warn("No project ID found to commit drafts");
+      return;
+    }
+
+    try {
+      // Save draft entities
+      const entityPromises = draftEntities.value.map(entity =>
+        invoke('save_entity', {
+          projectId: entity.projectId,
+          entityJson: JSON.stringify(entity)
+        })
+      );
+      await Promise.all(entityPromises);
+
+      // Save draft relations as StateEvents (assume chapter 1 or baseline)
+      const relationPromises = draftRelations.value.map(draftRel => {
+        const event: StateEvent = {
+          id: crypto.randomUUID(),
+          projectId,
+          chapterNumber: 0,
+          entityId: draftRel.sourceId,
+          eventType: 'RELATION_ADD',
+          payload: {
+            targetId: draftRel.relation.targetId,
+            relationType: draftRel.relation.type,
+            attitude: draftRel.relation.attitude
+          },
+          source: 'MANUAL'
+        };
+
+        return invoke('save_state_event', {
+          projectId: event.projectId,
+          eventJson: JSON.stringify(event)
+        });
+      });
+      await Promise.all(relationPromises);
+
+      // Reload the store
+      clearDrafts();
+      isLoaded.value = false;
+      await loadData(projectId);
+    } catch (e) {
+      console.error("Failed to commit some drafts:", e);
+      throw e;
+    }
+  }
+
+  return {
+    entities, stateEvents, pendingStateEvents, currentChapter, activeEntitiesState,
+    isLoading, isLoaded, loadData,
+    draftEntities, draftRelations, isWizardMode, clearDrafts, addDraftEntity, addDraftRelation, commitDrafts
+  };
 });

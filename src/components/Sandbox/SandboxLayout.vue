@@ -2,6 +2,9 @@
   <div class="sandbox-layout">
     <div class="sidebar">Entities Tree (WIP)</div>
     <div class="main-view">
+      <div style="margin-bottom: 10px;">
+        <el-button type="warning" plain icon="ri-magic-line" @click="sandboxStore.isWizardMode = true">💡 批量世界生成向导</el-button>
+      </div>
       <el-tabs v-model="activeTab">
         <el-tab-pane label="文档视图" name="doc"><SandboxDocument /></el-tab-pane>
         <el-tab-pane label="时间线" name="timeline"><SandboxTimeline /></el-tab-pane>
@@ -10,7 +13,8 @@
       </el-tabs>
     </div>
     <div class="right-sidebar">
-      <AutomatonChat />
+      <WorldGenWizard v-if="sandboxStore.isWizardMode" @close="sandboxStore.isWizardMode = false" />
+      <AutomatonChat v-else />
     </div>
   </div>
 </template>
@@ -24,6 +28,7 @@ import SandboxTimeline from './SandboxTimeline.vue'
 import SandboxGraph from './SandboxGraph.vue'
 import SandboxMap from './SandboxMap.vue'
 import AutomatonChat from './AutomatonChat.vue'
+import WorldGenWizard from './WorldGenWizard.vue'
 
 const activeTab = ref('timeline')
 const projectStore = useProjectStore()

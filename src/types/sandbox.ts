@@ -15,6 +15,11 @@ export interface Entity {
   createdAt: number;
 }
 
+export interface EntityRelation {
+  targetId: string;
+  type: string;
+  attitude?: string;
+}
 export type StateEventType = 'PROPERTY_UPDATE' | 'RELATION_ADD' | 'RELATION_REMOVE' | 'RELATION_UPDATE' | 'LOCATION_MOVE';
 
 export interface StateEvent {
