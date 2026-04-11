@@ -11,15 +11,11 @@
 
 import type { Project, Chapter, ChapterOutline, VectorServiceConfig, Character } from '@/types'
 import {
-  initNovelMemory,
-  generateMemoryPrompt,
   type MemorySystem
 } from './tableMemory'
 import { sanitizeForPrompt, validateInput } from './inputSanitizer'
-import { buildSystemPrompt, getPromptDefinition } from './promptHelper'
 import { getVectorService, type VectorService } from './vectorService'
 import { countTokens as countLLMTokens } from './llm/tokenizer'
-import { WorldbookInjector } from '@/services/worldbook-injector'
 import { ContextPipeline, type ContextPayload } from './context/pipeline'
 import {
   SystemPromptMiddleware,

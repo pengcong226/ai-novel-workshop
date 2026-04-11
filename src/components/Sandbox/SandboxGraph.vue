@@ -72,12 +72,12 @@ const nodes = computed(() => {
 
     // Add forward relations
     if (targetState.relations) {
-      targetState.relations.forEach((rel: any) => visibleSet.add(rel.targetId))
+      targetState.relations.forEach((rel) => visibleSet.add(rel.targetId))
     }
 
     // Add backward relations
     for (const [id, state] of Object.entries(activeState)) {
-      if (state.relations?.some((r: any) => r.targetId === focusTarget)) {
+      if (state.relations?.some((r) => r.targetId === focusTarget)) {
         visibleSet.add(id)
       }
     }
@@ -92,17 +92,22 @@ const nodes = computed(() => {
       visibleSet.add(protagonistId)
       const pState = activeState[protagonistId]
       if (pState.relations) {
-        pState.relations.forEach((rel: any) => visibleSet.add(rel.targetId))
+        pState.relations.forEach((rel) => visibleSet.add(rel.targetId))
       }
       for (const [id, state] of Object.entries(activeState)) {
-        if (state.relations?.some((r: any) => r.targetId === protagonistId)) {
+        if (state.relations?.some((r) => r.targetId === protagonistId)) {
           visibleSet.add(id)
         }
       }
     } else {
       // Fallback: show everything with relations
+      // O(N) evaluation
+      const allTargetIds = new Set<string>();
+      for (const state of Object.values(activeState)) {
+        state.relations?.forEach((r) => allTargetIds.add(r.targetId));
+      }
       for (const [id, state] of Object.entries(activeState)) {
-        if (state.relations?.length > 0 || Object.values(activeState).some((s: any) => s.relations?.some((r: any) => r.targetId === id))) {
+        if (state.relations?.length > 0 || allTargetIds.has(id)) {
           visibleSet.add(id)
         }
       }
@@ -131,7 +136,7 @@ const edges = computed(() => {
 
   for (const [sourceId, state] of Object.entries(activeState)) {
     if (visibleNodes.has(sourceId) && state.relations && state.relations.length > 0) {
-      state.relations.forEach((rel: any) => {
+      state.relations.forEach((rel) => {
         if (visibleNodes.has(rel.targetId)) {
           result.push({
             source: sourceId,

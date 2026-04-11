@@ -337,9 +337,9 @@ fn load_entities(state: State<'_, AppState>, project_id: String) -> Result<Strin
         let pid: String = row.get(1).unwrap_or_default();
         let e_type: String = row.get(2).unwrap_or_default();
         let name: String = row.get(3).unwrap_or_default();
-        let cat: String = row.get(4).unwrap_or_default();
-        let sys_prompt: String = row.get(5).unwrap_or_default();
-        let vis_meta: String = row.get(6).unwrap_or_default();
+        let cat: Option<String> = row.get(4).unwrap_or_default();
+        let sys_prompt: Option<String> = row.get(5).unwrap_or_default();
+        let vis_meta: Option<String> = row.get(6).unwrap_or_default();
         let created_at: i64 = row.get(7).unwrap_or_default();
 
         let entity = serde_json::json!({
@@ -347,9 +347,13 @@ fn load_entities(state: State<'_, AppState>, project_id: String) -> Result<Strin
             "projectId": pid,
             "type": e_type,
             "name": name,
-            "category": cat,
-            "systemPrompt": sys_prompt,
-            "visualMeta": if vis_meta.is_empty() { serde_json::Value::Null } else { serde_json::from_str(&vis_meta).unwrap_or(serde_json::Value::Null) },
+            "category": cat.unwrap_or_default(),
+            "systemPrompt": sys_prompt.unwrap_or_default(),
+            "visualMeta": if let Some(vm) = vis_meta {
+                if vm.is_empty() { serde_json::Value::Null } else { serde_json::from_str(&vm).unwrap_or(serde_json::Value::Null) }
+            } else {
+                serde_json::Value::Null
+            },
             "createdAt": created_at
         });
         entities.push(entity);
@@ -372,7 +376,7 @@ fn load_state_events(state: State<'_, AppState>, project_id: String) -> Result<S
         let chap: i64 = row.get(2).unwrap_or_default();
         let ent_id: String = row.get(3).unwrap_or_default();
         let ev_type: String = row.get(4).unwrap_or_default();
-        let payload: String = row.get(5).unwrap_or_default();
+        let payload: Option<String> = row.get(5).unwrap_or_default();
         let source: String = row.get(6).unwrap_or_default();
 
         let event = serde_json::json!({
@@ -381,7 +385,11 @@ fn load_state_events(state: State<'_, AppState>, project_id: String) -> Result<S
             "chapterNumber": chap,
             "entityId": ent_id,
             "eventType": ev_type,
-            "payload": if payload.is_empty() { serde_json::Value::Null } else { serde_json::from_str(&payload).unwrap_or(serde_json::Value::Null) },
+            "payload": if let Some(p) = payload {
+                if p.is_empty() { serde_json::Value::Null } else { serde_json::from_str(&p).unwrap_or(serde_json::Value::Null) }
+            } else {
+                serde_json::Value::Null
+            },
             "source": source
         });
         events.push(event);
@@ -546,9 +554,9 @@ fn load_entities(state: State<'_, AppState>, project_id: String) -> Result<Strin
         let pid: String = row.get(1).unwrap_or_default();
         let e_type: String = row.get(2).unwrap_or_default();
         let name: String = row.get(3).unwrap_or_default();
-        let cat: String = row.get(4).unwrap_or_default();
-        let sys_prompt: String = row.get(5).unwrap_or_default();
-        let vis_meta: String = row.get(6).unwrap_or_default();
+        let cat: Option<String> = row.get(4).unwrap_or_default();
+        let sys_prompt: Option<String> = row.get(5).unwrap_or_default();
+        let vis_meta: Option<String> = row.get(6).unwrap_or_default();
         let created_at: i64 = row.get(7).unwrap_or_default();
 
         let entity = serde_json::json!({
@@ -556,9 +564,13 @@ fn load_entities(state: State<'_, AppState>, project_id: String) -> Result<Strin
             "projectId": pid,
             "type": e_type,
             "name": name,
-            "category": cat,
-            "systemPrompt": sys_prompt,
-            "visualMeta": if vis_meta.is_empty() { serde_json::Value::Null } else { serde_json::from_str(&vis_meta).unwrap_or(serde_json::Value::Null) },
+            "category": cat.unwrap_or_default(),
+            "systemPrompt": sys_prompt.unwrap_or_default(),
+            "visualMeta": if let Some(vm) = vis_meta {
+                if vm.is_empty() { serde_json::Value::Null } else { serde_json::from_str(&vm).unwrap_or(serde_json::Value::Null) }
+            } else {
+                serde_json::Value::Null
+            },
             "createdAt": created_at
         });
         entities.push(entity);
@@ -581,7 +593,7 @@ fn load_state_events(state: State<'_, AppState>, project_id: String) -> Result<S
         let chap: i64 = row.get(2).unwrap_or_default();
         let ent_id: String = row.get(3).unwrap_or_default();
         let ev_type: String = row.get(4).unwrap_or_default();
-        let payload: String = row.get(5).unwrap_or_default();
+        let payload: Option<String> = row.get(5).unwrap_or_default();
         let source: String = row.get(6).unwrap_or_default();
 
         let event = serde_json::json!({
@@ -590,7 +602,11 @@ fn load_state_events(state: State<'_, AppState>, project_id: String) -> Result<S
             "chapterNumber": chap,
             "entityId": ent_id,
             "eventType": ev_type,
-            "payload": if payload.is_empty() { serde_json::Value::Null } else { serde_json::from_str(&payload).unwrap_or(serde_json::Value::Null) },
+            "payload": if let Some(p) = payload {
+                if p.is_empty() { serde_json::Value::Null } else { serde_json::from_str(&p).unwrap_or(serde_json::Value::Null) }
+            } else {
+                serde_json::Value::Null
+            },
             "source": source
         });
         events.push(event);

@@ -8,8 +8,8 @@ import { openAIProviderContribution, manifest as openAIManifest } from './builti
 import { anthropicProviderContribution, manifest as anthropicManifest } from './builtin/anthropic-provider'
 import { localProviderContribution, manifest as localManifest } from './builtin/local-provider'
 import { createCharacterActionContribution, manifest as assistantActionsManifest } from './builtin/assistant-actions'
-import { scifiDarkThemePlugin } from './builtin/scifi-dark-theme'
-import { classicLightThemePlugin } from './builtin/classic-light-theme'
+// import { scifiDarkThemePlugin } from './builtin/scifi-dark-theme'
+// import { classicLightThemePlugin } from './builtin/classic-light-theme'
 import { pluginManager } from './manager'
 import { getLogger } from '@/utils/logger'
 import type { PluginContext, PluginManifest } from './types'
@@ -82,6 +82,7 @@ export async function initializeBuiltinPlugins(): Promise<void> {
     await pluginManager.activatePlugin(assistantActionsManifest.id)
 
     // 安装 Sci-Fi Dark Theme
+    /*
     await pluginManager.installPlugin(scifiDarkThemePlugin.meta as any as PluginManifest, async () => ({
       activate: async (context: PluginContext) => {
         scifiDarkThemePlugin.activate!(context)
@@ -100,6 +101,7 @@ export async function initializeBuiltinPlugins(): Promise<void> {
     }))
 
     await pluginManager.activatePlugin(classicLightThemePlugin.meta.id)
+    */
 
     logger.info('内置插件初始化完成')
   } catch (error) {

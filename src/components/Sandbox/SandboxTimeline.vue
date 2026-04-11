@@ -72,7 +72,6 @@
 import { ref, computed } from 'vue'
 import { useProjectStore } from '@/stores/project'
 import { useSandboxStore } from '@/stores/sandbox'
-import { generationScheduler } from '@/services/generation-scheduler'
 import { ElMessage } from 'element-plus'
 import { EditPen, Document, DataLine, View, MagicStick } from '@element-plus/icons-vue'
 import type { ChapterOutline } from '@/types'

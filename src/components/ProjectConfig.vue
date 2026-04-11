@@ -705,7 +705,6 @@
 import { ref, computed, onMounted } from 'vue'
 import StorytellerPanel from './config/StorytellerPanel.vue'
 import ProviderManager from './config/ProviderManager.vue'
-import ModelSelector from './config/ModelSelector.vue'
 import { useProjectStore } from '@/stores/project'
 import { usePluginStore } from '@/stores/plugin'
 import { ElMessage, ElMessageBox } from 'element-plus'

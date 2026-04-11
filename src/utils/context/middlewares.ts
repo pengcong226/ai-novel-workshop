@@ -14,7 +14,6 @@ import {
 } from '../contextBuilder';
 import { generateMemoryPrompt, initNovelMemory } from '../tableMemory';
 import { WorldbookInjector } from '@/services/worldbook-injector';
-import { getVectorService } from '../vectorService';
 
 function enforceSectionBudget(payload: ContextPayload, sectionName: string, text: string, budget: number): string {
   if (!text || budget <= 0) return '';
@@ -147,7 +146,7 @@ export class WorldInfoMiddleware implements ContextMiddleware {
     const recentContent = recentChapters.map(ch => ch.content || '').join('\n\n');
 
     let worldInfo = buildWorldInfo(project, currentChapter, recentChapters);
-    let budget = payload.budget.distribution[this.name] || 5000;
+    const budget = payload.budget.distribution[this.name] || 5000;
 
     // V3: 接通 WorldbookInjector
     if (project.worldbook?.entries && project.worldbook.entries.length > 0) {
