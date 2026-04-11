@@ -27,7 +27,7 @@ const sandboxStore = useSandboxStore()
 // 1. Prepare data reactively from SandboxStore
 const nodes = computed(() => {
   const result: any[] = []
-  const activeState = sandboxStore.activeEntitiesState
+  const activeState = sandboxStore.activeEntitiesState as Record<string, any>
   const visibleSet = new Set<string>()
 
   for (const [id, state] of Object.entries(activeState)) {
@@ -68,7 +68,7 @@ const nodes = computed(() => {
 
 const edges = computed(() => {
   const result: any[] = []
-  const activeState = sandboxStore.activeEntitiesState
+  const activeState = sandboxStore.activeEntitiesState as Record<string, any>
   const visibleNodes = new Set<string>(nodes.value.map(n => n.id))
 
   for (const [sourceId, state] of Object.entries(activeState)) {
@@ -177,7 +177,7 @@ onMounted(() => {
         type: 'line',
         color: '#e2e8f0'
       }
-    })
+    } as any)
 
     renderGraph()
   }
@@ -190,7 +190,7 @@ watch([nodes, edges], () => {
 
 function renderGraph() {
   if (!graph) return
-  graph.data({
+  (graph as any).data({
     nodes: nodes.value,
     edges: edges.value
   })
