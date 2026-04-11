@@ -18,6 +18,7 @@ export { ToolbarButtonRegistry } from './toolbar-registry'
 // AI助手扩展注册表
 export { QuickCommandRegistry } from './quick-command-registry'
 export { AIActionHandlerRegistry } from './action-handler-registry'
+export { ThemeRegistry } from './theme-registry'
 
 // 导出类型
 export type { ProcessorStage } from './processor-registry'

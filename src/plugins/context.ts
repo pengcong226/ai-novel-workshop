@@ -24,7 +24,9 @@ import type {
   SidebarPanelContribution,
   ToolbarButtonContribution,
   QuickCommandContribution,
-  AIActionHandlerContribution} from './types'
+  AIActionHandlerContribution,
+  ThemeExtension
+} from './types'
 
 /**
  * 创建插件上下文
@@ -322,6 +324,11 @@ export function createPluginContext(
     aiActionHandler(contribution: AIActionHandlerContribution) {
       console.warn(`插件 ${pluginId} 注册AI动作处理器: ${contribution.type}`)
       // 实际注册逻辑由PluginManager提供
+    },
+
+    theme(contribution: ThemeExtension) {
+      console.warn(`插件 ${pluginId} 注册主题: ${contribution.id}`)
+      // 实际注册逻辑由PluginManager提供
     }
   }
 
@@ -395,6 +402,7 @@ export function enhancePluginContext(
     toolbarButton: (contribution: ToolbarButtonContribution) => void
     quickCommand: (contribution: QuickCommandContribution) => void
     aiActionHandler: (contribution: AIActionHandlerContribution) => void
+    theme: (contribution: ThemeExtension) => void
   }
 ): PluginContext {
   return {
@@ -408,7 +416,8 @@ export function enhancePluginContext(
       sidebarPanel: registers.sidebarPanel,
       toolbarButton: registers.toolbarButton,
       quickCommand: registers.quickCommand,
-      aiActionHandler: registers.aiActionHandler
+      aiActionHandler: registers.aiActionHandler,
+      theme: registers.theme
     }
   }
 }

@@ -17,6 +17,7 @@ import { SidebarPanelRegistry } from './registries/sidebar-registry'
 import { ToolbarButtonRegistry } from './registries/toolbar-registry'
 import { QuickCommandRegistry } from './registries/quick-command-registry'
 import { AIActionHandlerRegistry } from './registries/action-handler-registry'
+import { ThemeRegistry } from './registries/theme-registry'
 
 /**
  * 插件管理器
@@ -35,7 +36,8 @@ export class PluginManager {
     sidebarPanel: new SidebarPanelRegistry(),
     toolbarButton: new ToolbarButtonRegistry(),
     quickCommand: new QuickCommandRegistry(),
-    aiActionHandler: new AIActionHandlerRegistry()
+    aiActionHandler: new AIActionHandlerRegistry(),
+    theme: new ThemeRegistry()
   }
 
   /**
@@ -105,7 +107,8 @@ export class PluginManager {
           sidebarPanel: (c) => this.registries.sidebarPanel.register(c),
           toolbarButton: (c) => this.registries.toolbarButton.register(c),
           quickCommand: (c) => this.registries.quickCommand.register(c),
-          aiActionHandler: (c) => this.registries.aiActionHandler.register(c)
+          aiActionHandler: (c) => this.registries.aiActionHandler.register(c),
+          theme: (c) => this.registries.theme.register(instance.manifest.id, c)
         }
       )
 
@@ -366,6 +369,14 @@ export class PluginManager {
         this.logger.debug('注册 AI 动作处理器贡献', { contributionType: contribution.type, pluginId: instance.manifest.id })
       })
     }
+
+    // 注册主题
+    if (contributions.themes) {
+      contributions.themes.forEach(contribution => {
+        this.registries.theme.register(instance.manifest.id, contribution)
+        this.logger.debug('注册主题贡献', { contributionId: contribution.id, pluginId: instance.manifest.id })
+      })
+    }
   }
 
   /**
@@ -437,6 +448,13 @@ export class PluginManager {
     if (contributions.aiActionHandlers) {
       contributions.aiActionHandlers.forEach(contribution => {
         this.registries.aiActionHandler.unregister(contribution.type)
+      })
+    }
+
+    // 注销主题
+    if (contributions.themes) {
+      contributions.themes.forEach(contribution => {
+        this.registries.theme.unregister(contribution.id)
       })
     }
   }

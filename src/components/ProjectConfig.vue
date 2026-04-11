@@ -646,6 +646,18 @@
         </template>
 
         <el-form label-width="150px">
+          <el-form-item label="全局主题 (Theme)">
+            <el-select v-model="themeStore.activeThemeId" placeholder="选择主题">
+              <el-option
+                v-for="theme in availableThemes"
+                :key="theme.id"
+                :label="theme.name"
+                :value="theme.id"
+              />
+            </el-select>
+            <div class="form-tip">支持无缝热切换（由 ThemeRegistry 插件系统提供）</div>
+          </el-form-item>
+
           <el-form-item label="导出配置">
             <el-button @click="exportConfig">导出为文件</el-button>
             <div class="form-tip">将当前配置导出为JSON文件，可在其他项目导入使用</div>
@@ -702,9 +714,17 @@ import type { ProjectConfig, VectorServiceConfig } from '@/types'
 import { DEFAULT_SYSTEM_PROMPTS, SYSTEM_PROMPT_VARIABLES } from '@/utils/systemPrompts'
 import { getVectorService, clearVectorServiceCache } from '@/utils/vectorService'
 import PluginManager from './PluginManager.vue'
+import { useThemeStore } from '@/stores/theme'
+
 const projectStore = useProjectStore()
 const pluginStore = usePluginStore()
+const themeStore = useThemeStore()
+
 const project = computed(() => projectStore.currentProject)
+
+const availableThemes = computed(() => {
+  return pluginStore.getRegistries().theme.getAll()
+})
 
 // 插件统计
 const pluginStats = computed(() => {
