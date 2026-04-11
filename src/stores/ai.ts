@@ -28,12 +28,13 @@ export const useAIStore = defineStore('ai', () => {
     let model = fallbackModel || null
     if (cfg) {
       if (contextType === 'outline' || contextType === 'worldbuilding' || contextType === 'character') {
-        model = cfg.planningModel || model
+        model = cfg.plannerModel || model
       } else if (contextType === 'chapter') {
-        model = cfg.writingModel || model
-      } else if (contextType === 'check' || contextType === 'state_extraction' || contextType === 'memory_update') {
-        // 哨兵、档案员、表格管理员共用校验模型（便宜模型即可）
-        model = cfg.checkingModel || model
+        model = cfg.writerModel || model
+      } else if (contextType === 'check') {
+        model = cfg.sentinelModel || model
+      } else if (contextType === 'state_extraction' || contextType === 'memory_update') {
+        model = cfg.extractorModel || model
       }
     }
     return model
@@ -205,13 +206,13 @@ export const useAIStore = defineStore('ai', () => {
 
         // V4-D1: 首个启用的提供商设为 fallback，但优先读取用户按角色配置的模型
         if (!preferredModels.chapter) {
-          preferredModels.chapter = config?.writingModel || enabledModel.id
-          preferredModels.check = config?.checkingModel || enabledModel.id
-          preferredModels.outline = config?.planningModel || enabledModel.id
-          preferredModels.worldbuilding = config?.planningModel || enabledModel.id
-          preferredModels.character = config?.planningModel || enabledModel.id
-          preferredModels.state_extraction = config?.checkingModel || enabledModel.id
-          preferredModels.memory_update = config?.checkingModel || enabledModel.id
+          preferredModels.chapter = config?.writerModel || enabledModel.id
+          preferredModels.check = config?.sentinelModel || enabledModel.id
+          preferredModels.outline = config?.plannerModel || enabledModel.id
+          preferredModels.worldbuilding = config?.plannerModel || enabledModel.id
+          preferredModels.character = config?.plannerModel || enabledModel.id
+          preferredModels.state_extraction = config?.extractorModel || enabledModel.id
+          preferredModels.memory_update = config?.extractorModel || enabledModel.id
         }
       })
 

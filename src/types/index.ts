@@ -500,12 +500,10 @@ export interface ProjectConfig {
   providers: ModelProvider[]
 
   // 模型选择（使用模型ID）
-  planningModel: string
-  writingModel: string
-  checkingModel: string
-  assistantModel?: string  // AI助手模型
-  memoryModel?: string     // 表格记忆模型
-  importModel?: string     // 导入识别模型
+  plannerModel: string
+  writerModel: string
+  sentinelModel: string
+  extractorModel: string
 
   // 系统提示词配置
   systemPrompts?: SystemPrompts
@@ -538,11 +536,10 @@ export interface ProjectConfig {
 
 // 系统提示词配置
 export interface SystemPrompts {
-  planning: string    // 规划模型系统提示词
-  writing: string     // 写作模型系统提示词
-  checking: string    // 检查模型系统提示词
-  assistant: string   // 助手模型系统提示词
-  memory: string      // 表格记忆模型系统提示词
+  planner: string
+  writer: string
+  sentinel: string
+  extractor: string
 }
 
 // 高级设置

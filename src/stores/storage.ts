@@ -372,23 +372,34 @@ class TauriStorage {
     const { invoke } = await import('@tauri-apps/api/core');
     const projectCopy = { ...project };
     const chapters = projectCopy.chapters || [];
+    const characters = projectCopy.characters || [];
+    const worldbook = projectCopy.worldbook?.entries || [];
+
     delete projectCopy.chapters;
+    delete projectCopy.characters;
+    if (projectCopy.worldbook) {
+      delete projectCopy.worldbook.entries;
+    }
 
     try {
       // 探针机制：新项目导入时包含完整的内容（content），此时我们使用全局替换保存。
       // 日常编辑器触发的存盘，因为在 project.ts 中 content 已经被前端状态层剥离，因此只保存骨架以防数据覆盖丢失。
       const isFullPackage = chapters.length > 0 && chapters[0].content !== undefined;
-      
+
       if (isFullPackage) {
         await invoke('save_project_with_chapters', {
           id: project.id,
           projectData: JSON.stringify(projectCopy),
-          chaptersData: chapters.map((c: any) => JSON.stringify(c))
+          chaptersData: chapters.map((c: any) => JSON.stringify(c)),
+          charactersData: characters.map((c: any) => JSON.stringify(c)),
+          worldbookData: worldbook.map((w: any) => JSON.stringify(w))
         });
       } else {
         await invoke('save_project', {
           id: project.id,
-          data: JSON.stringify(projectCopy)
+          data: JSON.stringify(projectCopy),
+          characters: characters.map((c: any) => JSON.stringify(c)),
+          worldbook: worldbook.map((w: any) => JSON.stringify(w))
         });
       }
     } catch (e: any) {
@@ -441,7 +452,7 @@ class TauriStorage {
 
   async saveCharacter(character: any, projectId: string) {
     const { invoke } = await import('@tauri-apps/api/core');
-    await invoke('save_character', {
+    await invoke('save_character_atomic', {
       projectId,
       characterId: character.id,
       data: JSON.stringify(character)
@@ -455,7 +466,7 @@ class TauriStorage {
 
   async saveWorldbookEntry(entry: any, projectId: string) {
     const { invoke } = await import('@tauri-apps/api/core');
-    await invoke('save_worldbook_entry', {
+    await invoke('save_worldbook_entry_atomic', {
       projectId,
       entryId: entry.id,
       data: JSON.stringify(entry)

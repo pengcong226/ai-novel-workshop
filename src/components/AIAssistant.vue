@@ -537,6 +537,22 @@ async function processCommand(command: string) {
   isTyping.value = true
 
   try {
+    const { routeAssistantInput } = await import('@/assistant/commands/inputRouter')
+    const result = await routeAssistantInput(command, { messages: messages.value })
+
+    if (result.type === 'command') {
+      if (result.output) {
+        addAssistantMessage(result.output)
+      }
+      return
+    } else if (result.type === 'error') {
+      addAssistantMessage('执行命令失败：' + result.error)
+      return
+    }
+
+    // Result type is chat
+    command = result.text
+
     const { useAIStore } = await import('@/stores/ai')
     const aiStore = useAIStore()
 
@@ -620,22 +636,19 @@ ${project.outline.mainPlot?.name || '主线'}: ${project.outline.mainPlot?.descr
     // 3. 解析 AI 意图 (Action Parsing)
     let rawContent = response.content.trim()
     const actions: Action[] = []
-    
-    const jsonMatch = rawContent.match(/```json\s*(\{[\s\S]*?"action"\s*:\s*"create_character"[\s\S]*?\})\s*```/)
-    if (jsonMatch) {
-      try {
-        const actionData = JSON.parse(jsonMatch[1])
-        if (actionData.action === 'create_character' && actionData.data) {
-          // 把提取到的 JSON 从聊天界面隐藏
-          rawContent = rawContent.replace(jsonMatch[0], '').trim()
-          // 附带一个可操作的 UI 按钮
-          actions.push({
-            text: `✨ 一键将【${actionData.data.name}】加入人物设定`,
-            command: `__sys_create_char:${JSON.stringify(actionData.data)}`
-          })
-        }
-      } catch (e) {
-        console.warn('解析 AI 动作指令失败', e)
+
+    const { parseActionEnvelope } = await import('@/assistant/actions/actionEnvelope')
+    const { parsed, rawMatch } = parseActionEnvelope(rawContent)
+
+    if (parsed) {
+      if (parsed.action === 'create_character' && parsed.data) {
+        // 把提取到的 JSON 从聊天界面隐藏
+        rawContent = rawContent.replace(rawMatch, '').trim()
+        // 附带一个可操作的 UI 按钮
+        actions.push({
+          text: `✨ 一键将【${parsed.data.name}】加入人物设定`,
+          command: `__sys_action:${JSON.stringify(parsed)}`
+        })
       }
     }
 
@@ -652,45 +665,29 @@ ${project.outline.mainPlot?.name || '主线'}: ${project.outline.mainPlot?.descr
 }
 
 async function handleAction(action: Action) {
-  if (action.command.startsWith('__sys_create_char:')) {
+  if (action.command.startsWith('__sys_action:')) {
     try {
-      const charData = JSON.parse(action.command.substring(18))
-      const projectStore = useProjectStore()
-      if (projectStore.currentProject) {
-        projectStore.currentProject.characters.push({
-          id: crypto.randomUUID(),
-          name: charData.name || '新角色',
-          aliases: [],
-          gender: charData.gender || 'other',
-          age: charData.age || 20,
-          appearance: charData.appearance || '',
-          personality: [],
-          values: [],
-          background: charData.background || '',
-          motivation: '',
-          abilities: [],
-          relationships: [],
-          appearances: [],
-          development: [],
-          tags: ['supporting'],
-          stateHistory: [],
-          aiGenerated: true
-        } as any)
-        await projectStore.saveCurrentProject()
-        
+      const actionEnv = JSON.parse(action.command.substring(13))
+      const { executeAssistantAction } = await import('@/assistant/actions/executeAssistantAction')
+
+      const success = await executeAssistantAction(actionEnv)
+
+      if (success) {
         // 自动发一条消息确认
         messages.value.push({
           role: 'assistant',
-          content: `✅ 已经成功将人物 **${charData.name}** 添加到项目的人物库中！您可以去“人物设定”页面查看并进一步修改。`
+          content: `✅ 已经成功执行动作！`
         })
         scrollToBottom()
+      } else {
+        ElMessage.error('执行动作失败')
       }
     } catch (e) {
-      ElMessage.error('应用人物失败')
+      ElMessage.error('解析动作失败')
     }
     return
   }
-  
+
   // 普通快捷指令
   processCommand(action.command)
 }

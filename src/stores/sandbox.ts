@@ -18,7 +18,6 @@ export const useSandboxStore = defineStore('sandbox', () => {
     isLoaded.value = true;
     // mock implementation
   }
-
   // Computed state reducer
   const activeEntitiesState = computed(() => {
     // Return a shallow copy of base entities structure
@@ -69,7 +68,6 @@ export const useSandboxStore = defineStore('sandbox', () => {
     return reducedState;
   });
 
-
   function clearDrafts() {
     draftEntities.value = [];
     draftRelations.value = [];
@@ -85,12 +83,12 @@ export const useSandboxStore = defineStore('sandbox', () => {
 
   async function commitDrafts() {
     const { invoke } = await import('@tauri-apps/api/core');
-    
+
     // Save draft entities
     for (const entity of draftEntities.value) {
-      await invoke('save_entity', { 
-        projectId: entity.projectId, 
-        entityJson: JSON.stringify(entity) 
+      await invoke('save_entity', {
+        projectId: entity.projectId,
+        entityJson: JSON.stringify(entity)
       });
     }
 
@@ -109,7 +107,7 @@ export const useSandboxStore = defineStore('sandbox', () => {
         },
         source: 'MANUAL'
       };
-      
+
       await invoke('save_state_event', {
         projectId: event.projectId,
         eventJson: JSON.stringify(event)
@@ -125,8 +123,8 @@ export const useSandboxStore = defineStore('sandbox', () => {
     }
   }
 
-  return { 
-    entities, stateEvents, currentChapter, activeEntitiesState, 
+  return {
+    entities, stateEvents, currentChapter, activeEntitiesState,
     isLoading, isLoaded, loadData,
     draftEntities, draftRelations, isWizardMode, clearDrafts, addDraftEntity, addDraftRelation, commitDrafts
   };

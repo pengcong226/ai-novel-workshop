@@ -212,6 +212,14 @@ export class PluginManager {
     return this.registries
   }
 
+  /**
+   * 执行AI动作
+   */
+  async executeAction(type: string, data: any, context?: any): Promise<void> {
+    const ctx = context || { project: {} as any }
+    await this.registries.aiActionHandler.execute(type, data, ctx)
+  }
+
   // ==================== 私有方法 ====================
 
   /**

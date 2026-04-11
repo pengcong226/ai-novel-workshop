@@ -283,6 +283,14 @@ export const usePluginStore = defineStore('plugin', () => {
   }
 
   /**
+   * 执行快捷命令
+   */
+  async function executeQuickCommand(command: string) {
+    const { routeAssistantInput } = await import('@/assistant/commands/inputRouter')
+    return await routeAssistantInput(command)
+  }
+
+  /**
    * 清除所有插件
    */
   async function clearAllPlugins() {
@@ -348,6 +356,7 @@ export const usePluginStore = defineStore('plugin', () => {
     setExperimentalMode,
     exportPluginConfig,
     importPluginConfig,
+    executeQuickCommand,
     clearAllPlugins
   }
 })

@@ -2,49 +2,13 @@
   <el-card class="config-card">
     <template #header>
       <div class="card-header">
-        <span>AI模型选择</span>
+        <span>AI 模型分配</span>
       </div>
     </template>
 
     <el-form :model="config" label-width="150px">
-      <el-form-item label="规划模型">
-        <el-select v-model="configProxy.planningModel" placeholder="选择规划模型" :disabled="!hasEnabledProviders">
-          <el-option v-for="model in getAvailableModels('planning')" :key="model.id" :label="`${model.providerName} - ${model.name}`" :value="model.id">
-            <div style="display: flex; justify-content: space-between;">
-              <span>{{ model.providerName }} - {{ model.name }}</span>
-              <span style="color: #909399; font-size: 12px;">{{ model.maxTokens }}K tokens</span>
-            </div>
-          </el-option>
-        </el-select>
-        <div class="form-tip">用于世界观、人物、大纲等高层规划</div>
-      </el-form-item>
-
-      <el-form-item label="写作模型">
-        <el-select v-model="configProxy.writingModel" placeholder="选择写作模型" :disabled="!hasEnabledProviders">
-          <el-option v-for="model in getAvailableModels('writing')" :key="model.id" :label="`${model.providerName} - ${model.name}`" :value="model.id">
-            <div style="display: flex; justify-content: space-between;">
-              <span>{{ model.providerName }} - {{ model.name }}</span>
-              <span style="color: #909399; font-size: 12px;">{{ model.maxTokens }}K tokens</span>
-            </div>
-          </el-option>
-        </el-select>
-        <div class="form-tip">用于章节内容的生成</div>
-      </el-form-item>
-
-      <el-form-item label="检查模型">
-        <el-select v-model="configProxy.checkingModel" placeholder="选择检查模型" :disabled="!hasEnabledProviders">
-          <el-option v-for="model in getAvailableModels('checking')" :key="model.id" :label="`${model.providerName} - ${model.name}`" :value="model.id">
-            <div style="display: flex; justify-content: space-between;">
-              <span>{{ model.providerName }} - {{ model.name }}</span>
-              <span style="color: #909399; font-size: 12px;">{{ model.maxTokens }}K tokens</span>
-            </div>
-          </el-option>
-        </el-select>
-        <div class="form-tip">用于质量检查、一致性验证</div>
-      </el-form-item>
-
-      <el-form-item label="助手模型">
-        <el-select v-model="configProxy.assistantModel" placeholder="选择助手模型" :disabled="!hasEnabledProviders">
+      <el-form-item label="大纲规划师 (Planner)">
+        <el-select v-model="configProxy.plannerModel" placeholder="选择规划模型" :disabled="!hasEnabledProviders">
           <el-option v-for="model in getAvailableModels('all')" :key="model.id" :label="`${model.providerName} - ${model.name}`" :value="model.id">
             <div style="display: flex; justify-content: space-between;">
               <span>{{ model.providerName }} - {{ model.name }}</span>
@@ -52,11 +16,11 @@
             </div>
           </el-option>
         </el-select>
-        <div class="form-tip">用于AI助手对话，帮助作者创作</div>
+        <div class="form-tip">负责推演大纲节点、预测状态变更（建议使用高推理模型，如 GPT-4 或 Claude-Opus）</div>
       </el-form-item>
 
-      <el-form-item label="表格记忆模型">
-        <el-select v-model="configProxy.memoryModel" placeholder="选择表格记忆模型" :disabled="!hasEnabledProviders">
+      <el-form-item label="正文写手 (Writer)">
+        <el-select v-model="configProxy.writerModel" placeholder="选择写作模型" :disabled="!hasEnabledProviders">
           <el-option v-for="model in getAvailableModels('all')" :key="model.id" :label="`${model.providerName} - ${model.name}`" :value="model.id">
             <div style="display: flex; justify-content: space-between;">
               <span>{{ model.providerName }} - {{ model.name }}</span>
@@ -64,11 +28,11 @@
             </div>
           </el-option>
         </el-select>
-        <div class="form-tip">用于表格记忆的自动填写和更新</div>
+        <div class="form-tip">负责根据上下文撰写小说正文（建议使用文笔好的模型，如 Claude-Sonnet）</div>
       </el-form-item>
 
-      <el-form-item label="导入识别模型">
-        <el-select v-model="configProxy.importModel" placeholder="选择导入识别模型" :disabled="!hasEnabledProviders">
+      <el-form-item label="防吃书审查 (Sentinel)">
+        <el-select v-model="configProxy.sentinelModel" placeholder="选择审查模型" :disabled="!hasEnabledProviders">
           <el-option v-for="model in getAvailableModels('all')" :key="model.id" :label="`${model.providerName} - ${model.name}`" :value="model.id">
             <div style="display: flex; justify-content: space-between;">
               <span>{{ model.providerName }} - {{ model.name }}</span>
@@ -76,7 +40,19 @@
             </div>
           </el-option>
         </el-select>
-        <div class="form-tip">用于小说导入时的人物、世界观、大纲智能识别</div>
+        <div class="form-tip">负责在每次生成后校验一致性（建议使用高速响应模型，如 Claude-Haiku 或 GPT-4o-mini）</div>
+      </el-form-item>
+
+      <el-form-item label="沙盘提取 (Extractor)">
+        <el-select v-model="configProxy.extractorModel" placeholder="选择沙盘提取模型" :disabled="!hasEnabledProviders">
+          <el-option v-for="model in getAvailableModels('all')" :key="model.id" :label="`${model.providerName} - ${model.name}`" :value="model.id">
+            <div style="display: flex; justify-content: space-between;">
+              <span>{{ model.providerName }} - {{ model.name }}</span>
+              <span style="color: #909399; font-size: 12px;">{{ model.maxTokens }}K tokens</span>
+            </div>
+          </el-option>
+        </el-select>
+        <div class="form-tip">执行 Tool Calling 输出规范 JSON 以更新底层沙盘数据</div>
       </el-form-item>
 
       <el-alert v-if="!hasEnabledProviders" type="warning" :closable="false" show-icon>
@@ -85,8 +61,8 @@
       </el-alert>
 
       <el-alert v-else type="info" :closable="false" show-icon>
-        <template #title>分层模型策略可节省约89%的成本</template>
-        <div>规划模型用于高层决策，写作模型生成内容，检查模型验证质量，助手模型提供创作建议，表格记忆模型自动维护记忆表格</div>
+        <template #title>V5 沙盘分层模型策略</template>
+        <div>规划师用于高层决策和状态预测，写手生成正文内容，审查员验证防吃书质量，提取引擎则负责更新图谱状态。</div>
       </el-alert>
     </el-form>
   </el-card>
@@ -112,14 +88,14 @@ const hasEnabledProviders = computed(() => {
   return props.providers.some(p => p.isEnabled && p.models.some(m => m.isEnabled))
 })
 
-function getAvailableModels(type: 'planning' | 'writing' | 'checking' | 'all') {
+function getAvailableModels(type: string) {
   const models: Array<ModelInfo & { providerId: string; providerName: string }> = []
 
   for (const provider of props.providers) {
     if (!provider.isEnabled) continue
     for (const model of provider.models) {
       if (!model.isEnabled) continue
-      if (model.type === type || model.type === 'all') {
+      if (type === 'all' || model.type === type || model.type === 'all') {
         models.push({ ...model, providerId: provider.id, providerName: provider.name })
       }
     }

@@ -260,28 +260,64 @@ export class GenerationScheduler {
         }
 
         const prompt = `分析以下小说章节内容，如果有需要更新到表格的状态变化、新物品、新人物等，请输出更新命令。
-【严格输出格式】
-每行必须是一条独立的命令，且必须以 "表名:" 开头！不要输出任何其他废话和Markdown标记！
-正确示例：
-角色状态:updateRow(1, "林风", "剑修", "山洞", "重伤", "铁剑")
 
 当前存在的表格结构：
 ${tablesText}
 
 章节内容：
-${slicedContent}`
-        
+${slicedContent}
+
+请注意，你的输出将通过工具调用(Tool Calling)进行解析，因此你需要调用提供的工具来输出这些命令，而非返回纯文本。`;
+
         const messages: ChatMessage[] = [
-          { role: 'system', content: prompts.memory },
+          { role: 'system', content: prompts.extractor },
           { role: 'user', content: prompt }
-        ]
-        
+        ];
+
         try {
-          const res = await aiStore.chat(messages, { type: 'check', complexity: 'low', priority: 'speed' }, { maxTokens: 1000 })
-          return res.content.split('\n').filter(line => line.trim().length > 0)
+          const res = await aiStore.chat(messages, { type: 'check', complexity: 'low', priority: 'speed' }, {
+            maxTokens: 1000,
+            response_format: {
+              type: 'json_schema',
+              json_schema: {
+                name: 'update_memory_table',
+                strict: true,
+                schema: {
+                  type: 'object',
+                  additionalProperties: false,
+                  properties: {
+                    commands: {
+                      type: 'array',
+                      description: '更新表格的命令列表',
+                      items: {
+                        type: 'object',
+                        additionalProperties: false,
+                        properties: {
+                          sheetName: { type: 'string', description: '表格名称' },
+                          action: { type: 'string', enum: ['updateRow', 'insertRow', 'deleteRow'] },
+                          rowIndex: { type: 'integer', description: '操作的行号（仅对于updateRow和deleteRow有效）' },
+                          values: { type: 'array', items: { type: 'string' }, description: '具体更新的值（对于insertRow和updateRow有效）' }
+                        },
+                        required: ['sheetName', 'action']
+                      }
+                    }
+                  },
+                  required: ['commands']
+                }
+              }
+            }
+          });
+
+          const parsed = JSON.parse(res.content);
+          return parsed.commands?.map((cmd: any) => ({
+            sheetName: cmd.sheetName,
+            action: cmd.action,
+            rowIndex: cmd.rowIndex,
+            values: cmd.values
+          })) || [];
         } catch (err) {
-          console.warn('提取记忆表更新命令失败', err)
-          return []
+          console.warn('提取记忆表更新命令失败', err);
+          return [];
         }
       }
 
@@ -561,6 +597,18 @@ ${slicedContent}`
           await projectStore.saveChapter(chapterData)
         }
 
+        // V4 Adaptation: 自动使用新的 Review 工作流产生交互建议
+        if (currentProject.config?.enableQualityCheck) {
+          try {
+            taskManager.updateTask(batchTask.id, { description: `正在生成多角色审校建议（第 ${chapterNumber} 章）...` })
+            const { builtinCommandRegistry } = await import('@/assistant/commands/builtinCommands')
+            // 使用 consistency (默认) 或 editor 角色生成动作卡片
+            await builtinCommandRegistry.executeCommand('review', ['consistency'])
+          } catch(e) {
+            console.warn('[Review Workflow] 自动审校产生建议失败:', e)
+          }
+        }
+
         if (options.autoUpdateSettings) {
           // V4-P1-⑥: 语义边界切片触发 - 仅在高影响事件时进行完整状态提取
           const HIGH_IMPACT_KEYWORDS = [
@@ -572,6 +620,57 @@ ${slicedContent}`
           if (hasHighImpact || chapterNumber % 5 === 0) {
             // V4-D2: 同步等待状态提取完成，确保第 N+1 章能看到第 N 章的状态变更
             taskManager.updateTask(batchTask.id, { description: `正在同步角色状态（第 ${chapterNumber} 章）...` })
+
+            // Integrate V5 Tool Calling for Sandbox State Extraction
+            try {
+              taskManager.updateTask(batchTask.id, { description: `正在抽取底层实体图谱状态...` })
+              const schemaPayload = {
+                name: "update_entity_state",
+                description: "Extract state changes from the generated chapter text",
+                strict: true,
+                parameters: {
+                  type: "object",
+                  properties: {
+                    events: {
+                      type: "array",
+                      items: {
+                        type: "object",
+                        properties: {
+                          entityName: { type: "string" },
+                          eventType: { type: "string", enum: ['PROPERTY_UPDATE', 'RELATION_ADD', 'LOCATION_MOVE'] },
+                          details: { type: "string" }
+                        },
+                        required: ["entityName", "eventType", "details"],
+                        additionalProperties: false
+                      }
+                    }
+                  },
+                  required: ["events"],
+                  additionalProperties: false
+                }
+              };
+
+              const extractionPrompt = `Please extract any significant state changes from the following chapter.
+Chapter Content:
+${chapterData.content}
+
+If there are no changes, return an empty array.`;
+
+              const extractionRes = await aiStore.chat(
+                [
+                  { role: 'system', content: 'You are a state extraction engine for a novel database. Only output valid JSON conforming to the tool schema.' },
+                  { role: 'user', content: extractionPrompt }
+                ],
+                { type: 'check', complexity: 'medium', priority: 'speed' },
+                { maxTokens: 1000, tools: [schemaPayload], toolChoice: { type: "function", function: { name: "update_entity_state" } } } as any
+              );
+
+              // In real implementation, parse extractionRes.toolCalls and dispatch to sandboxStore
+              logger.debug(`[V5 State Extraction] Completed for chapter ${chapterNumber}`, extractionRes);
+            } catch (err) {
+              console.warn('[V5 State Extraction] 状态抽取失败', err);
+            }
+
             await this.runExtractionInBackground(chapterData)
           } else {
             logger.debug(`[状态追踪] 第${chapterNumber}章无高影响事件，跳过状态提取`)

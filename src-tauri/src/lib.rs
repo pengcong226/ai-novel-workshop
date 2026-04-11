@@ -19,90 +19,66 @@ macro_rules! lock_db {
     };
 }
 
-fn process_and_save_project_blob(db: &Connection, id: &str, data: &str) -> Result<(), String> {
-    let mut v: serde_json::Value = serde_json::from_str(data).map_err(|e| e.to_string())?;
+fn process_and_save_project_blob(
+    db: &Connection,
+    id: &str,
+    data: &str,
+    characters: Option<Vec<String>>,
+    worldbook: Option<Vec<String>>,
+) -> Result<(), String> {
+    db.execute(
+        "INSERT OR REPLACE INTO projects (id, data) VALUES (?1, ?2)",
+        rusqlite::params![id, data],
+    )
+    .map_err(|e| e.to_string())?;
 
-    // Migrate & isolate characters
-    if let Some(chars) = v.get_mut("characters").and_then(|c| c.as_array_mut()) {
+    if let Some(chars) = characters {
         let mut seen_ids = Vec::new();
-        for ch in chars.iter() {
-            if let Some(ch_id) = ch.get("id").and_then(|id| id.as_str()) {
-                seen_ids.push(ch_id.to_string());
-                db.execute(
-                    "INSERT OR REPLACE INTO characters (id, project_id, data) VALUES (?1, ?2, ?3)",
-                    rusqlite::params![ch_id, id, ch.to_string()],
-                )
-                .map_err(|e| e.to_string())?;
+        let mut stmt = db.prepare("INSERT OR REPLACE INTO characters (id, project_id, data) VALUES (?1, ?2, ?3)").map_err(|e| e.to_string())?;
+        for ch_str in chars {
+            if let Ok(ch) = serde_json::from_str::<serde_json::Value>(&ch_str) {
+                if let Some(ch_id) = ch.get("id").and_then(|id| id.as_str()) {
+                    seen_ids.push(ch_id.to_string());
+                    stmt.execute(rusqlite::params![ch_id, id, &ch_str]).map_err(|e| e.to_string())?;
+                }
             }
         }
+        drop(stmt);
 
-        // Sync deletions
         if let Ok(mut stmt) = db.prepare("SELECT id FROM characters WHERE project_id = ?1") {
             if let Ok(rows) = stmt.query_map(rusqlite::params![id], |row| row.get::<_, String>(0)) {
                 for ext_id in rows.filter_map(Result::ok) {
                     if !seen_ids.contains(&ext_id) {
-                        if let Err(e) = db.execute(
-                            "DELETE FROM characters WHERE project_id = ?1 AND id = ?2",
-                            rusqlite::params![id, ext_id],
-                        ) {
-                            warn!(
-                                "Failed to delete orphaned character {} in project {}: {}",
-                                ext_id, id, e
-                            );
-                        }
+                        let _ = db.execute("DELETE FROM characters WHERE project_id = ?1 AND id = ?2", rusqlite::params![id, ext_id]);
                     }
                 }
             }
         }
-
-        // Strip them from main blob
-        v["characters"] = serde_json::json!([]);
     }
 
-    // Migrate & isolate worldbook entries
-    if let Some(wb) = v.get_mut("worldbook").and_then(|w| w.as_object_mut()) {
-        if let Some(entries) = wb.get_mut("entries").and_then(|e| e.as_array_mut()) {
-            let mut seen_ids = Vec::new();
-            for entry in entries.iter() {
+    if let Some(entries) = worldbook {
+        let mut seen_ids = Vec::new();
+        let mut stmt = db.prepare("INSERT OR REPLACE INTO worldbooks (id, project_id, data) VALUES (?1, ?2, ?3)").map_err(|e| e.to_string())?;
+        for entry_str in entries {
+            if let Ok(entry) = serde_json::from_str::<serde_json::Value>(&entry_str) {
                 if let Some(entry_id) = entry.get("id").and_then(|id| id.as_str()) {
                     seen_ids.push(entry_id.to_string());
-                    db.execute(
-                        "INSERT OR REPLACE INTO worldbooks (id, project_id, data) VALUES (?1, ?2, ?3)",
-                        rusqlite::params![entry_id, id, entry.to_string()],
-                    ).map_err(|e| e.to_string())?;
+                    stmt.execute(rusqlite::params![entry_id, id, &entry_str]).map_err(|e| e.to_string())?;
                 }
             }
+        }
+        drop(stmt);
 
-            // Sync deletions for worldbook entries
-            if let Ok(mut stmt) = db.prepare("SELECT id FROM worldbooks WHERE project_id = ?1") {
-                if let Ok(rows) =
-                    stmt.query_map(rusqlite::params![id], |row| row.get::<_, String>(0))
-                {
-                    for ext_id in rows.filter_map(Result::ok) {
-                        if !seen_ids.contains(&ext_id) {
-                            if let Err(e) = db.execute(
-                                "DELETE FROM worldbooks WHERE project_id = ?1 AND id = ?2",
-                                rusqlite::params![id, ext_id],
-                            ) {
-                                warn!("Failed to delete orphaned worldbook entry {} in project {}: {}", ext_id, id, e);
-                            }
-                        }
+        if let Ok(mut stmt) = db.prepare("SELECT id FROM worldbooks WHERE project_id = ?1") {
+            if let Ok(rows) = stmt.query_map(rusqlite::params![id], |row| row.get::<_, String>(0)) {
+                for ext_id in rows.filter_map(Result::ok) {
+                    if !seen_ids.contains(&ext_id) {
+                        let _ = db.execute("DELETE FROM worldbooks WHERE project_id = ?1 AND id = ?2", rusqlite::params![id, ext_id]);
                     }
                 }
             }
-
-            // Strip them
-            wb.insert("entries".to_string(), serde_json::json!([]));
         }
     }
-
-    let stripped_data = serde_json::to_string(&v).map_err(|e| e.to_string())?;
-
-    db.execute(
-        "INSERT OR REPLACE INTO projects (id, data) VALUES (?1, ?2)",
-        rusqlite::params![id, stripped_data],
-    )
-    .map_err(|e| e.to_string())?;
 
     Ok(())
 }
@@ -170,21 +146,20 @@ fn save_project_with_chapters(
     id: String,
     project_data: String,
     chapters_data: Vec<String>,
+    characters_data: Option<Vec<String>>,
+    worldbook_data: Option<Vec<String>>,
 ) -> Result<(), String> {
     let mut db = lock_db!(state);
     let tx = db.transaction().map_err(|e| e.to_string())?;
 
-    // 1. Process and save project meta (this strips arrays and inserts to sub-tables)
-    process_and_save_project_blob(&tx, &id, &project_data)?;
+    process_and_save_project_blob(&tx, &id, &project_data, characters_data, worldbook_data)?;
 
-    // 2. Clear old chapters
     tx.execute(
         "DELETE FROM chapters WHERE project_id = ?1",
         rusqlite::params![&id],
     )
     .map_err(|e| e.to_string())?;
 
-    // 3. Insert new chapters
     let mut stmt = tx
         .prepare("INSERT INTO chapters (id, project_id, data) VALUES (?1, ?2, ?3)")
         .map_err(|e| e.to_string())?;
@@ -211,11 +186,17 @@ fn save_project_with_chapters(
 }
 
 #[tauri::command]
-fn save_project(state: State<'_, AppState>, id: String, data: String) -> Result<(), String> {
+fn save_project(
+    state: State<'_, AppState>,
+    id: String,
+    data: String,
+    characters: Option<Vec<String>>,
+    worldbook: Option<Vec<String>>,
+) -> Result<(), String> {
     let mut db = lock_db!(state);
     let tx = db.transaction().map_err(|e| e.to_string())?;
 
-    process_and_save_project_blob(&tx, &id, &data)?;
+    process_and_save_project_blob(&tx, &id, &data, characters, worldbook)?;
 
     tx.commit().map_err(|e| e.to_string())?;
     Ok(())
@@ -409,7 +390,7 @@ fn delete_single_chapter(
 }
 
 #[tauri::command]
-fn save_character(
+fn save_character_atomic(
     state: State<'_, AppState>,
     project_id: String,
     character_id: String,
@@ -419,6 +400,22 @@ fn save_character(
     db.execute(
         "INSERT OR REPLACE INTO characters (id, project_id, data) VALUES (?1, ?2, ?3)",
         rusqlite::params![character_id, project_id, data],
+    )
+    .map_err(|e| e.to_string())?;
+    Ok(())
+}
+
+#[tauri::command]
+fn save_worldbook_entry_atomic(
+    state: State<'_, AppState>,
+    project_id: String,
+    entry_id: String,
+    data: String,
+) -> Result<(), String> {
+    let db = lock_db!(state);
+    db.execute(
+        "INSERT OR REPLACE INTO worldbooks (id, project_id, data) VALUES (?1, ?2, ?3)",
+        rusqlite::params![entry_id, project_id, data],
     )
     .map_err(|e| e.to_string())?;
     Ok(())
@@ -578,8 +575,9 @@ pub fn run() {
             save_projects_list,
             delete_project,
             delete_single_chapter,
-            save_character,
+            save_character_atomic,
             delete_character,
+            save_worldbook_entry_atomic,
             save_worldbook_entry,
             delete_worldbook_entry,
             vector::add_vector_documents,

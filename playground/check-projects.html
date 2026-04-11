@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>项目数据检查与修复</title>
+    <style>
+        body {
+            font-family: 'Microsoft YaHei', Arial, sans-serif;
+            max-width: 1000px;
+            margin: 20px auto;
+            padding: 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+        }
+        .container {
+            background: white;
+            border-radius: 10px;
+            padding: 30px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+        }
+        h1 {
+            color: #667eea;
+            border-bottom: 3px solid #667eea;
+            padding-bottom: 10px;
+        }
+        h2 {
+            color: #764ba2;
+            margin-top: 30px;
+        }
+        .status-box {
+            padding: 15px;
+            border-radius: 5px;
+            margin: 10px 0;
+        }
+        .success { background: #d4edda; color: #155724; border-left: 4px solid #28a745; }
+        .error { background: #f8d7da; color: #721c24; border-left: 4px solid #dc3545; }
+        .warning { background: #fff3cd; color: #856404; border-left: 4px solid #ffc107; }
+        .info { background: #d1ecf1; color: #0c5460; border-left: 4px solid #17a2b8; }
+        .project-card {
+            background: #f8f9fa;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            padding: 20px;
+            margin: 15px 0;
+        }
+        .project-card.target {
+            border-color: #667eea;
+            background: #f0f4ff;
+        }
+        button {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 12px 30px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+            margin: 5px;
+            transition: transform 0.2s;
+        }
+        button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+        }
+        .badge {
+            display: inline-block;
+            padding: 3px 10px;
+            border-radius: 12px;
+            font-size: 12px;
+            margin: 0 5px;
+        }
+        .badge-success { background: #28a745; color: white; }
+        .badge-error { background: #dc3545; color: white; }
+        code {
+            background: #f5f5f5;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-family: 'Courier New', monospace;
+            color: #d63384;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔍 项目数据检查与修复</h1>
+
+        <div id="loading" class="status-box info">
+            正在检查项目数据...
+        </div>
+
+        <div id="results" style="display:none;">
+            <h2>📊 IndexedDB 中的项目</h2>
+            <div id="projects-list"></div>
+
+            <h2>🎯 URL 中的项目ID</h2>
+            <div id="url-project"></div>
+
+            <h2>💡 解决方案</h2>
+            <div id="solution"></div>
+        </div>
+    </div>
+
+    <script>
+        const DB_NAME = 'AI_Novel_Workshop';
+        const PROJECTS_STORE = 'projects';
+
+        async function checkProjects() {
+            try {
+                // 获取当前URL中的项目ID
+                const urlParams = new URLSearchParams(window.location.search);
+                const urlProjectId = urlParams.get('projectId') || 'c9e77d49-163e-4fd4-9ac0-c4d360c5292f';
+
+                document.getElementById('url-project').innerHTML = DOMPurify.sanitize(`
+                    <div class="status-box info">
+                        当前访问的项目ID: <code>${urlProjectId}</code>
+                    </div>
+                `);
+
+                // 打开数据库
+                const db = await new Promise((resolve, reject) => {
+                    const request = indexedDB.open(DB_NAME, 1);
+                    request.onsuccess = (e) => resolve(e.target.result);
+                    request.onerror = () => reject(new Error('无法打开数据库'));
+                });
+
+                // 获取所有项目
+                const projects = await new Promise((resolve) => {
+                    const tx = db.transaction([PROJECTS_STORE], 'readonly');
+                    const store = tx.objectStore(PROJECTS_STORE);
+                    const request = store.getAll();
+                    request.onsuccess = () => resolve(request.result);
+                });
+
+                db.close();
+
+                // 显示项目列表
+                const projectsListDiv = document.getElementById('projects-list');
+
+                if (projects.length === 0) {
+                    projectsListDiv.innerHTML = DOMPurify.sanitize(`
+                        <div class="status-box error">
+                            ❌ IndexedDB 中没有任何项目数据
+                        </div>
+                    `);
+
+                    document.getElementById('solution').innerHTML = DOMPurify.sanitize(`
+                        <div class="status-box warning">
+                            <strong>需要创建项目</strong><br><br>
+                            <button onclick="window.open('http://localhost:3000/', '_blank')">
+                                前往项目列表创建新项目
+                            </button>
+                        </div>
+                    `);
+                } else {
+                    projectsListDiv.innerHTML = DOMPurify.sanitize(`
+                        <div class="status-box success">
+                            ✅ 找到 ${projects.length} 个项目
+                        </div>
+                    `);
+
+                    // 检查URL中的项目是否存在
+                    const targetProject = projects.find(p => p.id === urlProjectId);
+
+                    projects.forEach((project, index) => {
+                        const isTarget = project.id === urlProjectId;
+                        projectsListDiv.innerHTML += DOMPurify.sanitize(`
+                            <div class="project-card ${isTarget ? 'target' : ''}">
+                                <strong>${index + 1}. ${DOMPurify.sanitize(project.title || '未命名项目')}</strong>
+                                ${isTarget ? '<span class="badge badge-success">当前访问</span>' : ''}<br>
+                                <small style="color: #666;">ID: <code>${DOMPurify.sanitize(project.id)}</code></small><br>
+                                类型: <code>${DOMPurify.sanitize(project.genre || '未设置')}</code> |
+                                字数: <code>${project.currentWords || 0} / ${project.targetWords || 0}</code><br>
+                                创建时间: <code>${project.createdAt ? new Date(project.createdAt).toLocaleString() : '未知'}</code><br>
+                                ${!isTarget ? `<button onclick="openProject('${DOMPurify.sanitize(project.id)}')">打开此项目</button>` : ''}
+                            </div>
+                        `);
+                    });
+
+                    if (targetProject) {
+                        document.getElementById('solution').innerHTML = DOMPurify.sanitize(`
+                            <div class="status-box success">
+                                <strong>✅ 项目存在，但无法加载</strong><br>
+                                项目数据正常，可能是加载逻辑有问题。<br><br>
+                                <button onclick="reloadProject('${urlProjectId}')">重新加载项目</button>
+                                <button onclick="window.open('http://localhost:3000/', '_blank')">返回项目列表</button>
+                            </div>
+                        `);
+                    } else {
+                        document.getElementById('solution').innerHTML = DOMPurify.sanitize(`
+                            <div class="status-box warning">
+                                <strong>❌ URL 中的项目不存在</strong><br>
+                                项目ID <code>${urlProjectId}</code> 在数据库中找不到。<br><br>
+                                可能的原因：<br>
+                                1. 项目ID已更改<br>
+                                2. 项目被删除了<br>
+                                3. 数据库被清空过<br><br>
+                                <strong>解决方案：</strong><br>
+                                ${projects.length > 0 ?
+                                    `点击上方列表中的"打开此项目"按钮，或者<br><br>` :
+                                    ''
+                                }
+                                <button onclick="window.open('http://localhost:3000/', '_blank')">
+                                    返回项目列表重新选择项目
+                                </button>
+                            </div>
+                        `);
+                    }
+                }
+
+                document.getElementById('loading').style.display = 'none';
+                document.getElementById('results').style.display = 'block';
+
+            } catch (error) {
+                document.getElementById('loading').innerHTML = DOMPurify.sanitize(`
+                    <div class="status-box error">
+                        ❌ 检查失败: ${error.message}
+                    </div>
+                `);
+            }
+        }
+
+        function openProject(projectId) {
+            window.open(`http://localhost:3000/project/${projectId}`, '_blank');
+        }
+
+        function reloadProject(projectId) {
+            // 尝试手动加载项目到Pinia Store
+            if (window.projectStore) {
+                window.projectStore.openProject(projectId).then(() => {
+                    alert('项目重新加载成功！');
+                    location.reload();
+                }).catch((error) => {
+                    alert('加载失败: ' + error.message);
+                });
+            } else {
+                // 直接刷新页面
+                location.reload();
+            }
+        }
+
+        // 页面加载时自动检查
+        window.addEventListener('load', checkProjects);
+    </script>
+</body>
+</html>

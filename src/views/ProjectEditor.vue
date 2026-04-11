@@ -29,37 +29,11 @@
           class="sidebar-menu"
         >
           <!-- 内置菜单项 -->
-          <el-menu-item index="world">
-            <el-icon><Promotion /></el-icon>
-            <span>世界观设定</span>
+          <el-menu-item index="sandbox">
+            <el-icon><DataBoard /></el-icon>
+            <span>多维设定沙盘</span>
           </el-menu-item>
 
-          <el-menu-item index="worldbook">
-            <el-icon><Notebook /></el-icon>
-            <span>世界书</span>
-          </el-menu-item>
-
-          <el-menu-item index="character-card">
-            <el-icon><Avatar /></el-icon>
-            <span>角色卡</span>
-          </el-menu-item>
-
-          <el-menu-item index="map">
-            <el-icon><Location /></el-icon>
-            <span>世界地图</span>
-          </el-menu-item>
-          <el-menu-item index="characters">
-            <el-icon><User /></el-icon>
-            <span>人物设定</span>
-          </el-menu-item>
-          <el-menu-item index="relationships">
-            <el-icon><Connection /></el-icon>
-            <span>人物关系图</span>
-          </el-menu-item>
-          <el-menu-item index="outline">
-            <el-icon><Document /></el-icon>
-            <span>大纲</span>
-          </el-menu-item>
           <el-menu-item index="chapters">
             <el-icon><Reading /></el-icon>
             <span>章节</span>
@@ -67,14 +41,6 @@
           <el-menu-item index="summary">
             <el-icon><DocumentCopy /></el-icon>
             <span>摘要管理</span>
-          </el-menu-item>
-          <el-menu-item index="memory">
-            <el-icon><Memo /></el-icon>
-            <span>表格记忆</span>
-          </el-menu-item>
-          <el-menu-item index="timeline">
-            <el-icon><Clock /></el-icon>
-            <span>时间线</span>
           </el-menu-item>
           <el-menu-item index="quality">
             <el-icon><DataAnalysis /></el-icon>
@@ -145,17 +111,9 @@
         </div>
         <template v-else-if="project && project.id">
           <!-- 内置组件 -->
-          <WorldSetting v-if="activeMenu === 'world'" />
-          <WorldbookPanel v-else-if="activeMenu === 'worldbook'" />
-          <CharacterCardPanel v-else-if="activeMenu === 'character-card'" />
-          <WorldMap v-else-if="activeMenu === 'map'" />
-          <Characters v-else-if="activeMenu === 'characters'" />
-          <RelationshipGraph v-else-if="activeMenu === 'relationships'" />
-          <Outline v-else-if="activeMenu === 'outline'" />
+          <SandboxLayout v-if="activeMenu === 'sandbox'" />
           <Chapters v-else-if="activeMenu === 'chapters'" />
           <SummaryManager v-else-if="activeMenu === 'summary'" />
-          <MemoryTables v-else-if="activeMenu === 'memory'" />
-          <TimelineEditor v-else-if="activeMenu === 'timeline'" />
           <QualityReport v-else-if="activeMenu === 'quality'" />
           <ProjectConfig v-else-if="activeMenu === 'config'" />
 
@@ -200,21 +158,13 @@ import { ref, onMounted, computed, defineAsyncComponent } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useProjectStore } from '@/stores/project'
 import { usePluginStore } from '@/stores/plugin'
-import { Promotion, User, Document, Reading, Setting, ArrowLeft, Loading, Memo, Connection, Clock, DataAnalysis, DocumentCopy, Location, Tools, Notebook, Avatar, Fold, Expand} from '@element-plus/icons-vue'
+import { Reading, Setting, ArrowLeft, Loading, DataAnalysis, DocumentCopy, Tools, Fold, Expand, DataBoard } from '@element-plus/icons-vue'
 import { getAIMockEnabled } from '@/utils/devFlags'
 
 // 懒加载组件 - 按需加载，优化首屏性能
-const WorldSetting = defineAsyncComponent(() => import('@/components/WorldSetting.vue'))
-const WorldbookPanel = defineAsyncComponent(() => import('@/components/WorldbookPanel.vue'))
-const CharacterCardPanel = defineAsyncComponent(() => import('@/components/CharacterCardPanel.vue'))
-const WorldMap = defineAsyncComponent(() => import('@/components/WorldMap.vue'))
-const Characters = defineAsyncComponent(() => import('@/components/Characters.vue'))
-const RelationshipGraph = defineAsyncComponent(() => import('@/components/RelationshipGraph.vue'))
-const Outline = defineAsyncComponent(() => import('@/components/Outline.vue'))
+const SandboxLayout = defineAsyncComponent(() => import('@/components/Sandbox/SandboxLayout.vue'))
 const Chapters = defineAsyncComponent(() => import('@/components/Chapters.vue'))
 const ProjectConfig = defineAsyncComponent(() => import('@/components/ProjectConfig.vue'))
-const MemoryTables = defineAsyncComponent(() => import('@/components/MemoryTables.vue'))
-const TimelineEditor = defineAsyncComponent(() => import('@/components/TimelineEditor.vue'))
 const QualityReport = defineAsyncComponent(() => import('@/components/QualityReport.vue'))
 const AIAssistant = defineAsyncComponent(() => import('@/components/AIAssistant.vue'))
 const SummaryManager = defineAsyncComponent(() => import('@/components/SummaryManager.vue'))
@@ -225,7 +175,7 @@ const router = useRouter()
 const projectStore = useProjectStore()
 const pluginStore = usePluginStore()
 
-const activeMenu = ref('world')
+const activeMenu = ref('sandbox')
 const isDev = import.meta.env.DEV
 const isMockEnabled = ref(false)
 const isZenMode = ref(false)

@@ -11,8 +11,7 @@ import type {
   WorldbookEntry,
   WorldbookImportOptions,
   WorldbookImportResult,
-  WorldbookMergeOptions,
-  ConflictResolution
+  WorldbookMergeOptions
 } from '@/types/worldbook'
 
 /**

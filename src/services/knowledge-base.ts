@@ -11,7 +11,6 @@ import type {
   KnowledgeBase,
   KnowledgeEntry,
   KnowledgeImportOptions,
-  KnowledgeExportOptions,
   KnowledgeSearchOptions,
   KnowledgeSearchResult,
   KnowledgeStatistics

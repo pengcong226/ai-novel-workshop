@@ -20,7 +20,6 @@ export interface EntityRelation {
   type: string;
   attitude?: number; // Added for dynamic affinity text tracking
 }
-
 export type StateEventType = 'PROPERTY_UPDATE' | 'RELATION_ADD' | 'RELATION_REMOVE' | 'LOCATION_MOVE';
 
 export interface StateEvent {

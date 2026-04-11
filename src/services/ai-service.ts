@@ -25,6 +25,7 @@ import type {
 
 import { countTokens as countProviderTokens } from '../utils/llm/tokenizer';
 import { ModelRouter, SimpleUsageTracker } from './ai/ModelRouter';
+import { FailoverManager } from './ai/FailoverManager';
 import { ProviderRegistry } from '@/plugins/registries/provider-registry';
 import { getLogger } from '@/utils/logger';
 
@@ -1076,6 +1077,7 @@ class LocalProvider {
 export class AIService {
   private config: AIServiceConfig;
   private modelRouter: ModelRouter;
+  private failoverManager: FailoverManager;
   private usageTracker: SimpleUsageTracker;
   private costTracker: CostTracker;
   private rateLimiter: RateLimiter;
@@ -1115,6 +1117,12 @@ export class AIService {
     this.modelRouter = new ModelRouter(this.usageTracker, {
       costOptimization: config.router?.costOptimization,
       preferredModels: config.router?.preferredModels,
+    });
+
+    // 初始化故障转移管理器
+    this.failoverManager = new FailoverManager(this.modelRouter, {
+      failureThreshold: 3,
+      resetTimeoutMs: 60000
     });
 
     // 配置自定义providers
@@ -1188,75 +1196,87 @@ export class AIService {
     context?: TaskContext,
     options?: Partial<ChatRequest>
   ): Promise<ChatResponse> {
-    // 选择模型
-    const model = this.modelRouter.selectModel(
-      context || {
-        type: 'chapter',
-        complexity: 'medium',
-        priority: 'balanced',
+    const taskContext = context || {
+      type: 'chapter',
+      complexity: 'medium',
+      priority: 'balanced',
+    };
+
+    const { result } = await this.failoverManager.executeWithFailover(
+      taskContext,
+      async (model) => {
+        // 构建请求
+        const request: ChatRequest = {
+          messages,
+          model: model.model,
+          temperature: options?.temperature,
+          maxTokens: options?.maxTokens,
+          stopSequences: options?.stopSequences,
+          ...options,
+        };
+
+        const estimatedCostUSD = this.estimateRequestCost(messages, request, model);
+        this.ensureBudgetAvailable(estimatedCostUSD);
+
+        const rateLimitKey = `${model.provider}:${model.id}`;
+        const reservedTokens = request.maxTokens || model.maxTokens || 2000;
+        const rateLimitConfig = this.getRateLimitConfig(model);
+
+        // 执行单模型带重试的请求 (主要处理 rate limit 的 delay/retry)
+        return this.executeWithRetry(async () => {
+          await this.rateLimiter.waitForSlot(rateLimitKey, reservedTokens, rateLimitConfig);
+          const startTime = Date.now();
+
+          let response: ChatResponse;
+
+          switch (model.provider) {
+            case 'openai':
+              response = await this.executeOpenAI(request, model);
+              break;
+            case 'anthropic':
+              response = await this.executeClaude(request, model);
+              break;
+            case 'local':
+              response = await this.executeLocal(request, model);
+              break;
+            case 'custom':
+              response = await this.executeCustomProvider(request, model);
+              break;
+            default:
+              throw new ModelUnavailableError(model.id, `Unknown provider: ${model.provider}`);
+          }
+
+          response.latency = Date.now() - startTime;
+
+          // 记录使用情况
+          this.usageTracker.recordUsage(model.id, response.usage.totalTokens);
+          this.costTracker.recordCost({
+            timestamp: new Date(),
+            model: model.id,
+            provider: model.provider,
+            taskType: taskContext.type,
+            tokens: response.usage,
+            cost: response.cost,
+          });
+          this.rateLimiter.recordRequest(rateLimitKey, response.usage.totalTokens, reservedTokens);
+
+          return response;
+        }).catch(error => {
+          this.rateLimiter.releaseReservation(rateLimitKey, reservedTokens);
+          throw error;
+        });
+      },
+      (fromModel, toModel) => {
+        aiServiceLogger.warn(`[故障转移] 触发模型切换: ${fromModel.id} -> ${toModel.id}`);
+        try {
+          const { useTaskManager } = require('@/stores/taskManager');
+          const taskManager = useTaskManager();
+          taskManager.addToast(`模型 ${fromModel.id} 故障/熔断，已自动转移至 ${toModel.id}`, 'warning');
+        } catch(e) {}
       }
     );
 
-    // 构建请求
-    const request: ChatRequest = {
-      messages,
-      model: model.model,
-      temperature: options?.temperature,
-      maxTokens: options?.maxTokens,
-      stopSequences: options?.stopSequences,
-      ...options,
-    };
-
-    const estimatedCostUSD = this.estimateRequestCost(messages, request, model);
-    this.ensureBudgetAvailable(estimatedCostUSD);
-
-    const rateLimitKey = `${model.provider}:${model.id}`;
-    const reservedTokens = request.maxTokens || model.maxTokens || 2000;
-    const rateLimitConfig = this.getRateLimitConfig(model);
-
-    // 执行请求（带重试）
-    return this.executeWithRetry(async () => {
-      await this.rateLimiter.waitForSlot(rateLimitKey, reservedTokens, rateLimitConfig);
-      const startTime = Date.now();
-
-      let response: ChatResponse;
-
-      switch (model.provider) {
-        case 'openai':
-          response = await this.executeOpenAI(request, model);
-          break;
-        case 'anthropic':
-          response = await this.executeClaude(request, model);
-          break;
-        case 'local':
-          response = await this.executeLocal(request, model);
-          break;
-        case 'custom':
-          response = await this.executeCustomProvider(request, model);
-          break;
-        default:
-          throw new ModelUnavailableError(model.id, `Unknown provider: ${model.provider}`);
-      }
-
-      response.latency = Date.now() - startTime;
-
-      // 记录使用情况
-      this.usageTracker.recordUsage(model.id, response.usage.totalTokens);
-      this.costTracker.recordCost({
-        timestamp: new Date(),
-        model: model.id,
-        provider: model.provider,
-        taskType: context?.type,
-        tokens: response.usage,
-        cost: response.cost,
-      });
-      this.rateLimiter.recordRequest(rateLimitKey, response.usage.totalTokens, reservedTokens);
-
-      return response;
-    }).catch(error => {
-      this.rateLimiter.releaseReservation(rateLimitKey, reservedTokens);
-      throw error;
-    });
+    return result;
   }
 
   /**
@@ -1268,94 +1288,101 @@ export class AIService {
     context?: TaskContext,
     options?: Partial<ChatRequest>
   ): Promise<ChatResponse> {
-    // 选择模型
-    const model = this.modelRouter.selectModel(
-      context || {
-        type: 'chapter',
-        complexity: 'medium',
-        priority: 'balanced',
+    const taskContext = context || {
+      type: 'chapter',
+      complexity: 'medium',
+      priority: 'balanced',
+    };
+
+    const { result } = await this.failoverManager.executeWithFailover(
+      taskContext,
+      async (model) => {
+        // 构建请求
+        const request: ChatRequest = {
+          messages,
+          model: model.model,
+          temperature: options?.temperature,
+          maxTokens: options?.maxTokens,
+          stopSequences: options?.stopSequences,
+          stream: true,
+          ...options,
+        };
+
+        const estimatedCostUSD = this.estimateRequestCost(messages, request, model);
+        this.ensureBudgetAvailable(estimatedCostUSD);
+
+        const rateLimitKey = `${model.provider}:${model.id}`;
+        const reservedTokens = request.maxTokens || model.maxTokens || 2000;
+        const rateLimitConfig = this.getRateLimitConfig(model);
+
+        const startTime = Date.now();
+        let content = '';
+        let inputTokens = 0;
+
+        try {
+          await this.rateLimiter.waitForSlot(rateLimitKey, reservedTokens, rateLimitConfig);
+          const stream = this.getStream(model.provider, request);
+
+          for await (const chunk of stream) {
+            content += chunk;
+            callback({ type: 'chunk', chunk });
+          }
+
+          // 估算token（流式响应通常不返回精确token数）
+          inputTokens = this.estimateTokens(messages, model.provider);
+          const outputTokens = this.estimateTokens([{ role: 'assistant', content }], model.provider);
+
+          const usage: TokenUsage = {
+            inputTokens,
+            outputTokens,
+            totalTokens: inputTokens + outputTokens,
+          };
+
+          const cost = this.costTracker.calculateCost(inputTokens, outputTokens, model);
+
+          const response: ChatResponse = {
+            content,
+            model: model.model,
+            usage,
+            cost,
+            latency: Date.now() - startTime,
+            finishReason: 'stop',
+          };
+
+          // 记录使用情况
+          this.usageTracker.recordUsage(model.id, response.usage.totalTokens);
+          this.costTracker.recordCost({
+            timestamp: new Date(),
+            model: model.id,
+            provider: model.provider,
+            taskType: taskContext.type,
+            tokens: response.usage,
+            cost: response.cost,
+          });
+          this.rateLimiter.recordRequest(rateLimitKey, response.usage.totalTokens, reservedTokens);
+
+          callback({ type: 'done', response });
+
+          return response;
+        } catch (error) {
+          const err = error instanceof Error ? error : new Error(String(error));
+          this.rateLimiter.releaseReservation(rateLimitKey, reservedTokens);
+          callback({
+            type: 'error',
+            error: {
+              code: 'STREAM_ERROR',
+              message: err.message,
+            },
+          });
+          throw error;
+        }
+      },
+      (fromModel, toModel) => {
+        aiServiceLogger.warn(`[故障转移] 触发流式模型切换: ${fromModel.id} -> ${toModel.id}`);
       }
     );
 
-    // 构建请求
-    const request: ChatRequest = {
-      messages,
-      model: model.model,
-      temperature: options?.temperature,
-      maxTokens: options?.maxTokens,
-      stopSequences: options?.stopSequences,
-      stream: true,
-      ...options,
-    };
-
-    const estimatedCostUSD = this.estimateRequestCost(messages, request, model);
-    this.ensureBudgetAvailable(estimatedCostUSD);
-
-    const rateLimitKey = `${model.provider}:${model.id}`;
-    const reservedTokens = request.maxTokens || model.maxTokens || 2000;
-    const rateLimitConfig = this.getRateLimitConfig(model);
-
-    const startTime = Date.now();
-    let content = '';
-    let inputTokens = 0;
-
-    try {
-      await this.rateLimiter.waitForSlot(rateLimitKey, reservedTokens, rateLimitConfig);
-      const stream = this.getStream(model.provider, request);
-
-      for await (const chunk of stream) {
-        content += chunk;
-        callback({ type: 'chunk', chunk });
-      }
-
-      // 估算token（流式响应通常不返回精确token数）
-      inputTokens = this.estimateTokens(messages, model.provider);
-      const outputTokens = this.estimateTokens([{ role: 'assistant', content }], model.provider);
-
-      const usage: TokenUsage = {
-        inputTokens,
-        outputTokens,
-        totalTokens: inputTokens + outputTokens,
-      };
-
-      const cost = this.costTracker.calculateCost(inputTokens, outputTokens, model);
-
-      const response: ChatResponse = {
-        content,
-        model: model.model,
-        usage,
-        cost,
-        latency: Date.now() - startTime,
-        finishReason: 'stop',
-      };
-
-      // 记录使用情况
-      this.usageTracker.recordUsage(model.id, response.usage.totalTokens);
-      this.costTracker.recordCost({
-        timestamp: new Date(),
-        model: model.id,
-        provider: model.provider,
-        taskType: context?.type,
-        tokens: response.usage,
-        cost: response.cost,
-      });
-      this.rateLimiter.recordRequest(rateLimitKey, response.usage.totalTokens, reservedTokens);
-
-      callback({ type: 'done', response });
-
-      return response;
-    } catch (error) {
-      const err = error instanceof Error ? error : new Error(String(error));
-      this.rateLimiter.releaseReservation(rateLimitKey, reservedTokens);
-      callback({
-        type: 'error',
-        error: {
-          code: 'STREAM_ERROR',
-          message: err.message,
-        },
-      });
-      throw error;
-    }
+    return result;
   }
 
   /**

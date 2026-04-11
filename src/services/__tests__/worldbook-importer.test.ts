@@ -4,7 +4,7 @@
 
 import { describe, it, expect, beforeEach } from 'vitest'
 import { WorldbookImporter, createWorldbookImporter, exportWorldbook } from '../worldbook-importer'
-import type { WorldbookData, WorldbookEntry } from '@/types/worldbook'
+import type { WorldbookData } from '@/types/worldbook'
 
 describe('WorldbookImporter', () => {
   let importer: WorldbookImporter
@@ -63,11 +63,13 @@ describe('WorldbookImporter', () => {
     it('应该处理无效 JSON', async () => {
       const invalidJson = '{ invalid json }'
 
-      await expect(
-        importer.importWorldbook(
-          new File([invalidJson], 'test.json', { type: 'application/json' })
-        )
-      ).rejects.toThrow()
+      const result = await importer.importWorldbook(
+        new File([invalidJson], 'test.json', { type: 'application/json' })
+      )
+
+      expect(result.success).toBe(false)
+      expect(result.errors).toBeDefined()
+      expect(result.errors![0].message).toContain('JSON 解析失败')
     })
   })
 
