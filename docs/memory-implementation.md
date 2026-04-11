@@ -196,7 +196,7 @@ export async function buildChapterContext(
   return {
     authorsNote,
     worldInfo,
-    characters,
+    entities: characters, // V5: Characters were replaced by entities
     memoryTables,
     vectorContext,
     summary,

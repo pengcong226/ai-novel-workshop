@@ -625,7 +625,7 @@ function detectConflicts(memory: MemorySystem): string[] {
 ## 参考资料
 
 - [st-memory-enhancement 项目](https://github.com/muyoou/st-memory-enhancement)
-- [SillyTavern 官方文档](https://docs.sillytavern.app/)
+- 兼容的旧版酒馆协议 (SillyTavern)
 - [表格记忆原理分析](./memory-implementation.md)
 
 ---
