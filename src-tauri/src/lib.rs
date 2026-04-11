@@ -325,6 +325,72 @@ fn load_chapter(
 }
 
 #[tauri::command]
+fn load_entities(state: State<'_, AppState>, project_id: String) -> Result<String, String> {
+    let db = lock_db!(state);
+    let mut stmt = db.prepare("SELECT id, project_id, entity_type, name, category, system_prompt, visual_meta, created_at FROM entities WHERE project_id = ?1").map_err(|e| e.to_string())?;
+
+    let mut rows = stmt.query(rusqlite::params![project_id]).map_err(|e| e.to_string())?;
+    let mut entities = Vec::new();
+
+    while let Some(row) = rows.next().map_err(|e| e.to_string())? {
+        let id: String = row.get(0).unwrap_or_default();
+        let pid: String = row.get(1).unwrap_or_default();
+        let e_type: String = row.get(2).unwrap_or_default();
+        let name: String = row.get(3).unwrap_or_default();
+        let cat: String = row.get(4).unwrap_or_default();
+        let sys_prompt: String = row.get(5).unwrap_or_default();
+        let vis_meta: String = row.get(6).unwrap_or_default();
+        let created_at: i64 = row.get(7).unwrap_or_default();
+
+        let entity = serde_json::json!({
+            "id": id,
+            "projectId": pid,
+            "type": e_type,
+            "name": name,
+            "category": cat,
+            "systemPrompt": sys_prompt,
+            "visualMeta": if vis_meta.is_empty() { serde_json::Value::Null } else { serde_json::from_str(&vis_meta).unwrap_or(serde_json::Value::Null) },
+            "createdAt": created_at
+        });
+        entities.push(entity);
+    }
+
+    serde_json::to_string(&entities).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn load_state_events(state: State<'_, AppState>, project_id: String) -> Result<String, String> {
+    let db = lock_db!(state);
+    let mut stmt = db.prepare("SELECT id, project_id, chapter_number, entity_id, event_type, payload, source FROM state_events WHERE project_id = ?1").map_err(|e| e.to_string())?;
+
+    let mut rows = stmt.query(rusqlite::params![project_id]).map_err(|e| e.to_string())?;
+    let mut events = Vec::new();
+
+    while let Some(row) = rows.next().map_err(|e| e.to_string())? {
+        let id: String = row.get(0).unwrap_or_default();
+        let pid: String = row.get(1).unwrap_or_default();
+        let chap: i64 = row.get(2).unwrap_or_default();
+        let ent_id: String = row.get(3).unwrap_or_default();
+        let ev_type: String = row.get(4).unwrap_or_default();
+        let payload: String = row.get(5).unwrap_or_default();
+        let source: String = row.get(6).unwrap_or_default();
+
+        let event = serde_json::json!({
+            "id": id,
+            "projectId": pid,
+            "chapterNumber": chap,
+            "entityId": ent_id,
+            "eventType": ev_type,
+            "payload": if payload.is_empty() { serde_json::Value::Null } else { serde_json::from_str(&payload).unwrap_or(serde_json::Value::Null) },
+            "source": source
+        });
+        events.push(event);
+    }
+
+    serde_json::to_string(&events).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
 fn load_projects_list(state: State<'_, AppState>) -> Result<String, String> {
     let db = lock_db!(state);
     let mut stmt = db
@@ -467,6 +533,119 @@ fn delete_worldbook_entry(
     Ok(())
 }
 
+#[tauri::command]
+fn load_entities(state: State<'_, AppState>, project_id: String) -> Result<String, String> {
+    let db = lock_db!(state);
+    let mut stmt = db.prepare("SELECT id, project_id, entity_type, name, category, system_prompt, visual_meta, created_at FROM entities WHERE project_id = ?1").map_err(|e| e.to_string())?;
+
+    let mut rows = stmt.query(rusqlite::params![project_id]).map_err(|e| e.to_string())?;
+    let mut entities = Vec::new();
+
+    while let Some(row) = rows.next().map_err(|e| e.to_string())? {
+        let id: String = row.get(0).unwrap_or_default();
+        let pid: String = row.get(1).unwrap_or_default();
+        let e_type: String = row.get(2).unwrap_or_default();
+        let name: String = row.get(3).unwrap_or_default();
+        let cat: String = row.get(4).unwrap_or_default();
+        let sys_prompt: String = row.get(5).unwrap_or_default();
+        let vis_meta: String = row.get(6).unwrap_or_default();
+        let created_at: i64 = row.get(7).unwrap_or_default();
+
+        let entity = serde_json::json!({
+            "id": id,
+            "projectId": pid,
+            "type": e_type,
+            "name": name,
+            "category": cat,
+            "systemPrompt": sys_prompt,
+            "visualMeta": if vis_meta.is_empty() { serde_json::Value::Null } else { serde_json::from_str(&vis_meta).unwrap_or(serde_json::Value::Null) },
+            "createdAt": created_at
+        });
+        entities.push(entity);
+    }
+
+    serde_json::to_string(&entities).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn load_state_events(state: State<'_, AppState>, project_id: String) -> Result<String, String> {
+    let db = lock_db!(state);
+    let mut stmt = db.prepare("SELECT id, project_id, chapter_number, entity_id, event_type, payload, source FROM state_events WHERE project_id = ?1").map_err(|e| e.to_string())?;
+
+    let mut rows = stmt.query(rusqlite::params![project_id]).map_err(|e| e.to_string())?;
+    let mut events = Vec::new();
+
+    while let Some(row) = rows.next().map_err(|e| e.to_string())? {
+        let id: String = row.get(0).unwrap_or_default();
+        let pid: String = row.get(1).unwrap_or_default();
+        let chap: i64 = row.get(2).unwrap_or_default();
+        let ent_id: String = row.get(3).unwrap_or_default();
+        let ev_type: String = row.get(4).unwrap_or_default();
+        let payload: String = row.get(5).unwrap_or_default();
+        let source: String = row.get(6).unwrap_or_default();
+
+        let event = serde_json::json!({
+            "id": id,
+            "projectId": pid,
+            "chapterNumber": chap,
+            "entityId": ent_id,
+            "eventType": ev_type,
+            "payload": if payload.is_empty() { serde_json::Value::Null } else { serde_json::from_str(&payload).unwrap_or(serde_json::Value::Null) },
+            "source": source
+        });
+        events.push(event);
+    }
+
+    serde_json::to_string(&events).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn save_entity(
+    state: State<'_, AppState>,
+    project_id: String,
+    entity_json: String,
+) -> Result<(), String> {
+    let mut v: serde_json::Value = serde_json::from_str(&entity_json).map_err(|e| e.to_string())?;
+    let id = v["id"].as_str().unwrap_or_default().to_string();
+    let entity_type = v["type"].as_str().unwrap_or_default().to_string();
+    let name = v["name"].as_str().unwrap_or_default().to_string();
+    let category = v["category"].as_str().unwrap_or_default().to_string();
+    let system_prompt = v["systemPrompt"].as_str().unwrap_or_default().to_string();
+    let visual_meta = v["visualMeta"].to_string();
+    let created_at = v["createdAt"].as_i64().unwrap_or(0);
+
+    let db = lock_db!(state);
+    db.execute(
+        "INSERT OR REPLACE INTO entities (id, project_id, entity_type, name, category, system_prompt, visual_meta, created_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
+        rusqlite::params![id, project_id, entity_type, name, category, system_prompt, visual_meta, created_at],
+    )
+    .map_err(|e| e.to_string())?;
+    Ok(())
+}
+
+#[tauri::command]
+fn save_state_event(
+    state: State<'_, AppState>,
+    project_id: String,
+    event_json: String,
+) -> Result<(), String> {
+    let mut v: serde_json::Value = serde_json::from_str(&event_json).map_err(|e| e.to_string())?;
+    let id = v["id"].as_str().unwrap_or_default().to_string();
+    let chapter_number = v["chapterNumber"].as_i64().unwrap_or(0);
+    let entity_id = v["entityId"].as_str().unwrap_or_default().to_string();
+    let event_type = v["eventType"].as_str().unwrap_or_default().to_string();
+    let payload = v["payload"].to_string();
+    let source = v["source"].as_str().unwrap_or_default().to_string();
+
+    let db = lock_db!(state);
+    db.execute(
+        "INSERT OR REPLACE INTO state_events (id, project_id, chapter_number, entity_id, event_type, payload, source) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
+        rusqlite::params![id, project_id, chapter_number, entity_id, event_type, payload, source],
+    )
+    .map_err(|e| e.to_string())?;
+    Ok(())
+}
+
 fn init_db(app_handle: &tauri::AppHandle) -> Result<Connection, String> {
     // Get application data directory
     let app_dir = app_handle
@@ -532,6 +711,35 @@ fn init_db(app_handle: &tauri::AppHandle) -> Result<Connection, String> {
     )
     .map_err(|e| format!("Failed to create worldbooks table: {}", e))?;
 
+    conn.execute(
+        "CREATE TABLE IF NOT EXISTS entities (
+            id TEXT PRIMARY KEY,
+            project_id TEXT NOT NULL,
+            entity_type TEXT NOT NULL,
+            name TEXT NOT NULL,
+            category TEXT,
+            system_prompt TEXT,
+            visual_meta TEXT,
+            created_at INTEGER NOT NULL
+        )",
+        [],
+    )
+    .map_err(|e| format!("Failed to create entities table: {}", e))?;
+
+    conn.execute(
+        "CREATE TABLE IF NOT EXISTS state_events (
+            id TEXT PRIMARY KEY,
+            project_id TEXT NOT NULL,
+            chapter_number INTEGER NOT NULL,
+            entity_id TEXT NOT NULL,
+            event_type TEXT NOT NULL,
+            payload TEXT NOT NULL,
+            source TEXT NOT NULL
+        )",
+        [],
+    )
+    .map_err(|e| format!("Failed to create state_events table: {}", e))?;
+
     vector::init_vector_table(&conn)
         .map_err(|e| format!("Failed to initialize vector table: {}", e))?;
 
@@ -580,6 +788,10 @@ pub fn run() {
             save_worldbook_entry_atomic,
             save_worldbook_entry,
             delete_worldbook_entry,
+            load_entities,
+            load_state_events,
+            save_entity,
+            save_state_event,
             vector::add_vector_documents,
             vector::delete_vector_document,
             vector::delete_vector_documents,
