@@ -229,6 +229,19 @@ export interface AIActionHandlerContribution {
 }
 
 /**
+ * 主题扩展贡献
+ */
+export interface ThemeExtension {
+  id: string
+  name: string
+  description?: string
+  mode: 'light' | 'dark'
+  cssVariables: Record<string, string>
+  globalCss?: string
+  primaryColor?: string
+}
+
+/**
  * 插件贡献点汇总
  */
 export interface PluginContributions {
@@ -253,6 +266,9 @@ export interface PluginContributions {
   // AI助手扩展
   quickCommands?: QuickCommandContribution[]
   aiActionHandlers?: AIActionHandlerContribution[]
+
+  // 主题扩展
+  themes?: ThemeExtension[]
 }
 
 // ==================== 插件元数据 ====================
@@ -385,6 +401,7 @@ export interface PluginContext {
     toolbarButton(contribution: ToolbarButtonContribution): void
     quickCommand(contribution: QuickCommandContribution): void
     aiActionHandler(contribution: AIActionHandlerContribution): void
+    theme(contribution: ThemeExtension): void
   }
 
   // 工具函数
