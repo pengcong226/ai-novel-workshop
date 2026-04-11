@@ -432,6 +432,12 @@ export class PluginLoader {
               context.register.aiActionHandler(handler)
             }
           }
+
+          if (contributes?.themes) {
+            for (const theme of contributes.themes) {
+              context.register.theme(theme)
+            }
+          }
         },
 
         deactivate: async () => {
