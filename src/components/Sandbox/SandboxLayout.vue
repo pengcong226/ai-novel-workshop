@@ -16,7 +16,9 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, onMounted, watch } from 'vue'
+import { useProjectStore } from '@/stores/project'
+import { useSandboxStore } from '@/stores/sandbox'
 import SandboxDocument from './SandboxDocument.vue'
 import SandboxTimeline from './SandboxTimeline.vue'
 import SandboxGraph from './SandboxGraph.vue'
@@ -24,6 +26,21 @@ import SandboxMap from './SandboxMap.vue'
 import AutomatonChat from './AutomatonChat.vue'
 
 const activeTab = ref('timeline')
+const projectStore = useProjectStore()
+const sandboxStore = useSandboxStore()
+
+onMounted(() => {
+  if (projectStore.currentProject) {
+    sandboxStore.loadData(projectStore.currentProject.id)
+  }
+})
+
+watch(() => projectStore.currentProject, (newProj) => {
+  if (newProj) {
+    sandboxStore.isLoaded = false
+    sandboxStore.loadData(newProj.id)
+  }
+})
 </script>
 
 <style scoped>

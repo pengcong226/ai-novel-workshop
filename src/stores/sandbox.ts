@@ -5,7 +5,29 @@ import type { Entity, StateEvent } from '../types/sandbox';
 export const useSandboxStore = defineStore('sandbox', () => {
   const entities = ref<Entity[]>([]);
   const stateEvents = ref<StateEvent[]>([]);
+  const pendingStateEvents = ref<StateEvent[]>([]);
+  const isLoading = ref(false);
+  const isLoaded = ref(false);
   const currentChapter = ref<number>(1);
+
+  async function loadData(projectId: string) {
+    if (isLoaded.value) return;
+    isLoading.value = true;
+    try {
+      const { invoke } = await import('@tauri-apps/api/core');
+      const entitiesJson = await invoke<string>('load_entities', { projectId });
+      entities.value = JSON.parse(entitiesJson);
+
+      const eventsJson = await invoke<string>('load_state_events', { projectId });
+      stateEvents.value = JSON.parse(eventsJson);
+
+      isLoaded.value = true;
+    } catch (e) {
+      console.error("Failed to load sandbox data", e);
+    } finally {
+      isLoading.value = false;
+    }
+  }
 
   // Computed state reducer
   const activeEntitiesState = computed(() => {
@@ -22,7 +44,8 @@ export const useSandboxStore = defineStore('sandbox', () => {
     });
 
     // Reduce stateEvents up to currentChapter
-    const relevantEvents = stateEvents.value
+    const combinedEvents = [...stateEvents.value, ...pendingStateEvents.value];
+    const relevantEvents = combinedEvents
       .filter(event => event.chapterNumber <= currentChapter.value)
       .sort((a, b) => a.chapterNumber - b.chapterNumber);
 
@@ -57,5 +80,5 @@ export const useSandboxStore = defineStore('sandbox', () => {
     return reducedState;
   });
 
-  return { entities, stateEvents, currentChapter, activeEntitiesState };
+  return { entities, stateEvents, pendingStateEvents, currentChapter, activeEntitiesState, isLoading, isLoaded, loadData };
 });
