@@ -15,7 +15,11 @@
 
 ## Code Style & Conventions
 - **Components**: PascalCase for Vue components (e.g. `RelationshipGraph.vue`)
-- **Refactoring & Architecture**: The codebase has successfully transitioned to the **V4 Architecture**.
+- **Refactoring & Architecture**: The codebase has successfully transitioned to the **V5 Multi-View Sandbox Architecture**.
+  - Replaced old roleplay-centric Character Card and Worldbook with a unified Entity and StateEvent architecture for long-form novel generation.
+  - Theme Plugin system (Sci-Fi Dark Mode, Classic Light) dynamically injected.
+  - Sandbox Data Binding (Tauri IPC `load_entities` and `load_state_events`, lazy loading, and AntV G6 spotlight graph with cascading menu).
+  - Dynamic Affinity Text in the relationship system (Entities now have `attitude`, updated via `RELATION_UPDATE` state events, and visualized with color coding in the graph).
   - State management uses Pinia stores (`src/stores/`)
   - The system relies on a stateful graph-based memory and table memory for long novel generation, eliminating hallucination deadlocks.
   - Structured Outputs (JSON Schema/Tool Calling) and 19-point ConStory-Bench consistency checks are fully implemented.

@@ -133,34 +133,31 @@ interface IProjectManager {
 }
 ```
 
-#### 3.1.2 设定管理模块 (SettingManager)
-**职责：** 管理小说世界观、人物等设定信息
+#### 3.1.2 实体与状态管理模块 (SandboxData)
+**职责：** 管理长篇小说中人物、地点、物品等实体的历史状态（Entity/StateEvent架构）
 
 ```
-SettingManager
-├── WorldViewService        # 世界观管理
-├── CharacterService        # 人物管理
-├── LocationService         # 地点管理
-├── ItemService             # 物品管理
-├── RelationService         # 关系图谱
-└── SettingValidator        # 设定一致性验证
+SandboxData
+├── EntityService           # 实体管理（替代旧角色卡/世界观）
+├── StateEventService       # 历史状态流管理
+├── TimelineService         # 状态与章节时间线关联
+├── ThemeRegistry           # 全局UI主题隔离服务
+└── AffinityService         # 实体关系动态好感度追踪
 ```
 
 **核心接口：**
 ```typescript
-interface ISettingManager {
-  // 世界观
-  createWorldView(projectId: string, data: WorldViewData): WorldView;
-  updateWorldView(id: string, data: Partial<WorldViewData>): WorldView;
-
-  // 人物
-  createCharacter(projectId: string, data: CharacterData): Character;
-  updateCharacter(id: string, data: Partial<CharacterData>): Character;
-  getCharacterRelations(characterId: string): Relation[];
-
-  // 检索
-  searchSettings(projectId: string, query: string): SearchResult[];
-  getRelatedSettings(settingId: string): Setting[];
+interface ISandboxData {
+  // 实体操作
+  createEntity(projectId: string, data: EntityData): Entity;
+  updateEntity(id: string, data: Partial<EntityData>): Entity;
+  
+  // 状态流
+  pushEvent(entityId: string, event: StateEventData): void;
+  loadEvents(entityId: string, page: number): Promise<StateEvent[]>;
+  
+  // 动态图谱
+  getDynamicRelations(chapterRange: [number, number]): RelationGraph;
 }
 ```
 
@@ -585,34 +582,38 @@ interface AIConfig {
 ### 6.2 设定结构
 
 ```typescript
-interface WorldView {
+interface Entity {
   id: string;
   projectId: string;
   name: string;
+  type: EntityType; // character | location | item | faction | concept
   description: string;
-  rules: WorldRule[];              // 世界规则
-  era: string;                     // 时代背景
-  geography: Geography[];          // 地理设定
-  society: Society;                // 社会设定
-  magic: MagicSystem | null;       // 魔法体系（如果有）
-  technology: TechLevel;           // 科技水平
+  aliases: string[];
+  relationships: EntityRelationship[];
+  attributes: Record<string, any>;
+  tags: string[];
+  createdAt: string;
+  updatedAt: string;
 }
 
-interface Character {
+type EntityType = 'character' | 'location' | 'item' | 'faction' | 'concept';
+
+interface EntityRelationship {
+  targetId: string;
+  type: string;
+  description: string;
+  attitude: number; // 动态好感度，-100 到 100
+}
+
+interface StateEvent {
   id: string;
   projectId: string;
-  name: string;
-  aliases: string[];               // 别名
-  role: 'protagonist' | 'antagonist' | 'supporting' | 'minor';
+  chapterId?: string;
+  entityId?: string;
+  type: EventType; // CREATED | UPDATED | STATUS_CHANGE | RELATION_UPDATE等
   description: string;
-  personality: string;
-  background: string;
-  appearance: string;
-  abilities: string[];
-  relationships: Relationship[];
-  firstAppear: string;             // 首次出场章节
-  appearances: string[];           // 出场章节列表
-  avatar?: string;                 // 头像
+  timestamp: string;
+  changes: Record<string, any>;
 }
 ```
 
