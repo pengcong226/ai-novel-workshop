@@ -4,8 +4,16 @@
       <p style="font-size: 12px; color: var(--text-muted);">
         <i class="ri-information-line"></i> 图谱由实体的双向链接(#标签)自动生成，无须手动绘制。拖拽节点可重排。
       </p>
-      <div class="status-badge" id="graph-status" v-if="nodes.length > 0">
-        <i class="ri-refresh-line"></i> 节点已自动热更新
+      <div style="display:flex; align-items:center; gap:10px;">
+        <el-cascader
+          v-model="focusSelection"
+          :options="focusOptions"
+          size="small"
+          placeholder="选择图谱中心"
+        />
+        <div class="status-badge" id="graph-status" v-if="nodes.length > 0">
+          <i class="ri-refresh-line"></i> 节点已自动热更新
+        </div>
       </div>
     </div>
 
@@ -24,13 +32,85 @@ const graphContainer = ref<HTMLElement | null>(null)
 let graph: Graph | null = null
 const sandboxStore = useSandboxStore()
 
+const focusSelection = ref(['chapter', 'current'])
+
+const focusOptions = computed(() => {
+  const charOptions = sandboxStore.entities
+    .filter(e => e.type === 'CHARACTER')
+    .map(c => ({ value: c.id, label: c.name }))
+
+  return [
+    {
+      value: 'chapter',
+      label: '按章节出场人物',
+      children: [
+        { value: 'current', label: `当前章节 (第 ${sandboxStore.currentChapter} 章)` }
+      ]
+    },
+    {
+      value: 'character',
+      label: '按特定人物为中心',
+      children: charOptions
+    }
+  ]
+})
+
 // 1. Prepare data reactively from SandboxStore
 const nodes = computed(() => {
   const result: any[] = []
   const activeState = sandboxStore.activeEntitiesState
+  const focusMode = focusSelection.value[0]
+  const focusTarget = focusSelection.value[1]
+
+  // Create a Set of visible entity IDs (1-degree BFS)
+  const visibleSet = new Set<string>()
+
+  if (focusMode === 'character' && focusTarget && activeState[focusTarget]) {
+    // Focus on specific character
+    visibleSet.add(focusTarget)
+    const targetState = activeState[focusTarget]
+
+    // Add forward relations
+    if (targetState.relations) {
+      targetState.relations.forEach((rel: any) => visibleSet.add(rel.targetId))
+    }
+
+    // Add backward relations
+    for (const [id, state] of Object.entries(activeState)) {
+      if (state.relations?.some((r: any) => r.targetId === focusTarget)) {
+        visibleSet.add(id)
+      }
+    }
+  } else {
+    // Default or chapter focus: Since we don't have chapter data loaded yet,
+    // fallback to showing the protagonist and their 1-degree connections
+    const protagonistId = Object.keys(activeState).find(id =>
+      activeState[id].category === 'Protagonist' || activeState[id].category === '核心人物'
+    )
+
+    if (protagonistId) {
+      visibleSet.add(protagonistId)
+      const pState = activeState[protagonistId]
+      if (pState.relations) {
+        pState.relations.forEach((rel: any) => visibleSet.add(rel.targetId))
+      }
+      for (const [id, state] of Object.entries(activeState)) {
+        if (state.relations?.some((r: any) => r.targetId === protagonistId)) {
+          visibleSet.add(id)
+        }
+      }
+    } else {
+      // Fallback: show everything with relations
+      for (const [id, state] of Object.entries(activeState)) {
+        if (state.relations?.length > 0 || Object.values(activeState).some((s: any) => s.relations?.some((r: any) => r.targetId === id))) {
+          visibleSet.add(id)
+        }
+      }
+    }
+  }
+
   for (const [id, state] of Object.entries(activeState)) {
-    // Only render if entity has some relations or is related to
-    if (state.relations?.length > 0 || Object.values(activeState).some((s: any) => s.relations?.some((r: any) => r.targetId === id))) {
+    if (visibleSet.has(id)) {
       result.push({
         id: id,
         label: state.name || id,
@@ -46,25 +126,30 @@ const nodes = computed(() => {
 const edges = computed(() => {
   const result: any[] = []
   const activeState = sandboxStore.activeEntitiesState
+  // Use nodes as the definitive list of visible items
+  const visibleNodes = new Set(nodes.value.map(n => n.id))
+
   for (const [sourceId, state] of Object.entries(activeState)) {
-    if (state.relations && state.relations.length > 0) {
+    if (visibleNodes.has(sourceId) && state.relations && state.relations.length > 0) {
       state.relations.forEach((rel: any) => {
-        result.push({
-          source: sourceId,
-          target: rel.targetId,
-          label: rel.type || '',
-          style: {
-            stroke: 'rgba(60, 130, 246, 0.4)',
-            lineWidth: 2,
-            endArrow: {
-              path: 'M 0,0 L 8,4 L 8,-4 Z',
-              fill: 'rgba(60, 130, 246, 0.4)'
+        if (visibleNodes.has(rel.targetId)) {
+          result.push({
+            source: sourceId,
+            target: rel.targetId,
+            label: rel.type || '',
+            style: {
+              stroke: 'rgba(60, 130, 246, 0.4)',
+              lineWidth: 2,
+              endArrow: {
+                path: 'M 0,0 L 8,4 L 8,-4 Z',
+                fill: 'rgba(60, 130, 246, 0.4)'
+              }
+            },
+            labelCfg: {
+              style: { fill: '#94a3b8', fontSize: 10, background: { fill: '#0a0a0f', padding: [2, 4], radius: 4 } }
             }
-          },
-          labelCfg: {
-            style: { fill: '#94a3b8', fontSize: 10, background: { fill: '#0a0a0f', padding: [2, 4], radius: 4 } }
-          }
-        })
+          })
+        }
       })
     }
   }
