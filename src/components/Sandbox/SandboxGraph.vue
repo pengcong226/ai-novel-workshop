@@ -100,7 +100,7 @@ const edges = computed(() => {
       if (visibleNodes.has(draftRel.sourceId) && visibleNodes.has(draftRel.relation.targetId)) {
         let labelText = draftRel.relation.type || '';
         if (draftRel.relation.attitude) {
-          const shortAttitude = draftRel.relation.attitude.length > 8 ? draftRel.relation.attitude.substring(0, 8) + '...' : draftRel.relation.attitude;
+          const shortAttitude = draftRel.relation.attitude.toString().length > 8 ? draftRel.relation.attitude.toString().substring(0, 8) + '...' : draftRel.relation.attitude;
           labelText = `${labelText} (${shortAttitude})`;
         }
 

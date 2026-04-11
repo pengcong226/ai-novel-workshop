@@ -17,12 +17,12 @@
         type="textarea"
         :rows="3"
         placeholder="例如：生成一个叫血刀门的邪派，掌门叫血魔，和主角有仇"
-        @keyup.enter.native="sendMessage"
+        @keyup.enter="sendMessage"
         :disabled="isGenerating"
       />
       <div class="actions">
         <el-button type="primary" @click="sendMessage" :loading="isGenerating">发送</el-button>
-        <el-button type="success" @click="commit" v-if="sandboxStore.draftEntities.length > 0">注入本源世界</el-button>
+        <el-button type="success" @click="commit" v-if="sandboxStore.draftEntities.length > 0" :loading="isCommitting">注入本源世界</el-button>
       </div>
     </div>
   </div>
@@ -34,16 +34,18 @@ import { useSandboxStore } from '@/stores/sandbox';
 import { useProjectStore } from '@/stores/project';
 import { useAIStore } from '@/stores/ai';
 import { v4 as uuidv4 } from 'uuid';
+import type { ChatMessage, ChatRequest } from "@/types/ai";
 
 const sandboxStore = useSandboxStore();
 const projectStore = useProjectStore();
 const aiStore = useAIStore();
 
 const inputText = ref('');
-const messages = ref<{role: string, content: string}[]>([
+const messages = ref<ChatMessage[]>([
   { role: 'assistant', content: '你好，我是创世向导。请告诉我你想生成什么样的世界或人物门派？' }
 ]);
 const isGenerating = ref(false);
+const isCommitting = ref(false);
 
 const emit = defineEmits(['close']);
 
@@ -54,8 +56,16 @@ function closeWizard() {
 }
 
 async function commit() {
-  await sandboxStore.commitDrafts();
-  closeWizard();
+  if (isCommitting.value) return;
+  isCommitting.value = true;
+  try {
+    await sandboxStore.commitDrafts();
+    closeWizard();
+  } catch (e) {
+    console.error(e);
+  } finally {
+    isCommitting.value = false;
+  }
 }
 
 async function sendMessage() {
@@ -89,7 +99,7 @@ async function sendMessage() {
                     properties: {
                       targetName: { type: "string" },
                       relationType: { type: "string" },
-                      attitude: { type: "string" }
+                      attitude: { type: "number", description: "Attitude score from -100 to 100" }
                     },
                     required: ["targetName", "relationType"],
                     additionalProperties: false
@@ -110,44 +120,57 @@ async function sendMessage() {
       [
         { role: 'system', content: 'You are a master world builder. Bulk generate novel entities as requested.' },
         ...messages.value
-      ] as any,
-      { type: 'check', complexity: 'medium', priority: 'quality' },
-      { maxTokens: 4000, tools: [schemaPayload], toolChoice: { type: "function", function: { name: "generate_world_entities" } } } as any
+      ],
+      { type: "check", complexity: "medium", priority: "quality" } as any,
+      { maxTokens: 4000, response_format: { type: "json_schema", json_schema: schemaPayload } } as Partial<ChatRequest>
     );
 
-    const parsed = JSON.parse(res.content);
+    const cleanContent = res.content.replace(/```json\n?|```/g, '').trim();
+    const parsed = JSON.parse(cleanContent);
 
     // Clear old drafts on new generation to keep it simple, or we could append.
     sandboxStore.clearDrafts();
 
     const nameToIdMap: Record<string, string> = {};
 
+    interface DraftEntity {
+      name: string;
+      category: string;
+      type: 'CHARACTER' | 'FACTION' | 'LOCATION' | 'LORE' | 'ITEM';
+      systemPrompt: string;
+      relations: {
+        targetName: string;
+        relationType: string;
+        attitude?: number;
+      }[];
+    }
+
     if (parsed.entities && Array.isArray(parsed.entities)) {
       // 1st pass: create entities
-      parsed.entities.forEach((ent: any) => {
+      parsed.entities.forEach((ent: DraftEntity) => {
         const id = uuidv4();
         nameToIdMap[ent.name] = id;
         sandboxStore.addDraftEntity({
           id,
           projectId: projectStore.currentProject?.id || '',
-          type: ent.type,
-          name: ent.name,
-          category: ent.category,
-          systemPrompt: ent.systemPrompt,
+          type: ent.type || 'CHARACTER',
+          name: ent.name || 'Unnamed',
+          category: ent.category || 'NPC',
+          systemPrompt: ent.systemPrompt || '',
           createdAt: Date.now()
         });
       });
 
       // 2nd pass: create relations
-      parsed.entities.forEach((ent: any) => {
+      parsed.entities.forEach((ent: DraftEntity) => {
         const sourceId = nameToIdMap[ent.name];
         if (ent.relations && Array.isArray(ent.relations)) {
-          ent.relations.forEach((rel: any) => {
+          ent.relations.forEach(rel => {
             const targetId = nameToIdMap[rel.targetName];
             if (targetId && sourceId) {
               sandboxStore.addDraftRelation(sourceId, {
                 targetId,
-                type: rel.relationType,
+                type: rel.relationType || 'Unknown',
                 attitude: rel.attitude
               });
             }
