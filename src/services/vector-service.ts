@@ -3,12 +3,13 @@ import { invoke } from '@tauri-apps/api/core';
 import { getLogger } from '@/utils/logger';
 
 /**
- * 向量数据库服务
+ * 向量数据库服务 (V5 架构重构版)
  * @module services/vector-service
  *
- * 基于Rust SQLite后端的向量检索服务，支持：
- * - 文档嵌入（支持本地ONNX模型和OpenAI API）
- * - 高性能 Rust 原生向量检索
+ * 核心变更：从"全包揽 RAG"重构为"图谱制导的正文切片检索引擎"。
+ * - 只索引 Chapter Content（段落级切片），不再索引世界观/人物/大纲（由图谱和 WorldbookInjector 负责）
+ * - 检索查询由图谱实体制导（Graph-Guided RAG）
+ * - 轻量级重排：图谱命中加权 + 时序衰减（替代昂贵的 Neural Reranker）
  */
 
 // ============================================================================
@@ -31,10 +32,13 @@ export interface VectorDocument {
   embedding?: number[];
 }
 
+/** V5: 只保留 chapter 类型和 trace 导入类型 */
 export interface DocumentMetadata {
-  type: 'setting' | 'character' | 'plot' | 'event' | 'chapter' | 'rule';
+  type: 'chapter' | 'trace';
   projectId: string;
   chapterNumber?: number;
+  chunkIndex?: number;        // 段落切片在原章节中的序号
+  entityNames?: string[];     // 切片中涉及的人名/地名 (用于图谱命中重排)
   timestamp: number;
   [key: string]: any;
 }
@@ -42,9 +46,11 @@ export interface DocumentMetadata {
 export interface SearchOptions {
   topK?: number;
   filter?: Record<string, unknown>;
-  hybrid?: boolean;
-  rrfK?: number;
   minScore?: number;
+  /** 当前章节号 (用于时序衰减重排) */
+  currentChapterNumber?: number;
+  /** 当前章节涉及实体名 (用于图谱命中重排) */
+  activeEntityNames?: string[];
 }
 
 export interface SearchResult {
@@ -89,16 +95,6 @@ abstract class EmbeddingModel {
   abstract embed(text: string): Promise<number[]>;
   abstract embedBatch(texts: string[]): Promise<number[][]>;
   abstract getDimension(): number;
-
-  protected tokenize(text: string): string[] {
-    const chinesePattern = /[\u4e00-\u9fa5]+/g;
-    const englishPattern = /[a-zA-Z]+/g;
-
-    const chineseTokens = text.match(chinesePattern) || [];
-    const englishTokens = text.match(englishPattern) || [];
-
-    return [...chineseTokens, ...englishTokens.map(t => t.toLowerCase())];
-  }
 }
 
 class LocalEmbeddingModel extends EmbeddingModel {
@@ -114,26 +110,24 @@ class LocalEmbeddingModel extends EmbeddingModel {
 
     try {
       const { pipeline, env } = await import('@xenova/transformers');
-      
-      // 关键修复：在浏览器中绝对不能将 allowLocalModels 设为 true，否则会触发 Node.js 环境误判导致 registerBackend 崩溃！
+
       env.allowLocalModels = false;
       env.useBrowserCache = true;
       env.allowRemoteModels = true;
-      
-      // 将"远程"服务器强制指向本地的 Vite 开发服务器 /models/ 目录
+
       env.remoteHost = window.location.origin;
       env.remotePathTemplate = '/models/{model}/';
 
       this.pipeline = await pipeline(
         'feature-extraction',
-        this.config.model || 'Xenova/all-MiniLM-L6-v2',
+        this.config.model || '/dist/models/Xenova/bge-m3',
         { quantized: true }
       );
 
       this.initialized = true;
     } catch (error) {
       getLogger('vector:service').error('本地嵌入模型初始化失败', error);
-      throw new Error(`本地模型下载或加载失败 (通常是网络屏蔽导致)。详细错误: ${error instanceof Error ? error.message : String(error)}`);
+      throw new Error(`本地模型下载或加载失败。详细错误: ${error instanceof Error ? error.message : String(error)}`);
     }
   }
 
@@ -160,7 +154,7 @@ class LocalEmbeddingModel extends EmbeddingModel {
   }
 
   getDimension(): number {
-    return this.config.dimension || 384;
+    return this.config.dimension || 1024;
   }
 }
 
@@ -241,21 +235,173 @@ class OpenAIEmbeddingModel extends EmbeddingModel {
 }
 
 // ============================================================================
-// 向量服务主类
+// 段落切片工具
 // ============================================================================
 
-const DEFAULT_COLLECTIONS: CollectionConfig[] = [
-  { name: 'world_settings', dimension: 384, distanceMetric: 'cosine' },
-  { name: 'character_profiles', dimension: 384, distanceMetric: 'cosine' },
-  { name: 'plot_threads', dimension: 384, distanceMetric: 'cosine' },
-  { name: 'major_events', dimension: 384, distanceMetric: 'cosine' },
-  { name: 'chapter_content', dimension: 384, distanceMetric: 'cosine' },
-  { name: 'world_rules', dimension: 384, distanceMetric: 'cosine' },
-];
+/** 段落切片参数 */
+const CHUNK_TARGET_CHARS = 400;   // 目标切片长度 (中文约 200~300 字的段落)
+const CHUNK_OVERLAP_CHARS = 80;   // 切片重叠字符数 (防止关键句被切断)
+const CHUNK_MIN_CHARS = 100;      // 低于此长度的切片合并到前一个
+
+interface ChapterChunk {
+  id: string;
+  content: string;
+  chunkIndex: number;
+  entityNames: string[];
+}
+
+/**
+ * 将章节正文切成段落级切片，保留重叠以防止关键信息断裂。
+ * 同时用简单启发式提取切片中的实体名 (用于图谱命中重排)。
+ */
+function chunkChapterContent(
+  chapterId: string,
+  chapterNumber: number,
+  content: string,
+  characterNames: string[],
+  locationNames: string[]
+): ChapterChunk[] {
+  if (!content || content.trim().length === 0) return [];
+
+  const allEntityNames = [...characterNames, ...locationNames];
+  const chunks: ChapterChunk[] = [];
+
+  let offset = 0;
+  let chunkIndex = 0;
+
+  while (offset < content.length) {
+    let end = Math.min(offset + CHUNK_TARGET_CHARS, content.length);
+
+    // 如果不是最后一段，尝试在句子边界处断开
+    if (end < content.length) {
+      const searchRange = content.substring(end - CHUNK_OVERLAP_CHARS, end + CHUNK_OVERLAP_CHARS);
+      const lastPunct = searchRange.lastIndexOf('。');
+      const lastExcl = searchRange.lastIndexOf('！');
+      const lastQues = searchRange.lastIndexOf('？');
+      const lastNewline = searchRange.lastIndexOf('\n');
+      const bestBreak = Math.max(lastPunct, lastExcl, lastQues, lastNewline);
+      if (bestBreak !== -1) {
+        end = (end - CHUNK_OVERLAP_CHARS) + bestBreak + 1;
+      }
+    }
+
+    let chunkText = content.substring(offset, end).trim();
+    if (chunkText.length === 0) {
+      offset = end;
+      continue;
+    }
+
+    // 提取本切片中出现的实体名
+    const entitiesInChunk = allEntityNames.filter(name => chunkText.includes(name));
+
+    // 如果切片过短且不是最后一片，跳过 (合并到下一片)
+    if (chunkText.length < CHUNK_MIN_CHARS && end < content.length) {
+      offset = end;
+      continue;
+    }
+
+    chunks.push({
+      id: `chunk-${chapterId}-${chunkIndex}`,
+      content: chunkText,
+      chunkIndex,
+      entityNames: entitiesInChunk,
+    });
+
+    chunkIndex++;
+    // 下一个切片的开头往前推 overlap 长度
+    offset = Math.max(end - CHUNK_OVERLAP_CHARS, end);
+  }
+
+  return chunks;
+}
+
+/**
+ * 从文本中简单提取可能的人名/地名关键词 (用于元数据标签)
+ * 这是轻量级启发式，不依赖 NER 模型
+ */
+function extractEntityNamesFromText(text: string, knownNames: string[]): string[] {
+  return knownNames.filter(name => text.includes(name));
+}
+
+// ============================================================================
+// 轻量级重排
+// ============================================================================
+
+/**
+ * 图谱命中重排：如果切片涉及当前图谱实体，提高分数
+ */
+function applyGraphHitRerank(
+  results: SearchResult[],
+  activeEntityNames: string[]
+): SearchResult[] {
+  if (!activeEntityNames || activeEntityNames.length === 0) return results;
+
+  return results.map(r => {
+    const chunkEntities: string[] = r.metadata?.entityNames || [];
+    const hasHit = chunkEntities.some(e => activeEntityNames.includes(e));
+    return {
+      ...r,
+      score: hasHit ? r.score * 1.5 : r.score,
+    };
+  });
+}
+
+/**
+ * 时序衰减重排：距离当前章节越近，分数越高
+ * decayFactor = 0.005 表示每差一章衰减 0.5%
+ */
+function applyTimeDecayRerank(
+  results: SearchResult[],
+  currentChapterNumber: number,
+  decayFactor: number = 0.005
+): SearchResult[] {
+  return results.map(r => {
+    const chunkChapter = r.metadata?.chapterNumber ?? 0;
+    if (chunkChapter <= 0 || currentChapterNumber <= 0) return r;
+
+    const distance = Math.abs(currentChapterNumber - chunkChapter);
+    const decayMultiplier = Math.max(1 - distance * decayFactor, 0.3); // 最低不低于 0.3
+    return {
+      ...r,
+      score: r.score * decayMultiplier,
+    };
+  });
+}
+
+/**
+ * 组合重排：先图谱命中提权，再时序衰减，最后按分数降序排列
+ */
+function applyCombinedRerank(
+  results: SearchResult[],
+  options: SearchOptions
+): SearchResult[] {
+  let reranked = results;
+
+  // 1. 图谱命中提权
+  if (options.activeEntityNames && options.activeEntityNames.length > 0) {
+    reranked = applyGraphHitRerank(reranked, options.activeEntityNames);
+  }
+
+  // 2. 时序衰减
+  if (options.currentChapterNumber && options.currentChapterNumber > 0) {
+    reranked = applyTimeDecayRerank(reranked, options.currentChapterNumber);
+  }
+
+  // 3. 按最终分数降序排列
+  reranked.sort((a, b) => b.score - a.score);
+
+  return reranked;
+}
+
+// ============================================================================
+// 向量服务主类 (V5 重构版)
+// ============================================================================
+
+/** V5: 只保留一个 collection，所有正文切片统一存储 */
+const CHAPTER_CONTENT_COLLECTION = 'chapter_content';
 
 export class VectorService {
   private embeddingModel: EmbeddingModel;
-  private collections: Map<string, CollectionConfig> = new Map();
   private initialized = false;
   private embeddingCache: Map<string, number[]> = new Map();
   private cacheMaxSize = 1000;
@@ -266,13 +412,6 @@ export class VectorService {
       this.embeddingModel = new LocalEmbeddingModel(config);
     } else {
       this.embeddingModel = new OpenAIEmbeddingModel(config);
-    }
-
-    for (const collection of DEFAULT_COLLECTIONS) {
-      this.collections.set(collection.name, {
-        ...collection,
-        dimension: this.embeddingModel.getDimension(),
-      });
     }
   }
 
@@ -291,11 +430,15 @@ export class VectorService {
     }
   }
 
-  async addDocument(collection: string, document: VectorDocument): Promise<void> {
-    await this.addDocuments(collection, [document]);
+  // ============================================================================
+  // 文档 CRUD
+  // ============================================================================
+
+  async addDocument(document: VectorDocument): Promise<void> {
+    await this.addDocuments([document]);
   }
 
-  async addDocuments(collection: string, documents: VectorDocument[]): Promise<void> {
+  async addDocuments(documents: VectorDocument[]): Promise<void> {
     await this.ensureInitialized();
 
     const texts = documents.map(d => d.content);
@@ -305,94 +448,202 @@ export class VectorService {
 
     const payload = documents.map((doc, i) => ({
       id: doc.id,
-      collection,
+      collection: CHAPTER_CONTENT_COLLECTION,
       project_id: doc.metadata.projectId || '',
       content: doc.content,
       metadata: JSON.stringify(doc.metadata),
       embedding: embeddings[i],
-      keywords: JSON.stringify(this.extractKeywords(doc.content)),
+      keywords: JSON.stringify(doc.metadata?.entityNames || []),
     }));
 
     await invoke('add_vector_documents', { documents: payload });
   }
 
-  async updateDocument(collection: string, id: string, updates: Partial<VectorDocument>): Promise<void> {
-    if (updates.content && updates.metadata) {
-      await this.addDocument(collection, { id, content: updates.content, metadata: updates.metadata });
-    }
-  }
-
-  async deleteDocument(collection: string, id: string): Promise<void> {
+  async deleteDocument(id: string): Promise<void> {
     await invoke('delete_vector_document', { id });
   }
 
-  async deleteDocuments(collection: string, filter: Record<string, unknown>): Promise<number> {
-    const projectIdRaw = filter?.projectId;
-    const projectId = typeof projectIdRaw === 'string' && projectIdRaw.trim().length > 0
-      ? projectIdRaw
-      : null;
-
-    const metadataFilterEntries = Object.entries(filter || {}).filter(([key, value]) => {
-      if (key === 'projectId') return false;
-      return value !== undefined && value !== null;
-    });
-
-    const metadataFilter = metadataFilterEntries.length > 0
-      ? Object.fromEntries(metadataFilterEntries)
-      : null;
-
+  async deleteDocumentsForProject(projectId: string): Promise<number> {
     const deleted = await invoke<number>('delete_vector_documents', {
-      collection,
+      collection: CHAPTER_CONTENT_COLLECTION,
       projectId,
-      filter: metadataFilter ? JSON.stringify(metadataFilter) : null,
+      filter: null,
     });
-
     return deleted;
   }
 
-  async getDocument(collection: string, id: string): Promise<VectorDocument | null> {
-    const result = await invoke<{
-      id: string;
-      content: string;
-      metadata: string;
-      embedding?: number[];
-    } | null>('get_vector_document', {
-      collection,
-      id,
-    });
+  // ============================================================================
+  // 索引：只索引章节正文 (段落级切片)
+  // ============================================================================
 
-    if (!result) {
-      return null;
+  /**
+   * 索引整个项目的所有章节正文 (段落级切片)
+   * V5 变更：不再索引世界观、人物、大纲，只索引 Chapter Content
+   */
+  async indexProject(project: Project): Promise<void> {
+    if (!this.initialized) {
+      await this.initialize();
     }
 
-    return {
-      id: result.id,
-      content: result.content,
-      metadata: JSON.parse(result.metadata) as DocumentMetadata,
-      embedding: result.embedding,
-    };
+    this.logger.info('开始索引项目 (仅正文切片)', { projectId: project.id });
+
+    // 收集已知实体名 (用于给切片打 entityNames 标签)
+    const characterNames = (project.characters || []).map(c => c.name);
+    const locationNames = (project.world?.geography?.locations || []).map(l => l.name);
+
+    const allDocs: VectorDocument[] = [];
+
+    for (const chapter of project.chapters || []) {
+      const chunks = chunkChapterContent(
+        chapter.id,
+        chapter.number,
+        chapter.content || '',
+        characterNames,
+        locationNames
+      );
+
+      for (const chunk of chunks) {
+        allDocs.push({
+          id: chunk.id,
+          content: chunk.content,
+          metadata: {
+            type: 'chapter',
+            projectId: project.id,
+            chapterNumber: chapter.number,
+            chunkIndex: chunk.chunkIndex,
+            entityNames: chunk.entityNames,
+            timestamp: chapter.generationTime ? new Date(chapter.generationTime).getTime() : Date.now(),
+          },
+        });
+      }
+    }
+
+    if (allDocs.length === 0) {
+      this.logger.info('没有可索引的章节内容');
+      return;
+    }
+
+    // 批量生成嵌入
+    const embeddings = await this.embeddingModel.embedBatch(allDocs.map(d => d.content));
+
+    // 填入嵌入向量
+    const vectorDocs: VectorDocument[] = allDocs.map((doc, i) => ({
+      ...doc,
+      embedding: embeddings[i],
+    }));
+
+    // 批量写入 (分批，每批 50 条)
+    const BATCH_SIZE = 50;
+    for (let i = 0; i < vectorDocs.length; i += BATCH_SIZE) {
+      const batch = vectorDocs.slice(i, i + BATCH_SIZE);
+      await this.addDocuments(batch);
+    }
+
+    this.logger.info('索引完成', { totalChunks: vectorDocs.length, projectId: project.id });
   }
 
+  /**
+   * 索引单个章节 (段落级切片)
+   */
+  async indexChapter(chapter: Chapter, projectId: string, characterNames: string[] = [], locationNames: string[] = []): Promise<void> {
+    if (!this.initialized) {
+      await this.initialize();
+    }
+
+    // 先删除该章节的旧切片
+    await this.deleteChapterChunks(chapter.id);
+
+    const chunks = chunkChapterContent(
+      chapter.id,
+      chapter.number,
+      chapter.content || '',
+      characterNames,
+      locationNames
+    );
+
+    if (chunks.length === 0) {
+      this.logger.info('章节无内容可索引', { chapterNumber: chapter.number });
+      return;
+    }
+
+    const embeddings = await this.embeddingModel.embedBatch(chunks.map(c => c.content));
+
+    const docs: VectorDocument[] = chunks.map((chunk, i) => ({
+      id: chunk.id,
+      content: chunk.content,
+      metadata: {
+        type: 'chapter' as const,
+        projectId,
+        chapterNumber: chapter.number,
+        chunkIndex: chunk.chunkIndex,
+        entityNames: chunk.entityNames,
+        timestamp: chapter.generationTime ? new Date(chapter.generationTime).getTime() : Date.now(),
+      },
+      embedding: embeddings[i],
+    }));
+
+    await this.addDocuments(docs);
+    this.logger.info('已索引章节切片', { chapterNumber: chapter.number, chunks: docs.length });
+  }
+
+  /**
+   * 删除某章节的所有切片
+   */
+  async deleteChapterChunks(chapterId: string): Promise<void> {
+    // 删除以 chunk-{chapterId}- 开头的所有文档
+    // Rust 后端按 id 前缀删除不支持，这里逐个删
+    // TODO: 未来可以在 Rust 端加 prefix delete
+    for (let i = 0; i < 200; i++) {
+      try {
+        await this.deleteDocument(`chunk-${chapterId}-${i}`);
+      } catch {
+        break; // 没有更多切片了
+      }
+    }
+  }
+
+  /**
+   * 删除整章 (旧版兼容: chapter-{chapterId} 格式)
+   */
+  async deleteChapter(chapterId: string): Promise<void> {
+    await this.deleteChapterChunks(chapterId);
+    // 也尝试删除旧版格式的文档
+    try {
+      await this.deleteDocument(`chapter-${chapterId}`);
+    } catch { /* ignore */ }
+    this.logger.info('已删除章节索引', { chapterId });
+  }
+
+  // ============================================================================
+  // 检索：图谱制导 + 轻量级重排
+  // ============================================================================
+
+  /**
+   * V5 核心检索方法：图谱制导的正文切片检索
+   *
+   * @param queryText 查询文本 (由调用方根据图谱实体构建)
+   * @param options 检索选项 (含 currentChapterNumber 和 activeEntityNames 用于重排)
+   */
   async vectorSearch(
-    collection: string,
-    query: string,
+    queryText: string,
     options: SearchOptions = {}
   ): Promise<SearchResult[]> {
     await this.ensureInitialized();
 
-    const { topK = 10, filter, minScore = 0 } = options;
-    const queryEmbedding = await this.getEmbeddingWithCache(query);
+    const { topK = 10, filter, minScore = 0.4 } = options;
+    const queryEmbedding = await this.getEmbeddingWithCache(queryText);
     const projectId = filter?.projectId as string | undefined;
 
-    const results: any[] = await invoke('vector_search', {
-      collection,
+    // 从 Rust 后端检索 topK*2 个候选 (为重排留余量)
+    const rawResults: any[] = await invoke('vector_search', {
+      collection: CHAPTER_CONTENT_COLLECTION,
       projectId: projectId || null,
       queryEmbedding,
-      topK,
+      topK: topK * 2,
       minScore,
     });
 
-    const searchResults = results.map(r => ({
+    let searchResults: SearchResult[] = rawResults.map(r => ({
       id: r.id,
       content: r.content,
       metadata: JSON.parse(r.metadata),
@@ -400,539 +651,163 @@ export class VectorService {
       source: r.source as 'vector',
     }));
 
-    // P1-⑤: OP-RAG 保序检索 — 按原文章节顺序时间线重排
-    searchResults.sort((a, b) => {
-      const aChapter = a.metadata?.chapterIndex ?? a.metadata?.chapterNumber ?? 0;
-      const bChapter = b.metadata?.chapterIndex ?? b.metadata?.chapterNumber ?? 0;
-      return aChapter - bChapter;
-    });
+    // 轻量级重排
+    searchResults = applyCombinedRerank(searchResults, options);
+
+    // 截断到 topK
+    searchResults = searchResults.slice(0, topK);
 
     return searchResults;
   }
 
-  async keywordSearch(
-    collection: string,
-    query: string,
-    options: SearchOptions = {}
-  ): Promise<SearchResult[]> {
-    return [];
-  }
-
-  async hybridSearch(
-    collection: string,
-    query: string,
-    options: SearchOptions = {}
-  ): Promise<SearchResult[]> {
-    return this.vectorSearch(collection, query, options);
-  }
-
-  async search(arg1: any, arg2?: any, arg3?: any): Promise<any[]> {
-    if (typeof arg2 === 'number' || (arg2 === undefined && arg3 === undefined)) {
-      // Signature: search(query, topK, options)
-      const query = arg1 as string;
-      const topK = arg2 as number | undefined ?? 10;
-      const options = arg3 as any;
-      await this.ensureInitialized();
-      return this.vectorSearch("chapter_content", query, { topK, minScore: options?.minScore }) as any;
-    } else {
-      // Signature: search(collection, query, options)
-      const collection = arg1 as string;
-      const query = arg2 as string;
-      const options = arg3 as SearchOptions ?? {};
-      return this.vectorSearch(collection, query, options);
-    }
-  }
-
-  async rebuildIndex(collection: string): Promise<void> {
-    // No-op for Rust backend
-  }
-
-  async getIndexStats(collection: string): Promise<IndexStats> {
-    return {
-      collection,
-      documentCount: 0,
-      dimension: 384,
-      indexSize: 0,
-      lastUpdated: Date.now(),
-      health: 'healthy',
-    };
-  }
-
-  async healthCheck(): Promise<Map<string, IndexStats>> {
-    return new Map();
-  }
-
-  async clearCollection(collection: string): Promise<void> {
-    await invoke('clear_vector_collection', { collection });
-  }
-
-  async clearAll(): Promise<void> {
-    for (const [name] of this.collections) {
-      await this.clearCollection(name);
-    }
-  }
-
-async indexProject(project: Project): Promise<void> {
-    if (!this.initialized) {
-      await this.initialize()
-    }
-
-    console.log('[VectorService] 开始索引项目:', project.id)
-
-    const documents: any[] = []
-
-    // 1. 索引世界观设定
-    if (project.world) {
-      documents.push(...this.extractWorldDocuments(project))
-    }
-
-    // 2. 索引人物
-    if (project.characters && project.characters.length > 0) {
-      documents.push(...this.extractCharacterDocuments(project))
-    }
-
-    // 3. 索引大纲
-    if (project.outline) {
-      documents.push(...this.extractOutlineDocuments(project))
-    }
-
-    // 4. 索引章节
-    if (project.chapters && project.chapters.length > 0) {
-      documents.push(...this.extractChapterDocuments(project))
-    }
-
-    console.log(`[VectorService] 提取了 ${documents.length} 个文档`)
-
-    // 批量生成嵌入
-    const embeddings = await this.embeddingModel.embedBatch(
-      documents.map(d => d.content)
-    )
-
-    // 创建向量文档
-    const vectorDocs: VectorDocument[] = documents.map((doc, i) => ({
-      id: doc.id,
-      content: doc.content,
-      metadata: doc.metadata,
-      embedding: embeddings[i]
-    }))
-
-    // 批量添加到向量存储
-    await this.addDocuments("chapter_content", vectorDocs)
-
-    console.log(`[VectorService] 索引完成，共 ${vectorDocs.length} 个文档`)
-  }
-
-async indexChapter(chapter: Chapter, projectId: string): Promise<void> {
-    if (!this.initialized) {
-      await this.initialize()
-    }
-
-    const doc = this.extractSingleChapterDocument(chapter, projectId)
-    const embedding = await this.embeddingModel.embed(doc.content)
-
-    await this.addDocument("chapter_content", {
-      id: doc.id,
-      content: doc.content,
-      metadata: doc.metadata,
-      embedding
-    })
-
-    console.log(`[VectorService] 已索引章节: ${chapter.number} - ${chapter.title}`)
-  }
-
-async deleteChapter(chapterId: string): Promise<void> {
-    if (!this.initialized) {
-      await this.initialize()
-    }
-
-    await this.deleteDocument("chapter_content", chapterId)
-    console.log(`[VectorService] 已删除章节索引: ${chapterId}`)
-  }
-
-async retrieveRelevantContext(
+  /**
+   * 图谱制导检索：根据当前章节的图谱实体，构建针对性查询
+   *
+   * @param currentChapter 当前正在写的章节
+   * @param project 项目数据
+   * @param activeEntityNames 当前章节涉及的实体名列表 (从 SandboxStore 获取)
+   */
+  async retrieveRelevantContext(
     currentChapter: Chapter,
     project: Project,
-    options?: {
-      topK?: number
-      minScore?: number
-      includeTypes?: any['type'][]
-      excludeCurrentChapter?: boolean
-    }
+    activeEntityNames: string[] = []
   ): Promise<SearchResult[]> {
     if (!this.initialized) {
-      await this.initialize()
+      await this.initialize();
     }
 
-    // 构建查询文本
-    const queryText = this.buildChapterQuery(currentChapter, project)
+    // 构建图谱制导的查询文本
+    const queryParts: string[] = [];
 
-    // 生成查询向量
-    const queryEmbedding = await this.embeddingModel.embed(queryText)
-
-    // 构建过滤器
-    const filter = (metadata: any): boolean => {
-      // 排除当前章节
-      if (options?.excludeCurrentChapter && metadata.chapterNumber === currentChapter.number) {
-        return false
-      }
-
-      // 过滤文档类型
-      if (options?.includeTypes && !options.includeTypes.includes(metadata.type)) {
-        return false
-      }
-
-      return true
+    if (currentChapter.title) {
+      queryParts.push(currentChapter.title);
     }
 
-    // 执行搜索
-    const results = await (this as any).vectorStore.search(
-      queryEmbedding,
-      options?.topK || 10,
-      {
-        minScore: options?.minScore || 0.5,
-        filter
-      }
-    )
+    // 优先使用图谱实体构建查询 (Graph-Guided)
+    if (activeEntityNames.length > 0) {
+      // 针对每个核心实体构建子查询，取并集
+      const allResults: SearchResult[] = [];
 
-    console.log(`[VectorService] 检索到 ${results.length} 个相关文档`)
-    return results
+      for (const entityName of activeEntityNames.slice(0, 5)) { // 最多 5 个实体
+        const entityQuery = `${entityName} ${currentChapter.outline?.location || ''}`;
+        const results = await this.vectorSearch(entityQuery, {
+          topK: 5,
+          currentChapterNumber: currentChapter.number,
+          activeEntityNames,
+          filter: { projectId: project.id },
+          minScore: 0.35,
+        });
+        allResults.push(...results);
+      }
+
+      // 去重 (按 id)
+      const seen = new Set<string>();
+      const deduped = allResults.filter(r => {
+        if (seen.has(r.id)) return false;
+        seen.add(r.id);
+        return true;
+      });
+
+      // 最终按分数重排
+      deduped.sort((a, b) => b.score - a.score);
+
+      this.logger.info('图谱制导检索完成', {
+        entityCount: activeEntityNames.length,
+        resultCount: deduped.length,
+      });
+
+      return deduped.slice(0, 15); // 最多返回 15 个切片
+    }
+
+    // Fallback: 如果没有图谱实体，使用大纲信息构建查询
+    if (currentChapter.outline) {
+      if (currentChapter.outline.goals?.length) {
+        queryParts.push(...currentChapter.outline.goals);
+      }
+      if (currentChapter.outline.location) {
+        queryParts.push(currentChapter.outline.location);
+      }
+      if (currentChapter.outline.characters?.length) {
+        queryParts.push(...currentChapter.outline.characters);
+      }
+    }
+
+    const fallbackQuery = queryParts.join(' ') || currentChapter.title;
+    return this.vectorSearch(fallbackQuery, {
+      topK: 10,
+      currentChapterNumber: currentChapter.number,
+      activeEntityNames,
+      filter: { projectId: project.id },
+      minScore: 0.4,
+    });
   }
 
-async indexExternalArtifacts(
-    artifacts: any[]
-  ): Promise<number> {
+  // ============================================================================
+  // 会话轨迹导入索引 (保留但统一收归 chapter_content)
+  // ============================================================================
+
+  async indexExternalArtifacts(artifacts: any[]): Promise<number> {
     if (!this.initialized) {
-      await this.initialize()
+      await this.initialize();
     }
 
-    if (artifacts.length === 0) {
-      return 0
-    }
+    if (artifacts.length === 0) return 0;
 
-    const docs: any[] = artifacts.map(artifact => {
-      const payload = artifact.payload as Record<string, unknown>
+    const docs: VectorDocument[] = artifacts.map(artifact => {
+      const payload = artifact.payload as Record<string, unknown>;
       const content = typeof payload.content === 'string' && payload.content.trim()
         ? payload.content
-        : JSON.stringify(payload)
-
-      const typeMap: Record<any['type'], any['type']> = {
-        worldbook: 'rule',
-        knowledge: 'setting',
-        character_profile: 'character',
-        world_fact: 'setting',
-        timeline_event: 'event',
-      }
+        : JSON.stringify(payload);
 
       return {
         id: `trace-${artifact.id}`,
         content,
         metadata: {
-          type: typeMap[artifact.type],
-          projectId: (this as any).config.projectId!,
+          type: 'trace' as const,
+          projectId: (this as any).config?.projectId || '',
           timestamp: Date.now(),
           source: 'conversation-trace',
           artifactType: artifact.type,
           confidence: artifact.confidence,
           title: artifact.title,
         },
-      }
-    })
+      };
+    });
 
-    const embeddings = await this.embeddingModel.embedBatch(docs.map(d => d.content))
+    const embeddings = await this.embeddingModel.embedBatch(docs.map(d => d.content));
 
     const vectorDocs: VectorDocument[] = docs.map((doc, index) => ({
-      id: doc.id,
-      content: doc.content,
-      metadata: doc.metadata,
+      ...doc,
       embedding: embeddings[index],
-    }))
+    }));
 
-    await this.addDocuments("chapter_content", vectorDocs)
-    return vectorDocs.length
+    await this.addDocuments(vectorDocs);
+    return vectorDocs.length;
   }
 
-async getDocumentCount(): Promise<number> {
-    return await Promise.resolve(0) /* TODO */
+  // ============================================================================
+  // 维护方法
+  // ============================================================================
+
+  async clearCollection(): Promise<void> {
+    await invoke('clear_vector_collection', { collection: CHAPTER_CONTENT_COLLECTION });
   }
 
-async clear(): Promise<void> {
-    await this.clearAll()
-    console.log('[VectorService] 已清空所有索引')
+  async clear(): Promise<void> {
+    await this.clearCollection();
+    this.logger.info('已清空所有索引');
   }
 
-private extractWorldDocuments(project: Project): any[] {
-    const documents: any[] = []
-    const world = project.world
-
-    // 世界观概述
-    if (world.name || world.era) {
-      documents.push({
-        id: `world-overview-${project.id}`,
-        content: `世界观：${world.name}\n时代：${world.era.time}\n科技水平：${world.era.techLevel}\n社会形态：${world.era.socialForm}`,
-        metadata: {
-          type: 'setting',
-          projectId: project.id,
-          timestamp: Date.now()
-        }
-      })
-    }
-
-    // 力量体系
-    if (world.powerSystem) {
-      const levels = world.powerSystem.levels?.map(l => `${l.name}: ${l.description}`).join('\n') || ''
-      documents.push({
-        id: `world-power-${project.id}`,
-        content: `力量体系：${world.powerSystem.name}\n等级划分：\n${levels}`,
-        metadata: {
-          type: 'setting',
-          projectId: project.id,
-          timestamp: Date.now()
-        }
-      })
-    }
-
-    // 势力
-    if (world.factions && world.factions.length > 0) {
-      world.factions.forEach(faction => {
-        documents.push({
-          id: `faction-${faction.id}`,
-          content: `势力：${faction.name}\n类型：${faction.type}\n描述：${faction.description}`,
-          metadata: {
-            type: 'setting',
-            projectId: project.id,
-            timestamp: Date.now()
-          }
-        })
-      })
-    }
-
-    // 地点
-    if (world.geography?.locations && world.geography.locations.length > 0) {
-      world.geography.locations.forEach(location => {
-        documents.push({
-          id: `location-${location.id}`,
-          content: `地点：${location.name}\n重要程度：${location.importance}\n描述：${location.description}`,
-          metadata: {
-            type: 'setting',
-            projectId: project.id,
-            timestamp: Date.now()
-          }
-        })
-      })
-    }
-
-    // 世界规则
-    if (world.rules && world.rules.length > 0) {
-      world.rules.forEach(rule => {
-        documents.push({
-          id: `rule-${rule.id}`,
-          content: `世界规则：${rule.name}\n描述：${rule.description}`,
-          metadata: {
-            type: 'rule',
-            projectId: project.id,
-            timestamp: Date.now()
-          }
-        })
-      })
-    }
-
-    return documents
+  async getDocumentCount(projectId?: string): Promise<number> {
+    return await invoke<number>('get_vector_document_count', {
+      collection: CHAPTER_CONTENT_COLLECTION,
+      projectId: projectId || null,
+    });
   }
 
-private extractCharacterDocuments(project: Project): any[] {
-    const documents: any[] = []
-
-    project.characters.forEach(char => {
-      const parts: string[] = []
-
-      parts.push(`人物：${char.name}`)
-      if (char.aliases && char.aliases.length > 0) {
-        parts.push(`别名：${char.aliases.join('、')}`)
-      }
-      parts.push(`性别：${char.gender === 'male' ? '男' : char.gender === 'female' ? '女' : '其他'}`)
-      parts.push(`年龄：${char.age}岁`)
-
-      if (char.appearance) {
-        parts.push(`外貌：${char.appearance}`)
-      }
-
-      if (char.personality && char.personality.length > 0) {
-        parts.push(`性格：${char.personality.join('、')}`)
-      }
-
-      if (char.background) {
-        parts.push(`背景：${char.background}`)
-      }
-
-      if (char.abilities && char.abilities.length > 0) {
-        parts.push(`能力：${char.abilities.map(a => `${a.name}(${a.level})`).join('、')}`)
-      }
-
-      if (char.powerLevel) {
-        parts.push(`实力等级：${char.powerLevel}`)
-      }
-
-      documents.push({
-        id: `character-${char.id}`,
-        content: parts.join('\n'),
-        metadata: {
-          type: 'character',
-          projectId: project.id,
-          timestamp: Date.now()
-        }
-      })
-    })
-
-    return documents
-  }
-
-private extractOutlineDocuments(project: Project): any[] {
-    const documents: any[] = []
-    const outline = project.outline
-
-    // 故事概述
-    if (outline.synopsis) {
-      documents.push({
-        id: `outline-synopsis-${project.id}`,
-        content: `故事概述：${outline.synopsis}`,
-        metadata: {
-          type: 'plot',
-          projectId: project.id,
-          timestamp: Date.now()
-        }
-      })
-    }
-
-    // 主题
-    if (outline.theme) {
-      documents.push({
-        id: `outline-theme-${project.id}`,
-        content: `故事主题：${outline.theme}`,
-        metadata: {
-          type: 'plot',
-          projectId: project.id,
-          timestamp: Date.now()
-        }
-      })
-    }
-
-    // 主线剧情
-    if (outline.mainPlot) {
-      documents.push({
-        id: `plot-main-${project.id}`,
-        content: `主线剧情：${outline.mainPlot.name}\n${outline.mainPlot.description}`,
-        metadata: {
-          type: 'plot',
-          projectId: project.id,
-          timestamp: Date.now()
-        }
-      })
-    }
-
-    // 支线剧情
-    if (outline.subPlots && outline.subPlots.length > 0) {
-      outline.subPlots.forEach(plot => {
-        documents.push({
-          id: `plot-${plot.id}`,
-          content: `支线剧情：${plot.name}\n${plot.description}\n开始章节：${plot.startChapter || '未知'}\n结束章节：${plot.endChapter || '未知'}`,
-          metadata: {
-            type: 'plot',
-            projectId: project.id,
-            timestamp: Date.now()
-          }
-        })
-      })
-    }
-
-    // 伏笔
-    if (outline.foreshadowings && outline.foreshadowings.length > 0) {
-      outline.foreshadowings.forEach(foreshadow => {
-        documents.push({
-          id: `foreshadow-${foreshadow.id}`,
-          content: `伏笔：${foreshadow.description}\n埋设章节：${foreshadow.plantChapter}\n揭示章节：${foreshadow.resolveChapter || '未揭示'}\n状态：${foreshadow.status}`,
-          metadata: {
-            type: 'plot',
-            projectId: project.id,
-            timestamp: Date.now()
-          }
-        })
-      })
-    }
-
-    return documents
-  }
-
-private extractChapterDocuments(project: Project): any[] {
-    const documents: any[] = []
-
-    project.chapters.forEach(chapter => {
-      const doc = this.extractSingleChapterDocument(chapter, project.id)
-      documents.push(doc)
-    })
-
-    return documents
-  }
-
-private extractSingleChapterDocument(chapter: Chapter, projectId: string): any {
-    const parts: string[] = []
-
-    parts.push(`第${chapter.number}章：${chapter.title}`)
-    parts.push(chapter.content)
-
-    // 添加大纲信息
-    if (chapter.outline) {
-      if (chapter.outline.goals && chapter.outline.goals.length > 0) {
-        parts.push(`\n章节目标：${chapter.outline.goals.join('、')}`)
-      }
-      if (chapter.outline.location) {
-        parts.push(`地点：${chapter.outline.location}`)
-      }
-      if (chapter.outline.characters && chapter.outline.characters.length > 0) {
-        parts.push(`出场人物：${chapter.outline.characters.join('、')}`)
-      }
-    }
-
-    return {
-      id: `chapter-${chapter.id}`,
-      content: parts.join('\n'),
-      metadata: {
-        type: 'chapter',
-        projectId,
-        chapterNumber: chapter.number,
-        timestamp: new Date(chapter.generationTime).getTime()
-      }
-    }
-  }
-
-private buildChapterQuery(chapter: Chapter, project: Project): string {
-    const parts: string[] = []
-
-    // 章节标题
-    parts.push(chapter.title)
-
-    // 章节大纲信息
-    if (chapter.outline) {
-      if (chapter.outline.goals && chapter.outline.goals.length > 0) {
-        parts.push(chapter.outline.goals.join(' '))
-      }
-      if (chapter.outline.conflicts && chapter.outline.conflicts.length > 0) {
-        parts.push(chapter.outline.conflicts.join(' '))
-      }
-      if (chapter.outline.characters && chapter.outline.characters.length > 0) {
-        parts.push(chapter.outline.characters.join(' '))
-      }
-      if (chapter.outline.location) {
-        parts.push(chapter.outline.location)
-      }
-    }
-
-    // 章节内容（取前 500 字）
-    if (chapter.content) {
-      parts.push(chapter.content.substring(0, 500))
-    }
-
-    return parts.join(' ')
-  }
+  // ============================================================================
+  // 内部工具方法
+  // ============================================================================
 
   private async ensureInitialized(): Promise<void> {
     if (!this.initialized) {
@@ -966,22 +841,6 @@ private buildChapterQuery(chapter: Chapter, project: Project): string {
       hash = hash & hash;
     }
     return hash.toString(16);
-  }
-
-  private extractKeywords(text: string): string[] {
-    const tokens = this.tokenize(text);
-    return Array.from(new Set(tokens)).slice(0, 20);
-  }
-
-  private tokenize(text: string): string[] {
-    const chinesePattern = /[\u4e00-\u9fa5]+/g;
-    const englishPattern = /[a-zA-Z]+/g;
-
-    const chineseTokens = text.match(chinesePattern) || [];
-    const englishTokens = text.match(englishPattern) || [];
-
-    const chineseChars = chineseTokens.join('').split('');
-    return [...chineseChars, ...englishTokens.map(t => t.toLowerCase())];
   }
 }
 

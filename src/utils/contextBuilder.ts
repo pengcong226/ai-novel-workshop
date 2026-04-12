@@ -621,94 +621,58 @@ export function buildOutline(outline: ChapterOutline | undefined): string {
 }
 
 /**
- * 构建向量检索上下文（新增）
+ * 构建向量检索上下文 (V5: 图谱制导的正文切片检索)
  */
 export async function buildVectorContext(
   project: Project,
   currentChapter: Chapter,
   vectorService?: VectorService,
-  maxTokens: number = 19200
+  maxTokens: number = 19200,
+  activeEntityNames: string[] = []
 ): Promise<string> {
   if (!vectorService) {
     return ''
   }
 
   try {
-    // 检索相关上下文
+    // V5: 使用图谱制导检索，传入当前章节涉及的实体名
     const results = await vectorService.retrieveRelevantContext(
       currentChapter,
       project,
-      {
-        topK: 5,
-        minScore: 0.6,
-        excludeCurrentChapter: true
-      }
+      activeEntityNames
     )
 
     if (results.length === 0) {
       return ''
     }
 
-    // V4: RAG 重排策略 - 剧情历史按时间序，设定按相似度降序
-    // 分离类型
-    const plotItems = results.filter(r => r.metadata.type === 'chapter' || r.metadata.type === 'event');
-    const settingItems = results.filter(r => r.metadata.type !== 'chapter' && r.metadata.type !== 'event');
-
-    // 剧情类：按时间（章节号）升序排列，保持历史时间顺序
-    plotItems.sort((a, b) => {
-      const chapterA = Number((a.metadata as any)?.chapterNumber ?? (a.metadata as any)?.chapter ?? 0)
-      const chapterB = Number((b.metadata as any)?.chapterNumber ?? (b.metadata as any)?.chapter ?? 0)
+    // V5: 所有结果都是 chapter 切片，按章节号升序排列保持时间线
+    results.sort((a, b) => {
+      const chapterA = a.metadata?.chapterNumber ?? 0
+      const chapterB = b.metadata?.chapterNumber ?? 0
       return chapterA - chapterB
     })
 
-    // 设定类：按相似度分数 (score) 降序排列
-    settingItems.sort((a, b) => b.score - a.score)
-
-    // 重新组合
-    const sortedResults = [...settingItems, ...plotItems]
-
     const parts: string[] = []
-    parts.push(`【相关上下文 - 向量检索（核心设定排前，剧情按时间线排后）】`)
+    parts.push(`【历史相关片段 - 图谱制导检索】`)
 
-    // 按类型分组
-    const groupedResults = new Map<string, typeof sortedResults>()
-    for (const result of sortedResults) {
-      const type = result.metadata.type
-      if (!groupedResults.has(type)) {
-        groupedResults.set(type, [])
-      }
-      groupedResults.get(type)!.push(result)
-    }
-
-    // 添加各类型的相关信息
-    for (const [type, items] of groupedResults) {
-      const typeNames: Record<string, string> = {
-        'setting': '世界观设定',
-        'character': '人物',
-        'plot': '剧情',
-        'event': '事件',
-        'chapter': '历史章节',
-        'rule': '世界规则'
+    for (const result of results) {
+      const rawPreview = result.content.substring(0, 500)
+      const validation = validateInput(rawPreview)
+      if (!validation.valid) {
+        console.warn('[ContextBuilder] 检测到可疑检索片段，已清洗:', validation.warnings)
       }
 
-      parts.push(`\n${typeNames[type] || type}：`)
-
-      // 各组内也保持时间顺序，不再截断到3条（由 token 预算控制）
-      items.forEach(item => {
-        const rawPreview = item.content.substring(0, 500)
-        const validation = validateInput(rawPreview)
-        if (!validation.valid) {
-          console.warn('[ContextBuilder] 检测到可疑检索片段，已清洗:', validation.warnings)
-        }
-
-        const preview = sanitizeForPrompt(rawPreview, {
-          maxLength: 500,
-          preserveLineBreaks: true
-        })
-
-        const chapterLabel = item.metadata?.chapterNumber ? `ch${item.metadata.chapterNumber}` : ''
-        parts.push(`  - <context source="${type}" ${chapterLabel} score="${(item.score * 100).toFixed(0)}%">${preview}</context>`)
+      const preview = sanitizeForPrompt(rawPreview, {
+        maxLength: 500,
+        preserveLineBreaks: true
       })
+
+      const chapterLabel = result.metadata?.chapterNumber ? `ch${result.metadata.chapterNumber}` : ''
+      const entitiesLabel = result.metadata?.entityNames?.length
+        ? ` entities="${result.metadata.entityNames.join(',')}"`
+        : ''
+      parts.push(`  - <context source="chapter" ${chapterLabel}${entitiesLabel} score="${(result.score * 100).toFixed(0)}%">${preview}</context>`)
     }
 
     const context = parts.join('\n')

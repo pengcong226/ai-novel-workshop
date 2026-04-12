@@ -14,6 +14,7 @@ import {
 } from '../contextBuilder';
 import { generateMemoryPrompt, initNovelMemory } from '../tableMemory';
 import { WorldbookInjector } from '@/services/worldbook-injector';
+import { useSandboxStore } from '@/stores/sandbox';
 
 function enforceSectionBudget(payload: ContextPayload, sectionName: string, text: string, budget: number): string {
   if (!text || budget <= 0) return '';
@@ -231,7 +232,31 @@ export class VectorContextMiddleware implements ContextMiddleware {
 
     if (payload.vectorService) {
       try {
-        vectorContextText = await buildVectorContext(project, currentChapter, payload.vectorService, budget);
+        // V5: 从 SandboxStore 获取当前章节涉及的实体名 (图谱制导)
+        let activeEntityNames: string[] = [];
+        try {
+          const sandboxStore = useSandboxStore();
+          // 获取与当前章节相关的实体名
+          activeEntityNames = sandboxStore.entities
+            .filter(e => {
+              // 实体在当前章节有状态变更，或者出现在属性中
+              return sandboxStore.stateEvents.some(
+                ev => ev.entityId === e.id && ev.chapterNumber <= currentChapter.number
+              );
+            })
+            .map(e => e.name);
+        } catch {
+          // SandboxStore 可能未初始化，使用章节大纲中的人物名作为 fallback
+          activeEntityNames = currentChapter.outline?.characters || [];
+        }
+
+        vectorContextText = await buildVectorContext(
+          project,
+          currentChapter,
+          payload.vectorService,
+          budget,
+          activeEntityNames
+        );
       } catch (error) {
         console.warn('[ContextBuilder] 向量检索失败，将使用降级方案:', error);
         payload.warnings.push('向量检索失败，已使用降级方案');

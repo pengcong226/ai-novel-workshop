@@ -159,18 +159,19 @@ const edges = computed(() => {
       state.relations.forEach((rel) => {
         if (visibleNodes.has(rel.targetId)) {
           let labelText = rel.type || '';
-          if (rel.attitude) {
-            const shortAttitude = rel.attitude.length > 8 ? rel.attitude.substring(0, 8) + '...' : rel.attitude;
+          const attitude = rel.attitude ?? '';
+          if (attitude) {
+            const shortAttitude = attitude.length > 8 ? attitude.substring(0, 8) + '...' : attitude;
             labelText = `${labelText} (${shortAttitude})`;
           }
 
           let edgeColor = 'rgba(60, 130, 246, 0.4)'; // Default blue
-          if (rel.attitude) {
+          if (attitude) {
             const negativeWords = ['恨', '敌', '杀', '死', '仇', '怒', '厌', '利用', '背叛', '嫌隙'];
             const positiveWords = ['爱', '喜', '信任', '生死', '倾心', '护', '忠'];
-            if (negativeWords.some(w => rel.attitude.includes(w))) {
+            if (negativeWords.some(w => attitude.includes(w))) {
               edgeColor = 'rgba(239, 68, 68, 0.6)'; // Red
-            } else if (positiveWords.some(w => rel.attitude.includes(w))) {
+            } else if (positiveWords.some(w => attitude.includes(w))) {
               edgeColor = 'rgba(16, 185, 129, 0.6)'; // Green
             }
           }

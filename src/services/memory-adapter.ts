@@ -177,12 +177,13 @@ export class VectorStoreAdapter {
     const actualCollection = this.collectionMap.get(collection) || collection;
 
     for (const entry of entries) {
-      await this.vectorService.addDocument(actualCollection, {
+      await this.vectorService.addDocument({
         id: entry.id,
         content: entry.content,
         metadata: {
           type: entry.type as any,
           projectId: 'default',
+          collection: actualCollection, // 保存到 metadata 中以便过滤
           ...entry.metadata,
         },
         embedding: entry.embedding,
@@ -193,28 +194,16 @@ export class VectorStoreAdapter {
   async search(collection: string, query: string | number[], topK: number): Promise<MemoryEntry[]> {
     const actualCollection = this.collectionMap.get(collection) || collection;
 
-    // 如果是向量查询，使用向量搜索
-    if (Array.isArray(query)) {
-      // 注意：VectorService 的 vectorSearch 方法接受字符串
-      // 这里需要特殊处理
-      const results = await this.vectorService.search(actualCollection, '', { topK, hybrid: false });
-      return results.map(r => ({
-        id: r.id,
-        type: r.metadata.type as MemoryEntry['type'],
-        content: r.content,
-        metadata: {
-          timestamp: r.metadata.timestamp,
-          tokens: 0, // 需要重新计算
-          importance: (r.metadata.importance as number) || 0.5,
-          tags: r.metadata.tags as string[] | undefined,
-          chapterId: r.metadata.chapterId as string | undefined,
-          chapterNumber: r.metadata.chapterNumber as number | undefined,
-        },
-      }));
-    }
+    // 向量/文本统一使用图谱制导的新检索接口 (不再区分 vectorSearch/hybridSearch)
+    // V5 架构下检索基于 Chapter 切片，我们暂时用 query 字符串退阶查询
+    const queryStr = Array.isArray(query) ? '' : query;
 
-    // 文本查询使用混合搜索
-    const results = await this.vectorService.hybridSearch(actualCollection, query, { topK });
+    const results = await this.vectorService.vectorSearch(queryStr, {
+      topK,
+      filter: { collection: actualCollection }, // 借用 filter 传递 collection
+      minScore: 0.3
+    });
+
     return results.map(r => ({
       id: r.id,
       type: r.metadata.type as MemoryEntry['type'],
@@ -231,8 +220,10 @@ export class VectorStoreAdapter {
   }
 
   async delete(collection: string, ids: string[]): Promise<void> {
-    const actualCollection = this.collectionMap.get(collection) || collection;
-    await this.vectorService.deleteDocuments(actualCollection, { id: { $in: ids } });
+    // V5 架构没有按 ids 批量删除的直接接口，改为循环删除
+    for (const id of ids) {
+      await this.vectorService.deleteDocument(id);
+    }
   }
 }
 

@@ -7,5 +7,12 @@ export {
   createVectorService,
   resetVectorService as clearVectorServiceCache,
   indexExternalArtifacts,
-  type VectorService
+  type VectorService,
+  type EmbeddingConfig,
+  type VectorDocument,
+  type DocumentMetadata,
+  type SearchResult,
+  type SearchOptions,
+  type CollectionConfig,
+  type IndexStats
 } from '@/services/vector-service'

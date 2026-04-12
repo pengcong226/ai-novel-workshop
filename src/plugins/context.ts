@@ -154,7 +154,11 @@ export function createPluginContext(
       if (!projectId) throw new Error('未打开项目')
       const { getVectorService } = await import('@/utils/vectorService')
       const vectorService = await getVectorService(projectId ? { projectId } as any : undefined)
-      return await vectorService.search(query.query, query.topK, { minScore: query.minScore }) as any as VectorSearchResult[]
+      return await vectorService.vectorSearch(query.query, {
+        topK: query.topK,
+        minScore: query.minScore,
+        filter: { projectId }
+      }) as any as VectorSearchResult[]
     },
 
     async addDocument(doc: VectorDocument): Promise<void> {
@@ -164,16 +168,18 @@ export function createPluginContext(
       if (!projectId) throw new Error('未打开项目')
       const { getVectorService } = await import('@/utils/vectorService')
       const vectorService = await getVectorService(projectId ? { projectId } as any : undefined)
-      // 使用 underlying store
-      const store = (vectorService as any).vectorStore
-      if (store && store.addDocument) {
-        await store.addDocument({
-          id: doc.id,
-          content: doc.content,
-          metadata: doc.metadata,
-          embedding: doc.embedding || []
-        })
-      }
+      // 使用 V5 新接口
+      await vectorService.addDocument({
+        id: doc.id,
+        content: doc.content,
+        metadata: {
+          type: 'trace', // 降级为 trace
+          projectId: projectId,
+          timestamp: Date.now(),
+          ...doc.metadata
+        },
+        embedding: doc.embedding || []
+      })
     },
 
     async getMemory(_contextType: string): Promise<MemoryContext> {
