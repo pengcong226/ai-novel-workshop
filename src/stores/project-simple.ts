@@ -68,6 +68,11 @@ export const useProjectStore = defineStore('project', () => {
       maxCostPerChapter: 0.15,
       enableAISuggestions: true,
       enableVectorRetrieval: true,
+      vectorConfig: {
+        provider: 'local',
+        model: '/dist/models/Xenova/bge-m3',
+        dimension: 1024
+      },
       providers: []
     }
 

@@ -85,8 +85,8 @@ export const useProjectStore = defineStore('project', () => {
       enableVectorRetrieval: globalConfig.value?.enableVectorRetrieval ?? true,
       vectorConfig: globalConfig.value?.vectorConfig || {
         provider: 'local',
-        model: 'bge-small-zh-v1.5',  // 默认中文优化模型
-        dimension: 512,
+        model: '/dist/models/Xenova/bge-m3',  // 使用本地更高精度的BGE-M3模型
+        dimension: 1024,
       },
       providers: globalConfig.value?.providers ? JSON.parse(JSON.stringify(globalConfig.value.providers)) : [],
       advancedSettings: globalConfig.value?.advancedSettings ? JSON.parse(JSON.stringify(globalConfig.value.advancedSettings)) : undefined
