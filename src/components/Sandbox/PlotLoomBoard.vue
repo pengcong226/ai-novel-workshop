@@ -47,10 +47,12 @@ function addVolume() {
   const volNumber = projectStore.currentProject.outline.volumes.length + 1;
   projectStore.currentProject.outline.volumes.push({
     id: uuidv4(),
+    number: volNumber,
     title: `第 ${volNumber} 卷`,
     startChapter: (volNumber - 1) * 30 + 1,
     endChapter: volNumber * 30,
     theme: '新篇章',
+    mainEvents: [],
     anchors: [],
     chapters: []
   });

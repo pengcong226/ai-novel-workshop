@@ -367,6 +367,13 @@ export interface Volume {
   startChapter: number
   endChapter: number
   mainEvents: string[]
+  anchors?: Array<{
+    id: string;
+    targetChapterNumber: number;
+    description: string;
+    isResolved: boolean;
+  }>;
+  chapters?: ChapterOutline[];
 }
 
 export interface ChapterOutline {

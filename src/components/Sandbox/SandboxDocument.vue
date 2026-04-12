@@ -48,8 +48,8 @@
         </p>
 
         <!-- Dynamic Properties (e.g. Level, Status) -->
-        <div v-if="Object.keys(currentState.properties || {}).length > 0" class="props-grid">
-          <div class="prop-item" v-for="(val, key) in currentState.properties" :key="key">
+        <div v-if="Object.keys((currentState as any)?.properties || {}).length > 0" class="props-grid">
+          <div class="prop-item" v-for="(val, key) in (currentState as any)?.properties" :key="key">
             <span class="prop-key">{{ key }}</span>
             <span class="prop-val">{{ val }}</span>
           </div>
@@ -62,7 +62,7 @@
               <!-- Render Relationship links -->
               <span
                 class="tag rel-tag"
-                v-for="rel in currentState.relations || []"
+                v-for="rel in (currentState as any)?.relations || []"
                 :key="rel.targetId"
               >
                 <i class="ri-link"></i> #{{ getEntityName(rel.targetId) }} <span style="opacity:0.6;font-size:10px;">({{ rel.type }})</span>
@@ -71,12 +71,12 @@
               <!-- Render Location link -->
               <span
                 class="tag loc-tag"
-                v-if="currentState.location"
+                v-if="(currentState as any)?.location"
               >
-                <i class="ri-map-pin-line"></i> @坐标: [{{ currentState.location.x }}, {{ currentState.location.y }}]
+                <i class="ri-map-pin-line"></i> @坐标: [{{ (currentState as any).location.x }}, {{ (currentState as any).location.y }}]
               </span>
 
-              <span class="tag empty-tag" v-if="!currentState.relations?.length && !currentState.location">
+              <span class="tag empty-tag" v-if="!(currentState as any)?.relations?.length && !(currentState as any)?.location">
                 暂无状态关联
               </span>
             </div>

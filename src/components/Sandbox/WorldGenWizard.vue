@@ -171,7 +171,7 @@ async function sendMessage() {
               sandboxStore.addDraftRelation(sourceId, {
                 targetId,
                 type: rel.relationType || 'Unknown',
-                attitude: rel.attitude
+                attitude: rel.attitude?.toString()
               });
             }
           });

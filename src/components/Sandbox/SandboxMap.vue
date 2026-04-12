@@ -22,7 +22,7 @@
       <!-- 2. Render Animated Avatar Paths (Only simple SVG lines connecting them) -->
       <svg class="map-svg-layer">
         <line
-          v-for="path in avatarPaths"
+          v-for="path in (avatarPaths as any[])"
           :key="path.id"
           :x1="path.x1 + '%'"
           :y1="path.y1 + '%'"

@@ -38,6 +38,7 @@ export interface ContextPayload {
     summary: string;
     recentChapters: string;
     outline: string;
+    plotAnchors?: string;
   };
 }
 
