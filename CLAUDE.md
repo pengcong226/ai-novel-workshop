@@ -20,6 +20,8 @@
   - Theme Plugin system (Sci-Fi Dark Mode, Classic Light) dynamically injected.
   - Sandbox Data Binding (Tauri IPC `load_entities` and `load_state_events`, lazy loading, and AntV G6 spotlight graph with cascading menu).
   - Dynamic Affinity Text in the relationship system (Entities now have `attitude`, updated via `RELATION_UPDATE` state events, and visualized with color coding in the graph).
+  - World Gen Wizard (批量世界观生成向导) added: Chat interface (`WorldGenWizard.vue`) to bulk-generate entities and their relations via Tool Calling (`generate_world_entities`), rendering draft nodes with Pinia state (`draftEntities`, `draftRelations`), and atomic commit via Tauri IPC.
+  - Plot Loom (命运织布机) added: Kanban + Timeline fusion board (`PlotLoomBoard.vue`) upgrading the `Outline` schema to `VolumeArc` containing `PlotAnchor`. `PlotAnchorMiddleware` injects foreshadowing resolutions (`【命运锚点预警】`) into the prompt.
   - State management uses Pinia stores (`src/stores/`)
   - The system relies on a stateful graph-based memory and table memory for long novel generation, eliminating hallucination deadlocks.
   - Structured Outputs (JSON Schema/Tool Calling) and 19-point ConStory-Bench consistency checks are fully implemented.
