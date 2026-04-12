@@ -7,7 +7,7 @@
       </div>
       <el-tabs v-model="activeTab">
         <el-tab-pane label="文档视图" name="doc"><SandboxDocument /></el-tab-pane>
-        <el-tab-pane label="时间线" name="timeline"><SandboxTimeline /></el-tab-pane>
+        <el-tab-pane label="命运织布机" name="timeline"><PlotLoomBoard /></el-tab-pane>
         <el-tab-pane label="关系图" name="graph"><SandboxGraph /></el-tab-pane>
         <el-tab-pane label="势力图" name="map"><SandboxMap /></el-tab-pane>
       </el-tabs>
@@ -24,7 +24,7 @@ import { ref, onMounted, watch } from 'vue'
 import { useProjectStore } from '@/stores/project'
 import { useSandboxStore } from '@/stores/sandbox'
 import SandboxDocument from './SandboxDocument.vue'
-import SandboxTimeline from './SandboxTimeline.vue'
+import PlotLoomBoard from './PlotLoomBoard.vue'
 import SandboxGraph from './SandboxGraph.vue'
 import SandboxMap from './SandboxMap.vue'
 import AutomatonChat from './AutomatonChat.vue'
