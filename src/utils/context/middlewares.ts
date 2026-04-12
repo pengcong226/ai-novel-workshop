@@ -250,6 +250,44 @@ export class VectorContextMiddleware implements ContextMiddleware {
   }
 }
 
+export class PlotAnchorMiddleware implements ContextMiddleware {
+  name = 'PLOT_ANCHORS';
+
+  async process(payload: ContextPayload) {
+    const { project, currentChapter } = payload;
+    let anchorText = '';
+
+    // Find upcoming anchors in the next 10 chapters
+    const upcomingAnchors: string[] = [];
+    if (project.outline?.volumes) {
+      for (const vol of project.outline.volumes) {
+        if (vol.anchors) {
+          for (const anchor of vol.anchors) {
+            if (!anchor.isResolved && anchor.targetChapterNumber >= currentChapter.number && anchor.targetChapterNumber <= currentChapter.number + 10) {
+              upcomingAnchors.push(`- 第${anchor.targetChapterNumber}章目标: ${anchor.description}`);
+            }
+          }
+        }
+      }
+    }
+
+    if (upcomingAnchors.length > 0) {
+      anchorText = `【命运锚点预警】\n你正在接近以下关键剧情节点，请在接下来的生成中主动收束伏笔并向这些目标靠拢：\n${upcomingAnchors.join('\n')}`;
+    }
+
+    const budget = payload.budget.distribution[this.name] || 1000;
+    anchorText = enforceSectionBudget(payload, '命运锚点', anchorText, budget);
+    payload.builtSections.plotAnchors = anchorText;
+
+    if (anchorText) {
+      payload.systemParts.push(anchorText);
+      const tokens = estimateTokens(anchorText);
+      payload.budget.remaining -= tokens;
+      payload.totalTokensUsed += tokens;
+    }
+  }
+}
+
 export class SummaryMiddleware implements ContextMiddleware {
   name = 'SUMMARY';
 

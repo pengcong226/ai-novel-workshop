@@ -949,6 +949,10 @@ export function contextToPromptPayload(context: BuildContext, chapterTitle: stri
   // === User Message: 中段素材 + 尾部指令 ===
   const userParts: string[] = []
 
+  if (context.plotAnchors) {
+    systemParts.push(context.plotAnchors)
+  }
+
   // 中段：参考素材（注意力相对弱，放次要信息）
   // V3-fix: 如果角色设定被截断了，在 user 中放完整版
   if (context.characters && context.characters.length > SYSTEM_CHAR_LIMIT) {
