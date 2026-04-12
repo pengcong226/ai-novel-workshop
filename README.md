@@ -28,6 +28,8 @@
 - ✨ **多视图沙盒 (Multi-View Sandbox)** - 统一Entity/StateEvent层，通过懒加载 Tauri IPC (`load_entities`/`load_state_events`) 大幅提升百万字上下文承载力
 - ✨ **主题插件系统 (Theme Plugin)** - 动态注入全局主题样式 (Sci-Fi Dark Mode, Classic Light等)
 - ✨ **动态好感度可视化 (Dynamic Affinity Text)** - 在关系图谱中引入颜色代码表示角色间态度 (`attitude`)，受事件 `RELATION_UPDATE` 动态更新
+- ✨ **批量世界观生成向导 (World Gen Wizard)** - 对话式交互结合 Tool Calling (`generate_world_entities`) 批量生成实体与动态好感度关系。通过 Pinia 状态层实现草稿节点（发光虚线渲染）预览，用户确认后通过 Tauri IPC 原子化落库
+- ✨ **命运织布机 (Plot Loom)** - 创新看板+时间线融合视图 (`PlotLoomBoard.vue`)，将大纲升级为包含命运锚点 (`PlotAnchor`) 的 `VolumeArc` 结构；配合 `PlotAnchorMiddleware` 中间件向 AI 上下文动态注入【命运锚点预警】，实现前瞻性伏笔回收
 
 ### 📊 智能工作流系统
 - ✅ **全自动视界推演引擎** - （卷-章-幕）细纲约束系统，提前扼杀逻辑死局
@@ -614,5 +616,7 @@ MIT
 - ✅ 模板系统
 - ✅ AI建议系统
 - ✅ 统一导入向导（支持导入旧版角色卡/世界书/会话轨迹JSONL）
+- ✅ 批量世界观生成向导 (World Gen Wizard)
+- ✅ 命运织布机 (Plot Loom 看板与时间线融合视图)
 
 **详细更新日志**: 查看 [Release Notes](./docs/RELEASE_NOTES.md)

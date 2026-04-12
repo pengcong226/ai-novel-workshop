@@ -142,7 +142,8 @@ SandboxData
 ├── StateEventService       # 历史状态流管理
 ├── TimelineService         # 状态与章节时间线关联
 ├── ThemeRegistry           # 全局UI主题隔离服务
-└── AffinityService         # 实体关系动态好感度追踪
+├── AffinityService         # 实体关系动态好感度追踪
+└── WorldGenWizard          # 对话式批量实体与关系草稿生成流
 ```
 
 **核心接口：**
@@ -168,8 +169,8 @@ interface ISandboxData {
 OutlineManager
 ├── OutlineService          # 大纲结构管理
 ├── ChapterService          # 章节管理
-├── PlotLineService         # 情节线管理
-├── ForeshadowService       # 伏笔追踪
+├── PlotLoomBoard           # 看板+时间线融合结构视图 (VolumeArc & PlotAnchor)
+├── PlotAnchorMiddleware    # 命运锚点预警中间件拦截
 └── OutlineGenerator        # AI大纲生成
 ```
 

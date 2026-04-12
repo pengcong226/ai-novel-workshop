@@ -88,6 +88,23 @@
 - 如果在浏览器：退化到 `IndexedDB` 凑合跑。
 - 如果在桌面端：无缝切换为使用 `lib.rs` 的 SQLite 连接池，所有的实体与状态事件、项目文件拆分为不同表。极大地加速了响应。
 
+### 5. 命运织布机与伏笔前瞻 (Plot Loom & Anchor Middleware)
+
+**选型：** 看板与时间线融合视图 (`PlotLoomBoard.vue`) + `PlotAnchorMiddleware`
+
+传统大纲只支持扁平的章节点，导致 AI 难以规划跨章节的长期伏笔。
+升级后的架构引入了 `VolumeArc`（卷弧）与 `PlotAnchor`（命运锚点）。当写到锚点所在的附近章节时，`PlotAnchorMiddleware` 会扫描前瞻窗口，并向 AI 提示词中强制注入 `【命运锚点预警】` 标识，引导 AI 主动进行伏笔的回收和铺垫。
+
+### 6. 对话式批量设定生成向导 (World Gen Wizard)
+
+**选型：** Pinia 草稿状态流 + 关系图谱预渲染 + Tauri IPC 原子化提交
+
+为降低重度设定本的入门门槛，系统引入 `WorldGenWizard.vue`：
+1. 允许用户通过对话 Prompt 指示 AI 批量构造世界观。
+2. 借助 Tool Calling (`generate_world_entities`) 输出包含 `attitude` 的角色关系集。
+3. 渲染侧通过 `draftEntities` 和 `draftRelations` 状态在 `SandboxGraph.vue` 上绘制“草稿节点”（发光虚线特效）。
+4. 用户审阅通过后，一键通过 `save_entity` 和 `save_state_event` 落库，实现所见即所得。
+
 ---
 
 ## 遗留的技术债务与妥协
