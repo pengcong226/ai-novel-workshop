@@ -2,6 +2,7 @@ import { useAIStore } from '@/stores/ai'
 import type { Project, ChapterOutline } from '@/types'
 import type { ChatMessage } from '@/types/ai'
 import { safeParseAIJson } from '../safeParseAIJson'
+import { sanitizeForPrompt } from '@/utils/inputSanitizer'
 
 export interface RetconViolation {
   category: string;       // ConStory-Bench 编码，如 "A3", "D1", "E2"
@@ -73,6 +74,11 @@ export async function validateChapterLogic(
       + generatedContent.substring(tailCut)
   }
 
+  const safeRules = sanitizeForPrompt(rules, { maxLength: rules.length, escapeBraces: false })
+  const safeCharacters = sanitizeForPrompt(charactersInvolved, { maxLength: charactersInvolved.length, escapeBraces: false })
+  const safeContentForReview = sanitizeForPrompt(contentForReview, { maxLength: contentForReview.length })
+  const safeGoals = sanitizeForPrompt((chapterOutline.goals || []).join('；') || '无明确目标', { maxLength: 1000 })
+
   const prompt = `你是一个铁面无私的"网文逻辑审查官"（哨兵模型）。
 你的任务是审查最新章节的小说正文，判断它是否严重违背了世界观法则、人物状态、或基本逻辑。
 只抓严重的"吃书"漏洞，忽略细节瑕疵和主观文学判断。
@@ -110,16 +116,16 @@ E. 世界观 (World Building)
 
 【全局约束】
 世界法则：
-${rules}
+${safeRules}
 
 本章涉及人物及状态记录：
-${charactersInvolved}
+${safeCharacters}
 
 本章原定大纲目标：
-${(chapterOutline.goals || []).join('；') || '无明确目标'}
+${safeGoals}
 
 【被审查的正文】
-${contentForReview}
+${safeContentForReview}
 
 请逐项检查上述 19 项，做出裁决。以 JSON 格式输出：
 {

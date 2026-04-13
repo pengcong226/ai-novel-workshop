@@ -376,7 +376,7 @@ import { createQualityChecker, analyzeQualityTrend, type QualityReport } from '@
 import { exportQualityReportAsJSON, exportQualityReportAsMarkdown} from '@/utils/reportExporter'
 import * as echarts from 'echarts'
 import { marked } from 'marked'
-import dompurify from 'dompurify'
+import DOMPurify from 'dompurify'
 
 const projectStore = useProjectStore()
 const project = computed(() => projectStore.currentProject)
@@ -432,7 +432,12 @@ const filteredReports = computed(() => {
 const renderedDetails = computed(() => {
   if (!currentReport.value) return ''
   const html = marked.parse(currentReport.value.details) as string
-  return dompurify.sanitize(html)
+  const sanitized = DOMPurify.sanitize ? DOMPurify.sanitize(html) : html
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+  return sanitized
 })
 
 onMounted(async () => {

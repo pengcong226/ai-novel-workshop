@@ -2,11 +2,13 @@
  * 大纲生成Prompt模板
  */
 
+import { sanitizeForPrompt } from '@/utils/inputSanitizer'
+
 export function getOutlineGenerationPrompt(
   chapters: Array<{ number: number; title: string; content: string }>
 ): string {
   const chapterSummaries = chapters.map(ch =>
-    `第${ch.number}章 ${ch.title}: ${ch.content.slice(0, 200)}...`
+    `第${ch.number}章 ${ch.title}: ${sanitizeForPrompt(ch.content.slice(0, 200), { maxLength: 200 })}...`
   ).join('\n')
 
   return `你是一位专业的小说大纲分析专家。请分析以下章节内容，生成结构化大纲。

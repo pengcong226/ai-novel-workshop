@@ -2,14 +2,17 @@
  * 章节检测Prompt模板
  */
 
+import { sanitizeForPrompt } from '@/utils/inputSanitizer'
+
 /**
  * 第一轮：识别章节模式
  */
 export function getChapterPatternPrompt(text: string): string {
+  const safeText = sanitizeForPrompt(text, { maxLength: text.length })
   return `你是一位专业的小说编辑。请分析以下小说文本的章节结构。
 
 文本：
-${text}
+${safeText}
 
 请识别章节标题的模式。要求：
 1. 找出所有章节标题的示例
@@ -35,12 +38,14 @@ ${text}
  * 第二轮：提取章节列表
  */
 export function getChapterListPrompt(pattern: string, text: string): string {
+  const safePattern = sanitizeForPrompt(pattern)
+  const safeText = sanitizeForPrompt(text, { maxLength: text.length })
   return `你是一位专业的小说编辑。根据已识别的章节模式，列出所有章节的标题和位置。
 
-章节模式：${pattern}
+章节模式：${safePattern}
 
 文本：
-${text}
+${safeText}
 
 请精确列出每个章节的：
 1. 章节号

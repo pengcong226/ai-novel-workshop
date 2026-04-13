@@ -367,6 +367,10 @@ export function createPluginContext(
     deepMerge<T>(target: T, source: Partial<T>): T {
       const result = { ...target }
       for (const key in source) {
+        // Prototype pollution guard
+        if (key === '__proto__' || key === 'constructor' || key === 'prototype') {
+          continue
+        }
         if (source[key] !== undefined) {
           if (typeof source[key] === 'object' && source[key] !== null && !Array.isArray(source[key])) {
             (result as any)[key] = utilsAPI.deepMerge((result as any)[key] || {}, source[key] as any)

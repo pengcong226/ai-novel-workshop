@@ -8,6 +8,7 @@ import { outlineSchema } from './schemas'
 import { getOutlineGenerationPrompt } from './prompts/outlinePrompts'
 import type { Project } from '@/types'
 import { v4 as uuidv4 } from 'uuid'
+import { sanitizeForPrompt } from '@/utils/inputSanitizer'
 
 /**
  * 生成大纲
@@ -73,21 +74,31 @@ export async function extendOutlineWithLLM(
     ? unresolvedForeshadowings.map(f => `- [第${f.plantChapter}章埋下] ${f.description}`).join('\n')
     : '无'
 
+  // Sanitize user-originated content before prompt interpolation
+  const safeWorldName = world?.name ? sanitizeForPrompt(world.name) : ''
+  const safeEraTime = world?.era ? sanitizeForPrompt(world.era.time) : ''
+  const safeEraTech = world?.era ? sanitizeForPrompt(world.era.techLevel) : ''
+  const safeFactions = world?.factions?.length ? sanitizeForPrompt(world.factions.map((f: any) => f.name).join('、'), { escapeBraces: false }) : ''
+  const safeMainPlotName = sanitizeForPrompt(existingOutline.mainPlot.name)
+  const safeMainPlotDesc = sanitizeForPrompt(existingOutline.mainPlot.description, { maxLength: existingOutline.mainPlot.description.length })
+  const safeForeshadowingText = sanitizeForPrompt(foreshadowingText, { maxLength: foreshadowingText.length })
+  const safeRecentOutlinesText = sanitizeForPrompt(recentOutlinesText, { maxLength: recentOutlinesText.length })
+
   // 构建 Horizon Outline 推演 Prompt
   const prompt = `你现在是一位顶级网文架构大神的独立人格。请为目前的小说做推演并续写接下来的 ${count} 章大纲（从第 ${startChapter} 章开始）。
 
 【设定坐标系】：
-${world?.name ? '世界观：' + world.name : ''}
-${world?.era ? '时代背景：' + world.era.time + '，科技水平：' + world.era.techLevel : ''}
-${world?.factions?.length ? '主要势力：' + world.factions.map((f: any) => f.name).join('、') : ''}
+${safeWorldName ? '世界观：' + safeWorldName : ''}
+${world?.era ? '时代背景：' + safeEraTime + '，科技水平：' + safeEraTech : ''}
+${safeFactions ? '主要势力：' + safeFactions : ''}
 
-【主线锚点】：${existingOutline.mainPlot.name} - ${existingOutline.mainPlot.description}
+【主线锚点】：${safeMainPlotName} - ${safeMainPlotDesc}
 
 【待回收/悬而未决的因果线（伏笔）】：
-${foreshadowingText}
+${safeForeshadowingText}
 
 【当前剧情节点（最近5章，推演基石）】：
-${recentOutlinesText}
+${safeRecentOutlinesText}
 
 【工作要求】：
 1. 剧情严密连贯：基于当前节点，推动主线锚点，不要原地灌水或突然跳跃。

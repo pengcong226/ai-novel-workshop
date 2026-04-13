@@ -13,6 +13,59 @@ import { getLogger } from '@/utils/logger'
 const logger = getLogger('worldbook:injector')
 
 // ============================================================================
+// ReDoS 防护
+// ============================================================================
+
+/** 危险嵌套量词模式检测（如 (a+)+, (a*)*, (a+)* 等） */
+const DANGEROUS_NESTED_QUANTIFIER = /\((?:[^()]*\+|[^()]*\*)[^()]*\)[+*]/
+
+/**
+ * 创建安全的正则表达式，防止 ReDoS（正则表达式拒绝服务）攻击
+ *
+ * 防护措施：
+ * - 限制模式长度不超过 200 字符
+ * - 阻止嵌套量词（如 ((a+)+)、(a*)*）
+ * - 阻止对反向引用使用量词
+ * - 将无上限重复 {n,} 替换为 {n,10}
+ *
+ * @param pattern - 正则表达式模式字符串
+ * @param flags - 可选的正则表达式标志
+ * @returns 安全的 RegExp 对象，若模式不安全则返回 null
+ */
+function createSafeRegex(pattern: string, flags?: string): RegExp | null {
+  // 限制模式长度
+  if (pattern.length > 200) {
+    logger.warn(`Regex pattern exceeds maximum length of 200: ${pattern.length} chars`)
+    return null
+  }
+
+  // 检测危险嵌套量词
+  if (DANGEROUS_NESTED_QUANTIFIER.test(pattern)) {
+    logger.warn(`Regex pattern contains dangerous nested quantifiers: ${pattern}`)
+    return null
+  }
+
+  // 阻止对反向引用使用量词（如 \1+, \2*）
+  if (/\\\d+[+*]/.test(pattern)) {
+    logger.warn(`Regex pattern contains quantified backreference: ${pattern}`)
+    return null
+  }
+
+  // 将无上限重复 {n,} 替换为 {n,10}（仅当 n < 10 时）
+  const sanitized = pattern.replace(/\{(\d+),\}/g, (match, n: string) => {
+    const num = parseInt(n, 10)
+    return num < 10 ? `{${num},10}` : match
+  })
+
+  try {
+    return new RegExp(sanitized, flags)
+  } catch {
+    logger.warn(`Invalid regex pattern: ${pattern}`)
+    return null
+  }
+}
+
+// ============================================================================
 // 类型定义
 // ============================================================================
 
@@ -694,8 +747,10 @@ export class WorldbookInjector {
         return (fieldValue as number) <= (value as number)
       case 'contains':
         return String(fieldValue).includes(String(value))
-      case 'matches':
-        return new RegExp(String(value)).test(String(fieldValue))
+      case 'matches': {
+        const safeResult = createSafeRegex(String(value))
+        return safeResult ? safeResult.test(String(fieldValue)) : false
+      }
       default:
         return false
     }
@@ -739,7 +794,11 @@ export class WorldbookInjector {
     const fieldValue = String(this.getFieldValue(field, context))
 
     try {
-      const regex = new RegExp(pattern, flags || 'i')
+      const regex = createSafeRegex(pattern, flags)
+      if (!regex) {
+        logger.warn(`Unsafe regex pattern blocked: ${pattern}`)
+        return false
+      }
       return regex.test(fieldValue)
     } catch (error) {
       logger.error(`Invalid regex pattern: ${pattern}`, error)

@@ -39,8 +39,21 @@ export class PluginLoader {
   /**
    * 从URL加载插件
    */
-  static async loadFromUrl(url: string): Promise<PluginLoadResult> {
+  static async loadFromUrl(url: string, options?: { skipConfirm?: boolean }): Promise<PluginLoadResult> {
     try {
+      // Security gate: warn about remote code execution
+      if (!options?.skipConfirm) {
+        const message = `即将从远程 URL 加载插件代码：\n\n${url}\n\n远程插件拥有完整的项目数据、AI API 和存储访问权限。仅加载你信任的来源。\n\n确定要继续吗？`
+        // In a browser/Tauri context, we use confirm() as a synchronous gate
+        // The actual UI should use ElMessageBox in the component that calls this
+        if (typeof window !== 'undefined' && !window.confirm(message)) {
+          return {
+            success: false,
+            error: '用户取消了远程插件加载'
+          }
+        }
+      }
+
       // 加载manifest
       const manifestUrl = url.endsWith('.json') ? url : `${url}/manifest.json`
       const response = await fetch(manifestUrl)

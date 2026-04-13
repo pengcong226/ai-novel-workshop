@@ -1,6 +1,7 @@
 import type { ModelProvider, ProjectConfig } from '@/types'
 
 const ENCRYPTION_PREFIX = 'enc:v1:'
+const ENCRYPTION_PREFIX_V2 = 'enc:v2:'
 const APP_SECRET_SEED = 'ai-novel-workshop-config'
 
 function getEnvironmentSeed(): string {
@@ -49,10 +50,25 @@ function xorBytes(input: Uint8Array, seed: string): Uint8Array {
   return output
 }
 
-export function isEncryptedApiKey(value?: string | null): boolean {
-  return typeof value === 'string' && value.startsWith(ENCRYPTION_PREFIX)
+async function deriveAESKey(seed: string): Promise<CryptoKey> {
+  const encoder = new TextEncoder()
+  const keyMaterial = await crypto.subtle.importKey(
+    'raw',
+    encoder.encode(seed.padEnd(32, '0').slice(0, 32)),
+    { name: 'AES-GCM' },
+    false,
+    ['encrypt', 'decrypt']
+  )
+  return keyMaterial
 }
 
+export function isEncryptedApiKey(value?: string | null): boolean {
+  return typeof value === 'string' && (value.startsWith(ENCRYPTION_PREFIX) || value.startsWith(ENCRYPTION_PREFIX_V2))
+}
+
+/**
+ * @deprecated Use `encryptApiKeyV2` instead for AES-GCM encryption.
+ */
 export function encryptApiKey(key: string): string {
   if (!key || isEncryptedApiKey(key)) {
     return key
@@ -63,6 +79,10 @@ export function encryptApiKey(key: string): string {
   return `${ENCRYPTION_PREFIX}${encodeBase64(encrypted)}`
 }
 
+/**
+ * @deprecated Use `decryptApiKeyV2` instead for AES-GCM decryption.
+ * Kept for backward compatibility with `enc:v1:` prefixed values.
+ */
 export function decryptApiKey(encrypted: string): string {
   if (!encrypted || !isEncryptedApiKey(encrypted)) {
     return encrypted
@@ -75,6 +95,49 @@ export function decryptApiKey(encrypted: string): string {
     return new TextDecoder().decode(decrypted)
   } catch (error) {
     console.warn('[crypto] API Key 解密失败，将返回空字符串', error)
+    return ''
+  }
+}
+
+export async function encryptApiKeyV2(key: string): Promise<string> {
+  if (!key) return key
+  if (key.startsWith(ENCRYPTION_PREFIX_V2)) return key
+
+  const aesKey = await deriveAESKey(getEnvironmentSeed())
+  const iv = crypto.getRandomValues(new Uint8Array(12))
+  const encrypted = await crypto.subtle.encrypt(
+    { name: 'AES-GCM', iv },
+    aesKey,
+    new TextEncoder().encode(key)
+  )
+  const combined = new Uint8Array(iv.length + encrypted.byteLength)
+  combined.set(iv)
+  combined.set(new Uint8Array(encrypted), iv.length)
+  return `${ENCRYPTION_PREFIX_V2}${encodeBase64(combined)}`
+}
+
+export async function decryptApiKeyV2(encrypted: string): Promise<string> {
+  if (!encrypted) return encrypted
+  if (encrypted.startsWith(ENCRYPTION_PREFIX)) {
+    // Fallback to old XOR decryption for backward compat
+    return decryptApiKey(encrypted)
+  }
+  if (!encrypted.startsWith(ENCRYPTION_PREFIX_V2)) return encrypted
+
+  try {
+    const payload = encrypted.slice(ENCRYPTION_PREFIX_V2.length)
+    const combined = decodeBase64(payload)
+    const iv = combined.slice(0, 12)
+    const data = combined.slice(12)
+    const aesKey = await deriveAESKey(getEnvironmentSeed())
+    const decrypted = await crypto.subtle.decrypt(
+      { name: 'AES-GCM', iv },
+      aesKey,
+      data
+    )
+    return new TextDecoder().decode(decrypted)
+  } catch (error) {
+    console.warn('[crypto] API Key AES-GCM 解密失败', error)
     return ''
   }
 }
@@ -116,28 +179,24 @@ function cloneProvider(provider: ModelProvider): ModelProvider {
   }
 }
 
-export function encryptProjectConfig(config: ProjectConfig): ProjectConfig {
-  return {
-    ...config,
-    providers: (config.providers || []).map(provider => {
-      const clonedProvider = cloneProvider(provider)
-      return {
-        ...clonedProvider,
-        apiKey: encryptApiKey(clonedProvider.apiKey)
-      }
-    })
-  }
+export async function encryptProjectConfig(config: ProjectConfig): Promise<ProjectConfig> {
+  const providers = await Promise.all((config.providers || []).map(async provider => {
+    const clonedProvider = cloneProvider(provider)
+    return {
+      ...clonedProvider,
+      apiKey: await encryptApiKeyV2(clonedProvider.apiKey)
+    }
+  }))
+  return { ...config, providers }
 }
 
-export function decryptProjectConfig(config: ProjectConfig): ProjectConfig {
-  return {
-    ...config,
-    providers: (config.providers || []).map(provider => {
-      const clonedProvider = cloneProvider(provider)
-      return {
-        ...clonedProvider,
-        apiKey: decryptApiKey(clonedProvider.apiKey)
-      }
-    })
-  }
+export async function decryptProjectConfig(config: ProjectConfig): Promise<ProjectConfig> {
+  const providers = await Promise.all((config.providers || []).map(async provider => {
+    const clonedProvider = cloneProvider(provider)
+    return {
+      ...clonedProvider,
+      apiKey: await decryptApiKeyV2(clonedProvider.apiKey)
+    }
+  }))
+  return { ...config, providers }
 }

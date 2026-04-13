@@ -2,14 +2,17 @@
  * 人物识别Prompt模板
  */
 
+import { sanitizeForPrompt } from '@/utils/inputSanitizer'
+
 /**
  * 第一轮：识别主要人物
  */
 export function getCharacterExtractionPrompt(text: string): string {
+  const safeText = sanitizeForPrompt(text, { maxLength: text.length })
   return `你是一位专业的小说分析专家。请分析以下小说文本，识别其中的主要人物。
 
 文本：
-${text}
+${safeText}
 
 请识别所有出现的人物。要求：
 1. 只返回真正的角色人物，不要返回"说道"、"点头"、"起来"、"的时候"等动词、助词或代词
@@ -49,13 +52,14 @@ export function getRelationshipExtractionPrompt(
   characters: Array<{ name: string; role: string }>,
   text: string
 ): string {
+  const safeText = sanitizeForPrompt(text, { maxLength: text.length })
   return `你是一位专业的小说分析专家。请分析以下人物之间的关系。
 
 人物列表：
 ${characters.map((c, i) => `${i + 1}. ${c.name} (${c.role})`).join('\n')}
 
 文本：
-${text}
+${safeText}
 
 请分析这些人物之间的关系。要求：
 1. 只分析已识别人物之间的关系

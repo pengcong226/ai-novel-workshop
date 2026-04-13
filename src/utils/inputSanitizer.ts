@@ -7,6 +7,7 @@ export interface SanitizeOptions {
   maxLength?: number
   preserveLineBreaks?: boolean
   strict?: boolean
+  escapeBraces?: boolean  // defaults to true for backward compat; set false for JSON/template content
 }
 
 const DEFAULT_MAX_LENGTH = 500
@@ -71,7 +72,8 @@ export function sanitizeForPrompt(input: string, options: SanitizeOptions = {}):
   const {
     maxLength = DEFAULT_MAX_LENGTH,
     preserveLineBreaks = true,
-    strict = false
+    strict = false,
+    escapeBraces = true
   } = options
 
   let sanitized = normalizeWhitespace(input, preserveLineBreaks)
@@ -81,7 +83,11 @@ export function sanitizeForPrompt(input: string, options: SanitizeOptions = {}):
     sanitized = sanitized.replace(rule.pattern, '[已清洗可疑指令]')
   }
 
-  sanitized = escapePromptControlChars(sanitized)
+  // Apply control char escaping
+  sanitized = sanitized.replace(/</g, '＜').replace(/>/g, '＞')
+  if (escapeBraces) {
+    sanitized = sanitized.replace(/\{/g, '｛').replace(/\}/g, '｝')
+  }
 
   if (sanitized.length > maxLength) {
     sanitized = `${sanitized.slice(0, Math.max(maxLength - 15, 0))}...[已截断]`

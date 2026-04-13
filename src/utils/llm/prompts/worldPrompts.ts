@@ -2,11 +2,14 @@
  * 世界观提取Prompt模板
  */
 
+import { sanitizeForPrompt } from '@/utils/inputSanitizer'
+
 export function getWorldExtractionPrompt(text: string): string {
+  const safeText = sanitizeForPrompt(text, { maxLength: text.length })
   return `你是一位专业的小说世界观分析专家。请分析以下小说文本的世界设定。
 
 文本：
-${text}
+${safeText}
 
 请分析小说的世界设定，提取以下信息：
 
