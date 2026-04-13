@@ -84,7 +84,7 @@ export class GenerationScheduler {
             )
           }
         } catch (stateErr) {
-          console.warn('[StateUpdater] 状态追踪失败，不影响主流程:', stateErr)
+          logger.warn('状态追踪失败，不影响主流程:', stateErr)
         }
       }
       
@@ -93,7 +93,7 @@ export class GenerationScheduler {
       taskManager.completeTask(task.id, '抽取与记忆入库成功')
       taskManager.addToast(`第${chapter.number}章事件已成功载入系统记忆树 🌲`, 'success')
     } catch (err) {
-      console.error('设定提取失败:', err)
+      logger.error('设定提取失败:', err)
       taskManager.failTask(task.id, err instanceof Error ? err.message : String(err))
     }
   }
@@ -316,7 +316,7 @@ ${slicedContent}
             values: cmd.values
           })) || [];
         } catch (err) {
-          console.warn('提取记忆表更新命令失败', err);
+          logger.warn('提取记忆表更新命令失败', err);
           return [];
         }
       }
@@ -395,7 +395,7 @@ ${slicedContent}
               taskManager.addToast(`大纲自动翻页成功！扩展了 ${newOutlines.length} 章路线`, 'success')
             }
           } catch (err) {
-            console.error('[批量生成] 大纲续写失败:', err)
+            logger.error('大纲续写失败:', err)
             taskManager.addToast('大纲自动翻页失败，将强行生成', 'warning')
           }
         }
@@ -476,7 +476,7 @@ ${slicedContent}
               generationOptions
             )
           } catch (streamError) {
-            console.warn(`[批量生成] 第 ${chapterNumber} 章流式失败，回退普通模式:`, streamError)
+            logger.warn(`第 ${chapterNumber} 章流式失败，回退普通模式:`, streamError)
             taskManager.updateTask(batchTask.id, { description: `流式被降级，重连执行后备通道...` })
             response = await aiStore.chat(messages, aiContext, generationOptions)
           }
@@ -493,7 +493,7 @@ ${slicedContent}
             if (!vResult.passed) {
               const warnMsg = `第 ${chapterNumber} 章触发吃书警告: ${vResult.reason}`
               taskManager.addToast(warnMsg, 'warning')
-              console.warn(warnMsg)
+              logger.warn(warnMsg)
               
               if (attempt < maxRetries) {
                 // V4-D3：先询问规划师，检查 PlotBeat 本身是否有矛盾
@@ -576,7 +576,7 @@ ${slicedContent}
             chapterData.content = (postResult as any).chapter.content
             chapterData.wordCount = chapterData.content.length
           }
-        } catch (err) { console.error(err) }
+        } catch (err) { logger.error(err) }
 
         // Quality Check
         if (currentProject.config?.enableQualityCheck) {
@@ -605,7 +605,7 @@ ${slicedContent}
             // 使用 consistency (默认) 或 editor 角色生成动作卡片
             await builtinCommandRegistry.executeCommand('review', ['consistency'])
           } catch(e) {
-            console.warn('[Review Workflow] 自动审校产生建议失败:', e)
+            logger.warn('自动审校产生建议失败:', e)
           }
         }
 
@@ -670,7 +670,7 @@ If there are no changes, return an empty array.`;
               // In real implementation, parse extractionRes.toolCalls and dispatch to sandboxStore
               logger.debug(`[V5 State Extraction] Completed for chapter ${chapterNumber}`, extractionRes);
             } catch (err) {
-              console.warn('[V5 State Extraction] 状态抽取失败', err);
+              logger.warn('状态抽取失败', err);
             }
 
             await this.runExtractionInBackground(chapterData)
@@ -690,7 +690,7 @@ If there are no changes, return an empty array.`;
         ElMessage.success(`批量生成游历完成！产出 ${options.count} 章纯度百分百的内容。`)
       }
     } catch (error) {
-      console.error('[批量生成] 失败:', error)
+      logger.error('批量生成失败:', error)
       taskManager.failTask(batchTask.id, error instanceof Error ? error.message : String(error))
     }
   }
@@ -741,7 +741,7 @@ ${outlineJson}
       const parsed = safeParseAIJson<{ needsRevision: boolean; reason?: string; revisedOutline?: Partial<ChapterOutline> }>(res.content)
       return parsed || { needsRevision: false }
     } catch (err) {
-      console.warn('[规划师审查] 调用失败，降级为写手直接修补:', err)
+      logger.warn('规划师审查调用失败，降级为写手直接修补:', err)
       return { needsRevision: false }
     }
   }

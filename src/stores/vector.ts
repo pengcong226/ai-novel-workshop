@@ -1,8 +1,11 @@
 /**
- * 向量服务 Pinia Store
+ * 向量服务 Pinia Store (V5 架构版)
  * @module stores/vector
  *
- * 提供向量服务的状态管理和便捷方法
+ * V5 变更：
+ * - 只索引章节正文 (段落级切片)，不再索引世界观/人物/大纲
+ * - 检索使用 vectorSearch / retrieveRelevantContext
+ * - 移除按集合分类的增删查方法 (V4 多集合模式已废弃)
  */
 
 import { defineStore } from 'pinia'
@@ -10,28 +13,10 @@ import { ref, computed } from 'vue'
 import {
   VectorService,
   createVectorService,
+  resetVectorService,
   type EmbeddingConfig,
-  type VectorDocument,
   type SearchResult,
-  type IndexStats,
 } from '../services/vector-service'
-import type { VectorDocumentType, VectorSearchResult } from '../types/index'
-
-/**
- * 向量服务状态
- */
-interface VectorState {
-  /** 服务是否已初始化 */
-  isInitialized: boolean
-  /** 是否正在加载 */
-  isLoading: boolean
-  /** 错误信息 */
-  error: string | null
-  /** 当前项目ID */
-  currentProjectId: string | null
-  /** 配置 */
-  config: Partial<EmbeddingConfig> | null
-}
 
 /**
  * 向量服务 Store
@@ -43,7 +28,7 @@ export const useVectorStore = defineStore('vector', () => {
   const isLoading = ref(false)
   const error = ref<string | null>(null)
   const currentProjectId = ref<string | null>(null)
-  const indexStats = ref<Map<string, IndexStats>>(new Map())
+  const documentCount = ref<number>(0)
 
   // 计算属性
   const isReady = computed(() => isInitialized.value && service.value !== null)
@@ -62,9 +47,6 @@ export const useVectorStore = defineStore('vector', () => {
     try {
       service.value = await createVectorService(config)
       isInitialized.value = true
-
-      // 初始化后获取索引统计
-      await refreshIndexStats()
     } catch (e) {
       error.value = e instanceof Error ? e.message : String(e)
       console.error('Failed to initialize vector service:', e)
@@ -74,194 +56,40 @@ export const useVectorStore = defineStore('vector', () => {
     }
   }
 
-  /**
-   * 刷新索引统计
-   */
-  async function refreshIndexStats(): Promise<void> {
-    if (!service.value) return
-
-    try {
-      const stats = await service.value.healthCheck()
-      indexStats.value = stats
-    } catch (e) {
-      console.error('Failed to refresh index stats:', e)
-    }
-  }
-
   // ============================================================================
-  // 文档管理
+  // 文档管理 (V5: 只支持章节切片)
   // ============================================================================
 
   /**
-   * 添加世界观设定
+   * 索引整个项目的所有章节正文 (段落级切片)
    */
-  async function addWorldSetting(
+  async function indexProject(project: Parameters<VectorService['indexProject']>[0]): Promise<void> {
+    await ensureInitialized()
+    await service.value!.indexProject(project)
+    await refreshStats()
+  }
+
+  /**
+   * 索引单个章节 (段落级切片)
+   */
+  async function indexChapter(
+    chapter: Parameters<VectorService['indexChapter']>[0],
     projectId: string,
-    settingId: string,
-    content: string,
-    metadata?: Record<string, unknown>
+    characterNames?: string[],
+    locationNames?: string[]
   ): Promise<void> {
     await ensureInitialized()
-
-    await service.value!.addDocument('world_settings', {
-      id: `setting_${projectId}_${settingId}`,
-      content,
-      metadata: {
-        type: 'setting',
-        projectId,
-        timestamp: Date.now(),
-        ...metadata,
-      },
-    })
+    await service.value!.indexChapter(chapter, projectId, characterNames, locationNames)
+    await refreshStats()
   }
 
   /**
-   * 添加人物档案
+   * 删除某章节的所有切片
    */
-  async function addCharacter(
-    projectId: string,
-    characterId: string,
-    content: string,
-    metadata?: Record<string, unknown>
-  ): Promise<void> {
+  async function deleteChapter(chapterId: string): Promise<void> {
     await ensureInitialized()
-
-    await service.value!.addDocument('character_profiles', {
-      id: `char_${projectId}_${characterId}`,
-      content,
-      metadata: {
-        type: 'character',
-        projectId,
-        timestamp: Date.now(),
-        ...metadata,
-      },
-    })
-  }
-
-  /**
-   * 添加情节线索
-   */
-  async function addPlotThread(
-    projectId: string,
-    threadId: string,
-    content: string,
-    metadata?: Record<string, unknown>
-  ): Promise<void> {
-    await ensureInitialized()
-
-    await service.value!.addDocument('plot_threads', {
-      id: `plot_${projectId}_${threadId}`,
-      content,
-      metadata: {
-        type: 'plot',
-        projectId,
-        timestamp: Date.now(),
-        ...metadata,
-      },
-    })
-  }
-
-  /**
-   * 添加重要事件
-   */
-  async function addEvent(
-    projectId: string,
-    eventId: string,
-    content: string,
-    chapterNumber?: number,
-    metadata?: Record<string, unknown>
-  ): Promise<void> {
-    await ensureInitialized()
-
-    await service.value!.addDocument('major_events', {
-      id: `event_${projectId}_${eventId}`,
-      content,
-      metadata: {
-        type: 'event',
-        projectId,
-        chapterNumber,
-        timestamp: Date.now(),
-        ...metadata,
-      },
-    })
-  }
-
-  /**
-   * 添加章节内容
-   */
-  async function addChapter(
-    projectId: string,
-    chapterNumber: number,
-    content: string,
-    metadata?: Record<string, unknown>
-  ): Promise<void> {
-    await ensureInitialized()
-
-    await service.value!.addDocument('chapter_content', {
-      id: `chapter_${projectId}_${chapterNumber}`,
-      content,
-      metadata: {
-        type: 'chapter',
-        projectId,
-        chapterNumber,
-        timestamp: Date.now(),
-        ...metadata,
-      },
-    })
-  }
-
-  /**
-   * 添加世界规则
-   */
-  async function addWorldRule(
-    projectId: string,
-    ruleId: string,
-    content: string,
-    metadata?: Record<string, unknown>
-  ): Promise<void> {
-    await ensureInitialized()
-
-    await service.value!.addDocument('world_rules', {
-      id: `rule_${projectId}_${ruleId}`,
-      content,
-      metadata: {
-        type: 'rule',
-        projectId,
-        timestamp: Date.now(),
-        ...metadata,
-      },
-    })
-  }
-
-  /**
-   * 批量添加文档
-   */
-  async function addDocuments(
-    collection: string,
-    documents: VectorDocument[]
-  ): Promise<void> {
-    await ensureInitialized()
-    await service.value!.addDocuments(collection, documents)
-  }
-
-  /**
-   * 更新文档
-   */
-  async function updateDocument(
-    collection: string,
-    id: string,
-    updates: Partial<VectorDocument>
-  ): Promise<void> {
-    await ensureInitialized()
-    await service.value!.updateDocument(collection, id, updates)
-  }
-
-  /**
-   * 删除文档
-   */
-  async function deleteDocument(collection: string, id: string): Promise<void> {
-    await ensureInitialized()
-    await service.value!.deleteDocument(collection, id)
+    await service.value!.deleteChapter(chapterId)
+    await refreshStats()
   }
 
   /**
@@ -269,181 +97,36 @@ export const useVectorStore = defineStore('vector', () => {
    */
   async function deleteProjectDocuments(projectId: string): Promise<number> {
     await ensureInitialized()
-
-    let totalDeleted = 0
-    const collections = [
-      'world_settings',
-      'character_profiles',
-      'plot_threads',
-      'major_events',
-      'chapter_content',
-      'world_rules',
-    ]
-
-    for (const collection of collections) {
-      const deleted = await service.value!.deleteDocuments(collection, {
-        'metadata.projectId': projectId,
-      })
-      totalDeleted += deleted
-    }
-
-    return totalDeleted
+    const deleted = await service.value!.deleteDocumentsForProject(projectId)
+    await refreshStats()
+    return deleted
   }
 
   // ============================================================================
-  // 检索功能
+  // 检索功能 (V5: 图谱制导)
   // ============================================================================
 
   /**
-   * 搜索世界观设定
+   * V5 核心检索：图谱制导的正文切片检索
    */
-  async function searchWorldSettings(
-    projectId: string,
-    query: string,
-    topK: number = 5
-  ): Promise<VectorSearchResult[]> {
+  async function vectorSearch(
+    queryText: string,
+    options?: Parameters<VectorService['vectorSearch']>[1]
+  ): Promise<SearchResult[]> {
     await ensureInitialized()
-
-    const results = await service.value!.search('world_settings', query, {
-      topK,
-      filter: { 'metadata.projectId': projectId },
-      hybrid: true,
-    })
-
-    return results.map(convertResult)
+    return service.value!.vectorSearch(queryText, options)
   }
 
   /**
-   * 搜索人物档案
+   * V5 图谱制导检索：根据当前章节的图谱实体构建针对性查询
    */
-  async function searchCharacters(
-    projectId: string,
-    query: string,
-    topK: number = 5
-  ): Promise<VectorSearchResult[]> {
+  async function retrieveRelevantContext(
+    currentChapter: Parameters<VectorService['retrieveRelevantContext']>[0],
+    project: Parameters<VectorService['retrieveRelevantContext']>[1],
+    activeEntityNames?: string[]
+  ): Promise<SearchResult[]> {
     await ensureInitialized()
-
-    const results = await service.value!.search('character_profiles', query, {
-      topK,
-      filter: { 'metadata.projectId': projectId },
-      hybrid: true,
-    })
-
-    return results.map(convertResult)
-  }
-
-  /**
-   * 搜索情节线索
-   */
-  async function searchPlots(
-    projectId: string,
-    query: string,
-    topK: number = 10
-  ): Promise<VectorSearchResult[]> {
-    await ensureInitialized()
-
-    const results = await service.value!.search('plot_threads', query, {
-      topK,
-      filter: { 'metadata.projectId': projectId },
-      hybrid: true,
-    })
-
-    return results.map(convertResult)
-  }
-
-  /**
-   * 搜索相关章节
-   */
-  async function searchChapters(
-    projectId: string,
-    query: string,
-    topK: number = 5
-  ): Promise<VectorSearchResult[]> {
-    await ensureInitialized()
-
-    const results = await service.value!.search('chapter_content', query, {
-      topK,
-      filter: { 'metadata.projectId': projectId },
-      hybrid: true,
-    })
-
-    return results.map(convertResult)
-  }
-
-  /**
-   * 跨集合搜索
-   */
-  async function searchAll(
-    projectId: string,
-    query: string,
-    options?: {
-      types?: VectorDocumentType[]
-      topK?: number
-    }
-  ): Promise<Map<VectorDocumentType, VectorSearchResult[]>> {
-    await ensureInitialized()
-
-    const types = options?.types ?? ['setting', 'character', 'plot', 'event', 'chapter', 'rule']
-    const topK = options?.topK ?? 5
-
-    const collectionMap: Record<VectorDocumentType, string> = {
-      setting: 'world_settings',
-      character: 'character_profiles',
-      plot: 'plot_threads',
-      event: 'major_events',
-      chapter: 'chapter_content',
-      rule: 'world_rules',
-    }
-
-    const results = new Map<VectorDocumentType, VectorSearchResult[]>()
-
-    // 并行搜索
-    const searchPromises = types.map(async (type) => {
-      const collection = collectionMap[type]
-      const searchResults = await service.value!.search(collection, query, {
-        topK,
-        filter: { 'metadata.projectId': projectId },
-        hybrid: true,
-      })
-      return { type, results: searchResults.map(convertResult) }
-    })
-
-    const searchResults = await Promise.all(searchPromises)
-
-    for (const { type, results: typeResults } of searchResults) {
-      results.set(type, typeResults)
-    }
-
-    return results
-  }
-
-  /**
-   * 统一搜索接口
-   */
-  async function search(
-    collection: string,
-    query: string,
-    options?: {
-      projectId?: string
-      topK?: number
-      hybrid?: boolean
-      minScore?: number
-    }
-  ): Promise<VectorSearchResult[]> {
-    await ensureInitialized()
-
-    const filter = options?.projectId
-      ? { 'metadata.projectId': options.projectId }
-      : undefined
-
-    const results = await service.value!.search(collection, query, {
-      topK: options?.topK ?? 10,
-      filter,
-      hybrid: options?.hybrid ?? true,
-      minScore: options?.minScore,
-    })
-
-    return results.map(convertResult)
+    return service.value!.retrieveRelevantContext(currentChapter, project, activeEntityNames)
   }
 
   // ============================================================================
@@ -451,62 +134,22 @@ export const useVectorStore = defineStore('vector', () => {
   // ============================================================================
 
   /**
-   * 重建集合索引
-   */
-  async function rebuildIndex(collection: string): Promise<void> {
-    await ensureInitialized()
-    await service.value!.rebuildIndex(collection)
-    await refreshIndexStats()
-  }
-
-  /**
-   * 清空集合
-   */
-  async function clearCollection(collection: string): Promise<void> {
-    await ensureInitialized()
-    await service.value!.clearCollection(collection)
-    await refreshIndexStats()
-  }
-
-  /**
-   * 清空项目数据
-   */
-  async function clearProject(projectId: string): Promise<void> {
-    await ensureInitialized()
-
-    const collections = [
-      'world_settings',
-      'character_profiles',
-      'plot_threads',
-      'major_events',
-      'chapter_content',
-      'world_rules',
-    ]
-
-    for (const collection of collections) {
-      await service.value!.deleteDocuments(collection, {
-        'metadata.projectId': projectId,
-      })
-    }
-
-    await refreshIndexStats()
-  }
-
-  /**
-   * 清空所有数据
+   * 清空所有索引
    */
   async function clearAll(): Promise<void> {
     await ensureInitialized()
-    await service.value!.clearAll()
-    await refreshIndexStats()
+    await service.value!.clear()
+    documentCount.value = 0
   }
 
   /**
-   * 获取索引统计
+   * 获取文档数量
    */
-  async function getIndexStats(collection: string): Promise<IndexStats> {
+  async function getDocumentCount(projectId?: string): Promise<number> {
     await ensureInitialized()
-    return service.value!.getIndexStats(collection)
+    const count = await service.value!.getDocumentCount(projectId)
+    documentCount.value = count
+    return count
   }
 
   // ============================================================================
@@ -523,15 +166,14 @@ export const useVectorStore = defineStore('vector', () => {
   }
 
   /**
-   * 转换搜索结果
+   * 刷新统计信息
    */
-  function convertResult(result: SearchResult): VectorSearchResult {
-    return {
-      id: result.id,
-      content: result.content,
-      metadata: result.metadata as any,
-      score: result.score,
-      source: result.source,
+  async function refreshStats(): Promise<void> {
+    if (!service.value) return
+    try {
+      documentCount.value = await service.value.getDocumentCount(currentProjectId.value || undefined)
+    } catch {
+      // 忽略统计刷新失败
     }
   }
 
@@ -544,7 +186,8 @@ export const useVectorStore = defineStore('vector', () => {
     isLoading.value = false
     error.value = null
     currentProjectId.value = null
-    indexStats.value = new Map()
+    documentCount.value = 0
+    resetVectorService()
   }
 
   return {
@@ -554,39 +197,26 @@ export const useVectorStore = defineStore('vector', () => {
     isLoading,
     error,
     currentProjectId,
-    indexStats,
+    documentCount,
     isReady,
 
     // 初始化
     initialize,
-    refreshIndexStats,
 
     // 文档管理
-    addWorldSetting,
-    addCharacter,
-    addPlotThread,
-    addEvent,
-    addChapter,
-    addWorldRule,
-    addDocuments,
-    updateDocument,
-    deleteDocument,
+    indexProject,
+    indexChapter,
+    deleteChapter,
     deleteProjectDocuments,
 
     // 检索
-    searchWorldSettings,
-    searchCharacters,
-    searchPlots,
-    searchChapters,
-    searchAll,
-    search,
+    vectorSearch,
+    retrieveRelevantContext,
 
     // 索引管理
-    rebuildIndex,
-    clearCollection,
-    clearProject,
     clearAll,
-    getIndexStats,
+    getDocumentCount,
+    refreshStats,
 
     // 辅助
     reset,

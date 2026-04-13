@@ -23,7 +23,7 @@ export interface CharacterV3 extends EntityNode {
   }
 
   stateTimeline: CharacterStateSlice[]
-  relationships: EntityRelation[]
+  relationships: DetailedEntityRelation[]
 
   narrativeProfile: string
   lastNarrativeUpdate: number
@@ -55,7 +55,7 @@ export interface AbilityRecord {
   acquiredChapter: number
 }
 
-export interface EntityRelation {
+export interface DetailedEntityRelation {
   targetId: string
   targetName: string
   type: 'family' | 'friend' | 'enemy' | 'lover' | 'rival' |

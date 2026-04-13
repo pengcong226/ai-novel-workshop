@@ -3,6 +3,9 @@
  */
 export type CircuitState = 'CLOSED' | 'OPEN' | 'HALF_OPEN';
 
+import { getLogger } from '@/utils/logger'
+const logger = getLogger('circuit-breaker')
+
 /**
  * 熔断器配置
  */
@@ -53,7 +56,7 @@ export class CircuitBreaker {
    */
   onSuccess(): void {
     if (this.state !== 'CLOSED') {
-      console.log(`[熔断器] Provider ${this.providerId} 探活成功，恢复为 CLOSED 状态。`);
+      logger.info(`Provider ${this.providerId} 探活成功，恢复为 CLOSED 状态。`);
     }
     this.failureCount = 0;
     this.state = 'CLOSED';
@@ -68,7 +71,7 @@ export class CircuitBreaker {
       if (this.failureCount >= this.config.failureThreshold) {
         this.state = 'OPEN';
         this.nextAttemptTimer = Date.now() + this.config.resetTimeoutMs;
-        console.warn(`[熔断器] Provider ${this.providerId} 已熔断！连续失败 ${this.failureCount} 次，将在 ${this.config.resetTimeoutMs / 1000}s 后尝试探活。`);
+        logger.warn(`Provider ${this.providerId} 已熔断！连续失败 ${this.failureCount} 次，将在 ${this.config.resetTimeoutMs / 1000}s 后尝试探活。`);
       }
     } else if (this.isFatalError(error)) {
       this.forceOpen();
@@ -81,7 +84,7 @@ export class CircuitBreaker {
   forceOpen(): void {
     this.state = 'OPEN';
     this.nextAttemptTimer = Date.now() + 5 * 60 * 1000; // 长时间熔断 5 分钟
-    console.error(`[熔断器] Provider ${this.providerId} 发生致命错误 (如认证失败等)，强制熔断 5 分钟！`);
+    logger.error(`Provider ${this.providerId} 发生致命错误 (如认证失败等)，强制熔断 5 分钟！`);
   }
 
   getState(): CircuitState {

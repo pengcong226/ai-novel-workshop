@@ -268,6 +268,7 @@ function chunkChapterContent(
 
   let offset = 0;
   let chunkIndex = 0;
+  let carryOver = ''; // 短切片累积区 (合并到下一个切片)
 
   while (offset < content.length) {
     let end = Math.min(offset + CHUNK_TARGET_CHARS, content.length);
@@ -285,7 +286,8 @@ function chunkChapterContent(
       }
     }
 
-    let chunkText = content.substring(offset, end).trim();
+    const chunkText = carryOver + content.substring(offset, end).trim();
+    carryOver = '';
     if (chunkText.length === 0) {
       offset = end;
       continue;
@@ -294,8 +296,9 @@ function chunkChapterContent(
     // 提取本切片中出现的实体名
     const entitiesInChunk = allEntityNames.filter(name => chunkText.includes(name));
 
-    // 如果切片过短且不是最后一片，跳过 (合并到下一片)
+    // 如果切片过短且不是最后一片，累积到下一个切片
     if (chunkText.length < CHUNK_MIN_CHARS && end < content.length) {
+      carryOver = chunkText + '\n';
       offset = end;
       continue;
     }
@@ -308,8 +311,19 @@ function chunkChapterContent(
     });
 
     chunkIndex++;
-    // 下一个切片的开头往前推 overlap 长度
-    offset = Math.max(end - CHUNK_OVERLAP_CHARS, end);
+    // 下一个切片的开头往前推 overlap 长度，确保关键句不被切断
+    offset = Math.max(offset + 1, end - CHUNK_OVERLAP_CHARS);
+  }
+
+  // 刷入末尾残留
+  if (carryOver.trim().length > 0) {
+    const entitiesInCarry = allEntityNames.filter(name => carryOver.includes(name));
+    chunks.push({
+      id: `chunk-${chapterId}-${chunkIndex}`,
+      content: carryOver.trim(),
+      chunkIndex,
+      entityNames: entitiesInCarry,
+    });
   }
 
   return chunks;
@@ -318,10 +332,8 @@ function chunkChapterContent(
 /**
  * 从文本中简单提取可能的人名/地名关键词 (用于元数据标签)
  * 这是轻量级启发式，不依赖 NER 模型
+ * @deprecated 内联在 chunkChapterContent 中，此函数已不再使用
  */
-function extractEntityNamesFromText(text: string, knownNames: string[]): string[] {
-  return knownNames.filter(name => text.includes(name));
-}
 
 // ============================================================================
 // 轻量级重排
@@ -359,7 +371,11 @@ function applyTimeDecayRerank(
     const chunkChapter = r.metadata?.chapterNumber ?? 0;
     if (chunkChapter <= 0 || currentChapterNumber <= 0) return r;
 
-    const distance = Math.abs(currentChapterNumber - chunkChapter);
+    const distance = currentChapterNumber - chunkChapter;
+    if (distance < 0) {
+      // 未来章节数据不应存在，若出现则大幅衰减
+      return { ...r, score: r.score * 0.1 };
+    }
     const decayMultiplier = Math.max(1 - distance * decayFactor, 0.3); // 最低不低于 0.3
     return {
       ...r,
@@ -442,7 +458,8 @@ export class VectorService {
     await this.ensureInitialized();
 
     const texts = documents.map(d => d.content);
-    const embeddings = documents[0].embedding
+    const allHaveEmbeddings = documents.every(d => d.embedding && d.embedding.length > 0);
+    const embeddings = allHaveEmbeddings
       ? documents.map(d => d.embedding!)
       : await this.embeddingModel.embedBatch(texts);
 
@@ -746,7 +763,7 @@ export class VectorService {
   // 会话轨迹导入索引 (保留但统一收归 chapter_content)
   // ============================================================================
 
-  async indexExternalArtifacts(artifacts: any[]): Promise<number> {
+  async indexExternalArtifacts(artifacts: any[], projectId: string = ''): Promise<number> {
     if (!this.initialized) {
       await this.initialize();
     }
@@ -764,7 +781,7 @@ export class VectorService {
         content,
         metadata: {
           type: 'trace' as const,
-          projectId: (this as any).config?.projectId || '',
+          projectId: projectId,
           timestamp: Date.now(),
           source: 'conversation-trace',
           artifactType: artifact.type,

@@ -278,7 +278,7 @@ export interface OutlineParams {
   /** 世界观信息 */
   worldInfo: WorldBuilding;
   /** 主要人物 */
-  characters: Character[];
+  characters: AICharacter[];
   /** 小说长度 */
   totalChapters: number;
   /** 故事类型 */
@@ -302,7 +302,7 @@ export interface ChapterParams {
   /** 前文摘要 */
   previousContext?: string;
   /** 出场人物 */
-  characters: Character[];
+  characters: AICharacter[];
   /** 世界观信息 */
   worldInfo: WorldBuilding;
   /** 写作风格配置 */
@@ -338,7 +338,7 @@ export interface CheckParams {
   /** 参考信息 */
   reference?: {
     worldInfo?: WorldBuilding;
-    characters?: Character[];
+    characters?: AICharacter[];
     previousContent?: string;
   };
 }
@@ -407,7 +407,7 @@ export interface Organization {
 /**
  * 人物设定
  */
-export interface Character {
+export interface AICharacter {
   /** 人物名称 */
   name: string;
   /** 基本信息 */
@@ -485,7 +485,7 @@ export interface OutlineChapter {
 /**
  * 大纲
  */
-export interface Outline {
+export interface AIOutline {
   /** 故事主线 */
   mainPlot: string;
   /** 主题 */

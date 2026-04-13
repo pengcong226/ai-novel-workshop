@@ -14,7 +14,7 @@ export type { TraceImportSession } from './conversation-trace'
 // V3 图元时序类型体系
 export type {
   EntityNode, CharacterV3, CharacterStateSlice, InventoryItem, AbilityRecord,
-  EntityRelation, WorldEntityV3, WorldNarrative, PlotNarrative,
+  DetailedEntityRelation, WorldEntityV3, WorldNarrative, PlotNarrative,
   ChapterPlanV3, PlotBeat
 } from './entity'
 
@@ -209,7 +209,7 @@ export interface CharacterState {
   status: string        // 当前状态（健康、受伤、修炼中等）
   faction: string       // 所属势力
   updatedAt: number     // 更新时间戳
-  vitalStatus?: 'alive' | 'dead' | 'unknown' | string // V4-③ 记录生存状态
+  vitalStatus?: 'alive' | 'dead' | 'unknown' // V4-③ 记录生存状态
   physicalState?: string   // V4-③ 记录身体状况
   powerLevel?: string   // V4-④-D4 记录具体修为
 }

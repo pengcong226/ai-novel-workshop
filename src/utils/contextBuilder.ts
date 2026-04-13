@@ -98,6 +98,7 @@ export interface BuildContext {
   summary: string
   recentChapters: string
   outline: string
+  plotAnchors: string // 命运锚点预警
   totalTokens: number
   warnings: string[]
 }
@@ -868,6 +869,7 @@ export async function buildChapterContext(
     summary: payload.builtSections.summary,
     recentChapters: payload.builtSections.recentChapters,
     outline: payload.builtSections.outline,
+    plotAnchors: payload.builtSections.plotAnchors || '',
     totalTokens: payload.totalTokensUsed,
     warnings: payload.warnings
   }
