@@ -16,6 +16,8 @@ import type {
 
 const STORAGE_KEY = 'ai-novel-suggestions'
 
+let periodicCheckInterval: ReturnType<typeof setInterval> | null = null
+
 export const useSuggestionsStore = defineStore('suggestions', () => {
   // 状态
   const suggestions = ref<Suggestion[]>([])
@@ -202,10 +204,19 @@ export const useSuggestionsStore = defineStore('suggestions', () => {
   // 启动定期检查
   function startPeriodicCheck() {
     // 每分钟检查一次过期建议和空闲提醒
-    setInterval(() => {
+    if (periodicCheckInterval) return // Guard against multiple intervals
+    periodicCheckInterval = setInterval(() => {
       cleanExpiredSuggestions()
       checkIdleReminder()
     }, 60 * 1000)
+  }
+
+  // 停止定期检查
+  function stopPeriodicCheck() {
+    if (periodicCheckInterval) {
+      clearInterval(periodicCheckInterval)
+      periodicCheckInterval = null
+    }
   }
 
   // 清理过期建议
@@ -695,6 +706,7 @@ export const useSuggestionsStore = defineStore('suggestions', () => {
     getSuggestionsByChapter,
     getSuggestionsByCharacter,
     loadFromStorage,
-    saveToStorage
+    saveToStorage,
+    stopPeriodicCheck
   }
 })

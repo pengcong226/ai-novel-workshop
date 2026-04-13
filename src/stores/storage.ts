@@ -1,5 +1,8 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
+import { getLogger } from '@/utils/logger'
+
+const logger = getLogger('storage')
 
 // 使用IndexedDB存储大数据，LocalStorage存储元数据
 const DB_NAME = 'AI_Novel_Workshop'
@@ -15,32 +18,32 @@ class IndexedDBStorage {
 
   async init() {
     return new Promise<void>((resolve, reject) => {
-      console.log('[IndexedDB] 开始初始化...')
+      logger.info('开始初始化...')
       const request = indexedDB.open(DB_NAME, DB_VERSION)
 
       request.onerror = () => {
-        console.error('[IndexedDB] 初始化失败:', request.error)
+        logger.error('初始化失败:', request.error)
         reject(request.error)
       }
 
       request.onsuccess = () => {
         this.db = request.result
-        console.log('[IndexedDB] 数据库连接成功')
+        logger.info('数据库连接成功')
 
         // 检查对象存储是否存在
         if (!this.db.objectStoreNames.contains(PROJECTS_STORE)) {
-          console.error('[IndexedDB] projects 对象存储不存在，需要重建数据库')
+          logger.error('projects 对象存储不存在，需要重建数据库')
           this.db.close()
           // 删除旧数据库并重建
           indexedDB.deleteDatabase(DB_NAME)
-          console.log('[IndexedDB] 已删除旧数据库，正在重新初始化...')
+          logger.info('已删除旧数据库，正在重新初始化...')
 
           // 重新打开数据库
           const newRequest = indexedDB.open(DB_NAME, DB_VERSION)
           newRequest.onerror = () => reject(newRequest.error)
           newRequest.onsuccess = () => {
             this.db = newRequest.result
-            console.log('[IndexedDB] 数据库重建成功')
+            logger.info('数据库重建成功')
             resolve()
           }
           newRequest.onupgradeneeded = (event) => {
@@ -48,13 +51,13 @@ class IndexedDBStorage {
             this.createStores(db)
           }
         } else {
-          console.log('[IndexedDB] 对象存储检查通过')
+          logger.info('对象存储检查通过')
           resolve()
         }
       }
 
       request.onupgradeneeded = (event) => {
-        console.log('[IndexedDB] 触发 onupgradeneeded，创建对象存储')
+        logger.info('触发 onupgradeneeded，创建对象存储')
         const db = (event.target as IDBOpenDBRequest).result
         this.createStores(db)
       }
@@ -64,13 +67,13 @@ class IndexedDBStorage {
   private createStores(db: IDBDatabase) {
     // 项目存储（不包含章节数据）
     if (!db.objectStoreNames.contains(PROJECTS_STORE)) {
-      console.log('[IndexedDB] 创建 projects 对象存储')
+      logger.info('创建 projects 对象存储')
       db.createObjectStore(PROJECTS_STORE, { keyPath: 'id' })
     }
 
     // 章节存储（独立存储，支持分页加载）
     if (!db.objectStoreNames.contains(CHAPTERS_STORE)) {
-      console.log('[IndexedDB] 创建 chapters 对象存储')
+      logger.info('创建 chapters 对象存储')
       const chaptersStore = db.createObjectStore(CHAPTERS_STORE, { keyPath: 'id' })
       chaptersStore.createIndex('projectId', 'projectId', { unique: false })
       chaptersStore.createIndex('number', 'number', { unique: false })
@@ -101,7 +104,7 @@ class IndexedDBStorage {
     try {
       return JSON.parse(data)
     } catch (error) {
-      console.error('Failed to parse projects list from localStorage:', error)
+      logger.error('Failed to parse projects list from localStorage:', error)
       return []
     }
   }
@@ -115,7 +118,7 @@ class IndexedDBStorage {
     try {
       projectData = JSON.parse(JSON.stringify(project))
     } catch (error) {
-      console.error('Failed to serialize project data:', error)
+      logger.error('Failed to serialize project data:', error)
       throw new Error('Invalid project data: cannot serialize')
     }
 
@@ -147,7 +150,7 @@ class IndexedDBStorage {
   async loadProject(projectId: string, options?: { loadChapters?: boolean }) {
     if (!this.db) await this.init()
 
-    console.log('[IndexedDB] 开始加载项目，ID:', projectId)
+    logger.info('开始加载项目，ID:', projectId)
 
     return new Promise<unknown>((resolve, reject) => {
       const transaction = this.db!.transaction([PROJECTS_STORE], 'readonly')
@@ -156,7 +159,7 @@ class IndexedDBStorage {
 
       request.onsuccess = async () => {
         const project = request.result
-        console.log('[IndexedDB] 项目加载结果:', project ? '找到' : '未找到')
+        logger.info('项目加载结果:', project ? '找到' : '未找到')
 
         if (!project) {
           resolve(null)
@@ -175,7 +178,7 @@ class IndexedDBStorage {
       }
 
       request.onerror = () => {
-        console.error('[IndexedDB] 项目加载失败:', request.error)
+        logger.error('项目加载失败:', request.error)
         reject(request.error)
       }
     })
@@ -301,7 +304,7 @@ class IndexedDBStorage {
 
 class TauriStorage {
   async init() {
-    console.log('[TauriStorage] 初始化...');
+    logger.info('初始化...');
   }
 
   async loadProjectsList() {
@@ -310,7 +313,7 @@ class TauriStorage {
       const data: string = await invoke('load_projects_list');
       return JSON.parse(data);
     } catch (e) {
-      console.error('[TauriStorage] 加载项目列表失败:', e);
+      logger.error('加载项目列表失败:', e);
       return [];
     }
   }
@@ -330,7 +333,7 @@ class TauriStorage {
     try {
       await invoke('save_projects_list', { data: JSON.stringify(projectsList) });
     } catch (e) {
-      console.error('[TauriStorage] 保存项目列表失败:', e);
+      logger.error('保存项目列表失败:', e);
     }
   }
 
@@ -352,7 +355,7 @@ class TauriStorage {
 
       return project;
     } catch (e) {
-      console.error('[TauriStorage] 加载项目失败:', e);
+      logger.error('加载项目失败:', e);
       return null;
     }
   }
@@ -363,7 +366,7 @@ class TauriStorage {
       const data: string = await invoke('load_chapter', { projectId, chapterId });
       return JSON.parse(data);
     } catch (e) {
-      console.error(`[TauriStorage] 加载章节 ${chapterId} 失败:`, e);
+      logger.error(`加载章节 ${chapterId} 失败:`, e);
       return null;
     }
   }
@@ -403,7 +406,7 @@ class TauriStorage {
         });
       }
     } catch (e: any) {
-      console.error('[TauriStorage] 保存项目完整包失败:', e);
+      logger.error('保存项目完整包失败:', e);
       throw new Error(`桌面端保存项目失败：${e.message || String(e)}`);
     }
   }
@@ -437,7 +440,10 @@ class TauriStorage {
     // Note: Actually we need a 'delete_chapter' in lib.rs. I'll add that backend invocation next.
     try {
       await invoke('delete_single_chapter', { projectId, chapterId });
-    } catch(e) {}
+    } catch (e) {
+      console.error('[TauriStorage] 删除章节失败:', e);
+      throw new Error(`桌面端删除章节失败：${e instanceof Error ? e.message : String(e)}`);
+    }
   }
 
   async deleteProject(projectId: string) {

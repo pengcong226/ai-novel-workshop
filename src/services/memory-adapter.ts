@@ -154,37 +154,32 @@ ${text.substring(0, 2000)}
 // ============================================================================
 
 /**
- * 向量存储适配器
- * 将 VectorService 适配为 MemoryService 需要的接口
+ * 向量存储适配器 (V5 架构版)
+ * V5 变更：所有数据统一存储在 chapter_content 集合中，通过 metadata.type 区分
+ * 注意：V5 架构下，人物/事件/设定等结构化数据应由图谱和 WorldbookInjector 负责，
+ * 不再通过向量服务索引。此适配器仅用于兼容 MemoryService 的接口。
  */
 export class VectorStoreAdapter {
   private vectorService: VectorService;
-  private collectionMap: Map<string, string>;
 
   constructor(vectorService: VectorService) {
     this.vectorService = vectorService;
-
-    // 集合名称映射
-    this.collectionMap = new Map([
-      ['characters', 'character_profiles'],
-      ['events', 'major_events'],
-      ['settings', 'world_settings'],
-      ['plots', 'plot_threads'],
-    ]);
   }
 
-  async add(collection: string, entries: MemoryEntry[]): Promise<void> {
-    const actualCollection = this.collectionMap.get(collection) || collection;
-
+  async add(_collection: string, entries: MemoryEntry[]): Promise<void> {
+    // V5: 统一使用 addDocument，不再区分集合
     for (const entry of entries) {
       await this.vectorService.addDocument({
         id: entry.id,
         content: entry.content,
         metadata: {
-          type: entry.type as any,
+          type: 'trace' as const, // V5 只支持 'chapter' | 'trace'
           projectId: 'default',
-          collection: actualCollection, // 保存到 metadata 中以便过滤
-          ...entry.metadata,
+          timestamp: entry.metadata.timestamp || Date.now(),
+          importance: entry.metadata.importance,
+          tags: entry.metadata.tags,
+          chapterId: entry.metadata.chapterId,
+          chapterNumber: entry.metadata.chapterNumber,
         },
         embedding: entry.embedding,
       });
@@ -192,15 +187,20 @@ export class VectorStoreAdapter {
   }
 
   async search(collection: string, query: string | number[], topK: number): Promise<MemoryEntry[]> {
-    const actualCollection = this.collectionMap.get(collection) || collection;
+    // V5: Handle both text and vector queries
+    let queryText: string;
+    if (Array.isArray(query)) {
+      // Vector queries not supported through this deprecated adapter
+      // Use VectorService.vectorSearch directly instead
+      console.warn('[VectorStoreAdapter] Vector query not supported in V5 adapter, use VectorService directly');
+      return [];
+    }
+    queryText = query;
 
-    // 向量/文本统一使用图谱制导的新检索接口 (不再区分 vectorSearch/hybridSearch)
-    // V5 架构下检索基于 Chapter 切片，我们暂时用 query 字符串退阶查询
-    const queryStr = Array.isArray(query) ? '' : query;
-
-    const results = await this.vectorService.vectorSearch(queryStr, {
+    // V5: 统一使用 vectorSearch，通过 filter 传递 collection 信息
+    const results = await this.vectorService.vectorSearch(queryText, {
       topK,
-      filter: { collection: actualCollection }, // 借用 filter 传递 collection
+      filter: { originalCollection: collection }, // 保留原始 collection 名供过滤
       minScore: 0.3
     });
 
@@ -219,8 +219,8 @@ export class VectorStoreAdapter {
     }));
   }
 
-  async delete(collection: string, ids: string[]): Promise<void> {
-    // V5 架构没有按 ids 批量删除的直接接口，改为循环删除
+  async delete(_collection: string, ids: string[]): Promise<void> {
+    // V5: 逐个删除
     for (const id of ids) {
       await this.vectorService.deleteDocument(id);
     }
@@ -234,6 +234,9 @@ export class VectorStoreAdapter {
 /**
  * 记忆系统管理器
  * 提供高级的记忆管理功能
+ *
+ * @deprecated V5 架构下不再使用此管理器。记忆功能已迁移到 V5 Graph-Guided RAG + Table Memory。
+ * 此模块将在未来版本中移除。
  */
 export class MemorySystemManager {
   private memoryService: MemoryService;
@@ -408,21 +411,19 @@ export class MemorySystemManager {
     const result: any = { ...stats };
 
     if (this.vectorService) {
-      const collections = ['character_profiles', 'major_events', 'world_settings', 'plot_threads'];
       result.vector = {
         collections: [],
       };
 
-      for (const name of collections) {
-        try {
-          const indexStats = await this.vectorService.getIndexStats(name);
-          result.vector.collections.push({
-            name,
-            count: indexStats.documentCount,
-          });
-        } catch {
-          // 忽略错误
-        }
+      // V5: 使用 getDocumentCount 替代已删除的 getIndexStats
+      try {
+        const count = await this.vectorService.getDocumentCount();
+        result.vector.collections.push({
+          name: 'chapter_content',
+          count,
+        });
+      } catch {
+        // 忽略错误
       }
     }
 
@@ -436,7 +437,7 @@ export class MemorySystemManager {
     await this.memoryService.clearAll();
 
     if (this.vectorService) {
-      await this.vectorService.clearAll();
+      await this.vectorService.clear();
     }
   }
 
@@ -474,6 +475,8 @@ export class MemorySystemManager {
 
 /**
  * 创建记忆系统
+ *
+ * @deprecated V5 架构下不再使用。请直接使用 VectorService + Context Pipeline。
  */
 export async function createMemorySystem(
   generateText: (prompt: string, options?: { model?: string; maxTokens?: number }) => Promise<string>,
@@ -493,8 +496,8 @@ export async function createMemorySystem(
   if (config?.vector) {
     vectorService = new VectorService({
       provider: config.vector.provider || 'local',
-      model: config.vector.model || 'Xenova/all-MiniLM-L6-v2',
-      dimension: config.vector.dimension || 384,
+      model: config.vector.model || '/dist/models/Xenova/bge-m3',
+      dimension: config.vector.dimension || 1024,
       ...config.vector,
     });
     await vectorService.initialize();

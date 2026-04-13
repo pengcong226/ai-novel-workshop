@@ -30,7 +30,7 @@ export const useProjectStore = defineStore('project', () => {
       const configData = localStorage.getItem('global-config')
       if (configData) {
         const parsedConfig = JSON.parse(configData) as ProjectConfig
-        globalConfig.value = decryptProjectConfig(parsedConfig)
+        globalConfig.value = await decryptProjectConfig(parsedConfig)
       }
     } catch (e) {
       logger.error('加载全局配置失败', e)
@@ -40,9 +40,9 @@ export const useProjectStore = defineStore('project', () => {
   // 保存全局配置
   async function saveGlobalConfig(config: ProjectConfig) {
     try {
-      const encryptedConfig = encryptProjectConfig(config)
+      const encryptedConfig = await encryptProjectConfig(config)
       localStorage.setItem('global-config', JSON.stringify(encryptedConfig))
-      globalConfig.value = decryptProjectConfig(encryptedConfig)
+      globalConfig.value = await decryptProjectConfig(encryptedConfig)
     } catch (e) {
       logger.error('保存全局配置失败', e)
       throw e
@@ -181,6 +181,8 @@ export const useProjectStore = defineStore('project', () => {
   const SAVE_DEBOUNCE_DELAY = 1000 // 1秒防抖
   const LARGE_EXPORT_THRESHOLD_BYTES = 5 * 1024 * 1024
 
+  let beforeUnloadHandler: ((event: BeforeUnloadEvent) => void) | null = null
+
   type ProjectLineRecord =
     | { type: 'meta'; version: 1; data: Omit<Project, 'chapters'> }
     | { type: 'chapter'; data: Project['chapters'][number] }
@@ -298,7 +300,7 @@ export const useProjectStore = defineStore('project', () => {
   }
 
   if (typeof window !== 'undefined') {
-    window.addEventListener('beforeunload', (event) => {
+    beforeUnloadHandler = (event: BeforeUnloadEvent) => {
       if (!saveDebounceTimer || !currentProject.value) {
         return
       }
@@ -313,7 +315,19 @@ export const useProjectStore = defineStore('project', () => {
       } catch (e) {
         logger.error('同步备份失败', e)
       }
-    })
+    }
+    window.addEventListener('beforeunload', beforeUnloadHandler)
+  }
+
+  function cleanup() {
+    if (beforeUnloadHandler && typeof window !== 'undefined') {
+      window.removeEventListener('beforeunload', beforeUnloadHandler)
+      beforeUnloadHandler = null
+    }
+    if (saveDebounceTimer) {
+      clearTimeout(saveDebounceTimer)
+      saveDebounceTimer = null
+    }
   }
 
   // V3: 保存锁，防止并发 saveCurrentProject 覆盖数据
@@ -541,6 +555,9 @@ export const useProjectStore = defineStore('project', () => {
     // 章节级新接口
     loadChapter,
     saveChapter,
-    deleteChapter
+    deleteChapter,
+
+    // 清理
+    cleanup
   }
 })

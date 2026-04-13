@@ -755,6 +755,9 @@ class LongTermMemoryManager {
 // 主记忆服务类
 // ============================================================================
 
+/**
+ * @deprecated V5 架构下不再使用。记忆功能已迁移到 V5 Graph-Guided RAG + Table Memory。
+ */
 export class MemoryService {
   private storage: MemoryStorage;
   private shortTerm: ShortTermMemoryManager;
