@@ -374,7 +374,7 @@ import { Check, Download, Search, Warning, CircleCheckFilled } from '@element-pl
 import { useAuditLog } from '@/composables/useAuditLog'
 import { createQualityChecker, analyzeQualityTrend, type QualityReport } from '@/utils/qualityChecker'
 import { exportQualityReportAsJSON, exportQualityReportAsMarkdown} from '@/utils/reportExporter'
-import * as echarts from 'echarts'
+import * as echarts from 'echarts/core'
 import { marked } from 'marked'
 import DOMPurify from 'dompurify'
 import { getLogger } from '@/utils/logger'

@@ -242,12 +242,12 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, reactive } from 'vue'
+import { ref, onMounted, reactive, defineAsyncComponent } from 'vue'
 import { useRouter } from 'vue-router'
 import { useProjectStore } from '@/stores/project'
 import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'element-plus'
 import { Plus, Edit, Download, Delete, MoreFilled, UploadFilled, Upload } from '@element-plus/icons-vue'
-import TemplateLibrary from '@/components/TemplateLibrary.vue'
+const TemplateLibrary = defineAsyncComponent(() => import('@/components/TemplateLibrary.vue'))
 import type { NovelTemplate } from '@/types'
 
 const router = useRouter()
