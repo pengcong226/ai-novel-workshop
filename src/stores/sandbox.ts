@@ -1,6 +1,9 @@
 import { defineStore } from 'pinia';
 import { ref, computed } from 'vue';
 import type { Entity, StateEvent, EntityRelation } from '../types/sandbox';
+import { getLogger } from '@/utils/logger';
+
+const logger = getLogger('sandbox:store');
 
 export interface ActiveEntityState extends Entity {
   properties: Record<string, string>;
@@ -111,7 +114,7 @@ export const useSandboxStore = defineStore('sandbox', () => {
     const projectId = draftEntities.value[0]?.projectId || entities.value[0]?.projectId || '';
 
     if (!projectId) {
-      console.warn("No project ID found to commit drafts");
+      logger.warn("No project ID found to commit drafts");
       return;
     }
 
@@ -153,7 +156,7 @@ export const useSandboxStore = defineStore('sandbox', () => {
       isLoaded.value = false;
       await loadData(projectId);
     } catch (e) {
-      console.error("Failed to commit some drafts:", e);
+      logger.error("Failed to commit some drafts:", e);
       throw e;
     }
   }

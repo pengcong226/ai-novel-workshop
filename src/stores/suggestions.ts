@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import { v4 as uuidv4 } from 'uuid'
+import { getLogger } from '@/utils/logger'
 import type {
   Suggestion,
   SuggestionStatus,
@@ -15,6 +16,7 @@ import type {
   SuggestionRule} from '@/types/suggestions'
 
 const STORAGE_KEY = 'ai-novel-suggestions'
+const logger = getLogger('suggestions:store')
 
 let periodicCheckInterval: ReturnType<typeof setInterval> | null = null
 
@@ -183,7 +185,7 @@ export const useSuggestionsStore = defineStore('suggestions', () => {
         }
       }
     } catch (e) {
-      console.error('[SuggestionsStore] 加载存储失败:', e)
+      logger.error('加载存储失败:', e)
     }
   }
 
@@ -197,7 +199,7 @@ export const useSuggestionsStore = defineStore('suggestions', () => {
       }
       localStorage.setItem(STORAGE_KEY, JSON.stringify(data))
     } catch (e) {
-      console.error('[SuggestionsStore] 保存存储失败:', e)
+      logger.error('保存存储失败:', e)
     }
   }
 

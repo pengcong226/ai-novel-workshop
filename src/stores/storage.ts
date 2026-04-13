@@ -423,7 +423,7 @@ class TauriStorage {
         data: JSON.stringify(chapter)
       });
     } catch (e) {
-      console.error('[TauriStorage] 保存章节报错:', e);
+      logger.error('保存章节报错:', e);
       throw e;
     }
   }
@@ -441,7 +441,7 @@ class TauriStorage {
     try {
       await invoke('delete_single_chapter', { projectId, chapterId });
     } catch (e) {
-      console.error('[TauriStorage] 删除章节失败:', e);
+      logger.error('删除章节失败:', e);
       throw new Error(`桌面端删除章节失败：${e instanceof Error ? e.message : String(e)}`);
     }
   }
@@ -451,7 +451,7 @@ class TauriStorage {
     try {
       await invoke('delete_project', { id: projectId });
     } catch (e) {
-      console.error('[TauriStorage] 删除项目失败:', e);
+      logger.error('删除项目失败:', e);
       throw new Error(`桌面端删除项目失败：${e instanceof Error ? e.message : String(e)}`);
     }
   }
