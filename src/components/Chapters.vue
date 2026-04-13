@@ -645,7 +645,7 @@ function syncChapterDraftToProject() {
     return
   }
 
-  const draftData = JSON.parse(JSON.stringify(chapterForm.value))
+  const draftData = structuredClone(chapterForm.value)
   draftData.id = draftData.id || uuidv4()
   draftData.wordCount = draftData.content.length
   chapterForm.value.id = draftData.id
@@ -751,7 +751,7 @@ async function editChapter(chapter: any) {
   editingChapter.value = chapter
   
   // 先将浅层的 chapter 对象克隆一份
-  const form = JSON.parse(JSON.stringify(chapter))
+  const form = structuredClone(chapter)
   
   // 核心！触发 SQLite 惰性加载：真正将几十KB的文本拉入内存
   try {
@@ -782,7 +782,7 @@ async function saveChapter() {
     if (!project.value) return
 
     // 将 reactive 对象转换为普通对象
-    const chapterData = JSON.parse(JSON.stringify(chapterForm.value))
+    const chapterData = structuredClone(chapterForm.value)
     chapterData.wordCount = chapterData.content?.length || 0
 
     if (!editingChapter.value) {
@@ -985,7 +985,7 @@ async function generateContent() {
       }
 
       chapterForm.value.wordCount = chapterForm.value.content.length
-      const generatedChapter = JSON.parse(JSON.stringify(chapterForm.value)) as Chapter
+      const generatedChapter = structuredClone(chapterForm.value) as Chapter
       await runQualityCheckSilently(generatedChapter)
       chapterForm.value.qualityScore = generatedChapter.qualityScore
       chapterForm.value.aiSuggestions = generatedChapter.aiSuggestions
@@ -1141,7 +1141,7 @@ function viewCheckpoints(chapter: Chapter) {
 function restoreCheckpoint(checkpoint: Checkpoint) {
   if (!selectedChapter.value) return
 
-  chapterForm.value = JSON.parse(JSON.stringify(selectedChapter.value))
+  chapterForm.value = structuredClone(selectedChapter.value)
   chapterForm.value.content = checkpoint.content
   showCheckpointsDialog.value = false
   showEditDialog.value = true

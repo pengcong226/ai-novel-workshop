@@ -5,6 +5,9 @@
  */
 
 import type { ProcessorContribution, ProcessorContext } from '../types'
+import { getLogger } from '@/utils/logger'
+
+const logger = getLogger('plugin:registry:processor')
 
 /**
  * 处理阶段
@@ -58,7 +61,7 @@ export class ProcessorRegistry {
    */
   register(contribution: ProcessorContribution): void {
     if (this.processors.has(contribution.id)) {
-      console.warn(`处理器 ${contribution.id} 已注册，将被覆盖`)
+      logger.warn(`处理器 ${contribution.id} 已注册，将被覆盖`)
       // 先从阶段列表中移除旧的
       this.unregister(contribution.id)
     }
@@ -71,7 +74,7 @@ export class ProcessorRegistry {
       stageList.push(contribution)
     }
 
-    console.log(`✅ 处理器 ${contribution.id} 已注册，阶段: ${contribution.stage}`)
+    logger.info(`✅ 处理器 ${contribution.id} 已注册，阶段: ${contribution.stage}`)
   }
 
   /**
@@ -92,7 +95,7 @@ export class ProcessorRegistry {
       }
     }
 
-    console.log(`✅ 处理器 ${id} 已注销`)
+    logger.info(`✅ 处理器 ${id} 已注销`)
   }
 
   /**
@@ -142,7 +145,7 @@ export class ProcessorRegistry {
     }
 
     try {
-      console.log(`执行处理器: ${processorId}`)
+      logger.info(`执行处理器: ${processorId}`)
       const startTime = Date.now()
 
       const result = await this.executeWithTimeout(
@@ -151,11 +154,11 @@ export class ProcessorRegistry {
       )
 
       const duration = Date.now() - startTime
-      console.log(`✅ 处理器 ${processorId} 执行完成，耗时: ${duration}ms`)
+      logger.info(`✅ 处理器 ${processorId} 执行完成，耗时: ${duration}ms`)
 
       return result
     } catch (error) {
-      console.error(`处理器 ${processorId} 执行失败:`, error)
+      logger.error(`处理器 ${processorId} 执行失败:`, error)
       throw error
     }
   }
@@ -178,34 +181,34 @@ export class ProcessorRegistry {
     const processors = this.getSortedStageProcessors(stage)
 
     if (processors.length === 0) {
-      console.log(`阶段 ${stage} 没有注册处理器，跳过`)
+      logger.debug(`阶段 ${stage} 没有注册处理器，跳过`)
       return data
     }
 
-    console.log(`开始执行 ${stage} 管道，共 ${processors.length} 个处理器`)
+    logger.info(`开始执行 ${stage} 管道，共 ${processors.length} 个处理器`)
 
     let result = data
     const startTime = Date.now()
 
     for (const processor of processors) {
       try {
-        console.log(`  执行处理器: ${processor.id}`)
+        logger.debug(`  执行处理器: ${processor.id}`)
         result = await this.executeWithTimeout(
           processor.process(result, context),
           processor.timeoutMs ?? 5000
         )
       } catch (error) {
         const onError = processor.onError ?? 'abort'
-        console.error(`处理器 ${processor.id} 执行失败，策略: ${onError}`, error)
+        logger.error(`处理器 ${processor.id} 执行失败，策略: ${onError}`, error)
         if (onError === 'abort') {
-          console.error(`${stage} 管道执行失败:`, error)
+          logger.error(`${stage} 管道执行失败:`, error)
           throw error
         }
       }
     }
 
     const duration = Date.now() - startTime
-    console.log(`✅ ${stage} 管道执行完成，耗时: ${duration}ms`)
+    logger.info(`✅ ${stage} 管道执行完成，耗时: ${duration}ms`)
 
     return result
   }
@@ -276,7 +279,7 @@ export class ProcessorRegistry {
     this.processorsByStage.set('post-import', [])
     this.processorsByStage.set('pre-export', [])
     this.processorsByStage.set('post-generation', [])
-    console.log('✅ 所有处理器已清除')
+    logger.info('✅ 所有处理器已清除')
   }
 
   /**

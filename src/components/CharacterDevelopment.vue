@@ -525,9 +525,9 @@ function editDevelopmentNode(node: ExtendedCharacterDevelopment, index: number) 
   editingIndex.value = index
   nodeForm.value = {
     ...node,
-    abilityChanges: node.abilityChanges ? [...node.abilityChanges] : [],
-    relationshipChanges: node.relationshipChanges ? [...node.relationshipChanges] : [],
-    stateChange: node.stateChange ? { ...node.stateChange } : {}
+    abilityChanges: node.abilityChanges ? structuredClone(node.abilityChanges) : [],
+    relationshipChanges: node.relationshipChanges ? structuredClone(node.relationshipChanges) : [],
+    stateChange: node.stateChange ? structuredClone(node.stateChange) : {}
   }
   stateChangeForm.value = {
     oldLocation: node.stateChange?.oldLocation || '',

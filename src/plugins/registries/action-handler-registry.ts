@@ -5,6 +5,9 @@
  */
 
 import type { AIActionHandlerContribution, ActionContext } from '../types'
+import { getLogger } from '@/utils/logger'
+
+const logger = getLogger('plugin:registry:action-handler')
 
 /**
  * AI动作处理器注册表
@@ -19,11 +22,11 @@ export class AIActionHandlerRegistry {
    */
   register(contribution: AIActionHandlerContribution): void {
     if (this.handlers.has(contribution.type)) {
-      console.warn(`AI动作处理器 ${contribution.type} 已注册，将被覆盖`)
+      logger.warn(`AI动作处理器 ${contribution.type} 已注册，将被覆盖`)
     }
 
     this.handlers.set(contribution.type, contribution)
-    console.log(`✅ AI动作处理器 ${contribution.type} 已注册`)
+    logger.info(`✅ AI动作处理器 ${contribution.type} 已注册`)
   }
 
   /**
@@ -31,7 +34,7 @@ export class AIActionHandlerRegistry {
    */
   unregister(type: string): void {
     this.handlers.delete(type)
-    console.log(`✅ AI动作处理器 ${type} 已注销`)
+    logger.info(`✅ AI动作处理器 ${type} 已注销`)
   }
 
   /**
@@ -80,15 +83,15 @@ export class AIActionHandlerRegistry {
     }
 
     try {
-      console.log(`执行AI动作: ${type}`)
+      logger.info(`执行AI动作: ${type}`)
       const startTime = Date.now()
 
       await handler.handler(data, context)
 
       const duration = Date.now() - startTime
-      console.log(`✅ AI动作 ${type} 执行完成，耗时: ${duration}ms`)
+      logger.info(`✅ AI动作 ${type} 执行完成，耗时: ${duration}ms`)
     } catch (error) {
-      console.error(`AI动作 ${type} 执行失败:`, error)
+      logger.error(`AI动作 ${type} 执行失败:`, error)
       throw error
     }
   }
@@ -120,6 +123,6 @@ export class AIActionHandlerRegistry {
    */
   clear(): void {
     this.handlers.clear()
-    console.log('✅ 所有AI动作处理器已清除')
+    logger.info('✅ 所有AI动作处理器已清除')
   }
 }

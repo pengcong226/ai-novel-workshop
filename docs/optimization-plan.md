@@ -18,13 +18,14 @@
 
 ## 一、性能优化 (高优先级)
 
-### 1.1 SQLite向量扩展集成 ⭐⭐⭐⭐⭐
+### 1.1 SQLite向量扩展集成 ⭐⭐⭐⭐⭐ -- Completed (using instant-distance)
 **问题**: 当前向量检索使用简单的LIKE查询，性能较差
 
-**优化方案**:
+**已完成方案**:
 ```rust
-// 集成SQLite向量扩展 (sqlite-vss)
-// 支持高效的向量相似度搜索
+// 集成 instant-distance (Rust HNSW) 向量检索
+// 向量数据存储在 SQLite BLOB 中
+// 替代了原计划的 sqlite-vss / ChromaDB 方案
 ```
 
 **收益**:
@@ -523,7 +524,7 @@ const LazyComponent = defineAsyncComponent(() =>
 
 ### 🔴 P0 - 立即执行 (1周内)
 
-1. **SQLite向量扩展集成** ⭐⭐⭐⭐⭐
+1. **SQLite向量扩展集成** ⭐⭐⭐⭐⭐ -- Completed (using instant-distance)
    - 性能提升最显著
    - 解决核心技术债务
    - 工作量: 2-3天
@@ -586,7 +587,7 @@ const LazyComponent = defineAsyncComponent(() =>
 
 ```
 Week 1:
-├─ Day 1-3: SQLite向量扩展集成
+├─ Day 1-3: SQLite向量扩展集成 (Completed - using instant-distance)
 ├─ Day 4-5: 前端性能优化
 └─ Day 6-7: TypeScript类型完善
 
@@ -624,10 +625,9 @@ Week 3-4:
 
 ### 7.1 高风险项
 
-**SQLite向量扩展集成**:
-- 风险: 编译环境配置复杂
-- 缓解: 提供预编译二进制
-- 回退: 保持当前LIKE查询
+**SQLite向量扩展集成** (Completed - using instant-distance):
+- ~~风险: 编译环境配置复杂~~
+- 已采用 instant-distance (Rust HNSW) 替代 sqlite-vss
 
 ### 7.2 中风险项
 

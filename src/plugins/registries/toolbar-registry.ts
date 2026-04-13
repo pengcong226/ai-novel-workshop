@@ -5,6 +5,9 @@
  */
 
 import type { ToolbarButtonContribution, EditorContext } from '../types'
+import { getLogger } from '@/utils/logger'
+
+const logger = getLogger('plugin:registry:toolbar')
 
 /**
  * 工具栏按钮注册表
@@ -19,11 +22,11 @@ export class ToolbarButtonRegistry {
    */
   register(contribution: ToolbarButtonContribution): void {
     if (this.buttons.has(contribution.id)) {
-      console.warn(`工具栏按钮 ${contribution.id} 已注册，将被覆盖`)
+      logger.warn(`工具栏按钮 ${contribution.id} 已注册，将被覆盖`)
     }
 
     this.buttons.set(contribution.id, contribution)
-    console.log(`✅ 工具栏按钮 ${contribution.id} 已注册`)
+    logger.info(`✅ 工具栏按钮 ${contribution.id} 已注册`)
   }
 
   /**
@@ -31,7 +34,7 @@ export class ToolbarButtonRegistry {
    */
   unregister(id: string): void {
     this.buttons.delete(id)
-    console.log(`✅ 工具栏按钮 ${id} 已注销`)
+    logger.info(`✅ 工具栏按钮 ${id} 已注销`)
   }
 
   /**
@@ -102,9 +105,9 @@ export class ToolbarButtonRegistry {
 
     try {
       await button.handler(context)
-      console.log(`✅ 工具栏按钮 ${id} 执行成功`)
+      logger.info(`✅ 工具栏按钮 ${id} 执行成功`)
     } catch (error) {
-      console.error(`工具栏按钮 ${id} 执行失败:`, error)
+      logger.error(`工具栏按钮 ${id} 执行失败:`, error)
       throw error
     }
   }
@@ -114,6 +117,6 @@ export class ToolbarButtonRegistry {
    */
   clear(): void {
     this.buttons.clear()
-    console.log('✅ 所有工具栏按钮已清除')
+    logger.info('✅ 所有工具栏按钮已清除')
   }
 }

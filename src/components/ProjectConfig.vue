@@ -711,7 +711,7 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import { Refresh, Grid, Setting, Download } from '@element-plus/icons-vue'
 import type { ProjectConfig, VectorServiceConfig } from '@/types'
 import { DEFAULT_SYSTEM_PROMPTS, SYSTEM_PROMPT_VARIABLES } from '@/utils/systemPrompts'
-import { getVectorService, clearVectorServiceCache } from '@/utils/vectorService'
+import { getVectorService, resetVectorService as clearVectorServiceCache } from '@/services/vector-service'
 import PluginManager from './PluginManager.vue'
 import { useThemeStore } from '@/stores/theme'
 

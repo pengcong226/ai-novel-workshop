@@ -90,7 +90,7 @@
           发现 {{ previewResult.errors.length }} 个错误
         </template>
         <ul>
-          <li v-for="(error, index) in previewResult.errors" :key="index">
+          <li v-for="(error, index) in previewResult.errors" :key="index + '-' + error.substring(0, 20)">
             {{ error }}
           </li>
         </ul>
@@ -106,7 +106,7 @@
           发现 {{ previewResult.conflicts.length }} 个冲突
         </template>
         <ul>
-          <li v-for="(conflict, index) in previewResult.conflicts" :key="index">
+          <li v-for="(conflict, index) in previewResult.conflicts" :key="index + '-' + conflict.entry.title">
             {{ conflict.entry.title }} - {{ conflict.reason }}
           </li>
         </ul>
@@ -237,6 +237,9 @@ import type { UploadFile, UploadFiles } from 'element-plus'
 import { useWorldbookStore } from '@/stores/worldbook'
 import { importWorldbook } from '@/services/worldbook-importer'
 import type { WorldbookEntry, WorldbookImportOptions } from '@/types/worldbook'
+import { getLogger } from '@/utils/logger'
+
+const logger = getLogger('worldbook-import')
 
 const emit = defineEmits<{
   imported: []
@@ -289,7 +292,7 @@ const importResult = ref<ImportResult>({
 })
 
 function handleFileChange(file: UploadFile, files: UploadFiles) {
-  console.log('文件变化:', {
+  logger.debug('文件变化:', {
     file: file.name,
     size: file.size,
     type: file.raw?.type,
@@ -298,7 +301,7 @@ function handleFileChange(file: UploadFile, files: UploadFiles) {
 
   // 检查文件对象是否有效
   if (!file.raw) {
-    console.error('文件对象无效:', file)
+    logger.error('文件对象无效:', file)
     ElMessage.error(`文件 ${file.name} 无效，请重新选择`)
     return
   }
@@ -339,7 +342,7 @@ function beforeUpload(file: File) {
 }
 
 async function handlePreview() {
-  console.log('开始预览，文件列表:', fileList.value)
+  logger.info('开始预览，文件列表:', fileList.value)
 
   if (fileList.value.length === 0) {
     ElMessage.warning('请选择至少一个文件')
@@ -351,7 +354,7 @@ async function handlePreview() {
     const errors: string[] = []
 
     for (const file of fileList.value) {
-      console.log('处理文件:', {
+      logger.debug('处理文件:', {
         name: file.name,
         size: file.size,
         type: file.raw?.type,
@@ -359,10 +362,10 @@ async function handlePreview() {
       })
 
       try {
-        console.log('调用 importWorldbook...')
+        logger.debug('调用 importWorldbook...')
         const result = await importWorldbook(file.raw as File, importOptions.value)
 
-        console.log('导入结果:', {
+        logger.info('导入结果:', {
           success: result.success,
           entriesCount: result.entries?.length || 0,
           errors: result.errors
@@ -387,12 +390,12 @@ async function handlePreview() {
             typeof err === 'string' ? err : err.message || String(err)
           )
           errors.push(`${file.name}: ${errorMessages.join(', ')}`)
-          console.error('导入失败:', errorMessages)
+          logger.error('导入失败:', errorMessages)
         }
       } catch (error) {
         const errorMsg = error instanceof Error ? error.message : String(error)
         errors.push(`${file.name}: ${errorMsg}`)
-        console.error('导入文件失败:', error)
+        logger.error('导入文件失败:', error)
       }
     }
 
@@ -407,7 +410,7 @@ async function handlePreview() {
       errors
     }
 
-    console.log('预览结果:', {
+    logger.info('预览结果:', {
       entriesCount: allEntries.length,
       errorsCount: errors.length,
       conflictsCount: previewResult.value.conflicts.length
@@ -417,7 +420,7 @@ async function handlePreview() {
   } catch (error) {
     const errorMsg = error instanceof Error ? error.message : String(error)
     ElMessage.error(`预览失败: ${errorMsg}`)
-    console.error('预览失败:', error)
+    logger.error('预览失败:', error)
   }
 }
 
@@ -447,7 +450,7 @@ async function handleImport() {
         successCount++
       } catch (error) {
         errorCount++
-        console.error('添加条目失败:', error)
+        logger.error('添加条目失败:', error)
       }
     }
 
@@ -463,7 +466,7 @@ async function handleImport() {
   } catch (error) {
     const errorMsg = error instanceof Error ? error.message : String(error)
     ElMessage.error(`导入失败: ${errorMsg}`)
-    console.error('导入失败:', error)
+    logger.error('导入失败:', error)
   }
 }
 

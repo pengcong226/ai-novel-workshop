@@ -33,8 +33,7 @@
 </template>
 
 <script setup lang="ts">
-// In a full implementation, this component would hook into `aiStore` to
-// render the actual tool calls being dispatched when a chapter is generated.
+// TODO: 此组件为占位符，待实现工具调用渲染功能。目前仅显示静态示例。
 </script>
 
 <style scoped>

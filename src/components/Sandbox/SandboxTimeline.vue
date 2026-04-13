@@ -75,6 +75,9 @@ import { useSandboxStore } from '@/stores/sandbox'
 import { ElMessage } from 'element-plus'
 import { EditPen, Document, DataLine, View, MagicStick } from '@element-plus/icons-vue'
 import type { ChapterOutline } from '@/types'
+import { getLogger } from '@/utils/logger'
+
+const logger = getLogger('sandbox:timeline')
 
 const projectStore = useProjectStore()
 const sandboxStore = useSandboxStore()
@@ -166,7 +169,7 @@ async function simulateBatchPlanning() {
       ElMessage.success('大纲推演完成')
     }, 1500)
   } catch (e) {
-    console.error(e)
+    logger.error('批量大纲推演失败:', e)
     isGenerating.value = false
   }
 }
@@ -194,7 +197,7 @@ async function executeChapter(chapter: ChapterOutline) {
       ElMessage.success('正文生成与状态同步完成！')
     }, 2000)
   } catch (e) {
-    console.error(e)
+    logger.error('章节执行失败:', e)
     isGenerating.value = false
   }
 }

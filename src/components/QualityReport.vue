@@ -406,6 +406,12 @@ const radarChartRef = ref<HTMLElement>()
 let trendChart: echarts.ECharts | null = null
 let radarChart: echarts.ECharts | null = null
 
+// ECharts resize handler (shared reference for add/remove)
+const handleChartResize = () => {
+  if (trendChart) trendChart.resize()
+  if (radarChart) radarChart.resize()
+}
+
 // 趋势分析
 const trendAnalysis = computed(() => {
   return analyzeQualityTrend(reports.value)
@@ -444,6 +450,9 @@ onMounted(async () => {
   await nextTick()
   initCharts()
 
+  // Add window resize handler for ECharts
+  window.addEventListener('resize', handleChartResize)
+
   // 如果已有报告，更新图表
   if (reports.value.length > 0) {
     updateCharts()
@@ -451,6 +460,9 @@ onMounted(async () => {
 })
 
 onBeforeUnmount(() => {
+  // Remove resize handler
+  window.removeEventListener('resize', handleChartResize)
+
   if (trendChart) {
     trendChart.dispose()
     trendChart = null

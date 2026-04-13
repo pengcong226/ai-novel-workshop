@@ -15,7 +15,7 @@ import { useCharacterCardStore } from '@/stores/character-card'
 import { useKnowledgeStore } from '@/stores/knowledge'
 import { useProjectStore } from '@/stores/project'
 import { useWorldbookStore } from '@/stores/worldbook'
-import { indexExternalArtifacts } from '@/utils/vectorService'
+import { indexExternalArtifacts } from '@/services/vector-service'
 
 export type TracePersistAction = 'apply' | 'merge'
 

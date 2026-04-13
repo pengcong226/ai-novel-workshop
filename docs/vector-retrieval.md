@@ -2,413 +2,312 @@
 
 ## 概述
 
-向量检索系统为 AI 小说工坊提供了强大的语义搜索和智能上下文检索功能，特别适合长篇小说（100+ 章节）的创作。
+向量检索系统为 AI 小说工坊提供 **Graph-Guided RAG**（图引导检索增强生成），专为长篇小说（100+ 章节）的连贯性维护而设计。
 
-## 核心功能
+V5 架构采用单集合（`chapter_content`）向量检索，配合 Sandbox Entity/StateEvent 图谱进行引导，彻底替代了 V4 的 IndexedDB/ChromaDB 多集合方案。
 
-### 1. 语义搜索
-- 基于向量相似度的语义搜索
-- 支持本地模型和 OpenAI Embeddings API
-- 混合搜索（向量 + 关键词）提升准确性
+## 核心概念：Graph-Guided RAG
 
-### 2. 智能上下文检索
-- 自动检索与当前章节相关的历史内容
-- 提取世界观、人物、剧情、章节等多种类型信息
-- 根据相似度排序，返回最相关的上下文
+传统的 RAG 系统对所有文档类型一视同仁地进行向量检索。Graph-Guided RAG 的关键区别在于：
 
-### 3. 增量索引
-- 支持单个章节的索引更新
-- 自动同步到 IndexedDB 本地存储
-- 无需重复索引已有内容
+1. **世界观和角色不再走向量索引** -- 它们通过 Sandbox 的 Entity/StateEvent 图直接注入上下文，保证设定信息 100% 命中。
+2. **向量检索仅覆盖章节正文** -- 单一集合 `chapter_content`，简化索引管理。
+3. **图引导重排** -- 检索结果根据当前活跃实体名称进行重排（Entity Name Boost + Time Decay），确保与当前写作场景高度相关。
 
 ## 技术架构
 
-### 文件结构
+### 后端：Rust HNSW（instant-distance）
 
 ```
-src/utils/
-├── embeddings.ts       # 文本嵌入服务
-├── vectorStore.ts      # 向量存储（IndexedDB + 内存索引）
-├── vectorService.ts    # 向量服务（整合嵌入和存储）
-├── contextBuilder.ts   # 上下文构建器（已集成向量检索）
-└── test-vector.ts      # 测试文件
+Tauri IPC
+    |
+    v
+src-tauri/src/db/vector.rs
+    |-- instant-distance HNSW 索引（内存中）
+    |-- SQLite BLOB 持久化（索引序列化存储）
+    |-- 段落级分块 (~400 chars + 50 char overlap)
+```
+
+**关键参数：**
+
+| 参数 | 值 | 说明 |
+|------|-----|------|
+| 嵌入模型 | `bge-small-zh-v1.5` | 中文优化，512 维 |
+| 索引算法 | HNSW | instant-distance Rust 实现 |
+| 分块粒度 | ~400 字符 | 段落级 + 句子边界感知 |
+| 重叠长度 | 50 字符 | 相邻块重叠保证连贯性 |
+| 索引持久化 | SQLite BLOB | 与项目数据共存，无需额外服务 |
+
+### 前端 API：useVectorStore
+
+```typescript
+// src/stores/vectorStore.ts
+import { useVectorStore } from '@/stores/vectorStore'
+
+const vectorStore = useVectorStore()
+
+// 检索与当前章节相关的上下文
+const context = await vectorStore.retrieveRelevantContext(
+  currentChapter,   // 当前章节对象
+  project,          // 项目对象
+  activeEntityNames // 当前活跃实体名称列表，用于 Entity Name Boost
+)
 ```
 
 ### 核心模块
 
-#### 1. Embeddings Service (`embeddings.ts`)
+#### 1. 向量后端 (`src-tauri/src/db/vector.rs`)
 
-**功能**: 文本向量化
+**功能**: HNSW 索引构建、向量检索、SQLite BLOB 持久化
 
-**支持的模型**:
-- **本地模型** (Transformers.js)
-  - `Xenova/all-MiniLM-L6-v2` (384维，推荐)
-  - `Xenova/all-mpnet-base-v2` (768维，更高质量)
-  - `Xenova/paraphrase-multilingual-MiniLM-L12-v2` (多语言支持)
+**Tauri 命令接口：**
+```rust
+#[tauri::command]
+async fn build_vector_index(project_id: String) -> Result<(), String>;
 
-- **OpenAI API**
-  - `text-embedding-3-small` (1536维，性价比高)
-  - `text-embedding-3-large` (3072维，最高质量)
-  - `text-embedding-ada-002` (旧版本)
+#[tauri::command]
+async fn search_vectors(
+    project_id: String,
+    query_embedding: Vec<f32>,
+    top_k: u32,
+    min_score: f32
+) -> Result<Vec<VectorSearchResult>, String>;
 
-**使用示例**:
-```typescript
-import { createEmbeddingService } from '@/utils/embeddings'
-
-// 本地模型
-const localService = createEmbeddingService({
-  provider: 'local',
-  model: 'Xenova/all-MiniLM-L6-v2',
-  dimension: 384
-})
-
-// OpenAI
-const openaiService = createEmbeddingService({
-  provider: 'openai',
-  model: 'text-embedding-3-small',
-  apiKey: 'your-api-key',
-  dimension: 1536
-})
-
-// 生成嵌入向量
-const embedding = await service.embed('这是一段测试文本')
-console.log('向量维度:', embedding.length) // 384 或 1536
+#[tauri::command]
+async fn index_chapter_chunks(
+    project_id: String,
+    chapter_id: String,
+    chunks: Vec<ChunkData>
+) -> Result<(), String>;
 ```
 
-#### 2. Vector Store (`vectorStore.ts`)
+#### 2. 向量 Store (`src/stores/vectorStore.ts`)
 
-**功能**: 向量索引和检索
+**功能**: 前端向量检索调度与结果缓存
 
-**特性**:
-- 基于 IndexedDB 的持久化存储
-- 内存索引加速查询
-- 支持元数据过滤
-- 支持混合搜索（向量 + 关键词）
+**核心方法：**
+- `buildIndex(projectId)`: 构建项目向量索引
+- `indexChapter(projectId, chapterId, chunks)`: 索引单个章节
+- `search(projectId, query, topK, minScore)`: 语义搜索
+- `retrieveRelevantContext(currentChapter, project, activeEntityNames)`: Graph-Guided RAG 检索
 
-**使用示例**:
+**使用示例：**
 ```typescript
-import { createVectorStore } from '@/utils/vectorStore'
+import { useVectorStore } from '@/stores/vectorStore'
 
-// 创建向量存储
-const store = await createVectorStore('project-id', 384)
+const vectorStore = useVectorStore()
 
-// 添加文档
-await store.addDocument({
-  id: 'doc-001',
-  content: '这是一段文本内容',
-  metadata: {
-    type: 'chapter',
-    projectId: 'project-id',
-    chapterNumber: 1,
-    timestamp: Date.now()
-  },
-  embedding: [0.1, 0.2, ...] // 384维向量
-})
+// 构建索引
+await vectorStore.buildIndex('project-id')
 
-// 向量搜索
-const results = await store.search(queryEmbedding, 10, { minScore: 0.6 })
-
-// 混合搜索
-const hybridResults = await store.hybridSearch(
-  queryText,
-  queryEmbedding,
-  10,
-  { vectorWeight: 0.7, minScore: 0.5 }
-)
-```
-
-#### 3. Vector Service (`vectorService.ts`)
-
-**功能**: 整合嵌入和存储，提供高级功能
-
-**核心方法**:
-- `indexProject(project)`: 索引整个项目（世界观、人物、大纲、章节）
-- `indexChapter(chapter, projectId)`: 索引单个章节
-- `search(query, topK, options)`: 语义搜索
-- `retrieveRelevantContext(chapter, project, options)`: 智能上下文检索
-
-**使用示例**:
-```typescript
-import { getVectorService } from '@/utils/vectorService'
-
-// 获取向量服务实例
-const vectorService = await getVectorService('project-id', {
-  provider: 'local',
-  model: 'Xenova/all-MiniLM-L6-v2',
-  dimension: 384
-})
-
-// 索引项目
-await vectorService.indexProject(project)
-
-// 语义搜索
-const results = await vectorService.search('林云的修炼天赋', 5, {
-  minScore: 0.6,
-  filter: (metadata) => metadata.type === 'character' // 只搜索人物
-})
-
-// 智能上下文检索
-const context = await vectorService.retrieveRelevantContext(
+// Graph-Guided RAG 检索
+const context = await vectorStore.retrieveRelevantContext(
   currentChapter,
   project,
-  {
-    topK: 5,
-    minScore: 0.6,
-    excludeCurrentChapter: true
-  }
+  ['林云', '苏婉儿', '青云宗']  // 活跃实体名称
 )
+
+// context 包含经过 Entity Name Boost 和 Time Decay 重排后的章节片段
 ```
 
-#### 4. Context Builder (`contextBuilder.ts`)
+#### 3. 上下文 Pipeline 中间件 (`src/utils/contextPipeline.ts`)
 
-**功能**: 构建完整的章节生成上下文
+**功能**: 作为 Context Pipeline 的一个中间件，将向量检索结果注入生成上下文
 
-**集成向量检索**:
 ```typescript
-import { buildChapterContext } from '@/utils/contextBuilder'
-
-// 构建上下文（包含向量检索）
-const context = await buildChapterContext(
-  project,
-  currentChapter,
-  memorySystem, // 可选
-  {
-    provider: 'local',
-    model: 'Xenova/all-MiniLM-L6-v2',
-    dimension: 384,
-    projectId: project.id
-  }
-)
-
-// context.vectorContext 包含向量检索的相关内容
-console.log('向量检索上下文:', context.vectorContext)
+// VectorMiddleware 在 Pipeline 中的位置
+const pipeline = new ContextPipeline()
+  .use(new SystemPromptMiddleware())
+  .use(new EntityMiddleware())       // Entity/StateEvent 图注入
+  .use(new PlotAnchorMiddleware())   // 命运锚点预警
+  .use(new VectorMiddleware())       // Graph-Guided RAG 向量检索
+  .use(new SummaryMiddleware())
+  .use(new RecentChapterMiddleware())
 ```
 
-## 配置说明
+## 分块策略
 
-### ProjectConfig.vue 配置项
+### 段落级分块 + 句子边界感知
 
-在项目配置页面新增了"向量检索"配置卡片：
+```typescript
+interface ChunkConfig {
+  maxChunkSize: 400     // 约 400 字符
+  overlapSize: 50       // 50 字符重叠
+  separators: ['\n\n', '\n', '。', '！', '？', '；']  // 句子边界
+}
+```
 
-| 配置项 | 类型 | 默认值 | 说明 |
-|--------|------|--------|------|
-| enabled | boolean | false | 是否启用向量检索 |
-| provider | 'local' \| 'openai' | 'local' | 嵌入服务提供商 |
-| model | string | 'Xenova/all-MiniLM-L6-v2' | 嵌入模型 |
-| apiKey | string | - | OpenAI API Key（仅 OpenAI 需要） |
-| topK | number | 5 | 检索数量 |
-| minScore | number | 0.6 | 相似度阈值（0-1） |
-| vectorWeight | number | 0.7 | 向量搜索权重（混合搜索） |
+**分块逻辑：**
+1. 按段落分隔符（`\n\n`）初步分段
+2. 超过 400 字符的段落按句子边界（`。！？；`）二次切分
+3. 相邻块保留 50 字符重叠，避免关键信息被截断
+4. 每个块附带元数据：`chapterId`、`chapterNumber`、`position`
 
-### Token 预算分配
+## 重排策略
+
+### Entity Name Boost（实体名称加权）
+
+检索结果中包含当前活跃实体名称的片段获得 **1.5x** 分数加成。
+
+```typescript
+function applyEntityBoost(
+  results: VectorSearchResult[],
+  activeEntityNames: string[]
+): VectorSearchResult[] {
+  return results.map(r => {
+    const hasEntity = activeEntityNames.some(name =>
+      r.content.includes(name)
+    )
+    return {
+      ...r,
+      score: hasEntity ? r.score * 1.5 : r.score
+    }
+  })
+}
+```
+
+### Time Decay（时间衰减）
+
+- **未来章节**: 0.1 惩罚系数（尚未发生的内容几乎不参考）
+- **过去章节**: 每距离当前章节 1 章，衰减 0.5%
+
+```typescript
+function applyTimeDecay(
+  results: VectorSearchResult[],
+  currentChapterNumber: number
+): VectorSearchResult[] {
+  return results.map(r => {
+    const distance = currentChapterNumber - r.metadata.chapterNumber
+    if (distance < 0) {
+      // 未来章节
+      return { ...r, score: r.score * 0.1 }
+    }
+    // 过去章节：每章衰减 0.5%
+    const decayFactor = Math.pow(0.995, distance)
+    return { ...r, score: r.score * decayFactor }
+  })
+}
+```
+
+## 单集合设计：chapter_content
+
+V5 仅维护一个向量集合：
+
+| 集合名 | 内容 | 分块策略 |
+|--------|------|----------|
+| `chapter_content` | 章节正文 | 段落级 (~400 chars + 50 overlap) |
+
+**不再索引的类型：**
+- ~~世界观设定~~ -- 改用 Entity 图直接注入
+- ~~人物设定~~ -- 改用 Entity 图直接注入
+- ~~大纲/剧情线~~ -- 改用 PlotAnchorMiddleware 注入
+- ~~伏笔追踪~~ -- 改用 PlotAnchorMiddleware 注入
+
+## Token 预算分配
 
 ```
 TOTAL: 6000 tokens
-├── SYSTEM_PROMPT: 300
-├── AUTHORS_NOTE: 200
-├── WORLD_INFO: 800
-├── CHARACTERS: 600
-├── MEMORY_TABLES: 500
-├── VECTOR_CONTEXT: 600  ← 新增
-├── SUMMARY: 600
-├── RECENT_CHAPTERS: 2000
-├── OUTLINE: 400
-└── RESERVE: 400
+  SYSTEM_PROMPT:       300
+  AUTHORS_NOTE:        200
+  ENTITY_GRAPH:        800   <-- Entity/StateEvent 直接注入（非向量）
+  MEMORY_TABLES:       500
+  PLOT_ANCHOR:         400   <-- 命运锚点预警（非向量）
+  VECTOR_CONTEXT:      600   <-- Graph-Guided RAG 检索结果
+  SUMMARY:             600
+  RECENT_CHAPTERS:    2000
+  RESERVE:             600
 ```
-
-## 性能优化
-
-### 1. 批量嵌入
-- 支持批量生成嵌入向量（每次最多 8 个文本）
-- 减少网络请求和计算开销
-
-### 2. 索引缓存
-- 向量服务实例缓存（`getVectorService`）
-- 避免重复初始化模型
-
-### 3. 增量更新
-- 支持单个章节的索引更新
-- 无需重建整个索引
-
-### 4. 本地存储
-- 所有数据存储在 IndexedDB
-- 首次使用后无需重新下载模型
 
 ## 使用场景
 
-### 场景 1：长篇小说连贯性维护
-
-**问题**: 100+ 章节后，AI 难以记住所有细节
-
-**解决方案**:
-1. 启用向量检索
-2. 写新章节时，自动检索相关历史内容
-3. 将相关内容注入上下文，确保连贯性
+### 场景 1：Graph-Guided 长篇连贯性维护
 
 ```typescript
-// 自动注入相关上下文
-const context = await buildChapterContext(project, newChapter, memory, vectorConfig)
-// context.vectorContext 包含：
-// - 相关的章节内容（场景、人物、事件）
-// - 相关的人物设定
-// - 相关的世界观设定
-// - 相关的剧情线索
+// 写新章节时，自动检索相关历史内容并注入上下文
+const context = await vectorStore.retrieveRelevantContext(
+  currentChapter,
+  project,
+  activeEntityNames  // 从 Sandbox 图获取当前活跃实体
+)
+// context 包含：
+// - 与当前活跃实体相关的历史章节片段（Entity Name Boost）
+// - 按时间衰减排序（近处章节权重更高）
+// - 不包含设定类信息（已由 Entity 图直接注入）
 ```
 
 ### 场景 2：伏笔和细节查询
 
-**问题**: 需要确认某个伏笔是否已经埋下
-
-**解决方案**:
 ```typescript
-const results = await vectorService.search('青云宗的秘密', 10, {
-  minScore: 0.5,
-  filter: (meta) => meta.type === 'plot' || meta.type === 'chapter'
-})
-// 返回所有相关章节和剧情线
+// 直接搜索章节正文
+const results = await vectorStore.search(
+  'project-id',
+  '青云宗的秘密',
+  10,
+  0.5
+)
+// 返回所有相关章节片段
 ```
 
-### 场景 3：人物关系追踪
+### 场景 3：章节索引更新
 
-**问题**: 人物关系复杂，需要查询特定人物的所有出场
-
-**解决方案**:
 ```typescript
-const results = await vectorService.search('苏婉儿', 20, {
-  filter: (meta) => meta.type === 'chapter'
-})
-// 返回所有包含苏婉儿的章节
+// 章节编辑完成后，增量更新索引
+await vectorStore.indexChapter(
+  'project-id',
+  'chapter-id',
+  chapterChunks
+)
 ```
 
-## 测试
+## 与 V4 的差异
 
-### 运行测试
-
-在浏览器控制台执行：
-
-```javascript
-// 导入测试函数
-import { testVectorService } from '@/utils/test-vector'
-
-// 运行测试
-await testVectorService()
-```
-
-### 测试内容
-
-1. 创建测试项目和向量服务
-2. 索引项目数据（世界观、人物、章节）
-3. 执行语义搜索测试（5个查询）
-4. 测试智能上下文检索
-5. 测试上下文构建器集成
-6. 清理测试数据
-
-## 最佳实践
-
-### 1. 选择合适的嵌入模型
-
-| 场景 | 推荐模型 | 原因 |
-|------|----------|------|
-| 中文小说 | local + multilingual | 多语言支持，免费 |
-| 英文小说 | local + all-MiniLM-L6-v2 | 质量好，速度快 |
-| 高质量要求 | openai + text-embedding-3-large | 最高质量 |
-| 成本敏感 | local + all-MiniLM-L6-v2 | 完全免费 |
-
-### 2. 调整检索参数
-
-| 参数 | 推荐值 | 说明 |
-|------|--------|------|
-| topK | 5-10 | 太少遗漏信息，太多噪音增加 |
-| minScore | 0.5-0.7 | 低于 0.5 相关性较差 |
-| vectorWeight | 0.7 | 向量搜索权重略高于关键词 |
-
-### 3. 索引时机
-
-- **首次启用**: 建立完整索引（可能需要几分钟）
-- **新增章节**: 索引新章节（增量更新）
-- **修改内容**: 重新索引该章节
-- **大量修改**: 重建整个索引
-
-### 4. 存储管理
-
-- 每个 100 章节的项目约需 10-20MB 存储空间
-- IndexedDB 有浏览器限制（通常 50MB-500MB）
-- 定期清理不需要的项目索引
+| 特性 | V4 (IndexedDB/ChromaDB) | V5 (Graph-Guided RAG) |
+|------|------------------------|----------------------|
+| 向量后端 | IndexedDB / ChromaDB | instant-distance (Rust HNSW) |
+| 存储 | 浏览器 IndexedDB | SQLite BLOB |
+| 集合数 | 多集合（worldview, character, plot, chapter） | 单集合（chapter_content） |
+| 嵌入模型 | all-MiniLM-L6-v2 (384d) | bge-small-zh-v1.5 (512d) |
+| 设定检索 | 向量检索 | Entity/StateEvent 图直接注入 |
+| 重排 | 无 | Entity Name Boost + Time Decay |
+| 前端 API | vectorService.ts | useVectorStore (Pinia) |
 
 ## 故障排除
 
-### 问题 1: 模型下载失败
+### 问题 1: 索引构建失败
 
-**原因**: 网络问题或浏览器限制
-
-**解决方案**:
-1. 检查网络连接
-2. 清除浏览器缓存后重试
-3. 使用 OpenAI API 作为替代方案
-
-### 问题 2: 索引速度慢
-
-**原因**: 内容较多或模型计算量大
+**原因**: 章节内容为空或分块参数异常
 
 **解决方案**:
-1. 使用更小/更快的模型（all-MiniLM-L6-v2）
-2. 分批索引（不要一次性索引所有内容）
-3. 使用 OpenAI API（云端计算，更快）
+1. 检查章节内容是否已保存
+2. 重建完整索引：`vectorStore.buildIndex(projectId)`
+3. 查看 Tauri 后端日志
 
-### 问题 3: 检索结果不相关
+### 问题 2: 检索结果不相关
 
-**原因**: 相似度阈值设置不当或模型不匹配
+**原因**: 活跃实体名称未正确传递
 
 **解决方案**:
-1. 提高 `minScore` 阈值（如 0.7）
-2. 尝试不同的嵌入模型
-3. 使用混合搜索（调整 `vectorWeight`）
+1. 确认 Sandbox 图中实体已正确关联到当前章节
+2. 检查 `activeEntityNames` 是否包含当前出场角色
+3. 调整 `minScore` 阈值
 
-### 问题 4: Token 超限
+### 问题 3: Token 超限
 
 **原因**: 向量检索返回内容过多
 
 **解决方案**:
 1. 降低 `topK` 值
 2. 提高 `minScore` 阈值
-3. 使用 `filter` 过滤文档类型
-
-## 未来优化
-
-### 短期优化（已规划）
-- [ ] 支持自定义嵌入模型
-- [ ] 添加索引状态监控
-- [ ] 优化大批量索引性能
-- [ ] 支持索引导出/导入
-
-### 长期优化（计划中）
-- [ ] 集成 LanceDB（更强大的向量数据库）
-- [ ] 支持多模态检索（图片、音频）
-- [ ] 自动更新索引（章节修改时）
-- [ ] 跨项目检索（查找相似剧情）
+3. VectorMiddleware 会自动按 Token 预算截断
 
 ## 相关文件
 
-- **类型定义**: `src/types/index.ts` (VectorServiceConfig, VectorDocumentMetadata, VectorSearchResult)
-- **嵌入服务**: `src/utils/embeddings.ts`
-- **向量存储**: `src/utils/vectorStore.ts`
-- **向量服务**: `src/utils/vectorService.ts`
-- **上下文构建**: `src/utils/contextBuilder.ts`
-- **UI 配置**: `src/components/ProjectConfig.vue`
-- **测试文件**: `src/utils/test-vector.ts`
+- **Rust 向量后端**: `src-tauri/src/db/vector.rs`
+- **Pinia Store**: `src/stores/vectorStore.ts`
+- **上下文 Pipeline**: `src/utils/contextPipeline.ts`
+- **Entity Store**: `src/stores/sandboxStore.ts`
+- **类型定义**: `src/types/index.ts`
 
-## 贡献
+---
 
-欢迎提交 Issue 和 Pull Request！
-
-### 开发指南
-
-1. Fork 项目
-2. 创建特性分支 (`git checkout -b feature/vector-improvement`)
-3. 提交更改 (`git commit -m 'Add vector improvement'`)
-4. 推送到分支 (`git push origin feature/vector-improvement`)
-5. 创建 Pull Request
-
-## 许可证
-
-MIT License
+**最后更新:** 2026-04-13

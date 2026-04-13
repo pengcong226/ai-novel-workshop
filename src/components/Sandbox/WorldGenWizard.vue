@@ -34,7 +34,7 @@ import { useSandboxStore } from '@/stores/sandbox';
 import { useProjectStore } from '@/stores/project';
 import { useAIStore } from '@/stores/ai';
 import { v4 as uuidv4 } from 'uuid';
-import type { ChatMessage, ChatRequest } from "@/types/ai";
+import type { ChatMessage } from "@/types/ai";
 
 const sandboxStore = useSandboxStore();
 const projectStore = useProjectStore();
@@ -121,8 +121,8 @@ async function sendMessage() {
         { role: 'system', content: 'You are a master world builder. Bulk generate novel entities as requested.' },
         ...messages.value
       ],
-      { type: "check", complexity: "medium", priority: "quality" } as any,
-      { maxTokens: 4000, response_format: { type: "json_schema", json_schema: schemaPayload } } as Partial<ChatRequest>
+      { type: "check", complexity: "medium", priority: "quality" },
+      { maxTokens: 4000, response_format: { type: "json_schema", json_schema: schemaPayload } }
     );
 
     const cleanContent = res.content.replace(/```json\n?|```/g, '').trim();

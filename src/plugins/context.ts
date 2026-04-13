@@ -8,6 +8,7 @@ import { useProjectStore } from '@/stores/project'
 import { useAIStore } from '@/stores/ai'
 import { ElMessage, ElMessageBox, ElNotification } from 'element-plus'
 import type { WorldSetting, Outline } from '@/types'
+import { getLogger } from '@/utils/logger'
 import type {
   PluginContext,
   DialogOptions,
@@ -27,6 +28,8 @@ import type {
   AIActionHandlerContribution,
   ThemeExtension
 } from './types'
+
+const logger = getLogger('plugin:context')
 
 /**
  * 创建插件上下文
@@ -152,7 +155,7 @@ export function createPluginContext(
       const projectStore = useProjectStore()
       const projectId = projectStore.currentProject?.id
       if (!projectId) throw new Error('未打开项目')
-      const { getVectorService } = await import('@/utils/vectorService')
+      const { getVectorService } = await import('@/services/vector-service')
       const vectorService = await getVectorService(projectId ? { projectId } as any : undefined)
       return await vectorService.vectorSearch(query.query, {
         topK: query.topK,
@@ -166,7 +169,7 @@ export function createPluginContext(
       const projectStore = useProjectStore()
       const projectId = projectStore.currentProject?.id
       if (!projectId) throw new Error('未打开项目')
-      const { getVectorService } = await import('@/utils/vectorService')
+      const { getVectorService } = await import('@/services/vector-service')
       const vectorService = await getVectorService(projectId ? { projectId } as any : undefined)
       // 使用 V5 新接口
       await vectorService.addDocument({
@@ -274,7 +277,7 @@ export function createPluginContext(
           try {
             handler(payload)
           } catch (error) {
-            console.error(`插件 ${pluginId} 事件处理器错误:`, error)
+            logger.error(`插件 ${pluginId} 事件处理器错误:`, error)
           }
         })
       }
@@ -288,52 +291,52 @@ export function createPluginContext(
    */
   const registerAPI = {
     aiProvider(contribution: AIProviderContribution) {
-      console.warn(`插件 ${pluginId} 注册AI Provider: ${contribution.id}`)
+      logger.warn(`插件 ${pluginId} 注册AI Provider: ${contribution.id}`)
       // 实际注册逻辑由PluginManager提供
     },
 
     exporter(contribution: ExporterContribution) {
-      console.warn(`插件 ${pluginId} 注册导出器: ${contribution.id}`)
+      logger.warn(`插件 ${pluginId} 注册导出器: ${contribution.id}`)
       // 实际注册逻辑由PluginManager提供
     },
 
     importer(contribution: ImporterContribution) {
-      console.warn(`插件 ${pluginId} 注册导入器: ${contribution.id}`)
+      logger.warn(`插件 ${pluginId} 注册导入器: ${contribution.id}`)
       // 实际注册逻辑由PluginManager提供
     },
 
     processor(contribution: ProcessorContribution) {
-      console.warn(`插件 ${pluginId} 注册处理器: ${contribution.id}`)
+      logger.warn(`插件 ${pluginId} 注册处理器: ${contribution.id}`)
       // 实际注册逻辑由PluginManager提供
     },
 
     menuItem(contribution: MenuItemContribution) {
-      console.warn(`插件 ${pluginId} 注册菜单项: ${contribution.id}`)
+      logger.warn(`插件 ${pluginId} 注册菜单项: ${contribution.id}`)
       // 实际注册逻辑由PluginManager提供
     },
 
     sidebarPanel(contribution: SidebarPanelContribution) {
-      console.warn(`插件 ${pluginId} 注册侧边栏面板: ${contribution.id}`)
+      logger.warn(`插件 ${pluginId} 注册侧边栏面板: ${contribution.id}`)
       // 实际注册逻辑由PluginManager提供
     },
 
     toolbarButton(contribution: ToolbarButtonContribution) {
-      console.warn(`插件 ${pluginId} 注册工具栏按钮: ${contribution.id}`)
+      logger.warn(`插件 ${pluginId} 注册工具栏按钮: ${contribution.id}`)
       // 实际注册逻辑由PluginManager提供
     },
 
     quickCommand(contribution: QuickCommandContribution) {
-      console.warn(`插件 ${pluginId} 注册快捷命令: ${contribution.id}`)
+      logger.warn(`插件 ${pluginId} 注册快捷命令: ${contribution.id}`)
       // 实际注册逻辑由PluginManager提供
     },
 
     aiActionHandler(contribution: AIActionHandlerContribution) {
-      console.warn(`插件 ${pluginId} 注册AI动作处理器: ${contribution.type}`)
+      logger.warn(`插件 ${pluginId} 注册AI动作处理器: ${contribution.type}`)
       // 实际注册逻辑由PluginManager提供
     },
 
     theme(contribution: ThemeExtension) {
-      console.warn(`插件 ${pluginId} 注册主题: ${contribution.id}`)
+      logger.warn(`插件 ${pluginId} 注册主题: ${contribution.id}`)
       // 实际注册逻辑由PluginManager提供
     }
   }
@@ -343,16 +346,16 @@ export function createPluginContext(
    */
   const utilsAPI = {
     log(message: string, level: 'info' | 'warn' | 'error' = 'info') {
-      const prefix = `[Plugin: ${pluginId}]`
+      const prefix = `[Plugin: ${pluginId}] `
       switch (level) {
         case 'error':
-          console.error(prefix, message)
+          logger.error(prefix + message)
           break
         case 'warn':
-          console.warn(prefix, message)
+          logger.warn(prefix + message)
           break
         default:
-          console.log(prefix, message)
+          logger.info(prefix + message)
       }
     },
 

@@ -1,6 +1,6 @@
 import type { Project, Chapter } from '@/types';
 import type { MemorySystem } from '../tableMemory';
-import type { VectorService } from '../vectorService';
+import type { VectorService } from '@/services/vector-service';
 import { countTokens as countLLMTokens } from '../llm/tokenizer';
 
 /**

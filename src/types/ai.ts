@@ -176,7 +176,10 @@ export interface ChatRequest {
   /** 额外参数 */
   metadata?: Record<string, unknown>;
   /** 结构化输出（JSON Schema） */
-  response_format?: { type: 'json_schema' | 'json_object', json_schema?: any };
+  response_format?: {
+    type: 'json_schema' | 'json_object'
+    json_schema?: { name: string; description?: string; strict?: boolean; schema?: Record<string, unknown>; [key: string]: unknown }
+  };
 }
 
 /**

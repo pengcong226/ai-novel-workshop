@@ -5,6 +5,9 @@
  */
 
 import type { PluginManifest } from './types'
+import { getLogger } from '@/utils/logger'
+
+const logger = getLogger('plugin:loader')
 
 /**
  * 插件来源类型
@@ -114,10 +117,10 @@ export class PluginLoader {
       // 本地文件没有模块实现，返回空模块
       const module = {
         activate: async () => {
-          console.log(`插件 ${manifest.id} 激活（无模块实现）`)
+          logger.info(`插件 ${manifest.id} 激活（无模块实现）`)
         },
         deactivate: async () => {
-          console.log(`插件 ${manifest.id} 停用（无模块实现）`)
+          logger.info(`插件 ${manifest.id} 停用（无模块实现）`)
         }
       }
 
@@ -154,10 +157,10 @@ export class PluginLoader {
       // 返回空模块
       const module = {
         activate: async () => {
-          console.log(`插件 ${manifest.id} 激活（无模块实现）`)
+          logger.info(`插件 ${manifest.id} 激活（无模块实现）`)
         },
         deactivate: async () => {
-          console.log(`插件 ${manifest.id} 停用（无模块实现）`)
+          logger.info(`插件 ${manifest.id} 停用（无模块实现）`)
         }
       }
 
@@ -388,7 +391,7 @@ export class PluginLoader {
     if (manifest.contributes) {
       return {
         activate: async (context: any) => {
-          console.log(`插件 ${manifest.id} 激活（基于贡献点）`)
+          logger.info(`插件 ${manifest.id} 激活（基于贡献点）`)
 
           // 注册所有贡献点
           const contributes = manifest.contributes
@@ -454,11 +457,11 @@ export class PluginLoader {
         },
 
         deactivate: async () => {
-          console.log(`插件 ${manifest.id} 停用（基于贡献点）`)
+          logger.info(`插件 ${manifest.id} 停用（基于贡献点）`)
         },
 
         uninstall: async () => {
-          console.log(`插件 ${manifest.id} 卸载（基于贡献点）`)
+          logger.info(`插件 ${manifest.id} 卸载（基于贡献点）`)
         }
       }
     }
@@ -466,10 +469,10 @@ export class PluginLoader {
     // 返回空模块
     return {
       activate: async () => {
-        console.log(`插件 ${manifest.id} 激活（空模块）`)
+        logger.info(`插件 ${manifest.id} 激活（空模块）`)
       },
       deactivate: async () => {
-        console.log(`插件 ${manifest.id} 停用（空模块）`)
+        logger.info(`插件 ${manifest.id} 停用（空模块）`)
       }
     }
   }
@@ -489,7 +492,7 @@ export class PluginLoader {
     // 检查依赖
     if (manifest.dependencies) {
       // 在实际实现中，应该检查依赖插件是否已安装
-      console.log('需要检查依赖:', manifest.dependencies)
+      logger.info('需要检查依赖:', manifest.dependencies)
     }
 
     return {

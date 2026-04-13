@@ -5,6 +5,9 @@
  */
 
 import type { QuickCommandContribution } from '../types'
+import { getLogger } from '@/utils/logger'
+
+const logger = getLogger('plugin:registry:quick-command')
 
 /**
  * 快捷命令注册表
@@ -19,11 +22,11 @@ export class QuickCommandRegistry {
    */
   register(contribution: QuickCommandContribution): void {
     if (this.commands.has(contribution.id)) {
-      console.warn(`快捷命令 ${contribution.id} 已注册，将被覆盖`)
+      logger.warn(`快捷命令 ${contribution.id} 已注册，将被覆盖`)
     }
 
     this.commands.set(contribution.id, contribution)
-    console.log(`✅ 快捷命令 ${contribution.id} 已注册`)
+    logger.info(`✅ 快捷命令 ${contribution.id} 已注册`)
   }
 
   /**
@@ -31,7 +34,7 @@ export class QuickCommandRegistry {
    */
   unregister(id: string): void {
     this.commands.delete(id)
-    console.log(`✅ 快捷命令 ${id} 已注销`)
+    logger.info(`✅ 快捷命令 ${id} 已注销`)
   }
 
   /**
@@ -91,15 +94,15 @@ export class QuickCommandRegistry {
     }
 
     if (!command.handler) {
-      console.warn(`快捷命令 ${id} 没有处理器`)
+      logger.warn(`快捷命令 ${id} 没有处理器`)
       return
     }
 
     try {
       await command.handler()
-      console.log(`✅ 快捷命令 ${id} 执行成功`)
+      logger.info(`✅ 快捷命令 ${id} 执行成功`)
     } catch (error) {
-      console.error(`快捷命令 ${id} 执行失败:`, error)
+      logger.error(`快捷命令 ${id} 执行失败:`, error)
       throw error
     }
   }
@@ -123,6 +126,6 @@ export class QuickCommandRegistry {
    */
   clear(): void {
     this.commands.clear()
-    console.log('✅ 所有快捷命令已清除')
+    logger.info('✅ 所有快捷命令已清除')
   }
 }

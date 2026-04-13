@@ -62,12 +62,22 @@
 
 <script setup lang="ts">
 import { computed } from 'vue'
+import type { PropType } from 'vue'
+import type { Character } from '@/types'
+import type { WorldbookEntry } from '@/types/worldbook'
+
+interface ChapterFormData {
+  number?: number
+  generatedBy?: 'ai' | 'manual' | 'hybrid'
+  aiSuggestions?: string[]
+  [key: string]: unknown
+}
 
 const props = defineProps<{
   activeTab: string
-  characters: any[]
-  worldbook: any[]
-  chapterForm: any
+  characters: Character[]
+  worldbook: WorldbookEntry[]
+  chapterForm: ChapterFormData
 }>()
 
 const emit = defineEmits(['update:activeTab', 'update:chapterForm'])

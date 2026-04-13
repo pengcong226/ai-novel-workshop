@@ -5,6 +5,9 @@
  */
 
 import type { SidebarPanelContribution } from '../types'
+import { getLogger } from '@/utils/logger'
+
+const logger = getLogger('plugin:registry:sidebar')
 
 /**
  * 侧边栏面板注册表
@@ -19,11 +22,11 @@ export class SidebarPanelRegistry {
    */
   register(contribution: SidebarPanelContribution): void {
     if (this.panels.has(contribution.id)) {
-      console.warn(`侧边栏面板 ${contribution.id} 已注册，将被覆盖`)
+      logger.warn(`侧边栏面板 ${contribution.id} 已注册，将被覆盖`)
     }
 
     this.panels.set(contribution.id, contribution)
-    console.log(`✅ 侧边栏面板 ${contribution.id} 已注册`)
+    logger.info(`✅ 侧边栏面板 ${contribution.id} 已注册`)
   }
 
   /**
@@ -31,7 +34,7 @@ export class SidebarPanelRegistry {
    */
   unregister(id: string): void {
     this.panels.delete(id)
-    console.log(`✅ 侧边栏面板 ${id} 已注销`)
+    logger.info(`✅ 侧边栏面板 ${id} 已注销`)
   }
 
   /**
@@ -108,6 +111,6 @@ export class SidebarPanelRegistry {
    */
   clear(): void {
     this.panels.clear()
-    console.log('✅ 所有侧边栏面板已清除')
+    logger.info('✅ 所有侧边栏面板已清除')
   }
 }

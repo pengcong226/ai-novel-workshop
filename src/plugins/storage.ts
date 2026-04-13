@@ -5,6 +5,9 @@
  */
 
 import type { PluginManifest } from './types'
+import { getLogger } from '@/utils/logger'
+
+const logger = getLogger('plugin:storage')
 
 /**
  * 插件存储类
@@ -28,9 +31,9 @@ export class PluginStorage {
       }
 
       localStorage.setItem(this.STORAGE_KEY, JSON.stringify(plugins))
-      console.log(`✅ 插件 ${manifest.id} 信息已保存`)
+      logger.info(`✅ 插件 ${manifest.id} 信息已保存`)
     } catch (error) {
-      console.error(`保存插件 ${manifest.id} 信息失败:`, error)
+      logger.error(`保存插件 ${manifest.id} 信息失败:`, error)
       throw error
     }
   }
@@ -48,7 +51,7 @@ export class PluginStorage {
       const plugins = JSON.parse(stored)
       return plugins
     } catch (error) {
-      console.error('加载已安装插件失败:', error)
+      logger.error('加载已安装插件失败:', error)
       return []
     }
   }
@@ -65,9 +68,9 @@ export class PluginStorage {
       // 同时删除插件设置
       await this.removePluginSettings(pluginId)
 
-      console.log(`✅ 插件 ${pluginId} 信息已删除`)
+      logger.info(`✅ 插件 ${pluginId} 信息已删除`)
     } catch (error) {
-      console.error(`删除插件 ${pluginId} 信息失败:`, error)
+      logger.error(`删除插件 ${pluginId} 信息失败:`, error)
       throw error
     }
   }
@@ -80,9 +83,9 @@ export class PluginStorage {
       const allSettings = await this.loadAllPluginSettings()
       allSettings[pluginId] = settings
       localStorage.setItem(this.SETTINGS_KEY, JSON.stringify(allSettings))
-      console.log(`✅ 插件 ${pluginId} 设置已保存`)
+      logger.info(`✅ 插件 ${pluginId} 设置已保存`)
     } catch (error) {
-      console.error(`保存插件 ${pluginId} 设置失败:`, error)
+      logger.error(`保存插件 ${pluginId} 设置失败:`, error)
       throw error
     }
   }
@@ -95,7 +98,7 @@ export class PluginStorage {
       const allSettings = await this.loadAllPluginSettings()
       return allSettings[pluginId] || {}
     } catch (error) {
-      console.error(`加载插件 ${pluginId} 设置失败:`, error)
+      logger.error(`加载插件 ${pluginId} 设置失败:`, error)
       return {}
     }
   }
@@ -112,7 +115,7 @@ export class PluginStorage {
 
       return JSON.parse(stored)
     } catch (error) {
-      console.error('加载所有插件设置失败:', error)
+      logger.error('加载所有插件设置失败:', error)
       return {}
     }
   }
@@ -125,9 +128,9 @@ export class PluginStorage {
       const allSettings = await this.loadAllPluginSettings()
       delete allSettings[pluginId]
       localStorage.setItem(this.SETTINGS_KEY, JSON.stringify(allSettings))
-      console.log(`✅ 插件 ${pluginId} 设置已删除`)
+      logger.info(`✅ 插件 ${pluginId} 设置已删除`)
     } catch (error) {
-      console.error(`删除插件 ${pluginId} 设置失败:`, error)
+      logger.error(`删除插件 ${pluginId} 设置失败:`, error)
       throw error
     }
   }
@@ -144,7 +147,7 @@ export class PluginStorage {
       const newSettings = { ...currentSettings, ...updates }
       await this.savePluginSettings(pluginId, newSettings)
     } catch (error) {
-      console.error(`更新插件 ${pluginId} 设置失败:`, error)
+      logger.error(`更新插件 ${pluginId} 设置失败:`, error)
       throw error
     }
   }
@@ -172,9 +175,9 @@ export class PluginStorage {
     try {
       localStorage.removeItem(this.STORAGE_KEY)
       localStorage.removeItem(this.SETTINGS_KEY)
-      console.log('✅ 所有插件数据已清除')
+      logger.info('✅ 所有插件数据已清除')
     } catch (error) {
-      console.error('清除所有插件数据失败:', error)
+      logger.error('清除所有插件数据失败:', error)
       throw error
     }
   }
@@ -199,7 +202,7 @@ export class PluginStorage {
 
       return JSON.stringify(config, null, 2)
     } catch (error) {
-      console.error(`导出插件 ${pluginId} 配置失败:`, error)
+      logger.error(`导出插件 ${pluginId} 配置失败:`, error)
       throw error
     }
   }
@@ -233,7 +236,7 @@ export class PluginStorage {
         settings: config.settings || {}
       }
     } catch (error) {
-      console.error('导入插件配置失败:', error)
+      logger.error('导入插件配置失败:', error)
       throw error
     }
   }

@@ -14,7 +14,7 @@ import {
   type MemorySystem
 } from './tableMemory'
 import { sanitizeForPrompt, validateInput } from './inputSanitizer'
-import { getVectorService, type VectorService } from './vectorService'
+import { getVectorService, type VectorService } from '@/services/vector-service'
 import { countTokens as countLLMTokens } from './llm/tokenizer'
 import { ContextPipeline, type ContextPayload } from './context/pipeline'
 import {

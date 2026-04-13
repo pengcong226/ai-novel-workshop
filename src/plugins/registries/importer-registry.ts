@@ -6,6 +6,9 @@
 
 import type { ImporterContribution, ImportOptions, ImportResult } from '../types'
 import type { ProcessorRegistry } from './processor-registry'
+import { getLogger } from '@/utils/logger'
+
+const logger = getLogger('plugin:registry:importer')
 
 /**
  * 导入器注册表
@@ -28,11 +31,11 @@ export class ImporterRegistry {
    */
   register(contribution: ImporterContribution): void {
     if (this.importers.has(contribution.id)) {
-      console.warn(`导入器 ${contribution.id} 已注册，将被覆盖`)
+      logger.warn(`导入器 ${contribution.id} 已注册，将被覆盖`)
     }
 
     this.importers.set(contribution.id, contribution)
-    console.log(`✅ 导入器 ${contribution.id} 已注册`)
+    logger.info(`✅ 导入器 ${contribution.id} 已注册`)
   }
 
   /**
@@ -40,7 +43,7 @@ export class ImporterRegistry {
    */
   unregister(id: string): void {
     this.importers.delete(id)
-    console.log(`✅ 导入器 ${id} 已注销`)
+    logger.info(`✅ 导入器 ${id} 已注销`)
   }
 
   /**
@@ -101,13 +104,13 @@ export class ImporterRegistry {
     }
 
     try {
-      console.log(`开始导入: ${importerId}, 文件: ${file.name}`)
+      logger.info(`开始导入: ${importerId}, 文件: ${file.name}`)
 
       let processedFile = file
 
       // 执行 pre-import 插件管道
       if (this.processorRegistry) {
-        console.log(`执行 pre-import 管道`)
+        logger.info(`执行 pre-import 管道`)
         processedFile = (await this.processorRegistry.processPipeline(
           'pre-import',
           processedFile,
@@ -117,7 +120,7 @@ export class ImporterRegistry {
 
       // 预处理
       if (importer.preprocess) {
-        console.log(`执行预处理: ${importerId}`)
+        logger.info(`执行预处理: ${importerId}`)
         const text = await processedFile.text()
         const processedText = await importer.preprocess(text)
         processedFile = new File([processedText], processedFile.name, { type: processedFile.type })
@@ -128,14 +131,14 @@ export class ImporterRegistry {
 
       // 后处理
       if (importer.postprocess) {
-        console.log(`执行后处理: ${importerId}`)
+        logger.info(`执行后处理: ${importerId}`)
         const processedResult = await importer.postprocess(result.project)
         result.project = processedResult
       }
 
       // 执行 post-import 插件管道
       if (this.processorRegistry) {
-        console.log(`执行 post-import 管道`)
+        logger.info(`执行 post-import 管道`)
         const postResult = await this.processorRegistry.processPipeline(
           'post-import',
           result,
@@ -146,10 +149,10 @@ export class ImporterRegistry {
         }
       }
 
-      console.log(`✅ 导入成功: ${importerId}`)
+      logger.info(`✅ 导入成功: ${importerId}`)
       return result
     } catch (error) {
-      console.error(`导入失败: ${importerId}`, error)
+      logger.error(`导入失败: ${importerId}`, error)
       throw error
     }
   }
@@ -174,7 +177,7 @@ export class ImporterRegistry {
 
     // 使用第一个支持的导入器
     const importer = importers[0]
-    console.log(`自动选择导入器: ${importer.id}`)
+    logger.info(`自动选择导入器: ${importer.id}`)
 
     return await this.import(importer.id, file, options)
   }
@@ -224,6 +227,6 @@ export class ImporterRegistry {
    */
   clear(): void {
     this.importers.clear()
-    console.log('✅ 所有导入器已清除')
+    logger.info('✅ 所有导入器已清除')
   }
 }

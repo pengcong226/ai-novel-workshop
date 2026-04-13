@@ -526,9 +526,12 @@ import {
 } from '@/utils/llm'
 import { v4 as uuidv4 } from 'uuid'
 import { encryptApiKey, decryptApiKey } from '@/utils/crypto'
+import { getLogger } from '@/utils/logger'
 import AnalysisProgressComponent from './novel-import/AnalysisProgress.vue'
 import ChapterPreviewComponent from './novel-import/ChapterPreview.vue'
 import CharacterPreviewComponent from './novel-import/CharacterPreview.vue'
+
+const logger = getLogger('novel-import')
 
 interface Props {
   modelValue: boolean
@@ -538,7 +541,7 @@ const _props = defineProps<Props>()
 
 const emit = defineEmits<{
   (e: 'update:modelValue', value: boolean): void
-  (e: 'imported', project: any): void
+  (e: 'imported', project: unknown): void
 }>()
 
 const currentStep = ref(0)
@@ -547,10 +550,38 @@ const importing = ref(false)
 const previewTab = ref('info')
 const detectedPattern = ref<string>('')
 
+interface ImportResultData {
+  project: Partial<Project> & { stats?: ImportStatsData; author?: string; worldSetting?: unknown }
+  stats?: ImportStatsData
+  qualityMetrics?: QualityMetricsData
+  continuationSuggestions?: unknown[]
+  [key: string]: unknown
+}
+
+interface QualityMetricsData {
+  overallScore: number
+  dimensions: Record<string, number>
+  [key: string]: unknown
+}
+
+interface ImportStatsData {
+  totalWords: number
+  totalChapters: number
+  avgWordsPerChapter: number
+  tokenUsage?: { input: number; output: number }
+  [key: string]: unknown
+}
+
+interface PreviewData extends Partial<Project> {
+  stats?: ImportStatsData
+  author?: string
+  worldSetting?: unknown
+}
+
 const uploadRef = ref()
 const importResult = ref<any>(null)
-const qualityMetrics = ref<any>(null)
-const continuationSuggestions = ref<any[]>([])
+const qualityMetrics = ref<QualityMetricsData | null>(null)
+const continuationSuggestions = ref<unknown[]>([])
 
 const importForm = ref({
   title: '',
@@ -602,7 +633,7 @@ const progress = ref({
   message: '准备处理...'
 })
 
-const previewData = ref<(Partial<Project> & { stats?: any, author?: string, worldSetting?: any }) | null>(null)
+const previewData = ref<PreviewData | null>(null)
 
 // 是否可以进入下一步
 const canNext = computed(() => {
@@ -646,7 +677,7 @@ function saveTempConfig() {
     ElMessage.success('临时配置已保存')
   } catch (error) {
     ElMessage.error('保存配置失败')
-    console.error('[导入] 保存临时配置失败:', error)
+    logger.error('保存临时配置失败:', error)
   }
 }
 
@@ -662,13 +693,13 @@ function loadTempConfig() {
         baseURL: config.baseURL || '',
         model: config.model || ''
       }
-      console.log('[导入] 已加载保存的临时配置')
+      logger.info('已加载保存的临时配置')
     } else {
       ElMessage.info('没有保存的临时配置')
     }
   } catch (error) {
     ElMessage.error('加载配置失败')
-    console.error('[导入] 加载临时配置失败:', error)
+    logger.error('加载临时配置失败:', error)
   }
 }
 
@@ -685,27 +716,27 @@ function clearTempConfig() {
     ElMessage.success('已清除临时配置')
   } catch (error) {
     ElMessage.error('清除配置失败')
-    console.error('[导入] 清除临时配置失败:', error)
+    logger.error('清除临时配置失败:', error)
   }
 }
 
 // 检查导入识别模型配置
 function checkImportModel() {
   try {
-    console.log('[导入] 开始检查AI配置...')
+    logger.info('开始检查AI配置...')
 
     // 如果启用了临时配置，检查临时配置
     if (useTempConfig.value && tempLLMConfig.value.apiKey && tempLLMConfig.value.model) {
       hasImportModel.value = true
-      console.log('[导入] ✓ 使用临时LLM配置')
+      logger.info('✓ 使用临时LLM配置')
       return
     }
 
     // 1. 优先检查当前项目配置
     const project = projectStore.currentProject
-    console.log('[导入] 当前项目:', project?.title || 'null')
-    console.log('[导入] 项目配置:', project?.config ? '存在' : 'null')
-    console.log('[导入] 导入模型ID:', project?.config?.extractorModel || 'null')
+    logger.info(`当前项目: ${project?.title || 'null'}`)
+    logger.info(`项目配置: ${project?.config ? '存在' : 'null'}`)
+    logger.info(`导入模型ID: ${project?.config?.extractorModel || 'null'}`)
 
     if (project?.config?.extractorModel) {
       const config = project.config
@@ -717,7 +748,7 @@ function checkImportModel() {
         const model = provider.models?.find((m: any) => m.id === modelId && m.isEnabled)
         if (model) {
           hasImportModel.value = true
-          console.log('[导入] ✓ 已配置项目AI模型:', provider.name, '-', model.name)
+          logger.info(`✓ 已配置项目AI模型: ${provider.name} - ${model.name}`)
           return
         }
       }
@@ -725,38 +756,38 @@ function checkImportModel() {
 
     // 2. 检查全局配置
     const globalConfig = projectStore.globalConfig
-    console.log('[导入] 全局配置:', globalConfig ? '存在' : 'null')
-    console.log('[导入] 全局导入模型ID:', globalConfig?.extractorModel || 'null')
-    console.log('[导入] 全局providers数量:', globalConfig?.providers?.length || 0)
+    logger.info(`全局配置: ${globalConfig ? '存在' : 'null'}`)
+    logger.info(`全局导入模型ID: ${globalConfig?.extractorModel || 'null'}`)
+    logger.info(`全局providers数量: ${globalConfig?.providers?.length || 0}`)
 
     if (globalConfig) {
       // 如果有指定的导入模型，使用指定的
       if (globalConfig.extractorModel) {
         const modelId = globalConfig.extractorModel
-        console.log('[导入] 查找全局配置模型ID:', modelId)
+        logger.info(`查找全局配置模型ID: ${modelId}`)
 
         for (const provider of globalConfig.providers || []) {
-          console.log('[导入] 检查provider:', provider.name, 'enabled:', provider.isEnabled)
+          logger.info(`检查provider: ${provider.name}, enabled: ${provider.isEnabled}`)
           if (!provider.isEnabled) continue
 
           const model = provider.models?.find((m: any) => m.id === modelId && m.isEnabled)
           if (model) {
             hasImportModel.value = true
-            console.log('[导入] ✓ 已配置全局AI模型:', provider.name, '-', model.name)
+            logger.info(`✓ 已配置全局AI模型: ${provider.name} - ${model.name}`)
             return
           }
         }
       }
 
       // 如果没有指定导入模型，尝试使用第一个可用的模型
-      console.log('[导入] 未指定导入模型，尝试使用第一个可用模型...')
+      logger.info('未指定导入模型，尝试使用第一个可用模型...')
       for (const provider of globalConfig.providers || []) {
         if (!provider.isEnabled) continue
 
         const model = provider.models?.find((m: any) => m.isEnabled)
         if (model) {
           hasImportModel.value = true
-          console.log('[导入] ✓ 自动选择全局AI模型:', provider.name, '-', model.name)
+          logger.info(`✓ 自动选择全局AI模型: ${provider.name} - ${model.name}`)
           return
         }
       }
@@ -765,14 +796,14 @@ function checkImportModel() {
     // 3. 检查临时配置
     if (tempLLMConfig.value.apiKey && tempLLMConfig.value.model) {
       hasImportModel.value = true
-      console.log('[导入] ✓ 使用临时LLM配置')
+      logger.info('✓ 使用临时LLM配置')
       return
     }
 
     hasImportModel.value = false
-    console.log('[导入] ✗ 未配置AI模型')
+    logger.info('✗ 未配置AI模型')
   } catch (error) {
-    console.error('[导入] 检查AI配置失败:', error)
+    logger.error('检查AI配置失败:', error)
     hasImportModel.value = false
   }
 }
@@ -782,7 +813,7 @@ function getProjectAIConfig(): any {
   try {
     // 0. 优先使用临时配置（如果启用）
     if (useTempConfig.value && tempLLMConfig.value.apiKey && tempLLMConfig.value.model) {
-      console.log('[导入] 使用临时LLM配置')
+      logger.info('使用临时LLM配置')
       return {
         enabled: true,
         provider: tempLLMConfig.value.provider,
@@ -797,14 +828,14 @@ function getProjectAIConfig(): any {
     if (project?.config?.extractorModel) {
       const config = project.config
       const modelId = config.extractorModel
-      console.log('[导入] 查找项目模型ID:', modelId)
+      logger.info(`查找项目模型ID: ${modelId}`)
 
       for (const provider of config.providers || []) {
         if (!provider.isEnabled) continue
 
         const model = provider.models?.find((m: any) => m.id === modelId && m.isEnabled)
         if (model) {
-          console.log('[导入] 找到项目模型:', provider.name, '-', model.name)
+          logger.info(`找到项目模型: ${provider.name} - ${model.name}`)
           return {
             enabled: true,
             provider: provider.type === 'anthropic' ? 'claude' :
@@ -823,14 +854,14 @@ function getProjectAIConfig(): any {
       // 如果有指定的导入模型，使用指定的
       if (globalConfig.extractorModel) {
         const modelId = globalConfig.extractorModel
-        console.log('[导入] 查找全局配置模型ID:', modelId)
+        logger.info(`查找全局配置模型ID: ${modelId}`)
 
         for (const provider of globalConfig.providers || []) {
           if (!provider.isEnabled) continue
 
           const model = provider.models?.find((m: any) => m.id === modelId && m.isEnabled)
           if (model) {
-            console.log('[导入] 找到全局配置模型:', provider.name, '-', model.name)
+            logger.info(`找到全局配置模型: ${provider.name} - ${model.name}`)
             return {
               enabled: true,
               provider: provider.type === 'anthropic' ? 'claude' :
@@ -844,13 +875,13 @@ function getProjectAIConfig(): any {
       }
 
       // 如果没有指定导入模型，尝试使用第一个可用的模型
-      console.log('[导入] 尝试自动选择第一个可用模型...')
+      logger.info('尝试自动选择第一个可用模型...')
       for (const provider of globalConfig.providers || []) {
         if (!provider.isEnabled) continue
 
         const model = provider.models?.find((m: any) => m.isEnabled)
         if (model) {
-          console.log('[导入] 自动选择全局AI模型:', provider.name, '-', model.name)
+          logger.info(`自动选择全局AI模型: ${provider.name} - ${model.name}`)
           return {
             enabled: true,
             provider: provider.type === 'anthropic' ? 'claude' :
@@ -865,7 +896,7 @@ function getProjectAIConfig(): any {
 
     // 3. 使用临时配置
     if (tempLLMConfig.value.apiKey && tempLLMConfig.value.model) {
-      console.log('[导入] 使用临时LLM配置')
+      logger.info('使用临时LLM配置')
       return {
         enabled: true,
         provider: tempLLMConfig.value.provider,
@@ -875,10 +906,10 @@ function getProjectAIConfig(): any {
       }
     }
 
-    console.warn('[导入] 未配置AI模型')
+    logger.warn('未配置AI模型')
     return null
   } catch (error) {
-    console.error('[导入] 获取AI配置失败:', error)
+    logger.error('获取AI配置失败:', error)
     return null
   }
 }
@@ -1104,9 +1135,7 @@ async function processWithLLM(text: string) {
     }
 
     // 自动进入下一步
-    setTimeout(() => {
-      currentStep.value = 3
-    }, 500)
+    currentStep.value = 3
   } catch (error) {
     llmAnalysisStatus.value = 'error'
     throw error
@@ -1158,9 +1187,7 @@ async function processTraditional() {
   progress.value.message = '处理完成!'
 
   // 自动进入下一步
-  setTimeout(() => {
-    currentStep.value = 3
-  }, 500)
+  currentStep.value = 3
 }
 
 // 确认导入
@@ -1241,7 +1268,7 @@ async function handleImport() {
         },
         stats: llmResult.value.stats
       }
-      emit('imported', llmImportResult)
+      emit('imported', llmImportResult as any)
     } else {
       emit('imported', importResult.value.project || importResult.value)
     }

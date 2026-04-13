@@ -4,7 +4,11 @@ import { usePluginStore } from './plugin'
 
 export const useThemeStore = defineStore('theme', () => {
   const pluginStore = usePluginStore()
-  const activeThemeId = ref(localStorage.getItem('active-theme-id') || 'builtin-scifi-dark')
+  const activeThemeId = ref(
+    typeof window !== 'undefined'
+      ? (localStorage.getItem('active-theme-id') || 'builtin-scifi-dark')
+      : 'builtin-scifi-dark'
+  )
 
   watch(activeThemeId, (newId) => {
     localStorage.setItem('active-theme-id', newId)

@@ -1,5 +1,6 @@
 import { defineStore } from 'pinia';
 import { ref, computed } from 'vue';
+import { v4 as uuidv4 } from 'uuid';
 import type { Entity, StateEvent, EntityRelation } from '../types/sandbox';
 import { getLogger } from '@/utils/logger';
 
@@ -131,7 +132,7 @@ export const useSandboxStore = defineStore('sandbox', () => {
       // Save draft relations as StateEvents (assume chapter 1 or baseline)
       const relationPromises = draftRelations.value.map(draftRel => {
         const event: StateEvent = {
-          id: crypto.randomUUID(),
+          id: uuidv4(),
           projectId,
           chapterNumber: 0,
           entityId: draftRel.sourceId,

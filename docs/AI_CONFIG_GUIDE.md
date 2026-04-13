@@ -13,8 +13,8 @@
 
 | 提供商 | 类型 | API Base URL | 推荐模型 |
 |--------|------|--------------|----------|
-| OpenAI | openai | https://api.openai.com/v1 | gpt-4, gpt-4-turbo, gpt-3.5-turbo |
-| Anthropic | anthropic | https://api.anthropic.com/v1 | claude-3-opus, claude-3-sonnet |
+| OpenAI | openai | https://api.openai.com/v1 | gpt-4o, gpt-4o-mini |
+| Anthropic | anthropic | https://api.anthropic.com/v1 | claude-opus-4-6, claude-sonnet-4-6, claude-haiku-4-5 |
 | 智谱AI | custom | https://open.bigmodel.cn/api/paas/v4 | glm-4, glm-3-turbo |
 | 通义千问 | custom | https://dashscope.aliyuncs.com/compatible-mode/v1 | qwen-turbo, qwen-plus |
 | DeepSeek | custom | https://api.deepseek.com/v1 | deepseek-chat |
@@ -24,19 +24,19 @@
 
 **高质量创作（推荐）**：
 - 提供商：Anthropic
-- 模型：claude-3-sonnet
+- 模型：claude-sonnet-4-6
 - 温度：0.8
 - Max Tokens：4000
 
 **快速生成**：
 - 提供商：OpenAI
-- 模型：gpt-3.5-turbo
+- 模型：gpt-4o-mini
 - 温度：0.9
 - Max Tokens：3000
 
 **成本优化**：
-- 提供商：智谱AI
-- 模型：glm-3-turbo
+- 提供商：DeepSeek
+- 模型：deepseek-chat
 - 温度：0.85
 - Max Tokens：3000
 
@@ -141,7 +141,7 @@
 1. **完善世界观设定**：提供详细的世界观信息
 2. **创建详细人物**：为人物添加详细的性格、背景
 3. **优化提示词**：在 Author's Note 中添加风格指导
-4. **使用高质量模型**：如 GPT-4 或 Claude-3-Sonnet
+4. **使用高质量模型**：如 GPT-4o 或 Claude-Sonnet-4-6
 5. **调整温度参数**：提高温度增加创造性
 
 ### Q4: 如何降低成本？
@@ -240,11 +240,11 @@ location.reload()
 
 | 任务类型 | 推荐模型 | 原因 |
 |---------|---------|------|
-| 世界观生成 | GPT-4 / Claude-3-Opus | 需要创造力和一致性 |
-| 大纲生成 | Claude-3-Sonnet | 平衡质量和成本 |
-| 章节生成 | Claude-3-Sonnet / GPT-4 | 质量和成本平衡 |
-| 人物生成 | GPT-3.5-Turbo | 快速且成本低 |
-| 质量检查 | GPT-3.5-Turbo | 快速分析 |
+| 世界观生成 | Claude-Opus-4-6 / GPT-4o | 需要创造力和一致性 |
+| 大纲生成 | Claude-Sonnet-4-6 | 平衡质量和成本 |
+| 章节生成 | Claude-Sonnet-4-6 / GPT-4o | 质量和成本平衡 |
+| 人物生成 | GPT-4o-mini / DeepSeek | 快速且成本低 |
+| 质量检查 | Claude-Haiku-4-5 / DeepSeek | 快速分析 |
 
 ### 3. Token 优化
 
@@ -293,4 +293,4 @@ location.reload()
 
 ---
 
-**最后更新**：2026-03-21
+**最后更新**：2026-04-13

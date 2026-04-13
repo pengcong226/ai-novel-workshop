@@ -511,17 +511,16 @@ export const useSuggestionsStore = defineStore('suggestions', () => {
 
   // 获取下一个待推送的建议
   function getNextPendingSuggestion(): Suggestion | null {
-    const item = pendingQueue.value[0]
-    if (!item) return null
-
-    const suggestion = suggestions.value.find(s => s.id === item.id)
-    if (!suggestion || suggestion.status !== 'unread') {
+    for (let i = 0; i < pendingQueue.value.length; i++) {
+      const item = pendingQueue.value[i]
+      const suggestion = suggestions.value.find(s => s.id === item.id)
+      if (suggestion && suggestion.status === 'unread') {
+        return suggestion
+      }
       // 从队列移除无效项
       queue.value = queue.value.filter(q => q.id !== item.id)
-      return getNextPendingSuggestion()
     }
-
-    return suggestion
+    return null
   }
 
   // 标记建议为已推送
@@ -650,9 +649,9 @@ export const useSuggestionsStore = defineStore('suggestions', () => {
 
   // 更新规则
   function updateRule(ruleId: string, updates: Partial<SuggestionRule>) {
-    const rule = rules.value.find(r => r.id === ruleId)
-    if (rule) {
-      Object.assign(rule, updates)
+    const index = rules.value.findIndex(r => r.id === ruleId)
+    if (index !== -1) {
+      rules.value[index] = { ...rules.value[index], ...updates }
       saveToStorage()
     }
   }

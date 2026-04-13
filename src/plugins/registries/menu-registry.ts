@@ -5,6 +5,9 @@
  */
 
 import type { MenuItemContribution } from '../types'
+import { getLogger } from '@/utils/logger'
+
+const logger = getLogger('plugin:registry:menu')
 
 /**
  * 菜单项注册表
@@ -19,11 +22,11 @@ export class MenuItemRegistry {
    */
   register(contribution: MenuItemContribution): void {
     if (this.items.has(contribution.id)) {
-      console.warn(`菜单项 ${contribution.id} 已注册，将被覆盖`)
+      logger.warn(`菜单项 ${contribution.id} 已注册，将被覆盖`)
     }
 
     this.items.set(contribution.id, contribution)
-    console.log(`✅ 菜单项 ${contribution.id} 已注册`)
+    logger.info(`✅ 菜单项 ${contribution.id} 已注册`)
   }
 
   /**
@@ -31,7 +34,7 @@ export class MenuItemRegistry {
    */
   unregister(id: string): void {
     this.items.delete(id)
-    console.log(`✅ 菜单项 ${id} 已注销`)
+    logger.info(`✅ 菜单项 ${id} 已注销`)
   }
 
   /**
@@ -83,7 +86,7 @@ export class MenuItemRegistry {
         try {
           return item.when()
         } catch (error) {
-          console.error(`菜单项 ${item.id} 的 when 条件执行失败:`, error)
+          logger.error(`菜单项 ${item.id} 的 when 条件执行失败:`, error)
           return false
         }
       }
@@ -104,9 +107,9 @@ export class MenuItemRegistry {
 
     try {
       await item.handler()
-      console.log(`✅ 菜单项 ${id} 执行成功`)
+      logger.info(`✅ 菜单项 ${id} 执行成功`)
     } catch (error) {
-      console.error(`菜单项 ${id} 执行失败:`, error)
+      logger.error(`菜单项 ${id} 执行失败:`, error)
       throw error
     }
   }
@@ -123,6 +126,6 @@ export class MenuItemRegistry {
    */
   clear(): void {
     this.items.clear()
-    console.log('✅ 所有菜单项已清除')
+    logger.info('✅ 所有菜单项已清除')
   }
 }

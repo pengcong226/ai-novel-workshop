@@ -173,7 +173,8 @@ function refreshPluginStatus() {
 }
 
 function runConflictTest() {
-  const tester = (window as any).runConflictDetectionTest
+  const devWindow = window as Window & { runConflictDetectionTest?: () => Promise<void> }
+  const tester = devWindow.runConflictDetectionTest
   if (typeof tester === 'function') {
     tester()
     ElMessage.success('已在控制台触发冲突检测测试')

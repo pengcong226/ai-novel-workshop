@@ -68,7 +68,7 @@
 ├─────────────────────────────────────────────────────────────┤
 │  长期记忆 (Long-term)                                        │
 │  ├── 容量：全书核心设定                                       │
-│  ├── 存储：ChromaDB向量数据库                                │
+│  ├── 存储：instant-distance (Rust HNSW)                                │
 │  ├── 用途：全局一致性、设定查询                               │
 │  └── 检索：语义向量相似度搜索                                 │
 └─────────────────────────────────────────────────────────────┘
@@ -243,10 +243,10 @@ class ChunkedStorage {
 #### 2.2.2 向量检索优化
 
 ```javascript
-// ChromaDB配置优化
-const chromaConfig = {
+// instant-distance (Rust HNSW) 配置优化
+const hnswConfig = {
   // 嵌入维度
-  embeddingDimension: 384, // 使用较小的模型
+  embeddingDimension: 512, // bge-small-zh-v1.5
 
   // 分块策略
   chunkStrategy: {
@@ -334,13 +334,13 @@ class CostEstimator {
     this.pricing = {
       // 每千token价格（美元）
       claude: {
-        opus: { input: 0.015, output: 0.075 },
-        sonnet: { input: 0.003, output: 0.015 },
-        haiku: { input: 0.00025, output: 0.00125 }
+        'opus-4-6': { input: 0.015, output: 0.075 },
+        'sonnet-4-6': { input: 0.003, output: 0.015 },
+        'haiku-4-5': { input: 0.00025, output: 0.00125 }
       },
       openai: {
-        'gpt-4-turbo': { input: 0.01, output: 0.03 },
-        'gpt-3.5-turbo': { input: 0.0005, output: 0.0015 }
+        'gpt-4o': { input: 0.005, output: 0.015 },
+        'gpt-4o-mini': { input: 0.00015, output: 0.00060 }
       },
       deepseek: {
         'deepseek-v3': { input: 0.00027, output: 0.0011 }
@@ -526,7 +526,7 @@ const interventionPoints = {
    ```
 
 3. **向量索引优化**
-   - 使用较小的嵌入模型（384维）
+   - 使用 instant-distance (Rust HNSW) 嵌入模型（512维）
    - 语义分块而非固定长度分块
    - 定期重建索引以优化检索质量
 

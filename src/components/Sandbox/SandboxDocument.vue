@@ -4,18 +4,18 @@
 
     <div v-else class="entity-details">
       <!-- Top Section: Static Encyclopedia Data -->
-      <div class="field-group">
+      <div v-if="activeEntity" class="field-group">
         <div class="field-title">
           <i class="ri-fingerprint-line"></i> 基础档案 (系统约束设定)
         </div>
         <div class="field-row">
           <div class="field">
             <label>实体名称</label>
-            <input type="text" v-model="activeEntity!.name" @blur="saveEntity" />
+            <input type="text" v-model="activeEntity.name" @blur="saveEntity" />
           </div>
           <div class="field">
             <label>分类类型</label>
-            <select v-model="activeEntity!.category" @change="saveEntity">
+            <select v-model="activeEntity.category" @change="saveEntity">
               <option value="Protagonist">核心人物 (Protagonist)</option>
               <option value="Supporting">重要配角 (Supporting)</option>
               <option value="Antagonist">反派 (Antagonist)</option>
@@ -30,7 +30,7 @@
             <label>核心设定 (喂给大模型的硬性System约束)</label>
             <textarea
               rows="4"
-              v-model="activeEntity!.systemPrompt"
+              v-model="activeEntity.systemPrompt"
               placeholder="请输入实体的背景、性格或世界观规则..."
               @blur="saveEntity"
             ></textarea>
@@ -48,8 +48,8 @@
         </p>
 
         <!-- Dynamic Properties (e.g. Level, Status) -->
-        <div v-if="Object.keys((currentState as any)?.properties || {}).length > 0" class="props-grid">
-          <div class="prop-item" v-for="(val, key) in (currentState as any)?.properties" :key="key">
+        <div v-if="currentState?.properties && Object.keys(currentState.properties).length > 0" class="props-grid">
+          <div class="prop-item" v-for="(val, key) in currentState.properties" :key="key">
             <span class="prop-key">{{ key }}</span>
             <span class="prop-val">{{ val }}</span>
           </div>
@@ -62,7 +62,7 @@
               <!-- Render Relationship links -->
               <span
                 class="tag rel-tag"
-                v-for="rel in (currentState as any)?.relations || []"
+                v-for="rel in currentState?.relations || []"
                 :key="rel.targetId"
               >
                 <i class="ri-link"></i> #{{ getEntityName(rel.targetId) }} <span style="opacity:0.6;font-size:10px;">({{ rel.type }})</span>
@@ -71,12 +71,12 @@
               <!-- Render Location link -->
               <span
                 class="tag loc-tag"
-                v-if="(currentState as any)?.location"
+                v-if="currentState?.location"
               >
-                <i class="ri-map-pin-line"></i> @坐标: [{{ (currentState as any).location.x }}, {{ (currentState as any).location.y }}]
+                <i class="ri-map-pin-line"></i> @坐标: [{{ currentState.location.x }}, {{ currentState.location.y }}]
               </span>
 
-              <span class="tag empty-tag" v-if="!(currentState as any)?.relations?.length && !(currentState as any)?.location">
+              <span class="tag empty-tag" v-if="!currentState?.relations?.length && !currentState?.location">
                 暂无状态关联
               </span>
             </div>
@@ -90,6 +90,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { useSandboxStore } from '@/stores/sandbox'
+import type { ActiveEntityState } from '@/stores/sandbox'
 
 const sandboxStore = useSandboxStore()
 
@@ -104,9 +105,9 @@ const activeEntity = computed(() => {
 })
 
 // Extract the dynamic state computed by the Pinia reducer
-const currentState = computed(() => {
-  if (!activeEntityId.value) return {}
-  return sandboxStore.activeEntitiesState[activeEntityId.value] || {}
+const currentState = computed<ActiveEntityState | null>(() => {
+  if (!activeEntityId.value) return null
+  return sandboxStore.activeEntitiesState[activeEntityId.value] || null
 })
 
 function getEntityName(id: string) {

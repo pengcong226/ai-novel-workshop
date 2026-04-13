@@ -177,7 +177,7 @@ export const useProjectStore = defineStore('project', () => {
   }
 
   // 防抖保存定时器
-  let saveDebounceTimer: NodeJS.Timeout | null = null
+  let saveDebounceTimer: ReturnType<typeof setTimeout> | null = null
   const SAVE_DEBOUNCE_DELAY = 1000 // 1秒防抖
   const LARGE_EXPORT_THRESHOLD_BYTES = 5 * 1024 * 1024
 

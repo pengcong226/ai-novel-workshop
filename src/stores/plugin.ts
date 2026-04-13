@@ -15,12 +15,16 @@ export const usePluginStore = defineStore('plugin', () => {
   // 状态
   const plugins = ref<PluginManifest[]>([])
   const activePlugins = ref<string[]>([])
-  const pluginSettings = ref<Record<string, any>>({})
+  const pluginSettings = ref<Record<string, unknown>>({})
   const loading = ref(false)
   const error = ref<string | null>(null)
   
   // 实验模式开关（安全版）
-  const experimentalMode = ref(localStorage.getItem('plugin-experimental-mode') === 'true')
+  const experimentalMode = ref(
+    typeof window !== 'undefined'
+      ? localStorage.getItem('plugin-experimental-mode') === 'true'
+      : false
+  )
 
   const logger = getLogger('plugin:store')
 
@@ -97,7 +101,8 @@ export const usePluginStore = defineStore('plugin', () => {
       }
 
       // 删除设置
-      delete pluginSettings.value[pluginId]
+      const { [pluginId]: _, ...rest } = pluginSettings.value
+      pluginSettings.value = rest
 
       logger.info('插件卸载成功', { pluginId })
     } catch (err) {
@@ -172,13 +177,13 @@ export const usePluginStore = defineStore('plugin', () => {
   /**
    * 更新插件设置
    */
-  async function updatePluginSettings(pluginId: string, settings: Record<string, any>) {
+  async function updatePluginSettings(pluginId: string, settings: Record<string, unknown>) {
     try {
       await PluginStorage.updatePluginSettings(pluginId, settings)
       pluginSettings.value[pluginId] = {
-        ...pluginSettings.value[pluginId],
+        ...(pluginSettings.value[pluginId] ?? {}),
         ...settings
-      }
+      } as Record<string, unknown>
       logger.debug('插件设置已更新', { pluginId, keys: Object.keys(settings || {}) })
     } catch (err) {
       error.value = err instanceof Error ? err.message : '更新插件设置失败'
@@ -190,8 +195,8 @@ export const usePluginStore = defineStore('plugin', () => {
   /**
    * 获取插件设置
    */
-  function getPluginSettings(pluginId: string): Record<string, any> {
-    return pluginSettings.value[pluginId] || {}
+  function getPluginSettings(pluginId: string): Record<string, unknown> {
+    return pluginSettings.value[pluginId] ?? ({} as Record<string, unknown>)
   }
 
   /**
@@ -277,7 +282,12 @@ export const usePluginStore = defineStore('plugin', () => {
    */
   async function importPluginConfig(configJson: string) {
     const { manifest, settings } = await PluginStorage.importPluginConfig(configJson)
-    plugins.value.push(manifest)
+    const existingIndex = plugins.value.findIndex(p => p.id === manifest.id)
+    if (existingIndex !== -1) {
+      plugins.value[existingIndex] = manifest
+    } else {
+      plugins.value.push(manifest)
+    }
     pluginSettings.value[manifest.id] = settings
     return { manifest, settings }
   }

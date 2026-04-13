@@ -576,7 +576,7 @@ ${slicedContent}
             chapterData.content = (postResult as any).chapter.content
             chapterData.wordCount = chapterData.content.length
           }
-        } catch (err) { logger.error(err) }
+        } catch (err: unknown) { logger.error(err instanceof Error ? err.message : 'Post-generation pipeline failed') }
 
         // Quality Check
         if (currentProject.config?.enableQualityCheck) {

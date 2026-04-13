@@ -90,7 +90,7 @@ const avatarNodes = computed(() => {
   return result
 })
 
-// 3. Optional: draw paths if needed (skipped for simplicity in this basic GIS overlay, but SVG structure is left)
+// TODO: 实现路径计算逻辑，目前返回空数组
 const avatarPaths = computed(() => [])
 </script>
 

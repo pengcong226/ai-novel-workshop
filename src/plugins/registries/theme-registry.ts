@@ -1,4 +1,7 @@
 import type { ThemeExtension } from '../types'
+import { getLogger } from '@/utils/logger'
+
+const logger = getLogger('plugin:registry:theme')
 
 /**
  * 主题扩展注册表
@@ -10,15 +13,15 @@ export class ThemeRegistry {
 
   register(pluginId: string, contribution: ThemeExtension): void {
     if (this.themes.has(contribution.id)) {
-      console.warn(`主题 ${contribution.id} 已注册，将被覆盖`)
+      logger.warn(`主题 ${contribution.id} 已注册，将被覆盖`)
     }
     this.themes.set(contribution.id, contribution)
-    console.log(`✅ 主题 ${contribution.id} 已注册`)
+    logger.info(`✅ 主题 ${contribution.id} 已注册`)
   }
 
   unregister(id: string): void {
     this.themes.delete(id)
-    console.log(`✅ 主题 ${id} 已注销`)
+    logger.info(`✅ 主题 ${id} 已注销`)
   }
 
   get(id: string): ThemeExtension | undefined {

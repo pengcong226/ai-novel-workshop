@@ -81,14 +81,34 @@
 
 <script setup lang="ts">
 import { computed } from 'vue'
+import type { PropType } from 'vue'
+
+interface StorytellerConfig {
+  preset?: string
+  plannerModel?: string
+  writerModel?: string
+  sentinelModel?: string
+  planningDepth?: string
+  enableQualityCheck?: boolean
+  [key: string]: unknown
+}
+
+interface AdvancedConfig {
+  planningDepth?: string
+  writingDepth?: string
+  enableQualityCheck?: boolean
+  temperature?: number
+  targetWordCount?: number
+  [key: string]: unknown
+}
 
 const props = defineProps({
   config: {
-    type: Object,
+    type: Object as PropType<StorytellerConfig>,
     required: true
   },
   advanced: {
-    type: Object,
+    type: Object as PropType<AdvancedConfig>,
     required: true
   }
 })

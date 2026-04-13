@@ -6,6 +6,9 @@
 
 import type { ExporterContribution, ExportData, ExportOptions } from '../types'
 import type { ProcessorRegistry } from './processor-registry'
+import { getLogger } from '@/utils/logger'
+
+const logger = getLogger('plugin:registry:exporter')
 
 /**
  * 导出器注册表
@@ -28,11 +31,11 @@ export class ExporterRegistry {
    */
   register(contribution: ExporterContribution): void {
     if (this.exporters.has(contribution.id)) {
-      console.warn(`导出器 ${contribution.id} 已注册，将被覆盖`)
+      logger.warn(`导出器 ${contribution.id} 已注册，将被覆盖`)
     }
 
     this.exporters.set(contribution.id, contribution)
-    console.log(`✅ 导出器 ${contribution.id} 已注册`)
+    logger.info(`✅ 导出器 ${contribution.id} 已注册`)
   }
 
   /**
@@ -40,7 +43,7 @@ export class ExporterRegistry {
    */
   unregister(id: string): void {
     this.exporters.delete(id)
-    console.log(`✅ 导出器 ${id} 已注销`)
+    logger.info(`✅ 导出器 ${id} 已注销`)
   }
 
   /**
@@ -114,13 +117,13 @@ export class ExporterRegistry {
     }
 
     try {
-      console.log(`开始导出: ${exporterId}, 格式: ${exporter.format}`)
+      logger.info(`开始导出: ${exporterId}, 格式: ${exporter.format}`)
       
       let processedData = data
       
       // 执行 pre-export 插件管道
       if (this.processorRegistry) {
-        console.log(`执行 pre-export 管道`)
+        logger.info(`执行 pre-export 管道`)
         
         let projectId = ''
         let projectObj = undefined
@@ -140,10 +143,10 @@ export class ExporterRegistry {
       }
 
       const result = await exporter.export(processedData, options || {})
-      console.log(`✅ 导出成功: ${exporterId}`)
+      logger.info(`✅ 导出成功: ${exporterId}`)
       return result
     } catch (error) {
-      console.error(`导出失败: ${exporterId}`, error)
+      logger.error(`导出失败: ${exporterId}`, error)
       throw error
     }
   }
@@ -171,13 +174,13 @@ export class ExporterRegistry {
     }
 
     try {
-      console.log(`开始批量导出: ${exporterId}, 数量: ${items.length}`)
+      logger.info(`开始批量导出: ${exporterId}, 数量: ${items.length}`)
       
       let processedItems = items
       
       // 执行 pre-export 插件管道 (批量情况下对每个item执行)
       if (this.processorRegistry) {
-        console.log(`执行 pre-export 管道 (批量)`)
+        logger.info(`执行 pre-export 管道 (批量)`)
         processedItems = (await Promise.all(
           items.map(item => {
             let projectObj = undefined
@@ -194,10 +197,10 @@ export class ExporterRegistry {
       }
 
       const result = await exporter.exportBatch(processedItems, options || {})
-      console.log(`✅ 批量导出成功: ${exporterId}`)
+      logger.info(`✅ 批量导出成功: ${exporterId}`)
       return result
     } catch (error) {
-      console.error(`批量导出失败: ${exporterId}`, error)
+      logger.error(`批量导出失败: ${exporterId}`, error)
       throw error
     }
   }
@@ -249,6 +252,6 @@ export class ExporterRegistry {
    */
   clear(): void {
     this.exporters.clear()
-    console.log('✅ 所有导出器已清除')
+    logger.info('✅ 所有导出器已清除')
   }
 }

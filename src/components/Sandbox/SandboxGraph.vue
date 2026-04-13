@@ -24,15 +24,37 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted, watch, computed } from 'vue'
+import { ref, onMounted, onBeforeUnmount, onUnmounted, watch, computed } from 'vue'
 import { Graph } from '@antv/g6'
 import { useSandboxStore } from '@/stores/sandbox'
+
+interface GraphNodeData {
+  id: string
+  label: string
+  category?: string
+  type?: string
+  style?: Record<string, unknown>
+  labelCfg?: { style: Record<string, unknown> }
+  [key: string]: unknown
+}
+
+interface GraphEdgeData {
+  source: string
+  target: string
+  label?: string
+  style?: Record<string, unknown>
+  labelCfg?: { style: Record<string, unknown> }
+  [key: string]: unknown
+}
 
 const graphContainer = ref<HTMLElement | null>(null)
 let graph: Graph | null = null
 const sandboxStore = useSandboxStore()
 
 const focusSelection = ref(['chapter', 'current'])
+
+// ResizeObserver for responsive graph sizing
+let resizeObserver: ResizeObserver | null = null
 
 const focusOptions = computed(() => {
   const charOptions = sandboxStore.entities
@@ -56,8 +78,8 @@ const focusOptions = computed(() => {
 })
 
 // 1. Prepare data reactively from SandboxStore
-const nodes = computed(() => {
-  const result: any[] = []
+const nodes = computed<GraphNodeData[]>(() => {
+  const result: GraphNodeData[] = []
   const activeState = sandboxStore.activeEntitiesState
   const focusMode = focusSelection.value[0]
   const focusTarget = focusSelection.value[1]
@@ -148,8 +170,8 @@ const nodes = computed(() => {
   return result
 })
 
-const edges = computed(() => {
-  const result: any[] = []
+const edges = computed<GraphEdgeData[]>(() => {
+  const result: GraphEdgeData[] = []
   const activeState = sandboxStore.activeEntitiesState
   // Use nodes as the definitive list of visible items
   const visibleNodes = new Set(nodes.value.map(n => n.id))
@@ -283,22 +305,45 @@ onMounted(() => {
     } as any)
 
     renderGraph()
+
+    // Add ResizeObserver for responsive graph sizing
+    resizeObserver = new ResizeObserver(() => {
+      if (graph && graphContainer.value) {
+        graph.resize(graphContainer.value.clientWidth, graphContainer.value.clientHeight)
+      }
+    })
+    if (graphContainer.value) {
+      resizeObserver.observe(graphContainer.value)
+    }
   }
 })
 
-// 4. Update on state change
+// 4. Update on state change (debounced to avoid excessive re-renders)
+let renderDebounceTimer: ReturnType<typeof setTimeout> | null = null
 watch([nodes, edges], () => {
-  renderGraph()
+  if (renderDebounceTimer) clearTimeout(renderDebounceTimer)
+  renderDebounceTimer = setTimeout(() => renderGraph(), 100)
 }, { deep: true })
 
 function renderGraph() {
   if (!graph) return
-  (graph as any).data({
+  ;(graph as any).data({
     nodes: nodes.value,
     edges: edges.value
   })
   graph.render()
 }
+
+onBeforeUnmount(() => {
+  if (renderDebounceTimer) {
+    clearTimeout(renderDebounceTimer)
+    renderDebounceTimer = null
+  }
+  if (resizeObserver) {
+    resizeObserver.disconnect()
+    resizeObserver = null
+  }
+})
 
 onUnmounted(() => {
   if (graph) {
