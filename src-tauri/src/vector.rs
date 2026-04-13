@@ -4,12 +4,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use instant_distance::{Builder, HnswMap, Point, Search};
 
-// Helper macro to safely lock the database
-macro_rules! lock_db {
-    ($state:expr) => {
-        $state.db.lock().map_err(|e| format!("Database lock poisoned: {}", e))?
-    };
-}
+use crate::lock_db;
 
 #[derive(Deserialize, Serialize)]
 pub struct VectorDocument {

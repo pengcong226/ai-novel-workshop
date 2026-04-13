@@ -1,22 +1,12 @@
-use log::warn;
 use rusqlite::{Connection, Result};
 use std::sync::Mutex;
 use tauri::{Manager, State};
 
+mod macros;
 mod vector;
 
 struct AppState {
     db: Mutex<Connection>,
-}
-
-// Helper macro to safely lock the database
-macro_rules! lock_db {
-    ($state:expr) => {
-        $state
-            .db
-            .lock()
-            .map_err(|e| format!("Database lock poisoned: {}", e))?
-    };
 }
 
 fn process_and_save_project_blob(
@@ -140,6 +130,12 @@ fn do_load_project_skeleton(db: &Connection, id: &str) -> Result<String, String>
     serde_json::to_string(&v).map_err(|e| e.to_string())
 }
 
+fn extract_chapter_id(chap_str: &str) -> Option<String> {
+    serde_json::from_str::<serde_json::Value>(chap_str)
+        .ok()
+        .and_then(|v| v.get("id")?.as_str().map(|s| s.to_string()))
+}
+
 #[tauri::command]
 fn save_project_with_chapters(
     state: State<'_, AppState>,
@@ -164,17 +160,8 @@ fn save_project_with_chapters(
         .prepare("INSERT INTO chapters (id, project_id, data) VALUES (?1, ?2, ?3)")
         .map_err(|e| e.to_string())?;
     for (i, chap_str) in chapters_data.iter().enumerate() {
-        let chap_id = format!("{}_chap_{}", id, i);
-        let extracted_id = if let Some(id_idx) = chap_str.find(r#""id":""#) {
-            let start = id_idx + 6;
-            if let Some(end_idx) = chap_str[start..].find('"') {
-                chap_str[start..start + end_idx].to_string()
-            } else {
-                chap_id
-            }
-        } else {
-            chap_id
-        };
+        let fallback_id = format!("{}_chap_{}", id, i);
+        let extracted_id = extract_chapter_id(chap_str).unwrap_or(fallback_id);
 
         stmt.execute(rusqlite::params![extracted_id, &id, chap_str])
             .map_err(|e| e.to_string())?;
@@ -250,20 +237,18 @@ fn load_project(state: State<'_, AppState>, id: String) -> Result<String, String
         chapters.push(chap_data);
     }
 
-    let mut p = project_data.trim_end().to_string();
-    if p.ends_with('}') {
-        p.pop();
-        let chapters_json = format!("\"chapters\":[{}]", chapters.join(","));
+    let mut project_value: serde_json::Value = serde_json::from_str(&project_data)
+        .map_err(|e| format!("Failed to parse project JSON: {}", e))?;
 
-        let final_json = if p.ends_with('{') {
-            format!("{}{}}}", p, chapters_json)
-        } else {
-            format!("{},{}}}", p, chapters_json)
-        };
-        return Ok(final_json);
-    }
+    let chapters_array: serde_json::Value = chapters
+        .iter()
+        .filter_map(|c| serde_json::from_str::<serde_json::Value>(c).ok())
+        .collect();
 
-    Ok(project_data)
+    project_value["chapters"] = chapters_array;
+
+    serde_json::to_string(&project_value)
+        .map_err(|e| format!("Failed to serialize project JSON: {}", e))
 }
 
 #[tauri::command]
@@ -372,6 +357,16 @@ fn delete_project(state: State<'_, AppState>, id: String) -> Result<(), String> 
         rusqlite::params![&id],
     )
     .map_err(|e| e.to_string())?;
+    db.execute(
+        "DELETE FROM entities WHERE project_id = ?1",
+        rusqlite::params![&id],
+    )
+    .map_err(|e| e.to_string())?;
+    db.execute(
+        "DELETE FROM state_events WHERE project_id = ?1",
+        rusqlite::params![&id],
+    )
+    .map_err(|e| e.to_string())?;
     Ok(())
 }
 
@@ -475,7 +470,7 @@ fn save_entity(
     project_id: String,
     entity_json: String,
 ) -> Result<(), String> {
-    let mut v: serde_json::Value = serde_json::from_str(&entity_json).map_err(|e| e.to_string())?;
+    let v: serde_json::Value = serde_json::from_str(&entity_json).map_err(|e| e.to_string())?;
     let id = v["id"].as_str().unwrap_or_default().to_string();
     let entity_type = v["type"].as_str().unwrap_or_default().to_string();
     let name = v["name"].as_str().unwrap_or_default().to_string();
@@ -499,7 +494,7 @@ fn save_state_event(
     project_id: String,
     event_json: String,
 ) -> Result<(), String> {
-    let mut v: serde_json::Value = serde_json::from_str(&event_json).map_err(|e| e.to_string())?;
+    let v: serde_json::Value = serde_json::from_str(&event_json).map_err(|e| e.to_string())?;
     let id = v["id"].as_str().unwrap_or_default().to_string();
     let chapter_number = v["chapterNumber"].as_i64().unwrap_or(0);
     let entity_id = v["entityId"].as_str().unwrap_or_default().to_string();
@@ -514,6 +509,74 @@ fn save_state_event(
     )
     .map_err(|e| e.to_string())?;
     Ok(())
+}
+
+#[tauri::command]
+fn load_entities(state: State<'_, AppState>, project_id: String) -> Result<String, String> {
+    let db = lock_db!(state);
+    let mut stmt = db
+        .prepare("SELECT id, entity_type, name, category, system_prompt, visual_meta, created_at FROM entities WHERE project_id = ?1")
+        .map_err(|e| e.to_string())?;
+    let mut rows = stmt.query(rusqlite::params![project_id]).map_err(|e| e.to_string())?;
+
+    let mut entities = Vec::new();
+    while let Some(row) = rows.next().map_err(|e| e.to_string())? {
+        let id: String = row.get(0).map_err(|e| e.to_string())?;
+        let entity_type: String = row.get(1).map_err(|e| e.to_string())?;
+        let name: String = row.get(2).map_err(|e| e.to_string())?;
+        let category: String = row.get(3).map_err(|e| e.to_string())?;
+        let system_prompt: String = row.get(4).map_err(|e| e.to_string())?;
+        let visual_meta_str: String = row.get(5).map_err(|e| e.to_string())?;
+        let created_at: i64 = row.get(6).map_err(|e| e.to_string())?;
+
+        let visual_meta: serde_json::Value = serde_json::from_str(&visual_meta_str).unwrap_or(serde_json::Value::Null);
+
+        let entity = serde_json::json!({
+            "id": id,
+            "type": entity_type,
+            "name": name,
+            "category": category,
+            "systemPrompt": system_prompt,
+            "visualMeta": visual_meta,
+            "createdAt": created_at
+        });
+        entities.push(entity);
+    }
+
+    serde_json::to_string(&entities).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn load_state_events(state: State<'_, AppState>, project_id: String) -> Result<String, String> {
+    let db = lock_db!(state);
+    let mut stmt = db
+        .prepare("SELECT id, chapter_number, entity_id, event_type, payload, source FROM state_events WHERE project_id = ?1")
+        .map_err(|e| e.to_string())?;
+    let mut rows = stmt.query(rusqlite::params![project_id]).map_err(|e| e.to_string())?;
+
+    let mut events = Vec::new();
+    while let Some(row) = rows.next().map_err(|e| e.to_string())? {
+        let id: String = row.get(0).map_err(|e| e.to_string())?;
+        let chapter_number: i64 = row.get(1).map_err(|e| e.to_string())?;
+        let entity_id: String = row.get(2).map_err(|e| e.to_string())?;
+        let event_type: String = row.get(3).map_err(|e| e.to_string())?;
+        let payload_str: String = row.get(4).map_err(|e| e.to_string())?;
+        let source: String = row.get(5).map_err(|e| e.to_string())?;
+
+        let payload: serde_json::Value = serde_json::from_str(&payload_str).unwrap_or(serde_json::Value::Null);
+
+        let event = serde_json::json!({
+            "id": id,
+            "chapterNumber": chapter_number,
+            "entityId": entity_id,
+            "eventType": event_type,
+            "payload": payload,
+            "source": source
+        });
+        events.push(event);
+    }
+
+    serde_json::to_string(&events).map_err(|e| e.to_string())
 }
 
 fn init_db(app_handle: &tauri::AppHandle) -> Result<Connection, String> {
@@ -609,6 +672,36 @@ fn init_db(app_handle: &tauri::AppHandle) -> Result<Connection, String> {
         [],
     )
     .map_err(|e| format!("Failed to create state_events table: {}", e))?;
+
+    conn.execute(
+        "CREATE INDEX IF NOT EXISTS idx_entities_project ON entities(project_id)",
+        [],
+    )
+    .map_err(|e| format!("Failed to create entities index: {}", e))?;
+
+    conn.execute(
+        "CREATE INDEX IF NOT EXISTS idx_state_events_project ON state_events(project_id)",
+        [],
+    )
+    .map_err(|e| format!("Failed to create state_events index: {}", e))?;
+
+    conn.execute(
+        "CREATE INDEX IF NOT EXISTS idx_chapters_project ON chapters(project_id)",
+        [],
+    )
+    .map_err(|e| format!("Failed to create chapters index: {}", e))?;
+
+    conn.execute(
+        "CREATE INDEX IF NOT EXISTS idx_characters_project ON characters(project_id)",
+        [],
+    )
+    .map_err(|e| format!("Failed to create characters index: {}", e))?;
+
+    conn.execute(
+        "CREATE INDEX IF NOT EXISTS idx_worldbooks_project ON worldbooks(project_id)",
+        [],
+    )
+    .map_err(|e| format!("Failed to create worldbooks index: {}", e))?;
 
     vector::init_vector_table(&conn)
         .map_err(|e| format!("Failed to initialize vector table: {}", e))?;
