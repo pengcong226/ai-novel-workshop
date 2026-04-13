@@ -246,64 +246,55 @@ pub fn delete_vector_documents(
         _ => None,
     };
 
-    let mut candidate_ids: Vec<String> = Vec::new();
-    let mut affected_projects = std::collections::HashSet::new();
+    // Build WHERE clause and params for native SQLite filtering
+    let mut where_clause = String::from("collection = ?1");
+    let mut params: Vec<Box<dyn rusqlite::ToSql>> = vec![Box::new(collection.clone())];
 
-    {
-        let mut stmt = if project_id.is_some() {
-            db.prepare(
-                "SELECT id, metadata, project_id FROM vectors WHERE collection = ?1 AND project_id = ?2",
-            )
-            .map_err(|e| e.to_string())?
-        } else {
-            db.prepare("SELECT id, metadata, project_id FROM vectors WHERE collection = ?1")
-                .map_err(|e| e.to_string())?
-        };
+    if let Some(ref pid) = project_id {
+        params.push(Box::new(pid.clone()));
+        where_clause.push_str(&format!(" AND project_id = ?{}", params.len()));
+    }
 
-        let mut rows = if let Some(ref pid) = project_id {
-            stmt.query(rusqlite::params![collection, pid])
-                .map_err(|e| e.to_string())?
-        } else {
-            stmt.query(rusqlite::params![collection])
-                .map_err(|e| e.to_string())?
-        };
-
-        while let Some(row) = rows.next().map_err(|e| e.to_string())? {
-            let id: String = row.get(0).map_err(|e| e.to_string())?;
-            let metadata_raw: String = row.get(1).map_err(|e| e.to_string())?;
-            let pid: String = row.get(2).map_err(|e| e.to_string())?;
-
-            if let Some(ref filter_obj) = parsed_filter {
-                let metadata_value: Value = serde_json::from_str(&metadata_raw)
-                    .map_err(|e| format!("Invalid metadata JSON for id {}: {}", id, e))?;
-
-                if !metadata_matches_filter(&metadata_value, filter_obj) {
-                    continue;
+    if let Some(ref filter_obj) = parsed_filter {
+        for (key, value) in filter_obj {
+            match value {
+                Value::String(s) => params.push(Box::new(s.clone())),
+                Value::Number(n) => {
+                    if let Some(i) = n.as_i64() { params.push(Box::new(i)); }
+                    else if let Some(f) = n.as_f64() { params.push(Box::new(f)); }
+                    else { params.push(Box::new(n.to_string())); }
                 }
-            }
-
-            candidate_ids.push(id);
-            affected_projects.insert(pid);
+                Value::Bool(b) => params.push(Box::new(*b)),
+                _ => params.push(Box::new(value.to_string())),
+            };
+            where_clause.push_str(&format!(" AND json_extract(metadata, '$.{}') = ?{}", key, params.len()));
         }
     }
 
-    if candidate_ids.is_empty() {
+    // Find affected projects first (for index invalidation)
+    let select_query = format!("SELECT DISTINCT project_id FROM vectors WHERE {}", where_clause);
+    let affected_projects: Vec<String> = {
+        let params_ref: Vec<&dyn rusqlite::ToSql> = params.iter().map(|p| p.as_ref()).collect();
+        let mut stmt = db.prepare(&select_query).map_err(|e| e.to_string())?;
+        let mut rows = stmt.query(rusqlite::params_from_iter(params_ref)).map_err(|e| e.to_string())?;
+
+        let mut pids = Vec::new();
+        while let Some(row) = rows.next().map_err(|e| e.to_string())? {
+            pids.push(row.get(0).map_err(|e| e.to_string())?);
+        }
+        pids
+    };
+
+    if affected_projects.is_empty() {
         return Ok(0);
     }
 
     let tx = db.transaction().map_err(|e| e.to_string())?;
 
-    {
-        let mut delete_stmt = tx
-            .prepare("DELETE FROM vectors WHERE id = ?1")
-            .map_err(|e| e.to_string())?;
-
-        for id in &candidate_ids {
-            delete_stmt
-                .execute(rusqlite::params![id])
-                .map_err(|e| e.to_string())?;
-        }
-    }
+    // Single DELETE with native SQLite filtering (no in-memory metadata loading)
+    let delete_query = format!("DELETE FROM vectors WHERE {}", where_clause);
+    let params_ref: Vec<&dyn rusqlite::ToSql> = params.iter().map(|p| p.as_ref()).collect();
+    let deleted_count = tx.execute(&delete_query, rusqlite::params_from_iter(params_ref)).map_err(|e| e.to_string())?;
 
     for pid in &affected_projects {
         tx.execute(
@@ -315,7 +306,14 @@ pub fn delete_vector_documents(
 
     tx.commit().map_err(|e| e.to_string())?;
 
-    Ok(candidate_ids.len() as i64)
+    // Invalidate vector index cache
+    if deleted_count > 0 {
+        if let Ok(mut cache) = state.vector_index_cache.write() {
+            *cache = None;
+        }
+    }
+
+    Ok(deleted_count as i64)
 }
 
 #[tauri::command]
@@ -653,37 +651,3 @@ fn cosine_similarity(a: &[f32], b: &[f32]) -> f32 {
     dot_product / (norm_a.sqrt() * norm_b.sqrt())
 }
 
-fn metadata_matches_filter(
-    metadata: &Value,
-    filter: &serde_json::Map<String, Value>,
-) -> bool {
-    let Some(obj) = metadata.as_object() else {
-        return false;
-    };
-
-    for (key, expected) in filter {
-        let Some(actual) = obj.get(key) else {
-            return false;
-        };
-
-        if !json_value_equals(actual, expected) {
-            return false;
-        }
-    }
-
-    true
-}
-
-fn json_value_equals(actual: &Value, expected: &Value) -> bool {
-    if actual == expected {
-        return true;
-    }
-
-    match (actual, expected) {
-        (Value::Number(a), Value::String(b)) => a.to_string() == *b,
-        (Value::String(a), Value::Number(b)) => *a == b.to_string(),
-        (Value::Bool(a), Value::String(b)) => a.to_string() == *b,
-        (Value::String(a), Value::Bool(b)) => *a == b.to_string(),
-        _ => false,
-    }
-}

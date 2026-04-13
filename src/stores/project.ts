@@ -316,13 +316,19 @@ export const useProjectStore = defineStore('project', () => {
         logger.error('同步备份失败', e)
       }
     }
-    window.addEventListener('beforeunload', beforeUnloadHandler)
+  }
+
+  function setupAutoSave() {
+    if (typeof window !== 'undefined' && beforeUnloadHandler) {
+      // 避免重复注册
+      window.removeEventListener('beforeunload', beforeUnloadHandler)
+      window.addEventListener('beforeunload', beforeUnloadHandler)
+    }
   }
 
   function cleanup() {
     if (beforeUnloadHandler && typeof window !== 'undefined') {
       window.removeEventListener('beforeunload', beforeUnloadHandler)
-      beforeUnloadHandler = null
     }
     if (saveDebounceTimer) {
       clearTimeout(saveDebounceTimer)

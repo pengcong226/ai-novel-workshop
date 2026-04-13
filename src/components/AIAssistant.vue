@@ -285,7 +285,7 @@ import { useProjectStore } from '@/stores/project'
 import { useSuggestionsStore } from '@/stores/suggestions'
 import { ElMessage, ElNotification } from 'element-plus'
 import { ChatDotRound, MoreFilled } from '@element-plus/icons-vue'
-import * as echarts from 'echarts'
+import * as echarts from 'echarts/core'
 import DOMPurify from 'dompurify'
 import type { Suggestion, SuggestionStatus, SuggestionAction } from '@/types/suggestions'
 

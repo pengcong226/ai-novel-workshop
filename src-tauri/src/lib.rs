@@ -610,6 +610,10 @@ fn init_db(app_handle: &tauri::AppHandle) -> Result<Connection, String> {
     let conn = Connection::open(&db_path)
         .map_err(|e| format!("Failed to open database at {:?}: {}", db_path, e))?;
 
+    // Enable WAL mode for better concurrency and crash safety
+    conn.pragma_update(None, "journal_mode", "WAL")
+        .map_err(|e| format!("Failed to enable WAL mode: {}", e))?;
+
     conn.execute(
         "CREATE TABLE IF NOT EXISTS projects (
             id TEXT PRIMARY KEY,

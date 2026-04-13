@@ -173,7 +173,7 @@ import { ref, computed, onMounted, onBeforeUnmount, watch, nextTick } from 'vue'
 import { useProjectStore } from '@/stores/project'
 import { useRouter } from 'vue-router'
 import { Search } from '@element-plus/icons-vue'
-import * as echarts from 'echarts'
+import * as echarts from 'echarts/core'
 import type { Character, CharacterTag } from '@/types'
 
 const projectStore = useProjectStore()
@@ -332,7 +332,7 @@ function updateBarChart() {
   // 只显示前15个人物
   const displayCharacters = sortedCharacters.slice(0, 15)
 
-  const option: echarts.EChartsOption = {
+  const option = {
     tooltip: {
       trigger: 'axis',
       axisPointer: { type: 'shadow' }
@@ -388,7 +388,7 @@ function updatePieChart() {
     value: tag.count
   })).filter(d => d.value > 0)
 
-  const option: echarts.EChartsOption = {
+  const option = {
     tooltip: {
       trigger: 'item',
       formatter: '{b}: {c} ({d}%)'
@@ -468,7 +468,7 @@ function updateLineChart() {
     }
   })
 
-  const option: echarts.EChartsOption = {
+  const option = {
     tooltip: {
       trigger: 'axis'
     },
@@ -500,7 +500,7 @@ function updateLineChart() {
         formatter: (value: number) => value === 1 ? '出场' : '未出场'
       }
     },
-    series: series as echarts.SeriesOption[]
+    series: series as any[]
   }
 
   lineChart.setOption(option)
