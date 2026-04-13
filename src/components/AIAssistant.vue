@@ -373,6 +373,10 @@ onMounted(() => {
 
 onUnmounted(() => {
   removeEventListeners()
+  if (pollingIntervalId !== null) {
+    clearInterval(pollingIntervalId)
+    pollingIntervalId = null
+  }
   if (typeChart) typeChart.dispose()
   if (priorityChart) priorityChart.dispose()
   if (trendChart) trendChart.dispose()
@@ -454,10 +458,13 @@ async function handleOutlineChange(event: Event) {
   await suggestionsStore.triggerCheck('outline_change', { outline })
 }
 
+// 状态
+let pollingIntervalId: number | null = null
+
 // 开始建议轮询
 function startSuggestionPolling() {
   // 每30秒检查一次待推送的建议
-  setInterval(() => {
+  pollingIntervalId = window.setInterval(() => {
     const suggestion = suggestionsStore.getNextPendingSuggestion()
     if (suggestion && !suggestion.pushed) {
       showSuggestionNotification(suggestion)

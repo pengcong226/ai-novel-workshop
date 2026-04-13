@@ -1,5 +1,6 @@
 use rusqlite::{Connection, Result};
-use std::sync::Mutex;
+use std::collections::HashSet;
+use std::sync::{Mutex, RwLock};
 use tauri::{Manager, State};
 
 mod macros;
@@ -7,6 +8,7 @@ mod vector;
 
 struct AppState {
     db: Mutex<Connection>,
+    vector_index_cache: RwLock<Option<(String, String, std::sync::Arc<vector::VectorIndex>)>>,
 }
 
 fn process_and_save_project_blob(
@@ -23,15 +25,16 @@ fn process_and_save_project_blob(
     .map_err(|e| e.to_string())?;
 
     if let Some(chars) = characters {
-        let mut seen_ids = Vec::new();
+        let mut seen_ids = HashSet::new();
         let mut stmt = db.prepare("INSERT OR REPLACE INTO characters (id, project_id, data) VALUES (?1, ?2, ?3)").map_err(|e| e.to_string())?;
         for ch_str in chars {
-            if let Ok(ch) = serde_json::from_str::<serde_json::Value>(&ch_str) {
-                if let Some(ch_id) = ch.get("id").and_then(|id| id.as_str()) {
-                    seen_ids.push(ch_id.to_string());
-                    stmt.execute(rusqlite::params![ch_id, id, &ch_str]).map_err(|e| e.to_string())?;
-                }
-            }
+            let ch = serde_json::from_str::<serde_json::Value>(&ch_str)
+                .map_err(|e| format!("Failed to parse character: {}", e))?;
+            let ch_id = ch.get("id")
+                .and_then(|id| id.as_str())
+                .ok_or_else(|| "Character missing ID".to_string())?;
+            seen_ids.insert(ch_id.to_string());
+            stmt.execute(rusqlite::params![ch_id, id, &ch_str]).map_err(|e| e.to_string())?;
         }
         drop(stmt);
 
@@ -47,15 +50,16 @@ fn process_and_save_project_blob(
     }
 
     if let Some(entries) = worldbook {
-        let mut seen_ids = Vec::new();
+        let mut seen_ids = HashSet::new();
         let mut stmt = db.prepare("INSERT OR REPLACE INTO worldbooks (id, project_id, data) VALUES (?1, ?2, ?3)").map_err(|e| e.to_string())?;
         for entry_str in entries {
-            if let Ok(entry) = serde_json::from_str::<serde_json::Value>(&entry_str) {
-                if let Some(entry_id) = entry.get("id").and_then(|id| id.as_str()) {
-                    seen_ids.push(entry_id.to_string());
-                    stmt.execute(rusqlite::params![entry_id, id, &entry_str]).map_err(|e| e.to_string())?;
-                }
-            }
+            let entry = serde_json::from_str::<serde_json::Value>(&entry_str)
+                .map_err(|e| format!("Failed to parse worldbook entry: {}", e))?;
+            let entry_id = entry.get("id")
+                .and_then(|id| id.as_str())
+                .ok_or_else(|| "Worldbook entry missing ID".to_string())?;
+            seen_ids.insert(entry_id.to_string());
+            stmt.execute(rusqlite::params![entry_id, id, &entry_str]).map_err(|e| e.to_string())?;
         }
         drop(stmt);
 
@@ -339,34 +343,38 @@ fn save_projects_list(state: State<'_, AppState>, data: String) -> Result<(), St
 
 #[tauri::command]
 fn delete_project(state: State<'_, AppState>, id: String) -> Result<(), String> {
-    let db = lock_db!(state);
-    db.execute("DELETE FROM projects WHERE id = ?1", rusqlite::params![&id])
+    let mut db = lock_db!(state);
+    let tx = db.transaction().map_err(|e| e.to_string())?;
+
+    tx.execute("DELETE FROM projects WHERE id = ?1", rusqlite::params![&id])
         .map_err(|e| e.to_string())?;
-    db.execute(
+    tx.execute(
         "DELETE FROM chapters WHERE project_id = ?1",
         rusqlite::params![&id],
     )
     .map_err(|e| e.to_string())?;
-    db.execute(
+    tx.execute(
         "DELETE FROM characters WHERE project_id = ?1",
         rusqlite::params![&id],
     )
     .map_err(|e| e.to_string())?;
-    db.execute(
+    tx.execute(
         "DELETE FROM worldbooks WHERE project_id = ?1",
         rusqlite::params![&id],
     )
     .map_err(|e| e.to_string())?;
-    db.execute(
+    tx.execute(
         "DELETE FROM entities WHERE project_id = ?1",
         rusqlite::params![&id],
     )
     .map_err(|e| e.to_string())?;
-    db.execute(
+    tx.execute(
         "DELETE FROM state_events WHERE project_id = ?1",
         rusqlite::params![&id],
     )
     .map_err(|e| e.to_string())?;
+
+    tx.commit().map_err(|e| e.to_string())?;
     Ok(())
 }
 
@@ -472,6 +480,9 @@ fn save_entity(
 ) -> Result<(), String> {
     let v: serde_json::Value = serde_json::from_str(&entity_json).map_err(|e| e.to_string())?;
     let id = v["id"].as_str().unwrap_or_default().to_string();
+    if id.is_empty() {
+        return Err("Entity ID cannot be empty".to_string());
+    }
     let entity_type = v["type"].as_str().unwrap_or_default().to_string();
     let name = v["name"].as_str().unwrap_or_default().to_string();
     let category = v["category"].as_str().unwrap_or_default().to_string();
@@ -496,6 +507,9 @@ fn save_state_event(
 ) -> Result<(), String> {
     let v: serde_json::Value = serde_json::from_str(&event_json).map_err(|e| e.to_string())?;
     let id = v["id"].as_str().unwrap_or_default().to_string();
+    if id.is_empty() {
+        return Err("State event ID cannot be empty".to_string());
+    }
     let chapter_number = v["chapterNumber"].as_i64().unwrap_or(0);
     let entity_id = v["entityId"].as_str().unwrap_or_default().to_string();
     let event_type = v["eventType"].as_str().unwrap_or_default().to_string();
@@ -692,6 +706,12 @@ fn init_db(app_handle: &tauri::AppHandle) -> Result<Connection, String> {
     .map_err(|e| format!("Failed to create chapters index: {}", e))?;
 
     conn.execute(
+        "CREATE INDEX IF NOT EXISTS idx_chapters_project_id ON chapters(project_id, id)",
+        [],
+    )
+    .map_err(|e| format!("Failed to create chapters composite index: {}", e))?;
+
+    conn.execute(
         "CREATE INDEX IF NOT EXISTS idx_characters_project ON characters(project_id)",
         [],
     )
@@ -720,6 +740,7 @@ pub fn run() {
             // Manage app state
             app.manage(AppState {
                 db: Mutex::new(db),
+                vector_index_cache: RwLock::new(None),
             });
 
             // Setup logging in debug mode

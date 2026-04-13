@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia'
-import { ref, computed } from 'vue'
+import { ref, computed, shallowRef } from 'vue'
 import type { Project, ProjectConfig } from '@/types'
 import { v4 as uuidv4 } from 'uuid'
 import { decryptProjectConfig, encryptProjectConfig } from '@/utils/crypto'
@@ -8,8 +8,8 @@ import { useStorage } from './storage'
 
 export const useProjectStore = defineStore('project', () => {
   // 状态
-  const projects = ref<Project[]>([])
-  const currentProject = ref<Project | null>(null)
+  const projects = shallowRef<Project[]>([])
+  const currentProject = shallowRef<Project | null>(null)
   const loading = ref(false)
   const error = ref<string | null>(null)
 

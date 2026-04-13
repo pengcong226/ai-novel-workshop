@@ -159,7 +159,7 @@ const newTrait = ref<Record<string, string>>({})
 
 watch(() => props.modelValue, (newChars) => {
   characters.value = [...newChars]
-}, { deep: true })
+})
 
 const filteredCharacters = computed(() => {
   let result = characters.value
@@ -208,7 +208,9 @@ async function handleDeleteCharacter(character: LLMCharacter) {
       handleChange()
       ElMessage.success('人物已删除')
     }
-  } catch {}
+  } catch {
+    // 用户取消删除
+  }
 }
 
 function handleAddCharacter() {

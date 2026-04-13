@@ -196,7 +196,7 @@ export const usePluginStore = defineStore('plugin', () => {
    * 获取插件设置
    */
   function getPluginSettings(pluginId: string): Record<string, unknown> {
-    return pluginSettings.value[pluginId] ?? ({} as Record<string, unknown>)
+    return (pluginSettings.value[pluginId] || {}) as Record<string, unknown>
   }
 
   /**

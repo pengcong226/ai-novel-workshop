@@ -6,6 +6,9 @@
 
 import type { ChatRequest, ChatResponse, CostBreakdown, ModelConfig } from '@/types/ai'
 import type { AIProviderContribution, ProviderConfig, ProviderInstance } from '../types'
+import { getLogger } from '@/utils/logger'
+
+const logger = getLogger('plugin:registry:provider')
 
 /**
  * Provider注册表
@@ -22,11 +25,11 @@ export class ProviderRegistry {
    */
   register(contribution: AIProviderContribution): void {
     if (this.providers.has(contribution.id)) {
-      console.warn(`Provider ${contribution.id} 已注册,将被覆盖`)
+      logger.warn(`Provider ${contribution.id} 已注册,将被覆盖`)
     }
 
     this.providers.set(contribution.id, contribution)
-    console.log(`✅ Provider ${contribution.id} 已注册`)
+    logger.info(`✅ Provider ${contribution.id} 已注册`)
   }
 
   /**
@@ -36,7 +39,7 @@ export class ProviderRegistry {
     this.providers.delete(id)
     this.instances.delete(id)
     this.configs.delete(id)
-    console.log(`✅ Provider ${id} 已注销`)
+    logger.info(`✅ Provider ${id} 已注销`)
   }
 
   /**
@@ -81,7 +84,7 @@ export class ProviderRegistry {
       this.instances.set(id, instance)
       return instance
     } catch (error) {
-      console.error(`创建Provider ${id} 实例失败:`, error)
+      logger.error(`创建Provider ${id} 实例失败:`, error)
       throw error
     }
   }
@@ -95,7 +98,7 @@ export class ProviderRegistry {
     this.configs.set(id, config)
     // 清除旧实例,下次使用时会创建新实例
     this.instances.delete(id)
-    console.log(`✅ Provider ${id} 已配置`)
+    logger.info(`✅ Provider ${id} 已配置`)
   }
 
   /**
@@ -152,7 +155,7 @@ export class ProviderRegistry {
     try {
       return await instance.validateConfig()
     } catch (error) {
-      console.error(`验证Provider ${id} 配置失败:`, error)
+      logger.error(`验证Provider ${id} 配置失败:`, error)
       return false
     }
   }

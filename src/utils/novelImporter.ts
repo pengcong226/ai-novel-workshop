@@ -50,6 +50,7 @@ export interface ImportOptions {
 
 export interface ImportResult {
   project: Partial<Project>
+  stats?: any
   qualityMetrics?: any
   continuationSuggestions?: any[]
   worldInfo?: any

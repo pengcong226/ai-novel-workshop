@@ -536,7 +536,7 @@ function handleResize() {
 watch([characters, chapters, chartSort], () => {
   updateBarChart()
   updatePieChart()
-}, { deep: true })
+})
 
 watch([selectedCharactersForTrend, trendRange], () => {
   updateLineChart()

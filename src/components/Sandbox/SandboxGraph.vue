@@ -323,7 +323,7 @@ let renderDebounceTimer: ReturnType<typeof setTimeout> | null = null
 watch([nodes, edges], () => {
   if (renderDebounceTimer) clearTimeout(renderDebounceTimer)
   renderDebounceTimer = setTimeout(() => renderGraph(), 100)
-}, { deep: true })
+})
 
 function renderGraph() {
   if (!graph) return

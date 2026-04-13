@@ -62,7 +62,6 @@
 
 <script setup lang="ts">
 import { computed } from 'vue'
-import type { PropType } from 'vue'
 import type { Character } from '@/types'
 import type { WorldbookEntry } from '@/types/worldbook'
 

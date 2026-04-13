@@ -398,6 +398,9 @@ import {
 import { templateManager } from '@/utils/templateManager'
 import type { NovelTemplate, TemplateCategory } from '@/types'
 import { v4 as uuidv4 } from 'uuid'
+import { getLogger } from '@/utils/logger'
+
+const logger = getLogger('template-library')
 
 const emit = defineEmits<{
   useTemplate: [template: NovelTemplate]
@@ -576,13 +579,18 @@ ${aiGenForm.value.extraPrompt ? '附加要求：' + aiGenForm.value.extraPrompt 
     let jsonStr = response.content.trim()
     const jsonMatch = jsonStr.match(/```(?:json)?\s*([\s\S]*?)\s*```/)
     if (jsonMatch) jsonStr = jsonMatch[1]
-    
+
     // Fallback: remove markdown block if AI still generated it
     if (jsonStr.startsWith('```')) {
       jsonStr = jsonStr.replace(/^```json/i, '').replace(/^```/, '').replace(/```$/, '').trim()
     }
 
-    const parsed = JSON.parse(jsonStr)
+    let parsed: any
+    try {
+      parsed = JSON.parse(jsonStr)
+    } catch {
+      throw new Error('AI返回的JSON格式无效，请重试')
+    }
 
     const newTemplate: NovelTemplate = {
       meta: {
@@ -624,7 +632,7 @@ ${aiGenForm.value.extraPrompt ? '附加要求：' + aiGenForm.value.extraPrompt 
     showAIGenerateDialog.value = false
     aiGenForm.value.genre = ''
   } catch (error) {
-    console.error('AI生成模板失败:', error)
+    logger.error('AI生成模板失败:', error)
     ElMessage.error('生成失败：' + (error as Error).message)
   } finally {
     aiGenerating.value = false

@@ -527,6 +527,7 @@ import {
 import { v4 as uuidv4 } from 'uuid'
 import { encryptApiKey, decryptApiKey } from '@/utils/crypto'
 import { getLogger } from '@/utils/logger'
+import type { AIAnalysisConfig } from '@/utils/aiAnalyzer'
 import AnalysisProgressComponent from './novel-import/AnalysisProgress.vue'
 import ChapterPreviewComponent from './novel-import/ChapterPreview.vue'
 import CharacterPreviewComponent from './novel-import/CharacterPreview.vue'
@@ -745,7 +746,7 @@ function checkImportModel() {
       for (const provider of config.providers || []) {
         if (!provider.isEnabled) continue
 
-        const model = provider.models?.find((m: any) => m.id === modelId && m.isEnabled)
+        const model = provider.models?.find((m: { id?: string, isEnabled?: boolean, name?: string }) => m.id === modelId && m.isEnabled)
         if (model) {
           hasImportModel.value = true
           logger.info(`✓ 已配置项目AI模型: ${provider.name} - ${model.name}`)
@@ -770,7 +771,7 @@ function checkImportModel() {
           logger.info(`检查provider: ${provider.name}, enabled: ${provider.isEnabled}`)
           if (!provider.isEnabled) continue
 
-          const model = provider.models?.find((m: any) => m.id === modelId && m.isEnabled)
+          const model = provider.models?.find((m: { id?: string, isEnabled?: boolean, name?: string }) => m.id === modelId && m.isEnabled)
           if (model) {
             hasImportModel.value = true
             logger.info(`✓ 已配置全局AI模型: ${provider.name} - ${model.name}`)
@@ -784,7 +785,7 @@ function checkImportModel() {
       for (const provider of globalConfig.providers || []) {
         if (!provider.isEnabled) continue
 
-        const model = provider.models?.find((m: any) => m.isEnabled)
+        const model = provider.models?.find((m: { id?: string, isEnabled?: boolean, name?: string }) => m.isEnabled)
         if (model) {
           hasImportModel.value = true
           logger.info(`✓ 自动选择全局AI模型: ${provider.name} - ${model.name}`)
@@ -809,14 +810,14 @@ function checkImportModel() {
 }
 
 // 获取项目配置的AI模型或临时配置
-function getProjectAIConfig(): any {
+function getProjectAIConfig(): import('@/utils/aiAnalyzer').AIAnalysisConfig | null {
   try {
     // 0. 优先使用临时配置（如果启用）
     if (useTempConfig.value && tempLLMConfig.value.apiKey && tempLLMConfig.value.model) {
       logger.info('使用临时LLM配置')
       return {
         enabled: true,
-        provider: tempLLMConfig.value.provider,
+        provider: tempLLMConfig.value.provider === 'anthropic' ? 'claude' : tempLLMConfig.value.provider,
         apiKey: tempLLMConfig.value.apiKey,
         baseURL: tempLLMConfig.value.baseURL,
         model: tempLLMConfig.value.model
@@ -833,7 +834,7 @@ function getProjectAIConfig(): any {
       for (const provider of config.providers || []) {
         if (!provider.isEnabled) continue
 
-        const model = provider.models?.find((m: any) => m.id === modelId && m.isEnabled)
+        const model = provider.models?.find((m: { id?: string, isEnabled?: boolean, name?: string }) => m.id === modelId && m.isEnabled)
         if (model) {
           logger.info(`找到项目模型: ${provider.name} - ${model.name}`)
           return {
@@ -859,7 +860,7 @@ function getProjectAIConfig(): any {
         for (const provider of globalConfig.providers || []) {
           if (!provider.isEnabled) continue
 
-          const model = provider.models?.find((m: any) => m.id === modelId && m.isEnabled)
+          const model = provider.models?.find((m: { id?: string, isEnabled?: boolean, name?: string }) => m.id === modelId && m.isEnabled)
           if (model) {
             logger.info(`找到全局配置模型: ${provider.name} - ${model.name}`)
             return {
@@ -879,7 +880,7 @@ function getProjectAIConfig(): any {
       for (const provider of globalConfig.providers || []) {
         if (!provider.isEnabled) continue
 
-        const model = provider.models?.find((m: any) => m.isEnabled)
+        const model = provider.models?.find((m: { id?: string, isEnabled?: boolean, name?: string }) => m.isEnabled)
         if (model) {
           logger.info(`自动选择全局AI模型: ${provider.name} - ${model.name}`)
           return {
@@ -899,7 +900,7 @@ function getProjectAIConfig(): any {
       logger.info('使用临时LLM配置')
       return {
         enabled: true,
-        provider: tempLLMConfig.value.provider,
+        provider: tempLLMConfig.value.provider === 'anthropic' ? 'claude' : tempLLMConfig.value.provider,
         apiKey: tempLLMConfig.value.apiKey,
         baseURL: tempLLMConfig.value.baseURL,
         model: tempLLMConfig.value.model
@@ -1013,8 +1014,8 @@ async function processWithLLM(text: string) {
 
     // 构建LLM配置
     const llmConfig: LLMProviderConfig = {
-      provider: aiConfig.provider === 'claude' ? 'anthropic' : aiConfig.provider,
-      model: aiConfig.model,
+      provider: (aiConfig.provider === 'claude' ? 'anthropic' : aiConfig.provider) as LLMProviderConfig['provider'],
+      model: aiConfig.model || '',
       apiKey: aiConfig.apiKey,
       baseURL: aiConfig.baseURL,
       maxTokens: 65536,
@@ -1162,11 +1163,20 @@ async function processTraditional() {
   reader.readAsText(selectedFile.value!)
 
   // 执行导入
+  const aiConfigBase = importOptions.value.useAIAnalysis ? getProjectAIConfig() : undefined
+  const aiConfig: AIAnalysisConfig | undefined = aiConfigBase ? {
+    enabled: true,
+    provider: aiConfigBase.provider as 'claude' | 'openai' | 'local' | 'custom',
+    apiKey: aiConfigBase.apiKey,
+    baseURL: aiConfigBase.baseURL,
+    model: aiConfigBase.model
+  } : undefined
+
   const result = await importNovel(
     selectedFile.value!,
     {
       ...importOptions.value,
-      aiConfig: importOptions.value.useAIAnalysis ? getProjectAIConfig() || undefined : undefined
+      aiConfig
     },
     (p: ImportProgress) => {
       progress.value = {

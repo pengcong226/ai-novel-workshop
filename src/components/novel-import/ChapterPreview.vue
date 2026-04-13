@@ -186,7 +186,7 @@ const editingChapter = ref<LLMChapter>({
 // 监听props变化
 watch(() => props.modelValue, (newChapters) => {
   chapters.value = [...newChapters]
-}, { deep: true })
+})
 
 // 总字数
 const totalWords = computed(() => {

@@ -1,4 +1,5 @@
 use rusqlite::{Connection, Result};
+use std::sync::{Arc, RwLock};
 use tauri::State;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -45,7 +46,7 @@ impl Point for VectorPoint {
 }
 
 /// In-memory HNSW index for fast nearest neighbor search
-struct VectorIndex {
+pub struct VectorIndex {
     index: HnswMap<VectorPoint, String>,
 }
 
@@ -117,6 +118,7 @@ pub fn init_vector_table(conn: &Connection) -> Result<()> {
 
     conn.execute("CREATE INDEX IF NOT EXISTS idx_vectors_collection ON vectors(collection)", [])?;
     conn.execute("CREATE INDEX IF NOT EXISTS idx_vectors_project ON vectors(project_id)", [])?;
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_vectors_collection_project_id ON vectors(collection, project_id)", [])?;
     Ok(())
 }
 
@@ -181,6 +183,11 @@ pub fn add_vector_documents(
 
     tx.commit().map_err(|e| format!("Failed to commit transaction: {}", e))?;
 
+    // Invalidate vector index cache
+    if let Ok(mut cache) = state.vector_index_cache.write() {
+        *cache = None;
+    }
+
     Ok(())
 }
 
@@ -206,6 +213,11 @@ pub fn delete_vector_document(
             rusqlite::params![collection, project_id],
         )
         .map_err(|e| e.to_string())?;
+    }
+
+    // Invalidate vector index cache
+    if let Ok(mut cache) = state.vector_index_cache.write() {
+        *cache = None;
     }
 
     Ok(())
@@ -357,6 +369,12 @@ pub fn clear_vector_collection(
         rusqlite::params![collection],
     )
     .map_err(|e| e.to_string())?;
+
+    // Invalidate vector index cache
+    if let Ok(mut cache) = state.vector_index_cache.write() {
+        *cache = None;
+    }
+
     Ok(())
 }
 
@@ -432,29 +450,44 @@ fn build_index(
     Ok(index)
 }
 
-/// Check if index needs rebuilding and rebuild if necessary
+/// Check if index needs rebuilding and rebuild if necessary (with in-memory cache)
 fn get_or_build_index(
+    state: &crate::AppState,
     db: &rusqlite::Connection,
     collection: &str,
     project_id: &str,
-) -> std::result::Result<VectorIndex, String> {
-    // Check if index exists and is valid
-    let index_valid: bool = db
-        .query_row(
-            "SELECT v.doc_count = (SELECT COUNT(*) FROM vectors WHERE collection = ?1 AND project_id = ?2)
-             FROM vector_index_meta v
-             WHERE v.collection = ?1 AND v.project_id = ?2 AND v.doc_count > 0",
-            rusqlite::params![collection, project_id],
-            |row| row.get::<_, i64>(0),
-        )
-        .unwrap_or(0) == 1;
+) -> std::result::Result<Arc<VectorIndex>, String> {
+    // Check cache first
+    {
+        let cache = state.vector_index_cache.read().unwrap();
+        if let Some((c, p, index)) = cache.as_ref() {
+            if c == collection && p == project_id {
+                // Verify index is still valid
+                let index_valid: bool = db
+                    .query_row(
+                        "SELECT v.doc_count = (SELECT COUNT(*) FROM vectors WHERE collection = ?1 AND project_id = ?2)
+                         FROM vector_index_meta v
+                         WHERE v.collection = ?1 AND v.project_id = ?2 AND v.doc_count > 0",
+                        rusqlite::params![collection, project_id],
+                        |row| row.get::<_, i64>(0),
+                    )
+                    .unwrap_or(0) == 1;
 
-    if index_valid {
-        // Index is valid, rebuild it (we need to rebuild in-memory anyway)
-        // In production, you'd cache this in memory
+                if index_valid {
+                    return Ok(index.clone());
+                }
+            }
+        }
     }
 
-    build_index(db, collection, project_id)
+    // Build new index and cache it
+    let index = Arc::new(build_index(db, collection, project_id)?);
+
+    if let Ok(mut cache) = state.vector_index_cache.write() {
+        *cache = Some((collection.to_string(), project_id.to_string(), index.clone()));
+    }
+
+    Ok(index)
 }
 
 #[tauri::command]
@@ -470,37 +503,50 @@ pub fn vector_search(
 
     // Use HNSW index for project-specific search (O(log n))
     if let Some(ref pid) = project_id {
-        let index = get_or_build_index(&db, &collection, pid)?;
+        let index = get_or_build_index(&state, &db, &collection, pid)?;
 
         let candidates = index.search(&query_embedding, top_k * 2);
 
-        let mut results = Vec::new();
-        for (doc_id, score) in candidates {
-            if score < min_score {
-                continue;
-            }
+        // Collect candidate IDs and scores
+        let mut candidate_ids: Vec<String> = Vec::new();
+        let mut score_map: std::collections::HashMap<String, f32> = std::collections::HashMap::new();
 
-            let result = db.query_row(
-                "SELECT content, metadata FROM vectors WHERE id = ?1",
-                rusqlite::params![doc_id],
-                |row| {
-                    Ok(SearchResult {
-                        id: doc_id.clone(),
-                        content: row.get(0)?,
-                        metadata: row.get(1)?,
-                        score,
-                        source: "vector".to_string(),
-                    })
-                },
+        for (doc_id, score) in candidates {
+            if score >= min_score {
+                candidate_ids.push(doc_id.clone());
+                score_map.insert(doc_id, score);
+            }
+        }
+
+        let mut results = Vec::new();
+        if !candidate_ids.is_empty() {
+            // Single query with IN clause instead of N+1 queries
+            let placeholders: Vec<&str> = candidate_ids.iter().map(|_| "?").collect();
+            let query = format!(
+                "SELECT id, content, metadata FROM vectors WHERE id IN ({})",
+                placeholders.join(", ")
             );
 
-            if let Ok(result) = result {
-                results.push(result);
+            let params: Vec<&dyn rusqlite::ToSql> = candidate_ids.iter().map(|id| id as &dyn rusqlite::ToSql).collect();
+
+            let mut stmt = db.prepare(&query).map_err(|e| e.to_string())?;
+            let mut rows = stmt.query(rusqlite::params_from_iter(params)).map_err(|e| e.to_string())?;
+
+            while let Some(row) = rows.next().map_err(|e| e.to_string())? {
+                let id: String = row.get(0).map_err(|e| e.to_string())?;
+                if let Some(&score) = score_map.get(&id) {
+                    results.push(SearchResult {
+                        id,
+                        content: row.get(1).map_err(|e| e.to_string())?,
+                        metadata: row.get(2).map_err(|e| e.to_string())?,
+                        score,
+                        source: "vector".to_string(),
+                    });
+                }
             }
 
-            if results.len() >= top_k {
-                break;
-            }
+            results.sort_by(|a, b| b.score.partial_cmp(&a.score).unwrap_or(std::cmp::Ordering::Equal));
+            results.truncate(top_k);
         }
 
         Ok(results)

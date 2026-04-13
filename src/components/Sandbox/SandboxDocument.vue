@@ -91,6 +91,9 @@
 import { computed } from 'vue'
 import { useSandboxStore } from '@/stores/sandbox'
 import type { ActiveEntityState } from '@/stores/sandbox'
+import { getLogger } from '@/utils/logger'
+
+const logger = getLogger('sandbox:document')
 
 const sandboxStore = useSandboxStore()
 
@@ -117,8 +120,8 @@ function getEntityName(id: string) {
 
 function saveEntity() {
   if (activeEntity.value) {
-    // Calling store API to persist
-    // sandboxStore.saveEntityToDb(activeEntity.value)
+    // TODO: Implement persistence - currently edits are not saved
+    logger.warn('saveEntity not yet implemented - edits will be lost')
   }
 }
 </script>

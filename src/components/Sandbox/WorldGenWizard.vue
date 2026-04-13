@@ -35,6 +35,9 @@ import { useProjectStore } from '@/stores/project';
 import { useAIStore } from '@/stores/ai';
 import { v4 as uuidv4 } from 'uuid';
 import type { ChatMessage } from "@/types/ai";
+import { getLogger } from '@/utils/logger';
+
+const logger = getLogger('sandbox:wizard');
 
 const sandboxStore = useSandboxStore();
 const projectStore = useProjectStore();
@@ -62,7 +65,7 @@ async function commit() {
     await sandboxStore.commitDrafts();
     closeWizard();
   } catch (e) {
-    console.error(e);
+    logger.error('Commit drafts failed:', e);
   } finally {
     isCommitting.value = false;
   }
@@ -126,7 +129,12 @@ async function sendMessage() {
     );
 
     const cleanContent = res.content.replace(/```json\n?|```/g, '').trim();
-    const parsed = JSON.parse(cleanContent);
+    let parsed: any
+    try {
+      parsed = JSON.parse(cleanContent);
+    } catch {
+      throw new Error('AI返回的JSON格式无效，请重试')
+    }
 
     // Clear old drafts on new generation to keep it simple, or we could append.
     sandboxStore.clearDrafts();
@@ -182,7 +190,7 @@ async function sendMessage() {
     messages.value.push({ role: 'assistant', content: `我已经为您生成了图谱草稿，请在右侧查看。如果满意，可以点击“注入本源世界”。如果不满意，您可以继续告诉我如何修改。` });
 
   } catch (e) {
-    console.error(e);
+    logger.error('Generation failed:', e);
     messages.value.push({ role: 'assistant', content: '生成出错，请重试。' });
   } finally {
     isGenerating.value = false;

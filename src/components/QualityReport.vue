@@ -377,6 +377,9 @@ import { exportQualityReportAsJSON, exportQualityReportAsMarkdown} from '@/utils
 import * as echarts from 'echarts'
 import { marked } from 'marked'
 import DOMPurify from 'dompurify'
+import { getLogger } from '@/utils/logger'
+
+const logger = getLogger('quality-report')
 
 const projectStore = useProjectStore()
 const project = computed(() => projectStore.currentProject)
@@ -640,7 +643,7 @@ async function checkAllChapters() {
     await nextTick()
     updateCharts()
   } catch (error) {
-    console.error('质量检查失败:', error)
+    logger.error('质量检查失败:', error)
     ElMessage.error('质量检查失败：' + (error as Error).message)
   } finally {
     checking.value = false
@@ -663,30 +666,6 @@ function exportReport() {
     ElMessage.warning('没有可导出的报告')
     return
   }
-
-  const _format = ['JSON', 'Markdown', '打印']
-
-  ElMessageBox.confirm('请选择导出格式', '导出报告', {
-    distinguishCancelAndClose: true,
-    confirmButtonText: '导出 JSON',
-    cancelButtonText: '取消'
-  })
-    .then(() => {
-      // 导出 JSON
-      exportQualityReportAsJSON(
-        reports.value,
-        project.value?.title || '未命名项目',
-        trendAnalysis.value
-      )
-      ElMessage.success('报告已导出为 JSON')
-    })
-    .catch((action) => {
-      if (action === 'cancel') {
-        // 用户点击取消，不执行任何操作
-      } else if (action === 'close') {
-        // 用户点击关闭
-      }
-    })
 
   // 使用 Element Plus 的 MessageBox 选择格式
   ElMessageBox({
