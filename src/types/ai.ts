@@ -180,6 +180,10 @@ export interface ChatRequest {
     type: 'json_schema' | 'json_object'
     json_schema?: { name: string; description?: string; strict?: boolean; schema?: Record<string, unknown>; [key: string]: unknown }
   };
+  /** Tool calling schemas */
+  tools?: Array<{ name: string; description?: string; strict?: boolean; parameters: Record<string, unknown> }>;
+  /** Tool choice mode */
+  toolChoice?: { type: 'auto' | 'function'; function?: { name: string } };
 }
 
 /**

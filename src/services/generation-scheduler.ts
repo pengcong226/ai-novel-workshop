@@ -1,14 +1,15 @@
 import { useProjectStore } from '@/stores/project'
 import { useAIStore } from '@/stores/ai'
+import { useSandboxStore } from '@/stores/sandbox'
 import { useTaskManager } from '@/stores/taskManager'
 import { v4 as uuidv4 } from 'uuid'
+import { SummaryDetail } from '@/types'
 import type { Chapter, ChapterOutline, Project } from '@/types'
+import type { Entity, StateEvent, EntityType, EntityImportance } from '@/types/sandbox'
 import { buildChapterContext, contextToPromptPayload } from '@/utils/contextBuilder'
 import { extendOutlineWithLLM } from '@/utils/llm/outlineGenerator'
 import { extractEntitiesWithAI, analyzeRelationships } from '@/utils/characterExtractor'
-import { importMemory, exportMemory, updateMemoryFromChapter } from '@/utils/tableMemory'
 import { mergeSystemPrompts } from '@/utils/systemPrompts'
-import { runStateUpdatePipeline } from '@/services/state-updater'
 import type { ChatMessage } from '@/types/ai'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { useAuditLog } from '@/composables/useAuditLog'
@@ -60,34 +61,7 @@ export class GenerationScheduler {
     try {
       await this.updateProjectSettings(chapter)
       
-      // V3: 增量状态追踪（提取器 + 验证器 + 应用器）
       const projectStore = useProjectStore()
-      const project = projectStore.currentProject
-      if (project && project.characters.length > 0) {
-        taskManager.updateTask(task.id, { description: '正在执行增量状态追踪与验证...' })
-        try {
-          const result = await runStateUpdatePipeline(
-            chapter.content,
-            project.characters as any,
-            chapter.number
-          )
-          if (result.rejectedShifts.length > 0) {
-            taskManager.addToast(
-              `第${chapter.number}章：拒绝了 ${result.rejectedShifts.length} 条幻觉状态变更`,
-              'warning'
-            )
-          }
-          if (result.appliedShifts.length > 0) {
-            taskManager.addToast(
-              `第${chapter.number}章：已追踪 ${result.appliedShifts.length} 项状态变更`,
-              'info'
-            )
-          }
-        } catch (stateErr) {
-          logger.warn('状态追踪失败，不影响主流程:', stateErr)
-        }
-      }
-      
       await projectStore.saveCurrentProject()
       
       taskManager.completeTask(task.id, '抽取与记忆入库成功')
@@ -100,6 +74,7 @@ export class GenerationScheduler {
 
   private async updateProjectSettings(chapter: Chapter) {
     const projectStore = useProjectStore()
+    const sandboxStore = useSandboxStore()
     const project = projectStore.currentProject
     if (!project) return
 
@@ -107,74 +82,91 @@ export class GenerationScheduler {
 
     // 1. 全量提取实体（人物、词条、分水岭事件）
     const entities = await extractEntitiesWithAI(chapter.content)
-    
-    // 2. 无缝入库新角色
+
+    // 2. 无缝入库新角色 → V5 sandbox store
     if (entities && entities.characters.length > 0) {
-      entities.characters.forEach(nc => {
-        const existing = project.characters.find(c => c.name === nc.name)
+      for (const nc of entities.characters) {
+        const existing = sandboxStore.entities.find(e => e.type === 'CHARACTER' && e.name === nc.name)
         if (!existing) {
-          project.characters.push({
+          const importanceMap: Record<string, EntityImportance> = {
+            protagonist: 'critical',
+            antagonist: 'critical',
+            supporting: 'major',
+            minor: 'minor',
+            other: 'background'
+          }
+          const entity: Entity = {
             id: uuidv4(),
+            projectId: project.id,
+            type: 'CHARACTER' as EntityType,
             name: nc.name,
             aliases: [],
-            gender: 'other',
-            age: 0,
-            appearance: '',
-            personality: [],
-            values: [],
-            background: nc.description,
-            motivation: '',
-            abilities: [],
-            relationships: [],
-            appearances: [],
-            development: [],
-            tags: [nc.role],
-            stateHistory: [],
-            aiGenerated: true
-          } as any)
+            importance: importanceMap[nc.role] || 'major',
+            category: '角色',
+            systemPrompt: nc.description,
+            isArchived: false,
+            createdAt: Date.now()
+          }
+          await sandboxStore.addEntity(entity)
         }
-      })
-      
-      // 增量分析并更新关系图
+      }
+
+      // 增量分析并更新关系图 → V5 StateEvents
       const allText = project.chapters.map(c => c.content).join('\n\n')
-      const extChars = project.characters.map((c: any) => ({ name: c.name }))
-      const relations = analyzeRelationships(allText, extChars as any)
-      
-      relations.forEach(rel => {
-        const sourceChar = project.characters.find(c => c.name === rel.from)
-        const targetChar = project.characters.find(c => c.name === rel.to)
-        if (sourceChar && targetChar) {
-          const existingRel = sourceChar.relationships.find(r => r.targetId === targetChar.id)
+      const extChars = sandboxStore.entities
+        .filter(e => e.type === 'CHARACTER')
+        .map(e => ({ name: e.name, aliases: e.aliases, description: '', firstAppearance: '', role: 'other' as const, confidence: 1, occurrences: 1 }))
+      const relations = analyzeRelationships(allText, extChars)
+
+      for (const rel of relations) {
+        const sourceEntity = sandboxStore.entities.find(e => e.type === 'CHARACTER' && e.name === rel.from)
+        const targetEntity = sandboxStore.entities.find(e => e.type === 'CHARACTER' && e.name === rel.to)
+        if (sourceEntity && targetEntity) {
+          const existingRel = sandboxStore.stateEvents.find(
+            e => e.entityId === sourceEntity.id && e.eventType === 'RELATION_ADD' && e.payload.targetId === targetEntity.id
+          )
           if (!existingRel) {
-            sourceChar.relationships.push({
-              targetId: targetChar.id,
-              type: 'other',
-              description: '共现关系',
-              evolution: []
-            })
+            const event: StateEvent = {
+              id: uuidv4(),
+              projectId: project.id,
+              chapterNumber: chapter.number,
+              entityId: sourceEntity.id,
+              eventType: 'RELATION_ADD',
+              payload: {
+                targetId: targetEntity.id,
+                relationType: rel.type || 'other',
+                attitude: '共现关系'
+              },
+              source: 'AI_EXTRACTED'
+            }
+            await sandboxStore.addStateEvent(event)
           }
         }
-      })
+      }
     }
 
-    // 3. 零触感录入世界体系 (Worldbook)
+    // 3. 零触感录入世界体系 → V5 sandbox store (LORE entities)
     if (entities && entities.worldbook.length > 0) {
-      if (!project.worldbook) {
-        project.worldbook = { entries: [] }
-      }
-      entities.worldbook.forEach(wb => {
-        const existing = project.worldbook!.entries.find(e => e.key.includes(wb.keyword))
+      for (const wb of entities.worldbook) {
+        const existing = sandboxStore.entities.find(
+          e => e.type === 'LORE' && e.name === wb.keyword
+        )
         if (!existing) {
-          project.worldbook!.entries.push({
-            uid: Date.now() + Math.floor(Math.random() * 1000), // ST规范使用数字uid
-            key: [wb.keyword],
-            content: wb.content,
-            novelWorkshop: {
-              category: wb.category
-            }
-          })
+          const loreEntity: Entity = {
+            id: uuidv4(),
+            projectId: project.id,
+            type: 'LORE' as EntityType,
+            name: wb.keyword,
+            aliases: [],
+            importance: 'minor',
+            category: wb.category || '设定',
+            systemPrompt: wb.content,
+            isArchived: false,
+            createdAt: Date.now()
+          }
+          await sandboxStore.addEntity(loreEntity)
         }
-      })
+      }
     }
 
     // 4. 重大历史转折点打标 (记录到章节关键事件中)
@@ -196,133 +188,136 @@ export class GenerationScheduler {
             tokenCount: 0,
             createdAt: new Date(),
             updatedAt: new Date(),
-            detail: 'minimal' as any
+            detail: SummaryDetail.MINIMAL
           }
         }
-        chapter.summaryData.keyEvents = [
-          ...(chapter.summaryData.keyEvents || []),
-          ...highImpactEvents
-        ]
+        if (chapter.summaryData) {
+          chapter.summaryData.keyEvents = [
+            ...(chapter.summaryData.keyEvents || []),
+            ...highImpactEvents
+          ]
+        }
       }
     }
 
-    // 2. 提取表格记忆指令并更新
-    if (project.memory) {
-      let memorySystem = importMemory(project.memory)
-      
-      const aiExtractFunction = async (content: string, memory: any) => {
-        const aiStore = useAIStore()
-        if (!aiStore.checkInitialized()) return []
-        
+    // 5. V5 状态追踪：基于高影响事件提取 StateEvents
+    const HIGH_IMPACT_KEYWORDS = [
+      '死', '伤', '去', '到', '回', '破', '境', '阶',
+      '层', '宗', '门', '帮', '派', '遇', '得', '失',
+      '战', '斗', '杀', '救', '突破', '晋升', '陨落',
+      '死亡', '觉醒', '背叛', '加入', '离开', '获得',
+      '失去', '重伤', '痊愈', '结盟', '决裂', '封印', '解封'
+    ]
+    const hasAction = HIGH_IMPACT_KEYWORDS.some(kw => chapter.content.includes(kw))
+
+    if (hasAction && project.config?.enableZeroTouchExtraction) {
+      const aiStore = useAIStore()
+      if (aiStore.checkInitialized()) {
         const prompts = mergeSystemPrompts(project.config?.systemPrompts)
-        
-        const tablesText = memory.sheets.filter((s: any) => s.enable && s.tochat).map((s: any) => {
-          return `表名: ${s.name}\n列: ${s.hashSheet[0].map((id: string) => s.cells.get(id)?.value || '').join(',')}`
-        }).join('\n\n')
-        
-        if (!tablesText) return []
 
-        // V4-⑥: 语义边界切片 (Semantic Boundary Slicing) - 记忆表更新预检
-        const paras = content.split(/\n+/).filter(p => p.trim())
-        const actionRegex = /死|伤|去|到|回|破|境|阶|层|宗|门|帮|派|遇|得|失|战|斗|杀|救/
-        let mentionIndices: number[] = []
+        const entityNames = sandboxStore.entities
+          .filter(e => e.type === 'CHARACTER')
+          .map(e => e.name)
+          .join('、')
 
-        // 收集所有表格中第一列追踪的实体关键字
-        const trackedEntities = new Set<string>()
-        memory.sheets.forEach((s: any) => {
-          if (!s.enable || !s.tochat) return
-          for (let i = 1; i < s.hashSheet.length; i++) {
-            const uid = s.hashSheet[i][1]
-            const val = s.cells.get(uid)?.value
-            if (val) trackedEntities.add(val)
-          }
-        })
+        if (entityNames) {
+          const extractPrompt = `分析以下章节内容，提取涉及角色【${entityNames}】的状态变化。
 
-        mentionIndices = paras
-          .map((p, i) => {
-            const hasEntity = Array.from(trackedEntities).some(entity => p.includes(entity))
-            const hasAction = actionRegex.test(p)
-            return (hasEntity || hasAction) ? i : -1
-          })
-          .filter(i => i !== -1)
-
-        const keepIndices = new Set<number>()
-        for (const idx of mentionIndices) {
-          if (idx > 0) keepIndices.add(idx - 1)
-          keepIndices.add(idx)
-          if (idx < paras.length - 1) keepIndices.add(idx + 1)
-        }
-
-        const slicedContent = Array.from(keepIndices).sort((a, b) => a - b).map(i => paras[i]).join('\n\n')
-        if (!slicedContent) {
-          // 如果切片后完全没有内容，说明完全没有相关实体或动作，直接免提取
-          return [] 
-        }
-
-        const prompt = `分析以下小说章节内容，如果有需要更新到表格的状态变化、新物品、新人物等，请输出更新命令。
-
-当前存在的表格结构：
-${tablesText}
+请严格按 JSON Schema 输出，包含以下事件类型：
+- PROPERTY_UPDATE: 属性变化（如修为提升、受伤等）
+- RELATION_ADD: 新增关系
+- RELATION_UPDATE: 关系态度变化
+- LOCATION_MOVE: 位置转移
+- VITAL_STATUS_CHANGE: 生死状态变化
+- ABILITY_CHANGE: 能力变化
 
 章节内容：
-${slicedContent}
+${chapter.content.substring(0, 8000)}
 
-请注意，你的输出将通过工具调用(Tool Calling)进行解析，因此你需要调用提供的工具来输出这些命令，而非返回纯文本。`;
+如果没有变化，返回空数组。`
 
-        const messages: ChatMessage[] = [
-          { role: 'system', content: prompts.extractor },
-          { role: 'user', content: prompt }
-        ];
-
-        try {
-          const res = await aiStore.chat(messages, { type: 'check', complexity: 'low', priority: 'speed' }, {
-            maxTokens: 1000,
-            response_format: {
-              type: 'json_schema',
-              json_schema: {
-                name: 'update_memory_table',
-                strict: true,
-                schema: {
-                  type: 'object',
-                  additionalProperties: false,
-                  properties: {
-                    commands: {
-                      type: 'array',
-                      description: '更新表格的命令列表',
-                      items: {
-                        type: 'object',
-                        additionalProperties: false,
-                        properties: {
-                          sheetName: { type: 'string', description: '表格名称' },
-                          action: { type: 'string', enum: ['updateRow', 'insertRow', 'deleteRow'] },
-                          rowIndex: { type: 'integer', description: '操作的行号（仅对于updateRow和deleteRow有效）' },
-                          values: { type: 'array', items: { type: 'string' }, description: '具体更新的值（对于insertRow和updateRow有效）' }
-                        },
-                        required: ['sheetName', 'action']
-                      }
+          try {
+            const res = await aiStore.chat(
+              [
+                { role: 'system', content: prompts.extractor },
+                { role: 'user', content: extractPrompt }
+              ],
+              { type: 'check', complexity: 'low', priority: 'speed' },
+              {
+                maxTokens: 1000,
+                response_format: {
+                  type: 'json_schema',
+                  json_schema: {
+                    name: 'extract_state_events',
+                    strict: true,
+                    schema: {
+                      type: 'object',
+                      additionalProperties: false,
+                      properties: {
+                        events: {
+                          type: 'array',
+                          items: {
+                            type: 'object',
+                            additionalProperties: false,
+                            properties: {
+                              entityName: { type: 'string' },
+                              eventType: { type: 'string', enum: ['PROPERTY_UPDATE', 'RELATION_ADD', 'RELATION_UPDATE', 'LOCATION_MOVE', 'VITAL_STATUS_CHANGE', 'ABILITY_CHANGE'] },
+                              key: { type: 'string' },
+                              value: { type: 'string' },
+                              targetName: { type: 'string' },
+                              relationType: { type: 'string' },
+                              attitude: { type: 'string' },
+                              status: { type: 'string' },
+                              abilityName: { type: 'string' },
+                              abilityStatus: { type: 'string' }
+                            },
+                            required: ['entityName', 'eventType']
+                          }
+                        }
+                      },
+                      required: ['events']
                     }
-                  },
-                  required: ['commands']
+                  }
                 }
               }
-            }
-          });
+            )
 
-          const parsed = JSON.parse(res.content);
-          return parsed.commands?.map((cmd: any) => ({
-            sheetName: cmd.sheetName,
-            action: cmd.action,
-            rowIndex: cmd.rowIndex,
-            values: cmd.values
-          })) || [];
-        } catch (err) {
-          logger.warn('提取记忆表更新命令失败', err);
-          return [];
+            const parsed = JSON.parse(res.content)
+            const extractedEvents = parsed.events || []
+
+            for (const evt of extractedEvents) {
+              const entity = sandboxStore.entities.find(e => e.name === evt.entityName)
+              if (!entity) continue
+
+              const targetEntity = evt.targetName
+                ? sandboxStore.entities.find(e => e.name === evt.targetName)
+                : undefined
+
+              const stateEvent: StateEvent = {
+                id: uuidv4(),
+                projectId: project.id,
+                chapterNumber: chapter.number,
+                entityId: entity.id,
+                eventType: evt.eventType as StateEvent['eventType'],
+                payload: {
+                  key: evt.key,
+                  value: evt.value,
+                  targetId: targetEntity?.id,
+                  relationType: evt.relationType,
+                  attitude: evt.attitude,
+                  status: evt.status,
+                  abilityName: evt.abilityName,
+                  abilityStatus: evt.abilityStatus
+                },
+                source: 'AI_EXTRACTED'
+              }
+              await sandboxStore.addStateEvent(stateEvent)
+            }
+          } catch (err) {
+            logger.warn('V5 状态提取失败', err)
+          }
         }
       }
-
-      memorySystem = await updateMemoryFromChapter(memorySystem, chapter, aiExtractFunction)
-      project.memory = exportMemory(memorySystem)
     }
   }
 
@@ -572,8 +567,9 @@ ${slicedContent}
             { chapter: chapterData, project: currentProject },
             { project: currentProject, chapter: chapterData, config: currentProject.config }
           )
-          if (postResult && (postResult as any).chapter && (postResult as any).chapter.content) {
-            chapterData.content = (postResult as any).chapter.content
+          const resultChapter = (postResult as Record<string, unknown> | null)?.chapter as Record<string, unknown> | undefined
+          if (resultChapter && typeof resultChapter.content === 'string') {
+            chapterData.content = resultChapter.content
             chapterData.wordCount = chapterData.content.length
           }
         } catch (err: unknown) { logger.error(err instanceof Error ? err.message : 'Post-generation pipeline failed') }
@@ -621,9 +617,23 @@ ${slicedContent}
             // V4-D2: 同步等待状态提取完成，确保第 N+1 章能看到第 N 章的状态变更
             taskManager.updateTask(batchTask.id, { description: `正在同步角色状态（第 ${chapterNumber} 章）...` })
 
-            // Integrate V5 Tool Calling for Sandbox State Extraction
+            // V5 Tool Calling: Extract state events and dispatch to sandboxStore
             try {
               taskManager.updateTask(batchTask.id, { description: `正在抽取底层实体图谱状态...` })
+              const sandboxStore = useSandboxStore()
+
+              const entityNames = sandboxStore.entities
+                .filter(e => e.type === 'CHARACTER')
+                .map(e => e.name)
+                .join('、')
+
+              const extractionPrompt = `从以下章节中提取涉及角色【${entityNames}】的状态变化。
+如果角色间的心理态度或亲密度发生重大变化，请输出 RELATION_UPDATE 事件并提供简短的 'attitude' 描述（20字以内）。
+章节内容：
+${chapterData.content}
+
+如果没有变化，返回空数组。`;
+
               const schemaPayload = {
                 name: "update_entity_state",
                 description: "Extract state changes from the generated chapter text",
@@ -637,7 +647,7 @@ ${slicedContent}
                         type: "object",
                         properties: {
                           entityName: { type: "string" },
-                          eventType: { type: "string", enum: ['PROPERTY_UPDATE', 'RELATION_ADD', 'RELATION_UPDATE', 'LOCATION_MOVE'] },
+                          eventType: { type: "string", enum: ['PROPERTY_UPDATE', 'RELATION_ADD', 'RELATION_UPDATE', 'LOCATION_MOVE', 'VITAL_STATUS_CHANGE', 'ABILITY_CHANGE'] },
                           details: { type: "string" },
                           attitude: { type: "string", description: "Only used for RELATION_UPDATE to describe psychological attitude/affinity, max 20 chars" }
                         },
@@ -651,24 +661,48 @@ ${slicedContent}
                 }
               };
 
-              const extractionPrompt = `Please extract any significant state changes from the following chapter.
-If there is a significant shift in psychological attitude or affinity between characters, output a RELATION_UPDATE event and provide a short 'attitude' description (under 20 chars).
-Chapter Content:
-${chapterData.content}
-
-If there are no changes, return an empty array.`;
-
               const extractionRes = await aiStore.chat(
                 [
                   { role: 'system', content: 'You are a state extraction engine for a novel database. Only output valid JSON conforming to the tool schema.' },
                   { role: 'user', content: extractionPrompt }
                 ],
                 { type: 'check', complexity: 'medium', priority: 'speed' },
-                { maxTokens: 1000, tools: [schemaPayload], toolChoice: { type: "function", function: { name: "update_entity_state" } } } as any
+                {
+                  maxTokens: 1000,
+                  tools: [schemaPayload],
+                  toolChoice: { type: "function", function: { name: "update_entity_state" } }
+                }
               );
 
-              // In real implementation, parse extractionRes.toolCalls and dispatch to sandboxStore
-              logger.debug(`[V5 State Extraction] Completed for chapter ${chapterNumber}`, extractionRes);
+              // Parse and dispatch extraction results to sandboxStore
+              try {
+                const parsed = JSON.parse(extractionRes.content)
+                const extractedEvents = parsed.events || parsed.tool_calls?.[0]?.function?.arguments
+                  ? JSON.parse(parsed.tool_calls[0].function.arguments).events
+                  : []
+
+                for (const evt of extractedEvents) {
+                  const entity = sandboxStore.entities.find(e => e.name === evt.entityName)
+                  if (!entity) continue
+
+                  const stateEvent: StateEvent = {
+                    id: uuidv4(),
+                    projectId: currentProject.id,
+                    chapterNumber,
+                    entityId: entity.id,
+                    eventType: evt.eventType,
+                    payload: {
+                      value: evt.details,
+                      attitude: evt.attitude
+                    },
+                    source: 'AI_EXTRACTED'
+                  }
+                  await sandboxStore.addStateEvent(stateEvent)
+                }
+                logger.debug(`[V5 State Extraction] Dispatched ${extractedEvents.length} events for chapter ${chapterNumber}`)
+              } catch (parseErr) {
+                logger.warn('V5 状态提取结果解析失败', parseErr)
+              }
             } catch (err) {
               logger.warn('状态抽取失败', err);
             }
