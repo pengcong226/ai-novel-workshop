@@ -9,7 +9,9 @@
  * 5. 向量检索相关章节
  */
 
-import type { Project, Chapter, ChapterOutline, VectorServiceConfig, Character } from '@/types'
+import type { Project, Chapter, ChapterOutline, VectorServiceConfig } from '@/types'
+import type { ResolvedEntity } from '@/stores/sandbox'
+import type { Entity } from '@/types/sandbox'
 import {
   type MemorySystem
 } from './tableMemory'
@@ -196,18 +198,34 @@ export function inferCurrentScene(recentChapters: Chapter[], project: Project): 
     return '故事开始'
   }
 
-  // 优先从角色的 currentState 中读取位置
-  const characters = project.characters || []
+  // V5: Use sandbox store for location data
   const lastChapter = recentChapters[0]
   const lastContent = lastChapter.content || ''
 
-  // 只看在最近章节中出场的角色
-  const activeCharacters = characters.filter(c =>
-    lastContent.includes(c.name) && c.currentState?.location && c.currentState.location !== '未知'
-  )
-  if (activeCharacters.length > 0) {
-    const locations = [...new Set(activeCharacters.map(c => c.currentState!.location))]
-    return locations.join('、')
+  try {
+    const { useSandboxStore } = require('@/stores/sandbox')
+    const sandboxStore = useSandboxStore()
+    const activeState = sandboxStore.activeEntitiesState
+
+    // Find characters mentioned in last chapter that have location data
+    const charactersWithLocation = sandboxStore.entities.filter((e: Entity) => {
+      if (e.type !== 'CHARACTER' || e.isArchived) return false
+      if (!lastContent.includes(e.name)) return false
+      const resolved = activeState[e.id]
+      return resolved?.location && resolved.location !== '未知'
+    })
+
+    if (charactersWithLocation.length > 0) {
+      const locations = [...new Set(
+        charactersWithLocation.map((e: Entity) => {
+          const loc = activeState[e.id]?.location
+          return typeof loc === 'string' ? loc : ''
+        }).filter(Boolean)
+      )]
+      if (locations.length > 0) return locations.join('、')
+    }
+  } catch {
+    // Fallback if sandbox store not available
   }
 
   // 降级：提取前一章末尾 300 字作为场景线索
@@ -223,14 +241,11 @@ export function inferCurrentScene(recentChapters: Chapter[], project: Project): 
  * 推断人物状态
  * V3 重构：从 currentState 读取真实状态，而非仅返回姓名列表
  */
-export function isCharacterActive(c: Character): boolean {
-  if (c.isArchived) return false
-  
-  if (c.currentState?.vitalStatus === 'dead') return false
-  
-  const statusLower = (c.currentState?.status || '').toLowerCase()
+export function isCharacterActive(resolved: ResolvedEntity): boolean {
+  if (resolved.isArchived) return false
+  if (resolved.vitalStatus === 'dead') return false
+  const statusLower = (resolved.properties.status || '').toLowerCase()
   const isDead = statusLower.includes('死亡') || statusLower.includes('dead') || statusLower.includes('殒落')
-  
   return !isDead
 }
 
@@ -240,52 +255,60 @@ export function inferCharacterStates(recentChapters: Chapter[], project: Project
   }
 
   const lastChapter = recentChapters[0]
-  const characters = project.characters || []
 
-  // 提取最后出场的人物，并附带状态信息
-  const mentioned = characters.filter(c =>
-    (lastChapter.content || '').includes(c.name)
-  )
+  try {
+    const { useSandboxStore } = require('@/stores/sandbox')
+    const sandboxStore = useSandboxStore()
+    const activeState = sandboxStore.activeEntitiesState
 
-  if (mentioned.length === 0) return ''
+    const mentioned = sandboxStore.entities.filter((e: Entity) =>
+      e.type === 'CHARACTER' && !e.isArchived && (lastChapter.content || '').includes(e.name)
+    )
 
-  return `主要人物：` + mentioned.map(c => {
-    const state = c.currentState
-    if (state && (state.status || state.location)) {
-      const parts = [c.name]
-      if (state.status) parts.push(state.status)
-      if (state.location) parts.push(`在${state.location}`)
-      return parts.join('/')
-    }
-    return c.name
-  }).join('、')
+    if (mentioned.length === 0) return ''
+
+    return `主要人物：` + mentioned.map((entity: Entity) => {
+      const resolved = activeState[entity.id]
+      if (resolved) {
+        const parts = [entity.name]
+        if (resolved.properties.status) parts.push(resolved.properties.status)
+        if (resolved.location && typeof resolved.location === 'string') {
+          parts.push(`在${resolved.location}`)
+        }
+        return parts.join('/')
+      }
+      return entity.name
+    }).join('、')
+  } catch {
+    return ''
+  }
 }
 
 /**
  * V4-D4: 提取前置状态约束，注入系统提示词头部
  */
-export function buildStateConstraints(characters: Character[], involvedNames: string[]): string {
+export function buildStateConstraints(entities: Entity[], activeState: Record<string, ResolvedEntity>, involvedNames: string[]): string {
   const constraints: string[] = []
   for (const name of involvedNames) {
-    const char = characters.find(c => c.name === name)
-    if (!char?.currentState) continue
-    const s = char.currentState
-    
-    // index.ts CharacterState doesn't have vitalStatus natively, but it might be in status
-    const isDead = (s.status || '').toLowerCase().includes('死') || (s.status || '').toLowerCase().includes('dead')
-    
+    const entity = entities.find(e => e.name === name)
+    if (!entity) continue
+    const resolved = activeState[entity.id]
+    if (!resolved) continue
+
+    const isDead = resolved.vitalStatus === 'dead' ||
+      (resolved.properties.status || '').toLowerCase().includes('死')
+
     const parts: string[] = []
     if (isDead) parts.push(`生存状态:已死亡`)
-    else if (s.status) parts.push(`当前状态:${s.status}`)
-    
-    if (s.location) parts.push(`当前位置:${s.location}`)
-    if (s.faction) parts.push(`所属阵营:${s.faction}`)
-    
-    // ability levels could be added here if needed
-    if (char.powerLevel) parts.push(`修为境界:${char.powerLevel}`)
-    
+    else if (resolved.properties.status) parts.push(`当前状态:${resolved.properties.status}`)
+
+    if (resolved.location && typeof resolved.location === 'string') {
+      parts.push(`当前位置:${resolved.location}`)
+    }
+    if (resolved.properties.faction) parts.push(`所属阵营:${resolved.properties.faction}`)
+
     if (parts.length > 0) {
-      constraints.push(`- ${char.name}: ${parts.join(', ')}`)
+      constraints.push(`- ${entity.name}: ${parts.join(', ')}`)
     }
   }
   if (constraints.length === 0) return ''
@@ -355,9 +378,20 @@ export function buildCharacterInfo(
   currentChapter: Chapter,
   recentChapters: Chapter[]
 ): string {
-  if (!project.characters || project.characters.length === 0) {
+  // V5: Use sandbox store for character data
+  let charEntities: Entity[] = []
+  let activeState: Record<string, ResolvedEntity> = {}
+
+  try {
+    const { useSandboxStore } = require('@/stores/sandbox')
+    const sandboxStore = useSandboxStore()
+    charEntities = sandboxStore.entities.filter((e: Entity) => e.type === 'CHARACTER' && !e.isArchived)
+    activeState = sandboxStore.activeEntitiesState
+  } catch {
     return ''
   }
+
+  if (charEntities.length === 0) return ''
 
   const parts: string[] = []
 
@@ -371,52 +405,51 @@ export function buildCharacterInfo(
 
   // 从前文提取
   if (recentChapters && recentChapters.length > 0) {
-    project.characters.forEach(char => {
-      if (recentChapters.some(ch => ch.content.includes(char.name))) {
-        relevantCharacterNames.add(char.name)
+    charEntities.forEach(entity => {
+      if (recentChapters.some(ch => ch.content.includes(entity.name))) {
+        relevantCharacterNames.add(entity.name)
       }
     })
   }
 
   // 如果没有指定，默认取前3个主要人物
-  if (relevantCharacterNames.size === 0 && project.characters.length > 0) {
-    project.characters.slice(0, 3).forEach(c => relevantCharacterNames.add(c.name))
+  if (relevantCharacterNames.size === 0 && charEntities.length > 0) {
+    charEntities.slice(0, 3).forEach(e => relevantCharacterNames.add(e.name))
   }
 
-  // 2. 构建人物卡
-  // V4-③: 过滤死亡/归档角色，仅在大纲明确提及时才注入（RAG 唤醒）
-  const relevantCharacters = project.characters.filter(c => {
-    if (!relevantCharacterNames.has(c.name)) return false
-    
-    // 跳过死亡/归档角色，除非本章大纲明确提及
-    if (!isCharacterActive(c) && !currentChapter.outline?.characters?.includes(c.name)) {
+  // 2. 构建人物卡 — V5: from Entity + ResolvedEntity
+  const relevantEntities = charEntities.filter(e => {
+    if (!relevantCharacterNames.has(e.name)) return false
+
+    const resolved = activeState[e.id]
+    // 跳过死亡角色，除非本章大纲明确提及
+    if (resolved && !isCharacterActive(resolved) && !currentChapter.outline?.characters?.includes(e.name)) {
       return false
     }
-    
+
     return true
   })
 
-  if (relevantCharacters.length > 0) {
+  if (relevantEntities.length > 0) {
     parts.push(`【人物设定】`)
 
-    relevantCharacters.forEach(char => {
-      parts.push(`\n${char.name}：`)
-      parts.push(`  性别：${char.gender === 'male' ? '男' : char.gender === 'female' ? '女' : '其他'}`)
-      parts.push(`  年龄：${char.age}岁`)
-      if (char.appearance) parts.push(`  外貌：${char.appearance}`)
-      if (char.personality && char.personality.length > 0) {
-        parts.push(`  性格：${char.personality.join('、')}`)
-      }
-      if (char.background) parts.push(`  背景：${char.background}`)
-      if (char.abilities && char.abilities.length > 0) {
-        parts.push(`  能力：${char.abilities.map(a => a.name).join('、')}`)
+    relevantEntities.forEach(entity => {
+      const resolved = activeState[entity.id]
+      parts.push(`\n${entity.name}：`)
+      parts.push(`  重要性：${entity.importance}`)
+      if (entity.systemPrompt) {
+        // systemPrompt contains the character's full description
+        const promptLines = entity.systemPrompt.split('\n')
+        promptLines.forEach(line => {
+          if (line.trim()) parts.push(`  ${line}`)
+        })
       }
 
-      // 人物关系（简化）
-      if (char.relationships && char.relationships.length > 0) {
-        const relations = char.relationships.slice(0, 3).map(r => {
-          const target = project.characters.find(c => c.id === r.targetId)
-          return target ? `${r.type === 'friend' ? '朋友' : r.type === 'enemy' ? '敌人' : r.type}(${target.name})` : ''
+      // 人物关系（from ResolvedEntity）
+      if (resolved?.relations && resolved.relations.length > 0) {
+        const relations = resolved.relations.slice(0, 3).map(r => {
+          const target = charEntities.find(e => e.id === r.targetId)
+          return target ? `${r.type}(${target.name})${r.attitude ? ' - ' + r.attitude : ''}` : ''
         }).filter(r => r).join('、')
 
         if (relations) parts.push(`  关系：${relations}`)

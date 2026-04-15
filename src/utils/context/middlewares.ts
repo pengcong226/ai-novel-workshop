@@ -94,7 +94,13 @@ export class StateConstraintsMiddleware implements ContextMiddleware {
   async process(payload: ContextPayload) {
     const { project, currentChapter } = payload;
     const involvedCharNames = currentChapter.outline?.characters || [];
-    let constraints = buildStateConstraints(project.characters || [], involvedCharNames);
+
+    // V5: Get entity data from sandbox store
+    const { useSandboxStore } = require('@/stores/sandbox');
+    const sandboxStore = useSandboxStore();
+    const charEntities = sandboxStore.entities.filter((e: any) => e.type === 'CHARACTER');
+    const activeState = sandboxStore.activeEntitiesState;
+    let constraints = buildStateConstraints(charEntities, activeState, involvedCharNames);
 
     // 约束不应该被轻易裁剪，但如果过长也需要控制
     const budget = payload.budget.distribution['SYSTEM_PROMPT'] || 1000;

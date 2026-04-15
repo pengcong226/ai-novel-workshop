@@ -5,11 +5,11 @@
         <transition-group name="el-fade-in-linear" tag="div" class="context-cards-container">
           <div v-for="char in characters" :key="'char-'+char.id" class="glass-card context-card">
             <div class="card-title"><el-tag size="small" type="success">人物</el-tag> {{ char.name }}</div>
-            <div class="card-desc">{{ char.background || '暂时没有传记信息' }}</div>
+            <div class="card-desc">{{ char.properties.background || char.systemPrompt || '暂时没有传记信息' }}</div>
           </div>
-          <div v-for="wb in worldbook" :key="'wb-'+wb.uid" class="glass-card context-card">
-            <div class="card-title"><el-tag size="small" type="warning">设定</el-tag> {{ wb.key[0] }}</div>
-            <div class="card-desc">{{ wb.content }}</div>
+          <div v-for="wb in worldbook" :key="'wb-'+wb.id" class="glass-card context-card">
+            <div class="card-title"><el-tag size="small" type="warning">设定</el-tag> {{ wb.name }}</div>
+            <div class="card-desc">{{ wb.systemPrompt || '暂无详细设定' }}</div>
           </div>
         </transition-group>
         <el-empty v-if="characters.length === 0 && worldbook.length === 0" description="打字时右侧将浮现人物羁绊与世界词条" />
@@ -62,8 +62,8 @@
 
 <script setup lang="ts">
 import { computed } from 'vue'
-import type { Character } from '@/types'
-import type { WorldbookEntry } from '@/types/worldbook'
+import type { ResolvedEntity } from '@/stores/sandbox'
+import type { Entity } from '@/types/sandbox'
 
 interface ChapterFormData {
   number?: number
@@ -74,8 +74,8 @@ interface ChapterFormData {
 
 const props = defineProps<{
   activeTab: string
-  characters: Character[]
-  worldbook: WorldbookEntry[]
+  characters: ResolvedEntity[]
+  worldbook: Entity[]
   chapterForm: ChapterFormData
 }>()
 
