@@ -631,11 +631,8 @@ async function saveNode() {
     }
 
     if (editingEventId.value) {
-      // For edits, remove the old event and create a new one with the same ID
-      const oldIndex = sandboxStore.stateEvents.findIndex(e => e.id === editingEventId.value)
-      if (oldIndex !== -1) {
-        sandboxStore.stateEvents.splice(oldIndex, 1)
-      }
+      // For edits, delete the old event first (persists to backend), then add replacement
+      await sandboxStore.deleteStateEvent(editingEventId.value)
 
       const updatedEvent: StateEvent = {
         id: editingEventId.value,

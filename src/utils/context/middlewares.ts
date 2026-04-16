@@ -95,7 +95,6 @@ export class StateConstraintsMiddleware implements ContextMiddleware {
     const involvedCharNames = currentChapter.outline?.characters || [];
 
     // V5: Get entity data from sandbox store
-    const { useSandboxStore } = require('@/stores/sandbox');
     const sandboxStore = useSandboxStore();
     const charEntities = sandboxStore.entities.filter((e: any) => e.type === 'CHARACTER');
     const activeState = sandboxStore.activeEntitiesState;

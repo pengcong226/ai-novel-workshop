@@ -11,6 +11,7 @@
 import type { Project, Chapter, ChapterOutline, VectorServiceConfig } from '@/types'
 import type { ResolvedEntity } from '@/stores/sandbox'
 import type { Entity } from '@/types/sandbox'
+import { useSandboxStore } from '@/stores/sandbox'
 import { sanitizeForPrompt, validateInput } from './inputSanitizer'
 import { getVectorService, type VectorService } from '@/services/vector-service'
 import { ContextPipeline, type ContextPayload, estimateTokens, truncateToTokens } from './context/pipeline'
@@ -150,7 +151,6 @@ export function inferCurrentScene(recentChapters: Chapter[], project: Project): 
   const lastContent = lastChapter.content || ''
 
   try {
-    const { useSandboxStore } = require('@/stores/sandbox')
     const sandboxStore = useSandboxStore()
     const activeState = sandboxStore.activeEntitiesState
 
@@ -159,7 +159,7 @@ export function inferCurrentScene(recentChapters: Chapter[], project: Project): 
       if (e.type !== 'CHARACTER' || e.isArchived) return false
       if (!lastContent.includes(e.name)) return false
       const resolved = activeState[e.id]
-      return resolved?.location && resolved.location !== '未知'
+      return resolved?.location != null
     })
 
     if (charactersWithLocation.length > 0) {
@@ -204,7 +204,6 @@ export function inferCharacterStates(recentChapters: Chapter[], project: Project
   const lastChapter = recentChapters[0]
 
   try {
-    const { useSandboxStore } = require('@/stores/sandbox')
     const sandboxStore = useSandboxStore()
     const activeState = sandboxStore.activeEntitiesState
 
@@ -275,7 +274,6 @@ export function buildWorldInfo(
   const parts: string[] = []
 
   try {
-    const { useSandboxStore } = require('@/stores/sandbox')
     const sandboxStore = useSandboxStore()
     const activeState = sandboxStore.activeEntitiesState
 
@@ -366,7 +364,6 @@ export function buildCharacterInfo(
   let activeState: Record<string, ResolvedEntity> = {}
 
   try {
-    const { useSandboxStore } = require('@/stores/sandbox')
     const sandboxStore = useSandboxStore()
     charEntities = sandboxStore.entities.filter((e: Entity) => e.type === 'CHARACTER' && !e.isArchived)
     activeState = sandboxStore.activeEntitiesState

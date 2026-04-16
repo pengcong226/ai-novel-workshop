@@ -39,10 +39,20 @@ export const useSandboxStore = defineStore('sandbox', () => {
       const { invoke } = await import('@tauri-apps/api/core');
 
       const entitiesJson = await invoke<string>('load_entities', { projectId });
-      entities.value = JSON.parse(entitiesJson);
+      try {
+        entities.value = JSON.parse(entitiesJson);
+      } catch (e) {
+        logger.error('Failed to parse entities JSON:', e);
+        entities.value = [];
+      }
 
       const eventsJson = await invoke<string>('load_state_events', { projectId });
-      stateEvents.value = JSON.parse(eventsJson);
+      try {
+        stateEvents.value = JSON.parse(eventsJson);
+      } catch (e) {
+        logger.error('Failed to parse state events JSON:', e);
+        stateEvents.value = [];
+      }
 
       isLoaded.value = true;
     } catch (e) {

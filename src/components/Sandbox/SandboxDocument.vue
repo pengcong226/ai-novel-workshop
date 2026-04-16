@@ -118,10 +118,17 @@ function getEntityName(id: string) {
   return e ? e.name : id
 }
 
-function saveEntity() {
+async function saveEntity() {
   if (activeEntity.value) {
-    // TODO: Implement persistence - currently edits are not saved
-    logger.warn('saveEntity not yet implemented - edits will be lost')
+    try {
+      await sandboxStore.updateEntity(activeEntity.value.id, {
+        name: activeEntity.value.name,
+        category: activeEntity.value.category,
+        systemPrompt: activeEntity.value.systemPrompt
+      })
+    } catch (e) {
+      logger.error('Failed to save entity:', e)
+    }
   }
 }
 </script>

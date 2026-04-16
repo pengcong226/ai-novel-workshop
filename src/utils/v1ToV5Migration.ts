@@ -6,6 +6,7 @@
  */
 
 import type { Character, Ability, Relationship, WorldSetting } from '../types'
+import type { WorldbookEntry } from '../types/worldbook'
 import type { Entity, StateEvent, EntityImportance, EntityType } from '../types/sandbox'
 
 /**
@@ -20,7 +21,7 @@ export interface MigrationResult {
  * 生成唯一 ID
  */
 function generateId(): string {
-  return `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
+  return crypto.randomUUID()
 }
 
 /**
@@ -296,18 +297,8 @@ export function worldSettingToEntities(
     })
   }
 
-  // PowerSystem PROPERTY_UPDATE on WORLD entity
-  if (world.powerSystem) {
-    stateEvents.push({
-      id: generateId(),
-      projectId,
-      chapterNumber: 0,
-      entityId: worldEntityId,
-      eventType: 'PROPERTY_UPDATE' as const,
-      payload: { key: 'powerSystem', value: JSON.stringify(world.powerSystem) },
-      source: 'MIGRATION' as const
-    })
-  }
+  // PowerSystem is stored as a dedicated LORE entity (created below),
+  // no need for a duplicate PROPERTY_UPDATE on the WORLD entity.
 
   // 2. FACTION entities
   for (const faction of world.factions) {
@@ -433,7 +424,7 @@ export function worldSettingToEntities(
  * 将 WorldbookEntry[] 转换为 V5 LORE Entity + StateEvent
  */
 export function worldbookEntriesToEntities(
-  entries: any[],
+  entries: WorldbookEntry[],
   projectId: string
 ): MigrationResult {
   const entities: Entity[] = []
@@ -508,7 +499,7 @@ export function migrateV1ToV5Full(
   projectData: {
     characters?: Character[]
     world?: WorldSetting
-    worldbook?: { entries?: any[] }
+    worldbook?: { entries?: WorldbookEntry[] }
   },
   projectId: string
 ): MigrationResult {

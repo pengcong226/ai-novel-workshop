@@ -537,12 +537,15 @@ fn delete_entity(
     entity_id: String,
 ) -> Result<(), String> {
     let db = lock_db!(state);
-    let tx = db.unchecked_transaction().map_err(|e| e.to_string())?;
-    tx.execute(
+    let tx = db.transaction().map_err(|e| e.to_string())?;
+    let rows = tx.execute(
         "DELETE FROM entities WHERE project_id = ?1 AND id = ?2",
         rusqlite::params![project_id, entity_id],
     )
     .map_err(|e| e.to_string())?;
+    if rows == 0 {
+        return Err(format!("Entity not found: {}", entity_id));
+    }
     tx.execute(
         "DELETE FROM state_events WHERE project_id = ?1 AND entity_id = ?2",
         rusqlite::params![project_id, entity_id],
@@ -559,11 +562,14 @@ fn delete_state_event(
     event_id: String,
 ) -> Result<(), String> {
     let db = lock_db!(state);
-    db.execute(
+    let rows = db.execute(
         "DELETE FROM state_events WHERE project_id = ?1 AND id = ?2",
         rusqlite::params![project_id, event_id],
     )
     .map_err(|e| e.to_string())?;
+    if rows == 0 {
+        return Err(format!("State event not found: {}", event_id));
+    }
     Ok(())
 }
 

@@ -450,8 +450,8 @@ async function createFromTemplate() {
       const sandboxStore = useSandboxStore()
       for (const entity of templateEntities) {
         // Skip entities not selected by user
-        if (!templateImportOptions.value.includes('world') && entity.type !== 'CHARACTER') continue
-        if (!templateImportOptions.value.includes('characters') && entity.type === 'CHARACTER') continue
+        if (entity.type === 'CHARACTER' && !templateImportOptions.value.includes('characters')) continue
+        if (entity.type !== 'CHARACTER' && !templateImportOptions.value.includes('world')) continue
 
         entity.projectId = projectId
         await sandboxStore.addEntity(entity)

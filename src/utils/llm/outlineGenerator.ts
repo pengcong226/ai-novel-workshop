@@ -63,7 +63,7 @@ export async function extendOutlineWithLLM(
   // V5: 从 sandbox store 获取世界观信息
   const sandboxStore = useSandboxStore()
   const resolvedState = sandboxStore.activeEntitiesState
-  const worldEntity = sandboxStore.entities.find(e => e.type === 'LORE' && e.category === 'world-setting')
+  const worldEntity = sandboxStore.entities.find(e => e.type === 'WORLD')
   const worldResolved = worldEntity ? resolvedState[worldEntity.id] : undefined
   const world = worldEntity ? {
     name: worldEntity.name,

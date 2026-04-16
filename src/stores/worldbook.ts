@@ -406,6 +406,22 @@ export const useWorldbookStore = defineStore('worldbook', () => {
 
     await saveWorldbook()
 
+    // V5 bridge: archive corresponding LORE entities
+    try {
+      const sandboxStore = useSandboxStore()
+      for (const entryId of entryIds) {
+        const uid = String(entryId)
+        const loreEntity = sandboxStore.entities.find(
+          e => e.type === 'LORE' && e.visualMeta?.worldbookUid === uid
+        )
+        if (loreEntity) {
+          await sandboxStore.deleteEntity(loreEntity.id)
+        }
+      }
+    } catch (e) {
+      logger.warn('V5 bridge: failed to sync bulk delete to sandbox store', e)
+    }
+
     logger.info('条目已批量删除', { count: entryIds.length })
   }
 
@@ -428,6 +444,22 @@ export const useWorldbookStore = defineStore('worldbook', () => {
     })
 
     await saveWorldbook()
+
+    // V5 bridge: sync isArchived on corresponding LORE entities
+    try {
+      const sandboxStore = useSandboxStore()
+      for (const entryId of entryIds) {
+        const uid = String(entryId)
+        const loreEntity = sandboxStore.entities.find(
+          e => e.type === 'LORE' && e.visualMeta?.worldbookUid === uid
+        )
+        if (loreEntity) {
+          await sandboxStore.updateEntity(loreEntity.id, { isArchived: !enabled })
+        }
+      }
+    } catch (e) {
+      logger.warn('V5 bridge: failed to sync toggle to sandbox store', e)
+    }
 
     logger.info('条目状态已切换', { count: entryIds.length, enabled })
   }
@@ -827,6 +859,36 @@ export const useWorldbookStore = defineStore('worldbook', () => {
       }
 
       await saveWorldbook()
+
+      // V5 bridge: sync imported entries to sandbox store
+      try {
+        const sandboxStore = useSandboxStore()
+        if (projectId.value) {
+          for (const entry of imported.entries) {
+            const uid = String(entry.uid)
+            const existing = sandboxStore.entities.find(
+              e => e.type === 'LORE' && e.visualMeta?.worldbookUid === uid
+            )
+            if (!existing) {
+              await sandboxStore.addEntity({
+                id: crypto.randomUUID(),
+                projectId: projectId.value,
+                type: 'LORE',
+                name: entry.comment || entry.key?.[0] || `LORE-${entry.uid}`,
+                aliases: entry.key || [],
+                importance: entry.constant ? 'critical' : 'minor',
+                category: entry.novelWorkshop?.category || 'general',
+                systemPrompt: entry.content || '',
+                visualMeta: { worldbookUid: uid },
+                isArchived: !!entry.disable,
+                createdAt: Date.now()
+              })
+            }
+          }
+        }
+      } catch (e) {
+        logger.warn('V5 bridge: failed to sync importWorldbook to sandbox store', e)
+      }
 
       logger.info('世界书导入完成', {
         entryCount: imported.entries.length,
