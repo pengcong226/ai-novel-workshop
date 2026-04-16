@@ -7,6 +7,7 @@ import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import type { KnowledgeEntry, KnowledgeCategory } from '@/types/knowledge-base'
 import { getLogger } from '@/utils/logger'
+import { v4 as uuidv4 } from 'uuid'
 
 const logger = getLogger('knowledge:store')
 
@@ -134,17 +135,35 @@ export const useKnowledgeStore = defineStore('knowledge', () => {
         throw new Error('项目不存在')
       }
 
-      // 初始化知识库
+      // 初始化知识库（通过 project store 避免竞态）
       if (!projectData.knowledgeBase) {
-        projectData.knowledgeBase = {
+        const { useProjectStore } = await import('./project')
+        const projectStore = useProjectStore()
+        const currentProj = projectStore.currentProject
+
+        const defaultKnowledgeBase: import('@/types/knowledge-base').KnowledgeBase = {
+          id: uuidv4(),
+          name: '默认知识库',
           entries: [],
+          categories: [],
+          tags: [],
+          createdAt: new Date(),
+          updatedAt: new Date(),
           metadata: {
             totalEntries: 0,
             enabledEntries: 0,
             totalUsage: 0
           }
         }
-        await storage.saveProject(projectData)
+
+        if (currentProj && currentProj.id === pid) {
+          currentProj.knowledgeBase = defaultKnowledgeBase
+          await projectStore.saveCurrentProject()
+        } else {
+          const storage = useStorage()
+          projectData.knowledgeBase = defaultKnowledgeBase
+          await storage.saveProject(projectData)
+        }
       }
 
       entries.value = projectData.knowledgeBase.entries || []
@@ -165,6 +184,7 @@ export const useKnowledgeStore = defineStore('knowledge', () => {
 
   /**
    * 保存知识库
+   * 通过 project store 统一持久化，避免 load-modify-save 竞态
    */
   async function saveKnowledge(): Promise<void> {
     if (!projectId.value) {
@@ -178,17 +198,19 @@ export const useKnowledgeStore = defineStore('knowledge', () => {
     try {
       logger.info('开始保存知识库', { projectId: projectId.value })
 
-      const { useStorage } = await import('./storage')
-      const storage = useStorage()
-      const projectData = await storage.loadProject(projectId.value)
+      // 通过 project store 统一保存，避免竞态
+      const { useProjectStore } = await import('./project')
+      const projectStore = useProjectStore()
+      const currentProj = projectStore.currentProject
 
-      if (!projectData) {
-        throw new Error('项目不存在')
-      }
-
-      // 更新统计
-      projectData.knowledgeBase = {
+      const knowledgeBase: import('@/types/knowledge-base').KnowledgeBase = {
+        id: currentProj?.knowledgeBase?.id || uuidv4(),
+        name: currentProj?.knowledgeBase?.name || '默认知识库',
         entries: entries.value,
+        categories: currentProj?.knowledgeBase?.categories || [],
+        tags: currentProj?.knowledgeBase?.tags || [],
+        createdAt: currentProj?.knowledgeBase?.createdAt || new Date(),
+        updatedAt: new Date(),
         metadata: {
           totalEntries: totalEntries.value,
           enabledEntries: enabledEntries.value,
@@ -197,7 +219,20 @@ export const useKnowledgeStore = defineStore('knowledge', () => {
         }
       }
 
-      await storage.saveProject(projectData)
+      if (currentProj && currentProj.id === projectId.value) {
+        currentProj.knowledgeBase = knowledgeBase
+        projectStore.debouncedSaveCurrentProject()
+      } else {
+        // fallback: 项目不在当前上下文时，仍用独立保存
+        const { useStorage } = await import('./storage')
+        const storage = useStorage()
+        const projectData = await storage.loadProject(projectId.value)
+        if (!projectData) {
+          throw new Error('项目不存在')
+        }
+        projectData.knowledgeBase = knowledgeBase
+        await storage.saveProject(projectData)
+      }
 
       logger.info('知识库保存完成', {
         entryCount: entries.value.length

@@ -1,5 +1,4 @@
 import type { Project, Chapter } from '@/types';
-import type { MemorySystem } from '../tableMemory';
 import type { VectorService } from '@/services/vector-service';
 import { countTokens as countLLMTokens } from '../llm/tokenizer';
 
@@ -9,7 +8,6 @@ import { countTokens as countLLMTokens } from '../llm/tokenizer';
 export interface ContextPayload {
   project: Project;
   currentChapter: Chapter;
-  memorySystem?: MemorySystem;
   vectorService?: VectorService;
 
   // 预算管理
@@ -33,7 +31,6 @@ export interface ContextPayload {
     worldInfo: string;
     characters: string;
     stateConstraints: string;
-    memoryTables: string;
     vectorContext: string;
     summary: string;
     recentChapters: string;

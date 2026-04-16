@@ -283,6 +283,7 @@
 import { ref, computed, onMounted, onUnmounted, nextTick, watch } from 'vue'
 import { useProjectStore } from '@/stores/project'
 import { useSuggestionsStore } from '@/stores/suggestions'
+import { useSandboxStore } from '@/stores/sandbox'
 import { ElMessage, ElNotification } from 'element-plus'
 import { ChatDotRound, MoreFilled } from '@element-plus/icons-vue'
 import * as echarts from 'echarts/core'
@@ -291,6 +292,7 @@ import type { Suggestion, SuggestionStatus, SuggestionAction } from '@/types/sug
 
 const projectStore = useProjectStore()
 const suggestionsStore = useSuggestionsStore()
+const sandboxStore = useSandboxStore()
 const project = computed(() => projectStore.currentProject)
 
 const showChat = ref(false)
@@ -581,18 +583,26 @@ async function processCommand(command: string) {
 体裁：${project.genre}
 进度：${project.chapters?.length || 0}章 / 目标 ${project.targetWords} 字
 `
-      if (project.world && project.world.name) {
+      const worldEntity = sandboxStore.entities.find(e => e.type === 'WORLD')
+      const worldResolved = worldEntity ? sandboxStore.activeEntitiesState[worldEntity.id] : null
+      if (worldEntity) {
         systemPrompt += `\n[世界观]
-世界名称：${project.world.name}
-时代：${project.world.era?.time || '未知'}，科技：${project.world.era?.techLevel || '未知'}
-势力：${(project.world.factions || []).map(f => f.name).join('、')}
-规则：${(project.world.rules || []).slice(0,3).map(r => r.name).join('、')}`
+世界名称：${worldEntity.name}
+时代：${worldResolved?.properties['eraTime'] || '未知'}，科技：${worldResolved?.properties['eraTechLevel'] || '未知'}
+势力：${sandboxStore.entities.filter(e => e.type === 'FACTION' && !e.isArchived).map(f => f.name).join('、')}
+规则：${sandboxStore.entities.filter(e => e.type === 'LORE' && e.category === 'world-rule').slice(0, 3).map(r => r.name).join('、')}`
       }
 
-      if (project.characters && project.characters.length > 0) {
+      const characterEntities = sandboxStore.entities.filter(e => e.type === 'CHARACTER' && !e.isArchived).slice(0, 5)
+      if (characterEntities.length > 0) {
+        const importanceLabel: Record<string, string> = { critical: '主角', major: '重要角色', minor: '配角', background: '背景角色' }
         systemPrompt += `\n\n[核心人物]`
-        project.characters.slice(0, 5).forEach(c => {
-          systemPrompt += `\n- ${c.name} (${c.tags?.[0] || '角色'}): ${c.appearance || ''} ${c.background || ''}`
+        characterEntities.forEach(entity => {
+          const resolved = sandboxStore.activeEntitiesState[entity.id]
+          const label = importanceLabel[entity.importance] || '角色'
+          const appearance = resolved?.properties['appearance'] || ''
+          const background = entity.systemPrompt || ''
+          systemPrompt += `\n- ${entity.name} (${label}): ${appearance} ${background}`
         })
       }
       

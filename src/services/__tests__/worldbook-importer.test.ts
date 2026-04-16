@@ -4,7 +4,7 @@
 
 import { describe, it, expect, beforeEach } from 'vitest'
 import { WorldbookImporter, createWorldbookImporter, exportWorldbook } from '../worldbook-importer'
-import type { WorldbookData } from '@/types/worldbook'
+import type { Worldbook } from '@/types/worldbook'
 
 describe('WorldbookImporter', () => {
   let importer: WorldbookImporter
@@ -203,7 +203,7 @@ describe('WorldbookImporter', () => {
   })
 
   describe('导出功能', () => {
-    const testWorldbook: WorldbookData = {
+    const testWorldbook: Worldbook = {
       name: '测试世界书',
       description: '测试描述',
       entries: [
@@ -235,7 +235,7 @@ describe('WorldbookImporter', () => {
     })
 
     it('应该支持过滤导出', async () => {
-      const worldbook: WorldbookData = {
+      const worldbook: Worldbook = {
         entries: [
           { uid: 1, keys: ['a'], key: ['a'], content: 'a', enabled: true },
           { uid: 2, keys: ['b'], key: ['b'], content: 'b', enabled: false }

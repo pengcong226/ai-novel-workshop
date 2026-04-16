@@ -254,87 +254,114 @@ export function generateProjectOverviewMarkdown(project: Project): string {
   }
 
   // 世界观
-  if (project.world.name || project.world.era.time) {
+  const { useSandboxStore } = require('@/stores/sandbox')
+  const sandboxStore = useSandboxStore()
+  const worldEntity = sandboxStore.entities.find((e: { type: string }) => e.type === 'WORLD')
+  const worldResolved = worldEntity ? sandboxStore.activeEntitiesState[worldEntity.id] : null
+  const factions = sandboxStore.entities.filter((e: { type: string; isArchived: boolean }) => e.type === 'FACTION' && !e.isArchived)
+  const locations = sandboxStore.entities.filter((e: { type: string; isArchived: boolean }) => e.type === 'LOCATION' && !e.isArchived)
+
+  if (worldEntity?.name || worldResolved?.properties['eraTime']) {
     lines.push('## 世界观')
     lines.push('')
 
-    if (project.world.name) {
-      lines.push(`**世界名称：** ${project.world.name}`)
+    if (worldEntity?.name) {
+      lines.push(`**世界名称：** ${worldEntity.name}`)
       lines.push('')
     }
 
-    if (project.world.era.time) {
-      lines.push(`**时代背景：** ${project.world.era.time}`)
+    if (worldResolved?.properties['eraTime']) {
+      lines.push(`**时代背景：** ${worldResolved.properties['eraTime']}`)
       lines.push('')
     }
 
-    if (project.world.era.techLevel) {
-      lines.push(`**科技水平：** ${project.world.era.techLevel}`)
+    if (worldResolved?.properties['eraTechLevel']) {
+      lines.push(`**科技水平：** ${worldResolved.properties['eraTechLevel']}`)
       lines.push('')
     }
 
-    if (project.world.era.socialForm) {
-      lines.push(`**社会形态：** ${project.world.era.socialForm}`)
+    if (worldResolved?.properties['eraSocialForm']) {
+      lines.push(`**社会形态：** ${worldResolved.properties['eraSocialForm']}`)
       lines.push('')
     }
 
     // 势力
-    if (project.world.factions.length > 0) {
+    if (factions.length > 0) {
       lines.push('### 主要势力')
       lines.push('')
-      project.world.factions.forEach(faction => {
+      factions.forEach((faction: { id: string; name: string; systemPrompt?: string }) => {
+        const factionResolved = sandboxStore.activeEntitiesState[faction.id]
         lines.push(`#### ${faction.name}`)
         lines.push('')
-        lines.push(`**类型：** ${faction.type}`)
+        const factionType = factionResolved?.properties['factionType'] || '未知'
+        lines.push(`**类型：** ${factionType}`)
         lines.push('')
-        lines.push(faction.description)
-        lines.push('')
+        const factionDesc = factionResolved?.properties['description'] || faction.systemPrompt || ''
+        if (factionDesc) {
+          lines.push(factionDesc)
+          lines.push('')
+        }
       })
     }
 
     // 地点
-    if (project.world.geography.locations.length > 0) {
+    if (locations.length > 0) {
       lines.push('### 重要地点')
       lines.push('')
-      project.world.geography.locations.forEach(location => {
-        lines.push(`- **${location.name}**：${location.description}`)
+      locations.forEach((location: { id: string; name: string; systemPrompt?: string }) => {
+        const locResolved = sandboxStore.activeEntitiesState[location.id]
+        const locDesc = locResolved?.properties['description'] || location.systemPrompt || ''
+        lines.push(`- **${location.name}**：${locDesc}`)
       })
       lines.push('')
     }
   }
 
   // 主要人物
-  if (project.characters.length > 0) {
+  const characterEntities = sandboxStore.entities.filter((e: { type: string; isArchived: boolean }) => e.type === 'CHARACTER' && !e.isArchived)
+  if (characterEntities.length > 0) {
     lines.push('## 主要人物')
     lines.push('')
 
-    project.characters.slice(0, 10).forEach(character => {
-      lines.push(`### ${character.name}`)
+    characterEntities.slice(0, 10).forEach((entity: { id: string; name: string; importance: string; aliases?: string[]; systemPrompt?: string }) => {
+      const resolved = sandboxStore.activeEntitiesState[entity.id]
+      lines.push(`### ${entity.name}`)
       lines.push('')
 
-      if (character.aliases.length > 0) {
-        lines.push(`**别名：** ${character.aliases.join('、')}`)
+      if (entity.aliases && entity.aliases.length > 0) {
+        lines.push(`**别名：** ${entity.aliases.join('、')}`)
         lines.push('')
       }
 
-      lines.push(`**性别：** ${character.gender === 'male' ? '男' : character.gender === 'female' ? '女' : '其他'}`)
-      lines.push(`**年龄：** ${character.age}`)
+      const gender = resolved?.properties['gender'] || '未知'
+      lines.push(`**性别：** ${gender === 'male' ? '男' : gender === 'female' ? '女' : gender === 'other' ? '其他' : gender}`)
+      lines.push(`**年龄：** ${resolved?.properties['age'] || ''}`)
       lines.push('')
 
-      if (character.background) {
+      if (entity.systemPrompt) {
         lines.push('**背景：**')
-        lines.push(character.background)
+        lines.push(entity.systemPrompt)
         lines.push('')
       }
 
-      if (character.personality.length > 0) {
-        lines.push(`**性格：** ${character.personality.join('、')}`)
-        lines.push('')
+      const personalityRaw = resolved?.properties['personality']
+      if (personalityRaw) {
+        try {
+          const personality: string[] = JSON.parse(personalityRaw)
+          if (personality.length > 0) {
+            lines.push(`**性格：** ${personality.join('、')}`)
+            lines.push('')
+          }
+        } catch {
+          // personality is not JSON, display as-is
+          lines.push(`**性格：** ${personalityRaw}`)
+          lines.push('')
+        }
       }
     })
 
-    if (project.characters.length > 10) {
-      lines.push(`*（还有 ${project.characters.length - 10} 个角色未显示）*`)
+    if (characterEntities.length > 10) {
+      lines.push(`*（还有 ${characterEntities.length - 10} 个角色未显示）*`)
       lines.push('')
     }
   }

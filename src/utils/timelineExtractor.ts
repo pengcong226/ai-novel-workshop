@@ -4,6 +4,7 @@
  */
 
 import type { Project, Chapter, Outline} from '@/types'
+import { useSandboxStore } from '@/stores/sandbox'
 
 /**
  * 时间线事件类型
@@ -333,12 +334,13 @@ export function generateTimelineGroups(project: Project): TimelineGroup[] {
   }
 
   // 人物分组
-  const characters = Array.isArray(project.characters) ? project.characters : []
-  characters.forEach(char => {
-    if (char && typeof char === 'object') {
+  const sandboxStore = useSandboxStore()
+  const characters = sandboxStore.entities.filter(e => e.type === 'CHARACTER')
+  characters.forEach(entity => {
+    if (entity && typeof entity === 'object') {
       groups.push({
-        id: `character-${char.id}`,
-        content: char.name,
+        id: `character-${entity.id}`,
+        content: entity.name,
         className: 'group-character'
       })
     }

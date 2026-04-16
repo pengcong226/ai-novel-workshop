@@ -455,34 +455,6 @@ class TauriStorage {
       throw new Error(`桌面端删除项目失败：${e instanceof Error ? e.message : String(e)}`);
     }
   }
-
-  async saveCharacter(character: any, projectId: string) {
-    const { invoke } = await import('@tauri-apps/api/core');
-    await invoke('save_character_atomic', {
-      projectId,
-      characterId: character.id,
-      data: JSON.stringify(character)
-    });
-  }
-
-  async deleteCharacter(characterId: string, projectId: string) {
-    const { invoke } = await import('@tauri-apps/api/core');
-    await invoke('delete_character', { projectId, characterId });
-  }
-
-  async saveWorldbookEntry(entry: any, projectId: string) {
-    const { invoke } = await import('@tauri-apps/api/core');
-    await invoke('save_worldbook_entry_atomic', {
-      projectId,
-      entryId: entry.id,
-      data: JSON.stringify(entry)
-    });
-  }
-
-  async deleteWorldbookEntry(entryId: string, projectId: string) {
-    const { invoke } = await import('@tauri-apps/api/core');
-    await invoke('delete_worldbook_entry', { projectId, entryId });
-  }
 }
 
 export const useStorage = defineStore('storage', () => {
@@ -576,30 +548,6 @@ export const useStorage = defineStore('storage', () => {
     throw new Error('当前存储后端不支持章节级删除')
   }
 
-  async function saveCharacter(character: any, projectId: string) {
-    if (storage instanceof TauriStorage) {
-      return await storage.saveCharacter(character, projectId);
-    }
-  }
-
-  async function deleteCharacter(characterId: string, projectId: string) {
-    if (storage instanceof TauriStorage) {
-      return await storage.deleteCharacter(characterId, projectId);
-    }
-  }
-
-  async function saveWorldbookEntry(entry: any, projectId: string) {
-    if (storage instanceof TauriStorage) {
-      return await storage.saveWorldbookEntry(entry, projectId);
-    }
-  }
-
-  async function deleteWorldbookEntry(entryId: string, projectId: string) {
-    if (storage instanceof TauriStorage) {
-      return await storage.deleteWorldbookEntry(entryId, projectId);
-    }
-  }
-
   return {
     isInitialized,
     loadProjects,
@@ -611,10 +559,6 @@ export const useStorage = defineStore('storage', () => {
     loadChapter,
     loadChaptersPaginated,
     saveChapter,
-    deleteChapter,
-    saveCharacter,
-    deleteCharacter,
-    saveWorldbookEntry,
-    deleteWorldbookEntry
+    deleteChapter
   }
 })

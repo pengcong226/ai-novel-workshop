@@ -9,6 +9,7 @@ import { getOutlineGenerationPrompt } from './prompts/outlinePrompts'
 import type { Project } from '@/types'
 import { v4 as uuidv4 } from 'uuid'
 import { sanitizeForPrompt } from '@/utils/inputSanitizer'
+import { useSandboxStore } from '@/stores/sandbox'
 
 /**
  * 生成大纲
@@ -59,26 +60,36 @@ export async function extendOutlineWithLLM(
   const aiStore = useAIStore()
   if (!aiStore.checkInitialized()) throw new Error('AI未初始化')
 
-  const world = project.world
+  // V5: 从 sandbox store 获取世界观信息
+  const sandboxStore = useSandboxStore()
+  const resolvedState = sandboxStore.activeEntitiesState
+  const worldEntity = sandboxStore.entities.find(e => e.type === 'LORE' && e.category === 'world-setting')
+  const worldResolved = worldEntity ? resolvedState[worldEntity.id] : undefined
+  const world = worldEntity ? {
+    name: worldEntity.name,
+    eraTime: worldResolved?.properties?.['eraTime'] || '',
+    techLevel: worldResolved?.properties?.['techLevel'] || '',
+    factions: sandboxStore.entities.filter(e => e.type === 'FACTION').map(f => ({ name: f.name })),
+  } : undefined
   const existingOutline = project.outline
 
   // 获取最近的5章大纲作为续写参考
   const recentOutlines = existingOutline.chapters.slice(Math.max(0, existingOutline.chapters.length - 5))
-  const recentOutlinesText = recentOutlines.map(c => 
+  const recentOutlinesText = recentOutlines.map(c =>
     `第${existingOutline.chapters.indexOf(c) + 1}章 ${c.title}\n目标: ${c.goals.join(',')}\n冲突: ${c.conflicts.join(',')}\n解决: ${c.resolutions.join(',')}`
   ).join('\n\n')
 
   // 提取未解决的伏笔 (Horizon Pre-fetch)
   const unresolvedForeshadowings = existingOutline.foreshadowings.filter(f => f.status === 'planted')
-  const foreshadowingText = unresolvedForeshadowings.length > 0 
+  const foreshadowingText = unresolvedForeshadowings.length > 0
     ? unresolvedForeshadowings.map(f => `- [第${f.plantChapter}章埋下] ${f.description}`).join('\n')
     : '无'
 
   // Sanitize user-originated content before prompt interpolation
   const safeWorldName = world?.name ? sanitizeForPrompt(world.name) : ''
-  const safeEraTime = world?.era ? sanitizeForPrompt(world.era.time) : ''
-  const safeEraTech = world?.era ? sanitizeForPrompt(world.era.techLevel) : ''
-  const safeFactions = world?.factions?.length ? sanitizeForPrompt(world.factions.map((f: any) => f.name).join('、'), { escapeBraces: false }) : ''
+  const safeEraTime = world?.eraTime ? sanitizeForPrompt(world.eraTime) : ''
+  const safeEraTech = world?.techLevel ? sanitizeForPrompt(world.techLevel) : ''
+  const safeFactions = world?.factions?.length ? sanitizeForPrompt(world.factions.map((f: { name: string }) => f.name).join('、'), { escapeBraces: false }) : ''
   const safeMainPlotName = sanitizeForPrompt(existingOutline.mainPlot.name)
   const safeMainPlotDesc = sanitizeForPrompt(existingOutline.mainPlot.description, { maxLength: existingOutline.mainPlot.description.length })
   const safeForeshadowingText = sanitizeForPrompt(foreshadowingText, { maxLength: foreshadowingText.length })
@@ -89,7 +100,7 @@ export async function extendOutlineWithLLM(
 
 【设定坐标系】：
 ${safeWorldName ? '世界观：' + safeWorldName : ''}
-${world?.era ? '时代背景：' + safeEraTime + '，科技水平：' + safeEraTech : ''}
+${(world?.eraTime || world?.techLevel) ? '时代背景：' + safeEraTime + '，科技水平：' + safeEraTech : ''}
 ${safeFactions ? '主要势力：' + safeFactions : ''}
 
 【主线锚点】：${safeMainPlotName} - ${safeMainPlotDesc}
@@ -102,7 +113,7 @@ ${safeRecentOutlinesText}
 
 【工作要求】：
 1. 剧情严密连贯：基于当前节点，推动主线锚点，不要原地灌水或突然跳跃。
-2. 填坑动作：若剧情合适可以利用起上述“未干预期”的因果线/伏笔并标明回收。
+2. 填坑动作：若剧情合适可以利用起上述"未干预期"的因果线/伏笔并标明回收。
 3. 返回格式：必须以原生 JSON 返回，不要附加 markdown代码块之外的废话！
 
 返回的 JSON 的格式要求如下：
@@ -129,7 +140,7 @@ ${safeRecentOutlinesText}
   const aiContext = { type: 'outline' as const, complexity: 'high' as const, priority: 'quality' as const }
 
   console.log(`[大纲续写] 开始生成第 ${startChapter} 到 ${startChapter + count - 1} 章大纲...`)
-  
+
   const maxTokens = project.config?.advancedSettings?.maxTokens || 4000
   const response = await aiStore.chat(messages, aiContext, { maxTokens })
 
@@ -149,7 +160,7 @@ ${safeRecentOutlinesText}
   try {
     const parsed = JSON.parse(jsonStr)
     const newChapters = parsed.chapters || []
-    
+
     return newChapters.map((c: any) => ({
       chapterId: uuidv4(),
       title: c.title || '',

@@ -1,5 +1,6 @@
 import type { AIActionHandlerContribution, ActionContext } from '../types';
 import { useProjectStore } from '@/stores/project';
+import { useSandboxStore } from '@/stores/sandbox';
 import { ElMessage } from 'element-plus';
 
 /**
@@ -9,32 +10,27 @@ export const createCharacterActionContribution: AIActionHandlerContribution = {
   type: 'create_character',
   handler: async (data: any, context: ActionContext) => {
     const projectStore = useProjectStore();
+    const sandboxStore = useSandboxStore();
     if (!projectStore.currentProject) {
       throw new Error('No active project');
     }
 
-    projectStore.currentProject.characters.push({
+    const projectId = projectStore.currentProject.id;
+    await sandboxStore.addEntity({
       id: crypto.randomUUID(),
+      projectId,
+      type: 'CHARACTER',
       name: data.name || '新角色',
       aliases: [],
-      gender: data.gender || 'other',
-      age: data.age || 20,
-      appearance: data.appearance || '',
-      personality: [],
-      values: [],
-      background: data.background || '',
-      motivation: '',
-      abilities: [],
-      relationships: [],
-      appearances: [],
-      development: [],
-      tags: ['supporting'],
-      stateHistory: [],
-      aiGenerated: true
-    } as any);
+      importance: 'major',
+      category: 'ai-assistant',
+      systemPrompt: data.background || '',
+      visualMeta: {},
+      isArchived: false,
+      createdAt: Date.now()
+    });
 
-    await projectStore.saveCurrentProject();
-    ElMessage.success(`✅ 成功添加人物：${data.name}`);
+    ElMessage.success(`成功添加人物：${data.name}`);
   }
 };
 

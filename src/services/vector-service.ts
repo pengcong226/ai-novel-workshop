@@ -505,8 +505,10 @@ export class VectorService {
     this.logger.info('开始索引项目 (仅正文切片)', { projectId: project.id });
 
     // 收集已知实体名 (用于给切片打 entityNames 标签)
-    const characterNames = (project.characters || []).map(c => c.name);
-    const locationNames = (project.world?.geography?.locations || []).map(l => l.name);
+    const { useSandboxStore } = await import('@/stores/sandbox')
+    const sandboxStore = useSandboxStore()
+    const characterNames = sandboxStore.entities.filter(e => e.type === 'CHARACTER' && !e.isArchived).map(e => e.name)
+    const locationNames = sandboxStore.entities.filter(e => e.type === 'LOCATION' && !e.isArchived).map(e => e.name)
 
     const allDocs: VectorDocument[] = [];
 

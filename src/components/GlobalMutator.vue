@@ -97,10 +97,13 @@
 <script setup lang="ts">
 import { ref, reactive, computed } from 'vue'
 import { useProjectStore } from '@/stores/project'
+import { useSandboxStore } from '@/stores/sandbox'
 import { ElMessage } from 'element-plus'
 import { Search, Edit, Aim, WarnTriangleFilled } from '@element-plus/icons-vue'
+import { v4 as uuidv4 } from 'uuid'
 
 const projectStore = useProjectStore()
+const sandboxStore = useSandboxStore()
 const project = computed(() => projectStore.currentProject)
 
 const visible = ref(false)
@@ -163,21 +166,25 @@ const scan = async () => {
     matches.chapters += countOccurrences(c.summary)
   })
 
-  // 2. 扫描人物卡
-  project.value.characters.forEach(c => {
-    matches.characters += countOccurrences(c.name)
-    matches.characters += countOccurrences(c.background)
-    matches.characters += countOccurrences(c.appearance)
-    c.aliases.forEach(a => { matches.characters += countOccurrences(a) })
+  // 2. 扫描人物卡 (V5: from sandbox CHARACTER entities)
+  const charEntities = sandboxStore.entities.filter(e => e.type === 'CHARACTER' && !e.isArchived)
+  const resolvedState = sandboxStore.activeEntitiesState
+  charEntities.forEach(entity => {
+    matches.characters += countOccurrences(entity.name)
+    matches.characters += countOccurrences(entity.systemPrompt)
+    const resolved = resolvedState[entity.id]
+    if (resolved?.properties?.['appearance']) {
+      matches.characters += countOccurrences(resolved.properties['appearance'])
+    }
+    entity.aliases.forEach(a => { matches.characters += countOccurrences(a) })
   })
 
-  // 3. 扫描世界书
-  if (project.value.worldbook?.entries) {
-    project.value.worldbook.entries.forEach(wb => {
-      matches.worldbook += countOccurrences(wb.content)
-      wb.key.forEach(k => { matches.worldbook += countOccurrences(k) })
-    })
-  }
+  // 3. 扫描世界书 (V5: from sandbox LORE entities)
+  const loreEntities = sandboxStore.entities.filter(e => e.type === 'LORE' && !e.isArchived)
+  loreEntities.forEach(entity => {
+    matches.worldbook += countOccurrences(entity.systemPrompt)
+    entity.aliases.forEach(a => { matches.worldbook += countOccurrences(a) })
+  })
 
   scanning.value = false
   hasScanned.value = true
@@ -202,18 +209,49 @@ const executeReplace = async () => {
       if (c.summary) c.summary = c.summary.replace(srcRegex, target)
     })
 
-    p.characters.forEach(c => {
-      if (c.name) c.name = c.name.replace(srcRegex, target)
-      if (c.background) c.background = c.background.replace(srcRegex, target)
-      if (c.appearance) c.appearance = c.appearance.replace(srcRegex, target)
-      c.aliases = c.aliases.map(a => a.replace(srcRegex, target))
-    })
+    // V5: Replace in sandbox CHARACTER entities
+    const charEntities = sandboxStore.entities.filter(e => e.type === 'CHARACTER' && !e.isArchived)
+    const resolvedState = sandboxStore.activeEntitiesState
+    for (const entity of charEntities) {
+      const updates: Record<string, any> = {}
+      const newName = entity.name.replace(srcRegex, target)
+      if (newName !== entity.name) updates.name = newName
+      const newPrompt = entity.systemPrompt.replace(srcRegex, target)
+      if (newPrompt !== entity.systemPrompt) updates.systemPrompt = newPrompt
+      const newAliases = entity.aliases.map(a => a.replace(srcRegex, target))
+      if (JSON.stringify(newAliases) !== JSON.stringify(entity.aliases)) updates.aliases = newAliases
+      // Also update appearance via StateEvent if it matches
+      const resolved = resolvedState[entity.id]
+      if (resolved?.properties?.['appearance']?.match(srcRegex)) {
+        const newAppearance = resolved.properties['appearance'].replace(srcRegex, target)
+        await sandboxStore.addStateEvent({
+          id: uuidv4(),
+          projectId: entity.projectId,
+          chapterNumber: 0,
+          entityId: entity.id,
+          eventType: 'PROPERTY_UPDATE',
+          payload: { key: 'appearance', value: newAppearance },
+          source: 'MANUAL'
+        })
+      }
+      if (Object.keys(updates).length > 0) {
+        await sandboxStore.updateEntity(entity.id, updates)
+      }
+    }
 
-    if (p.worldbook?.entries) {
-      p.worldbook.entries.forEach(wb => {
-        if (wb.content) wb.content = wb.content.replace(srcRegex, target)
-        wb.key = wb.key.map(k => k.replace(srcRegex, target))
-      })
+    // V5: Replace in sandbox LORE entities
+    const loreEntities = sandboxStore.entities.filter(e => e.type === 'LORE' && !e.isArchived)
+    for (const entity of loreEntities) {
+      const updates: Record<string, any> = {}
+      const newName = entity.name.replace(srcRegex, target)
+      if (newName !== entity.name) updates.name = newName
+      const newPrompt = entity.systemPrompt.replace(srcRegex, target)
+      if (newPrompt !== entity.systemPrompt) updates.systemPrompt = newPrompt
+      const newAliases = entity.aliases.map(a => a.replace(srcRegex, target))
+      if (JSON.stringify(newAliases) !== JSON.stringify(entity.aliases)) updates.aliases = newAliases
+      if (Object.keys(updates).length > 0) {
+        await sandboxStore.updateEntity(entity.id, updates)
+      }
     }
 
     // 更新到存储层

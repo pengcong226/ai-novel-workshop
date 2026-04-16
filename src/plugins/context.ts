@@ -6,8 +6,10 @@
 
 import { useProjectStore } from '@/stores/project'
 import { useAIStore } from '@/stores/ai'
+import { useSandboxStore } from '@/stores/sandbox'
 import { ElMessage, ElMessageBox, ElNotification } from 'element-plus'
-import type { WorldSetting, Outline } from '@/types'
+import type { Outline } from '@/types'
+import type { ResolvedEntity } from '@/stores/sandbox'
 import { getLogger } from '@/utils/logger'
 import type {
   PluginContext,
@@ -91,16 +93,22 @@ export function createPluginContext(
       return store.currentProject?.chapters || []
     },
 
-    getCharacters() {
+    getCharacters(): ResolvedEntity[] {
       requirePermission('project-data', '获取人物列表')
-      const store = useProjectStore()
-      return store.currentProject?.characters || []
+      const sandboxStore = useSandboxStore()
+      return Object.values(sandboxStore.activeEntitiesState).filter(e => e.type === 'CHARACTER')
     },
 
-    getWorldSetting(): WorldSetting {
+    getWorldSetting(): Record<string, unknown> {
       requirePermission('project-data', '获取世界观设定')
-      const store = useProjectStore()
-      return store.currentProject?.world as WorldSetting
+      const sandboxStore = useSandboxStore()
+      const loreEntities = Object.values(sandboxStore.activeEntitiesState).filter(e => e.type === 'LORE')
+      const locationEntities = Object.values(sandboxStore.activeEntitiesState).filter(e => e.type === 'LOCATION')
+      return {
+        lore: loreEntities,
+        locations: locationEntities,
+        properties: loreEntities.reduce((acc, e) => ({ ...acc, [e.name]: e.properties }), {})
+      }
     },
 
     getOutline(): Outline {

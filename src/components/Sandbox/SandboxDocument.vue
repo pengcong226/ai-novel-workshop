@@ -90,7 +90,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { useSandboxStore } from '@/stores/sandbox'
-import type { ActiveEntityState } from '@/stores/sandbox'
+import type { ResolvedEntity } from '@/stores/sandbox'
 import { getLogger } from '@/utils/logger'
 
 const logger = getLogger('sandbox:document')
@@ -108,7 +108,7 @@ const activeEntity = computed(() => {
 })
 
 // Extract the dynamic state computed by the Pinia reducer
-const currentState = computed<ActiveEntityState | null>(() => {
+const currentState = computed<ResolvedEntity | null>(() => {
   if (!activeEntityId.value) return null
   return sandboxStore.activeEntitiesState[activeEntityId.value] || null
 })

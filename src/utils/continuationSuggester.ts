@@ -3,7 +3,8 @@
  * 基于已有内容提供续写建议
  */
 
-import type { Chapter, Character, Outline, WorldSetting } from '@/types'
+import type { Chapter, Outline } from '@/types'
+import type { ResolvedEntity } from '@/stores/sandbox'
 
 export interface ContinuationSuggestion {
   type: 'plot' | 'character' | 'scene' | 'conflict' | 'foreshadowing'
@@ -118,7 +119,7 @@ function analyzeForeshadowing(chapters: Chapter[]): ForeshadowingItem[] {
  */
 function analyzeCharacterAppearances(
   chapters: Chapter[],
-  characters: Character[]
+  characters: ResolvedEntity[]
 ): Map<string, number[]> {
   const appearances = new Map<string, number[]>()
 
@@ -142,9 +143,8 @@ function analyzeCharacterAppearances(
  */
 export function generateContinuationSuggestions(
   chapters: Chapter[],
-  characters: Character[],
-  outline?: Outline,
-  _worldSetting?: WorldSetting
+  characters: ResolvedEntity[],
+  outline?: Outline
 ): ContinuationSuggestion[] {
   const suggestions: ContinuationSuggestion[] = []
 
@@ -195,7 +195,7 @@ export function generateContinuationSuggestions(
     const characterAppearances = appearances.get(character.id) || []
     const recentAppearances = characterAppearances.filter(n => recentChapters.includes(n))
 
-    if (recentAppearances.length === 0 && character.tags?.includes('protagonist')) {
+    if (recentAppearances.length === 0 && character.importance === 'critical') {
       suggestions.push({
         type: 'character',
         priority: 'high',
@@ -288,7 +288,7 @@ export function generateContinuationSuggestions(
 export function generateChapterContinuationPoints(
   currentChapter: Chapter,
   _previousChapters: Chapter[],
-  characters: Character[]
+  characters: ResolvedEntity[]
 ): string[] {
   const points: string[] = []
 

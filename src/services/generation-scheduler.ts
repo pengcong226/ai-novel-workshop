@@ -578,7 +578,11 @@ ${chapter.content.substring(0, 8000)}
         if (currentProject.config?.enableQualityCheck) {
           try {
             const { createQualityChecker } = await import('@/utils/qualityChecker')
-            const checker = createQualityChecker(currentProject.world, currentProject.characters, currentProject.outline, currentProject.config)
+            const { useSandboxStore } = await import('@/stores/sandbox')
+            const sandboxStore = useSandboxStore()
+            const loreEntities = Object.values(sandboxStore.activeEntitiesState).filter(e => e.type === 'LORE')
+            const characterEntities = Object.values(sandboxStore.activeEntitiesState).filter(e => e.type === 'CHARACTER')
+            const checker = createQualityChecker(loreEntities, characterEntities, currentProject.outline, currentProject.config)
             const report = await checker.checkChapter(chapterData)
             chapterData.qualityScore = report.overallScore
           } catch(e) {}

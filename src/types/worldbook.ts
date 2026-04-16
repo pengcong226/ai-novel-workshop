@@ -347,11 +347,6 @@ export interface WorldbookMetadata {
 }
 
 /**
- * @deprecated 使用 Worldbook 替代
- */
-export type WorldbookData = Worldbook
-
-/**
  * 世界书导入选项
  */
 export interface WorldbookImportOptions {

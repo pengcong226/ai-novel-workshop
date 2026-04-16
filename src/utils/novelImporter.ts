@@ -24,9 +24,6 @@ import {
   analyzeQuality
 } from './qualityAnalyzer'
 import {
-  generateContinuationSuggestions
-} from './continuationSuggester'
-import {
   aiExtractCharacters,
   convertAICharactersToExtracted,
   type AIAnalysisConfig} from './aiAnalyzer'
@@ -40,7 +37,6 @@ export interface ImportOptions {
   extractWorld: boolean
   generateOutlineFromChapters: boolean
   analyzeQualityMetrics: boolean
-  generateContinuationSuggestions: boolean
   useAIAnalysis: boolean
   aiConfig?: AIAnalysisConfig
   customChapterPattern?: string
@@ -52,7 +48,6 @@ export interface ImportResult {
   project: Partial<Project>
   stats?: any
   qualityMetrics?: any
-  continuationSuggestions?: any[]
   worldInfo?: any
   outlineInfo?: any
 }
@@ -65,23 +60,6 @@ export interface ImportProgress {
 }
 
 export type ProgressCallback = (progress: ImportProgress) => void
-
-/**
- * 获取存储的API密钥
- */
-function getStoredAPIKey(): string | undefined {
-  try {
-    // 尝试从AI配置读取
-    const storedConfig = localStorage.getItem('ai-novel-ai-config')
-    if (storedConfig) {
-      const config = JSON.parse(storedConfig)
-      return config.apiKey
-    }
-  } catch (error) {
-    console.error('读取AI配置失败:', error)
-  }
-  return undefined
-}
 
 /**
  * 获取完整的AI配置
@@ -390,7 +368,7 @@ export async function importNovel(
   const now = new Date()
 
   // 创建章节数据
-  const chapters: Chapter[] = parsedChapters.map((parsed, index) => ({
+  const chapters: Chapter[] = parsedChapters.map((parsed) => ({
     id: uuidv4(),
     number: parsed.number,
     title: parsed.title,
@@ -471,23 +449,8 @@ export async function importNovel(
     updatedAt: now
   }
 
-  // 阶段9: 生成续写建议
-  let continuationSuggestions: any[] = []
-
-  if (options.generateContinuationSuggestions && chapters.length > 0) {
-    onProgress?.({
-      stage: 'analyzing',
-      current: 92,
-      total: 100,
-      message: '正在生成续写建议...'
-    })
-
-    continuationSuggestions = generateContinuationSuggestions(
-      chapters,
-      fullCharacters,
-      projectOutline
-    )
-  }
+  // 阶段9: 续写建议已移除 - novelImporter 创建 V1 数据，后续自动迁移到 V5，
+  // 续写建议应在 V5 数据可用后由调用方按需生成
 
   onProgress?.({
     stage: 'complete',
@@ -499,7 +462,6 @@ export async function importNovel(
   return {
     project,
     qualityMetrics,
-    continuationSuggestions,
     worldInfo: worldTemplate,
     outlineInfo: outlineData
   }

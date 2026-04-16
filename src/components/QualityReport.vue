@@ -369,6 +369,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onBeforeUnmount, nextTick, watch } from 'vue'
 import { useProjectStore } from '@/stores/project'
+import { useSandboxStore } from '@/stores/sandbox'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Check, Download, Search, Warning, CircleCheckFilled } from '@element-plus/icons-vue'
 import { useAuditLog } from '@/composables/useAuditLog'
@@ -382,6 +383,7 @@ import { getLogger } from '@/utils/logger'
 const logger = getLogger('quality-report')
 
 const projectStore = useProjectStore()
+const sandboxStore = useSandboxStore()
 const project = computed(() => projectStore.currentProject)
 const chapters = computed(() => project.value?.chapters || [])
 
@@ -622,8 +624,8 @@ async function checkAllChapters() {
 
   try {
     const checker = createQualityChecker(
-      project.value.world,
-      project.value.characters,
+      Object.values(sandboxStore.activeEntitiesState).filter(e => e.type === 'LORE'),
+      Object.values(sandboxStore.activeEntitiesState).filter(e => e.type === 'CHARACTER'),
       project.value.outline,
       project.value.config
     )

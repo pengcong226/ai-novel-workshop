@@ -7,7 +7,7 @@
 
 import { v4 as uuidv4 } from 'uuid'
 import type {
-  WorldbookData,
+  Worldbook,
   WorldbookEntry,
   WorldbookImportOptions,
   WorldbookImportResult,
@@ -85,7 +85,7 @@ export class WorldbookImporter {
       onProgress?.(0, 100, '正在解析文件...')
 
       // 解析文件
-      let worldbook: WorldbookData
+      let worldbook: Worldbook
 
       if (typeof source === 'string') {
         // 文件路径
@@ -236,7 +236,7 @@ export class WorldbookImporter {
   private async parseFile(
     file: File,
     onProgress?: (current: number, total: number, message: string) => void
-  ): Promise<WorldbookData> {
+  ): Promise<Worldbook> {
     const extension = file.name.split('.').pop()?.toLowerCase()
 
     if (extension === 'png') {
@@ -259,7 +259,7 @@ export class WorldbookImporter {
   private async parseFromPath(
     filePath: string,
     onProgress?: (current: number, total: number, message: string) => void
-  ): Promise<WorldbookData> {
+  ): Promise<Worldbook> {
     const extension = filePath.split('.').pop()?.toLowerCase()
 
     // 动态导入 fs
@@ -285,7 +285,7 @@ export class WorldbookImporter {
   /**
    * 解析 PNG 文件（嵌入世界书数据）
    */
-  private async parsePng(source: File | Buffer): Promise<WorldbookData> {
+  private async parsePng(source: File | Buffer): Promise<Worldbook> {
     try {
       let input: Buffer | ArrayBuffer
 
@@ -336,7 +336,7 @@ export class WorldbookImporter {
   /**
    * 解析 JSON 文件
    */
-  private async parseJson(source: File): Promise<WorldbookData> {
+  private async parseJson(source: File): Promise<Worldbook> {
     const text = await source.text()
     return this.parseJsonContent(text)
   }
@@ -344,7 +344,7 @@ export class WorldbookImporter {
   /**
    * 解析 JSON 内容
    */
-  private parseJsonContent(text: string): WorldbookData {
+  private parseJsonContent(text: string): Worldbook {
     try {
       const data = JSON.parse(text)
 
@@ -379,7 +379,7 @@ export class WorldbookImporter {
   /**
    * 解析 JSONL 文件
    */
-  private async parseJsonl(source: File): Promise<WorldbookData> {
+  private async parseJsonl(source: File): Promise<Worldbook> {
     const text = await source.text()
     return this.parseJsonlContent(text)
   }
@@ -387,7 +387,7 @@ export class WorldbookImporter {
   /**
    * 解析 JSONL 内容
    */
-  private parseJsonlContent(text: string): WorldbookData {
+  private parseJsonlContent(text: string): Worldbook {
     const entries: WorldbookEntry[] = []
     const lines = text.split('\n').filter(line => line.trim())
 
@@ -412,7 +412,7 @@ export class WorldbookImporter {
    * 转换为小说工坊格式
    * 处理SillyTavern格式的字段映射差异
    */
-  private convertToNovelWorkshopFormat(data: TavernParserResult): WorldbookData {
+  private convertToNovelWorkshopFormat(data: TavernParserResult): Worldbook {
     const entries = (data.data.entries || []).map((entry, index) => {
       // SillyTavern格式字段映射
       // 注意：实际数据可能使用 id 而不是 uid
@@ -851,7 +851,7 @@ export async function mergeWorldbooks(
  * 导出世界书
  */
 export async function exportWorldbook(
-  worldbook: WorldbookData,
+  worldbook: Worldbook,
   format: 'json' | 'jsonl',
   options: { pretty?: boolean; filter?: (entry: WorldbookEntry) => boolean } = {}
 ): Promise<string> {

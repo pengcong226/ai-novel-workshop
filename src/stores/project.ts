@@ -5,6 +5,8 @@ import { v4 as uuidv4 } from 'uuid'
 import { decryptProjectConfig, encryptProjectConfig } from '@/utils/crypto'
 import { getLogger } from '@/utils/logger'
 import { useStorage } from './storage'
+import { useSandboxStore } from './sandbox'
+import { migrateV1ToV5Full } from '@/utils/v1ToV5Migration'
 
 export const useProjectStore = defineStore('project', () => {
   // 状态
@@ -103,23 +105,6 @@ export const useProjectStore = defineStore('project', () => {
       createdAt: new Date(),
       updatedAt: new Date(),
 
-      world: {
-        id: uuidv4(),
-        name: '',
-        era: {
-          time: '',
-          techLevel: '',
-          socialForm: ''
-        },
-        geography: {
-          locations: []
-        },
-        factions: [],
-        rules: [],
-        aiGenerated: false
-      },
-
-      characters: [],
       outline: {
         id: uuidv4(),
         synopsis: '',
@@ -164,6 +149,45 @@ export const useProjectStore = defineStore('project', () => {
       if (projectData) {
         currentProject.value = projectData
         logger.info('项目加载成功', { projectId: projectData.id, title: projectData.title })
+
+        // 加载 sandbox 数据并执行 V5 迁移（如果需要）
+        const sandboxStore = useSandboxStore()
+        await sandboxStore.loadData(projectId)
+
+        // 如果 sandbox 没有数据，但有旧的 characters/world，执行迁移
+        if (sandboxStore.entities.length === 0 && (projectData.characters?.length > 0 || projectData.world)) {
+          logger.info('开始 V5 全量迁移', {
+            projectId,
+            characterCount: projectData.characters?.length || 0,
+            hasWorld: !!projectData.world
+          })
+
+          try {
+            const { entities, stateEvents } = migrateV1ToV5Full(
+              projectData,
+              projectId
+            )
+
+            // 批量保存 Entity
+            for (const entity of entities) {
+              await sandboxStore.addEntity(entity)
+            }
+
+            // 批量保存 StateEvent
+            for (const event of stateEvents) {
+              await sandboxStore.addStateEvent(event)
+            }
+
+            logger.info('V5 迁移完成', { 
+              projectId,
+              entityCount: entities.length,
+              eventCount: stateEvents.length 
+            })
+          } catch (migrationError) {
+            logger.error('V5 迁移失败', migrationError)
+            // 迁移失败不影响项目打开，但记录错误
+          }
+        }
       } else {
         logger.error('项目不存在', { projectId })
         throw new Error('项目不存在')

@@ -29,7 +29,7 @@
           <div class="state-header">
             <div class="character-info">
               <span class="name">{{ char.name }}</span>
-              <el-tag :type="getTagType(char.tags?.[0])" size="small">{{ getTagLabel(char.tags?.[0]) }}</el-tag>
+              <el-tag :type="getTagType(char.importance)" size="small">{{ getTagLabel(char.importance) }}</el-tag>
             </div>
             <el-tag :type="getStatusType(char.currentState?.status)">
               {{ char.currentState?.status || '未知' }}
@@ -147,7 +147,7 @@
           <div class="header-actions">
             <el-select v-model="historyFilter.character" placeholder="筛选人物" clearable style="width: 150px; margin-right: 10px;">
               <el-option
-                v-for="char in characters"
+                v-for="char in characterEntities"
                 :key="char.id"
                 :label="char.name"
                 :value="char.id"
@@ -211,41 +211,49 @@
     <!-- 状态详情对话框 -->
     <el-dialog
       v-model="showDetailDialog"
-      :title="selectedCharacter?.name + ' - 状态详情'"
+      :title="(selectedEntityRaw?.name || '') + ' - 状态详情'"
       width="600px"
     >
-      <div v-if="selectedCharacter" class="state-detail">
+      <div v-if="selectedEntity" class="state-detail">
         <el-descriptions :column="1" border>
           <el-descriptions-item label="当前位置">
-            {{ selectedCharacter.currentState?.location || '未知' }}
+            {{ selectedEntity.properties.location || (selectedEntity.location ? `(${selectedEntity.location.x}, ${selectedEntity.location.y})` : '未知') }}
           </el-descriptions-item>
           <el-descriptions-item label="当前状态">
-            <el-tag :type="getStatusType(selectedCharacter.currentState?.status)">
-              {{ selectedCharacter.currentState?.status || '未知' }}
+            <el-tag :type="getStatusType(selectedEntity.vitalStatus || selectedEntity.properties.status)">
+              {{ selectedEntity.vitalStatus || selectedEntity.properties.status || '未知' }}
             </el-tag>
           </el-descriptions-item>
           <el-descriptions-item label="所属势力">
-            {{ selectedCharacter.currentState?.faction || '无' }}
+            {{ selectedEntity.properties.faction || '无' }}
           </el-descriptions-item>
-          <el-descriptions-item label="最后更新">
-            {{ formatTime(selectedCharacter.currentState?.updatedAt) }}
+          <el-descriptions-item label="能力">
+            <el-tag v-for="ability in selectedEntity.abilities" :key="ability.name" size="small" style="margin-right: 5px;">
+              {{ ability.name }} ({{ ability.status }})
+            </el-tag>
+            <span v-if="selectedEntity.abilities.length === 0">无</span>
+          </el-descriptions-item>
+          <el-descriptions-item label="关系">
+            <el-tag v-for="rel in selectedEntity.relations" :key="rel.targetId" size="small" style="margin-right: 5px;">
+              {{ sandboxStore.entities.find(e => e.id === rel.targetId)?.name || rel.targetId }} - {{ rel.type }}
+            </el-tag>
+            <span v-if="selectedEntity.relations.length === 0">无</span>
           </el-descriptions-item>
         </el-descriptions>
 
         <div class="state-history-section">
           <h4>变更历史</h4>
-          <el-timeline v-if="selectedCharacter.stateHistory?.length">
+          <el-timeline v-if="selectedEntityRaw && getEntityEvents(selectedEntityRaw.id).length">
             <el-timeline-item
-              v-for="(history, index) in selectedCharacter.stateHistory"
+              v-for="(event, index) in getEntityEvents(selectedEntityRaw!.id).reverse()"
               :key="index"
-              :timestamp="formatTime(history.timestamp)"
+              :timestamp="`第 ${event.chapterNumber} 章`"
               placement="top"
+              :type="getHistoryType(event.eventType === 'LOCATION_MOVE' ? 'location' : event.eventType === 'VITAL_STATUS_CHANGE' || event.eventType === 'PROPERTY_UPDATE' ? 'status' : event.eventType.startsWith('RELATION') ? 'faction' : 'status')"
             >
               <el-card shadow="hover">
-                <div v-if="history.location">位置：{{ history.location }}</div>
-                <div v-if="history.status">状态：{{ history.status }}</div>
-                <div v-if="history.faction">势力：{{ history.faction }}</div>
-                <div v-if="history.chapter">章节：第 {{ history.chapter }} 章</div>
+                <div>{{ event.eventType }}: {{ event.payload.key || '' }} {{ event.payload.value || event.payload.status || '' }}</div>
+                <div v-if="event.payload.targetId">目标: {{ sandboxStore.entities.find(e => e.id === event.payload.targetId)?.name || event.payload.targetId }}</div>
               </el-card>
             </el-timeline-item>
           </el-timeline>
@@ -259,18 +267,23 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
 import { useProjectStore } from '@/stores/project'
+import { useSandboxStore, type ResolvedEntity } from '@/stores/sandbox'
 import { ElMessage } from 'element-plus'
 import { Refresh, Location, Flag, Document, Right } from '@element-plus/icons-vue'
-import type { Character, CharacterTag } from '@/types'
+import type { Entity, EntityImportance, StateEvent } from '@/types/sandbox'
 
 const projectStore = useProjectStore()
+const sandboxStore = useSandboxStore()
 
 const project = computed(() => projectStore.currentProject)
-const characters = computed(() => project.value?.characters || [])
+const characterEntities = computed(() =>
+  sandboxStore.entities.filter(e => e.type === 'CHARACTER' && !e.isArchived)
+)
 
 // 对话框
 const showDetailDialog = ref(false)
-const selectedCharacter = ref<Character | null>(null)
+const selectedEntity = ref<ResolvedEntity | null>(null)
+const selectedEntityRaw = ref<Entity | null>(null)
 
 // 历史筛选
 const historyFilter = ref({
@@ -278,30 +291,60 @@ const historyFilter = ref({
   type: ''
 })
 
-// 标签配置
-const TAG_LABELS: Record<CharacterTag, string> = {
-  protagonist: '主角',
-  supporting: '配角',
-  antagonist: '反派',
-  minor: '路人',
-  other: '其他'
+// 标签配置 — V5 EntityImportance
+const IMPORTANCE_LABELS: Record<EntityImportance, string> = {
+  critical: '核心人物',
+  major: '重要人物',
+  minor: '次要人物',
+  background: '背景人物'
 }
 
-// 有状态的人物
-const charactersWithState = computed(() =>
-  characters.value.filter(c => c.currentState || c.stateHistory?.length)
-)
+// 辅助：获取实体的 ResolvedEntity
+function getResolved(entityId: string): ResolvedEntity | undefined {
+  return sandboxStore.activeEntitiesState[entityId]
+}
 
-// 位置统计
+// 辅助：获取实体的状态事件
+function getEntityEvents(entityId: string): StateEvent[] {
+  return sandboxStore.stateEvents
+    .filter(e => e.entityId === entityId)
+    .sort((a, b) => a.chapterNumber - b.chapterNumber)
+}
+
+// 有状态的人物 — entities that have state events or resolved state
+const charactersWithState = computed(() => {
+  return characterEntities.value.filter(e => {
+    const resolved = getResolved(e.id)
+    const events = getEntityEvents(e.id)
+    return events.length > 0 || (resolved && Object.keys(resolved.properties).length > 0)
+  }).map(e => {
+    const resolved = getResolved(e.id)
+    return {
+      id: e.id,
+      name: e.name,
+      importance: e.importance,
+      currentState: resolved ? {
+        status: resolved.properties.status || resolved.vitalStatus || '',
+        location: typeof resolved.location === 'string' ? resolved.location : (resolved.location ? `(${resolved.location.x}, ${resolved.location.y})` : ''),
+        faction: resolved.properties.faction || '',
+        updatedAt: e.createdAt
+      } : null,
+      stateHistory: getEntityEvents(e.id)
+    }
+  })
+})
+
+// 位置统计 — derive from ResolvedEntity.properties.location or LOCATION_MOVE events
 const locationStats = computed(() => {
-  const locationMap = new Map<string, { count: number; characters: Character[] }>()
+  const locationMap = new Map<string, { count: number; characters: Entity[] }>()
 
-  characters.value.forEach(char => {
-    const location = char.currentState?.location || ''
+  characterEntities.value.forEach(entity => {
+    const resolved = getResolved(entity.id)
+    const location = resolved?.properties.location || ''
     if (location) {
       const existing = locationMap.get(location) || { count: 0, characters: [] }
       existing.count++
-      existing.characters.push(char)
+      existing.characters.push(entity)
       locationMap.set(location, existing)
     }
   })
@@ -315,16 +358,17 @@ const locationStats = computed(() => {
     .sort((a, b) => b.count - a.count)
 })
 
-// 势力统计
+// 势力统计 — derive from ResolvedEntity.properties.faction
 const factionStats = computed(() => {
-  const factionMap = new Map<string, { count: number; characters: Character[] }>()
+  const factionMap = new Map<string, { count: number; characters: Entity[] }>()
 
-  characters.value.forEach(char => {
-    const faction = char.currentState?.faction || ''
+  characterEntities.value.forEach(entity => {
+    const resolved = getResolved(entity.id)
+    const faction = resolved?.properties.faction || ''
     if (faction) {
       const existing = factionMap.get(faction) || { count: 0, characters: [] }
       existing.count++
-      existing.characters.push(char)
+      existing.characters.push(entity)
       factionMap.set(faction, existing)
     }
   })
@@ -338,7 +382,7 @@ const factionStats = computed(() => {
     .sort((a, b) => b.count - a.count)
 })
 
-// 合并所有状态历史
+// 合并所有状态历史 — derive from StateEvents
 const allHistory = computed(() => {
   const history: Array<{
     characterId: string
@@ -350,53 +394,77 @@ const allHistory = computed(() => {
     chapter?: number
   }> = []
 
-  characters.value.forEach(char => {
-    if (!char.stateHistory) return
+  characterEntities.value.forEach(entity => {
+    const events = getEntityEvents(entity.id)
 
-    // 从历史记录中提取变更
-    char.stateHistory.forEach((record, index) => {
-      const prevRecord = char.stateHistory?.[index + 1]
+    // Track property changes through events
+    const propertySnapshot: Record<string, string> = {}
+    const locationHistory: string[] = []
 
-      if (record.location && prevRecord?.location !== record.location) {
-        history.push({
-          characterId: char.id,
-          characterName: char.name,
-          type: 'location',
-          oldValue: prevRecord?.location || '',
-          newValue: record.location,
-          timestamp: new Date(record.timestamp),
-          chapter: record.chapter
-        })
-      }
-
-      if (record.status && prevRecord?.status !== record.status) {
-        history.push({
-          characterId: char.id,
-          characterName: char.name,
-          type: 'status',
-          oldValue: prevRecord?.status || '',
-          newValue: record.status,
-          timestamp: new Date(record.timestamp),
-          chapter: record.chapter
-        })
-      }
-
-      if (record.faction && prevRecord?.faction !== record.faction) {
-        history.push({
-          characterId: char.id,
-          characterName: char.name,
-          type: 'faction',
-          oldValue: prevRecord?.faction || '',
-          newValue: record.faction,
-          timestamp: new Date(record.timestamp),
-          chapter: record.chapter
-        })
+    events.forEach(event => {
+      switch (event.eventType) {
+        case 'LOCATION_MOVE': {
+          const newLocation = event.payload.coordinates
+            ? `(${event.payload.coordinates.x}, ${event.payload.coordinates.y})`
+            : event.payload.value || ''
+          const oldLocation = locationHistory.length > 0 ? locationHistory[locationHistory.length - 1] : ''
+          if (newLocation && newLocation !== oldLocation) {
+            history.push({
+              characterId: entity.id,
+              characterName: entity.name,
+              type: 'location',
+              oldValue: oldLocation,
+              newValue: newLocation,
+              timestamp: new Date(entity.createdAt + event.chapterNumber * 1000),
+              chapter: event.chapterNumber
+            })
+            locationHistory.push(newLocation)
+          }
+          break
+        }
+        case 'PROPERTY_UPDATE': {
+          const key = event.payload.key
+          const newValue = event.payload.value || ''
+          if (key === 'status' || key === 'faction') {
+            const oldValue = propertySnapshot[key] || ''
+            if (newValue !== oldValue) {
+              history.push({
+                characterId: entity.id,
+                characterName: entity.name,
+                type: key as 'status' | 'faction',
+                oldValue,
+                newValue,
+                timestamp: new Date(entity.createdAt + event.chapterNumber * 1000),
+                chapter: event.chapterNumber
+              })
+            }
+          }
+          if (key) propertySnapshot[key] = newValue
+          break
+        }
+        case 'VITAL_STATUS_CHANGE': {
+          const oldStatus = propertySnapshot['status'] || ''
+          const newStatus = event.payload.status || ''
+          if (newStatus && newStatus !== oldStatus) {
+            history.push({
+              characterId: entity.id,
+              characterName: entity.name,
+              type: 'status',
+              oldValue: oldStatus,
+              newValue: newStatus,
+              timestamp: new Date(entity.createdAt + event.chapterNumber * 1000),
+              chapter: event.chapterNumber
+            })
+            propertySnapshot['status'] = newStatus
+          }
+          break
+        }
       }
     })
   })
 
-  // 按时间倒序排列
-  return history.sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime())
+  // 按章节号倒序排列
+  return history.sort((a, b) => (b.chapter || 0) - (a.chapter || 0))
 })
 
 // 过滤后的历史
@@ -414,31 +482,30 @@ const filteredHistory = computed(() => {
   return result.slice(0, 50) // 限制显示数量
 })
 
-// 方法
-function getTagType(tag?: CharacterTag): string {
-  if (!tag) return 'info'
-  const types: Record<CharacterTag, string> = {
-    protagonist: 'primary',
-    supporting: 'success',
-    antagonist: 'danger',
+// 方法 — V5 EntityImportance
+function getTagType(importance?: EntityImportance): string {
+  if (!importance) return 'info'
+  const types: Record<EntityImportance, string> = {
+    critical: 'primary',
+    major: 'success',
     minor: 'info',
-    other: 'warning'
+    background: 'warning'
   }
-  return types[tag] || 'info'
+  return types[importance] || 'info'
 }
 
-function getTagLabel(tag?: CharacterTag): string {
-  if (!tag) return '未知'
-  return TAG_LABELS[tag] || tag
+function getTagLabel(importance?: EntityImportance): string {
+  if (!importance) return '未知'
+  return IMPORTANCE_LABELS[importance] || importance
 }
 
 function getStatusType(status?: string): string {
   if (!status) return 'info'
   const statusLower = status.toLowerCase()
 
-  if (statusLower.includes('健康') || statusLower.includes('正常')) return 'success'
+  if (statusLower.includes('健康') || statusLower.includes('正常') || statusLower.includes('alive')) return 'success'
   if (statusLower.includes('受伤') || statusLower.includes('生病')) return 'warning'
-  if (statusLower.includes('危险') || statusLower.includes('重伤')) return 'danger'
+  if (statusLower.includes('危险') || statusLower.includes('重伤') || statusLower.includes('dead') || statusLower.includes('死亡')) return 'danger'
   return 'info'
 }
 
@@ -472,8 +539,10 @@ function formatTime(timestamp?: Date | string | number): string {
   })
 }
 
-function showStateDetail(char: Character) {
-  selectedCharacter.value = char
+function showStateDetail(char: typeof charactersWithState.value[0]) {
+  const resolved = getResolved(char.id)
+  selectedEntity.value = resolved || null
+  selectedEntityRaw.value = characterEntities.value.find(e => e.id === char.id) || null
   showDetailDialog.value = true
 }
 
@@ -485,24 +554,8 @@ async function initializeStates() {
   if (!project.value) return
 
   try {
-    characters.value.forEach(char => {
-      if (!char.currentState) {
-        char.currentState = {
-          location: '',
-          status: '',
-          faction: '',
-          updatedAt: Date.now()
-        }
-      }
-      if (!char.stateHistory) {
-        char.stateHistory = []
-      }
-    })
-
-    await projectStore.saveCurrentProject()
-    ElMessage.success('状态初始化完成')
+    ElMessage.success('状态数据已从 Sandbox Store 加载')
   } catch (error) {
-    console.error('初始化状态失败:', error)
     ElMessage.error('初始化状态失败')
   }
 }

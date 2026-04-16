@@ -861,9 +861,13 @@ async function runQualityCheckSilently(targetChapter: Chapter, notify: boolean =
 
   try {
     const { createQualityChecker } = await import('@/utils/qualityChecker')
+    const { useSandboxStore } = await import('@/stores/sandbox')
+    const sandboxStore = useSandboxStore()
+    const loreEntities = Object.values(sandboxStore.activeEntitiesState).filter(e => e.type === 'LORE')
+    const characterEntities = Object.values(sandboxStore.activeEntitiesState).filter(e => e.type === 'CHARACTER')
     const checker = createQualityChecker(
-      project.value.world,
-      project.value.characters,
+      loreEntities,
+      characterEntities,
       project.value.outline,
       project.value.config
     )
@@ -1047,10 +1051,14 @@ async function checkQuality() {
 
     // 1. 传统质量检查
     const { createQualityChecker } = await import('@/utils/qualityChecker')
+    const { useSandboxStore: useSandboxStoreQC } = await import('@/stores/sandbox')
+    const sandboxStoreQC = useSandboxStoreQC()
+    const loreEntitiesQC = Object.values(sandboxStoreQC.activeEntitiesState).filter(e => e.type === 'LORE')
+    const characterEntitiesQC = Object.values(sandboxStoreQC.activeEntitiesState).filter(e => e.type === 'CHARACTER')
 
     const checker = createQualityChecker(
-      project.value.world,
-      project.value.characters,
+      loreEntitiesQC,
+      characterEntitiesQC,
       project.value.outline,
       project.value.config
     )
@@ -1065,7 +1073,13 @@ async function checkQuality() {
 
     // 2. 冲突检测（针对当前章节）
     const { ConflictDetector } = await import('@/utils/conflictDetector')
-    const detector = new ConflictDetector(project.value)
+    const { useSandboxStore } = await import('@/stores/sandbox')
+    const sandboxStore = useSandboxStore()
+    const detector = new ConflictDetector({
+      entities: Object.values(sandboxStore.activeEntitiesState),
+      chapters: chapters.value,
+      outline: project.value.outline
+    })
     const conflictResult = await detector.detect()
 
     // 筛选与当前章节相关的冲突

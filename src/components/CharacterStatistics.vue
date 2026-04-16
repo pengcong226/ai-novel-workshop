@@ -111,7 +111,7 @@
             <el-tag
               v-for="char in row.characters"
               :key="char.id"
-              :type="getTagType(char.tag)"
+              :type="getTagType(char.importance)"
               size="small"
               style="margin-right: 5px; margin-bottom: 5px;"
             >
@@ -171,16 +171,18 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onBeforeUnmount, watch, nextTick } from 'vue'
 import { useProjectStore } from '@/stores/project'
+import { useSandboxStore } from '@/stores/sandbox'
 import { useRouter } from 'vue-router'
 import { Search } from '@element-plus/icons-vue'
 import * as echarts from 'echarts/core'
-import type { Character, CharacterTag } from '@/types'
+import type { Entity, EntityImportance } from '@/types/sandbox'
 
 const projectStore = useProjectStore()
+const sandboxStore = useSandboxStore()
 const router = useRouter()
 
 const project = computed(() => projectStore.currentProject)
-const characters = computed(() => project.value?.characters || [])
+const characters = computed(() => sandboxStore.entities.filter(e => e.type === 'CHARACTER' && !e.isArchived))
 const chapters = computed(() => project.value?.chapters || [])
 const outline = computed(() => project.value?.outline)
 
@@ -200,78 +202,82 @@ const selectedCharactersForTrend = ref<string[]>([])
 const trendRange = ref(20)
 const chapterSearch = ref('')
 
-// 标签配置
-const TAG_CONFIG: Record<CharacterTag, { label: string; color: string }> = {
-  protagonist: { label: '主角', color: '#409EFF' },
-  supporting: { label: '配角', color: '#67C23A' },
-  antagonist: { label: '反派', color: '#F56C6C' },
-  minor: { label: '路人', color: '#909399' },
-  other: { label: '其他', color: '#E6A23C' }
+// 标签配置 — V5 EntityImportance
+const TAG_CONFIG: Record<EntityImportance, { label: string; color: string }> = {
+  critical: { label: '核心人物', color: '#409EFF' },
+  major: { label: '重要人物', color: '#67C23A' },
+  minor: { label: '次要人物', color: '#909399' },
+  background: { label: '背景人物', color: '#E6A23C' }
+}
+
+// 辅助：获取实体的状态事件数
+function entityEventCount(entityId: string): number {
+  return sandboxStore.stateEvents.filter(e => e.entityId === entityId).length
 }
 
 // 统计数据
 const totalCharacters = computed(() => characters.value.length)
 
 const protagonistCount = computed(() =>
-  characters.value.filter(c => c.tags?.includes('protagonist')).length
+  characters.value.filter(c => c.importance === 'critical').length
 )
 
 const supportingCount = computed(() =>
-  characters.value.filter(c => c.tags?.includes('supporting')).length
+  characters.value.filter(c => c.importance === 'major').length
 )
 
 const totalAppearances = computed(() =>
-  characters.value.reduce((sum, c) => sum + (c.appearances || []).length, 0)
+  characters.value.reduce((sum, c) => sum + entityEventCount(c.id), 0)
 )
 
 // 出场次数最多的人物（前10名）
 const topCharacters = computed(() => {
   return [...characters.value]
-    .sort((a, b) => (b.appearances || []).length - (a.appearances || []).length)
+    .sort((a, b) => entityEventCount(b.id) - entityEventCount(a.id))
     .slice(0, 10)
 })
 
-// 人物标签统计
+// 人物标签统计 — V5: group by EntityImportance
 const characterTags = computed(() => {
-  const tagMap = new Map<CharacterTag, { count: number; characters: Character[] }>()
+  const tagMap = new Map<EntityImportance, { count: number; characters: Entity[] }>()
 
   Object.keys(TAG_CONFIG).forEach(tag => {
-    tagMap.set(tag as CharacterTag, { count: 0, characters: [] })
+    tagMap.set(tag as EntityImportance, { count: 0, characters: [] })
   })
 
   characters.value.forEach(char => {
-    const tags = char.tags?.length ? char.tags : ['other'] as CharacterTag[]
-    tags.forEach(tag => {
-      const data = tagMap.get(tag)
-      if (data) {
-        data.count++
-        data.characters.push(char)
-      }
-    })
+    const importance = char.importance || 'background'
+    const data = tagMap.get(importance)
+    if (data) {
+      data.count++
+      data.characters.push(char)
+    }
   })
 
   return Object.entries(TAG_CONFIG).map(([type, config]) => ({
-    type: type as CharacterTag,
+    type: type as EntityImportance,
     label: config.label,
     color: config.color,
-    count: tagMap.get(type as CharacterTag)?.count || 0,
-    characters: tagMap.get(type as CharacterTag)?.characters || []
+    count: tagMap.get(type as EntityImportance)?.count || 0,
+    characters: tagMap.get(type as EntityImportance)?.characters || []
   }))
 })
 
-// 章节出场数据
+// 章节出场数据 — V5: derive from stateEvents
 const chapterAppearances = computed(() => {
   if (!chapters.value || chapters.value.length === 0) return []
 
   return chapters.value.map(chapter => {
     const outlineChapter = (outline.value?.chapters || []).find(c => c.chapterId === chapter.id)
-    const chapterCharacters = characters.value.filter(c =>
-      (c.appearances || []).some(a => a.chapterId === chapter.id)
-    ).map(c => ({
-      id: c.id,
-      name: c.name,
-      tag: c.tags?.[0] || 'other'
-    }))
+    const chapterEvents = sandboxStore.stateEvents.filter(e => e.chapterNumber === chapter.number)
+    const entityIdsInChapter = new Set(chapterEvents.map(e => e.entityId))
+    const chapterCharacters = characters.value
+      .filter(c => entityIdsInChapter.has(c.id))
+      .map(c => ({
+        id: c.id,
+        name: c.name,
+        importance: c.importance || 'background'
+      }))
 
     return {
       chapter: chapter.number,
@@ -324,7 +330,7 @@ function updateBarChart() {
 
   let sortedCharacters = [...characters.value]
   if (chartSort.value === 'frequency') {
-    sortedCharacters.sort((a, b) => (b.appearances || []).length - (a.appearances || []).length)
+    sortedCharacters.sort((a, b) => entityEventCount(b.id) - entityEventCount(a.id))
   } else {
     sortedCharacters.sort((a, b) => a.name.localeCompare(b.name))
   }
@@ -358,7 +364,7 @@ function updateBarChart() {
     series: [{
       name: '出场次数',
       type: 'bar',
-      data: displayCharacters.map(c => (c.appearances || []).length),
+      data: displayCharacters.map(c => entityEventCount(c.id)),
       itemStyle: {
         color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
           { offset: 0, color: '#409EFF' },
@@ -453,9 +459,10 @@ function updateLineChart() {
 
   // 构建系列数据
   const series = displayCharacters.map(char => {
+    const entityEvents = sandboxStore.stateEvents.filter(e => e.entityId === char.id)
+    const eventChapters = new Set(entityEvents.map(e => e.chapterNumber))
     const data = chapters.value.slice(rangeStart).map(chapter => {
-      const appearance = (char.appearances || []).find(a => a.chapterId === chapter.id)
-      return appearance ? 1 : 0
+      return eventChapters.has(chapter.number) ? 1 : 0
     })
 
     return {
@@ -506,16 +513,16 @@ function updateLineChart() {
   lineChart.setOption(option)
 }
 
-// 获取标签类型
-function getTagType(tag: CharacterTag): string {
-  const types: Record<CharacterTag, string> = {
-    protagonist: 'primary',
-    supporting: 'success',
-    antagonist: 'danger',
+// 获取标签类型 — V5 EntityImportance → el-tag type
+function getTagType(importance?: EntityImportance): string {
+  if (!importance) return 'info'
+  const types: Record<EntityImportance, string> = {
+    critical: 'primary',
+    major: 'success',
     minor: 'info',
-    other: 'warning'
+    background: 'warning'
   }
-  return types[tag] || 'info'
+  return types[importance] || 'info'
 }
 
 // 跳转到章节

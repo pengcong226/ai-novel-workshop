@@ -1,5 +1,7 @@
 import { v4 as uuidv4 } from 'uuid'
-import type { NovelTemplate, Project, WorldSetting, Character, Outline, ChapterOutline, PlotTemplate } from '@/types'
+import type { NovelTemplate, Project, Outline, ChapterOutline, PlotTemplate } from '@/types'
+import type { Entity } from '@/types/sandbox'
+import { useSandboxStore } from '@/stores/sandbox'
 import { getBuiltInTemplates } from './builtInTemplates'
 
 /**
@@ -96,6 +98,33 @@ export class TemplateManager {
    * 从项目创建模板
    */
   createFromProject(project: Project, templateName: string, author: string): NovelTemplate {
+    const sandboxStore = useSandboxStore()
+
+    // Build worldTemplate from sandbox WORLD/FACTION/LOCATION/LORE entities
+    const worldEntity = sandboxStore.entities.find(e => e.type === 'WORLD')
+    const worldTemplate: Record<string, unknown> = worldEntity
+      ? { name: worldEntity.name, ...worldEntity.visualMeta }
+      : { name: '' }
+
+    // Build characterTemplates from sandbox CHARACTER entities
+    const charEntities = sandboxStore.entities.filter(e => e.type === 'CHARACTER' && !e.isArchived)
+    const resolvedState = sandboxStore.activeEntitiesState
+    const characterTemplates = charEntities.map((entity, index) => {
+      const resolved = resolvedState[entity.id]
+      return {
+        role: (index === 0 ? 'protagonist' : entity.importance === 'critical' ? 'protagonist' : entity.importance === 'major' ? 'supporting' : 'minor') as 'protagonist' | 'supporting' | 'antagonist',
+        template: {
+          name: entity.name,
+          aliases: entity.aliases,
+          appearance: resolved?.properties?.['appearance'] || '',
+          personality: resolved?.properties?.['personality'] ? [resolved.properties['personality']] : [],
+          background: entity.systemPrompt,
+          tags: [entity.importance] as any
+        },
+        description: `${entity.name}模板`
+      }
+    })
+
     const template: NovelTemplate = {
       meta: {
         id: uuidv4(),
@@ -110,12 +139,8 @@ export class TemplateManager {
         rating: 0,
         downloads: 0
       },
-      worldTemplate: project.world,
-      characterTemplates: project.characters.map((char, index) => ({
-        role: index === 0 ? 'protagonist' : 'supporting',
-        template: char,
-        description: `${char.name}模板`
-      })),
+      worldTemplate: worldTemplate as any,
+      characterTemplates,
       plotTemplate: {
         structure: this.detectStructure(project.outline),
         volumes: project.outline.volumes.map(v => ({
@@ -177,8 +202,12 @@ export class TemplateManager {
 
   /**
    * 应用模板到项目
+   * Returns project fields + entities to be created in sandbox store
    */
-  applyTemplate(templateId: string, projectTitle: string, projectDescription: string): Partial<Project> {
+  applyTemplate(templateId: string, projectTitle: string, projectDescription: string): {
+    projectFields: Partial<Project>
+    entities: Entity[]
+  } {
     const template = this.templates.get(templateId)
     if (!template) {
       throw new Error(`Template not found: ${templateId}`)
@@ -186,47 +215,85 @@ export class TemplateManager {
 
     const now = new Date()
 
-    // 生成世界观
-    const world: WorldSetting = {
+    // Generate Entity data from template
+    const entities: Entity[] = []
+
+    // WORLD entity
+    entities.push({
       id: uuidv4(),
+      projectId: '',
+      type: 'WORLD',
       name: template.worldTemplate.name || '未命名世界',
-      era: template.worldTemplate.era || {
-        time: '未知时代',
-        techLevel: '未知',
-        socialForm: '未知'
-      },
-      geography: template.worldTemplate.geography || {
-        locations: []
-      },
-      powerSystem: template.worldTemplate.powerSystem,
-      factions: template.worldTemplate.factions || [],
-      rules: template.worldTemplate.rules || [],
-      aiGenerated: false
+      aliases: [],
+      importance: 'critical',
+      category: 'world',
+      systemPrompt: JSON.stringify({
+        era: template.worldTemplate.era || { time: '未知时代', techLevel: '未知', socialForm: '未知' },
+        geography: template.worldTemplate.geography,
+        powerSystem: template.worldTemplate.powerSystem
+      }),
+      visualMeta: {},
+      isArchived: false,
+      createdAt: Date.now()
+    })
+
+    // FACTION entities
+    if (template.worldTemplate.factions) {
+      for (const faction of template.worldTemplate.factions) {
+        entities.push({
+          id: uuidv4(),
+          projectId: '',
+          type: 'FACTION',
+          name: faction.name,
+          aliases: [],
+          importance: 'major',
+          category: 'faction',
+          systemPrompt: faction.description || '',
+          visualMeta: {},
+          isArchived: false,
+          createdAt: Date.now()
+        })
+      }
     }
 
-    // 生成人物
-    const characters: Character[] = template.characterTemplates.map((ct, index) => ({
-      id: uuidv4(),
-      name: ct.template.name || `角色${index + 1}`,
-      aliases: ct.template.aliases || [],
-      gender: ct.template.gender || 'other',
-      age: ct.template.age || 0,
-      appearance: ct.template.appearance || '',
-      personality: ct.template.personality || [],
-      values: ct.template.values || [],
-      background: ct.template.background || '',
-      motivation: ct.template.motivation || '',
-      abilities: ct.template.abilities || [],
-      tags: ct.template.tags || [],
-      stateHistory: [],
-      powerLevel: ct.template.powerLevel,
-      relationships: [],
-      appearances: [],
-      development: [],
-      aiGenerated: false
-    }))
+    // LOCATION entities
+    if (template.worldTemplate.geography?.locations) {
+      for (const loc of template.worldTemplate.geography.locations) {
+        entities.push({
+          id: uuidv4(),
+          projectId: '',
+          type: 'LOCATION',
+          name: loc.name,
+          aliases: [],
+          importance: loc.importance === 'high' ? 'major' : loc.importance === 'medium' ? 'minor' : 'background',
+          category: 'location',
+          systemPrompt: loc.description || '',
+          visualMeta: {},
+          isArchived: false,
+          createdAt: Date.now()
+        })
+      }
+    }
 
-    // 生成大纲
+    // CHARACTER entities
+    for (let i = 0; i < template.characterTemplates.length; i++) {
+      const ct = template.characterTemplates[i]
+      entities.push({
+        id: uuidv4(),
+        projectId: '',
+        type: 'CHARACTER',
+        name: ct.template.name || `角色${i + 1}`,
+        aliases: ct.template.aliases || [],
+        importance: ct.role === 'protagonist' ? 'critical' : ct.role === 'antagonist' ? 'major' : 'major',
+        category: 'template',
+        systemPrompt: ct.template.background || '',
+        visualMeta: {},
+        isArchived: false,
+        createdAt: Date.now()
+      })
+    }
+
+    // Generate outline
     const outline: Outline = {
       id: uuidv4(),
       synopsis: template.plotTemplate.description,
@@ -250,17 +317,15 @@ export class TemplateManager {
       foreshadowings: []
     }
 
-    return {
+    const projectFields: Partial<Project> = {
       title: projectTitle,
       description: projectDescription,
       genre: template.meta.tags[0] || 'other',
-      targetWords: template.plotTemplate.totalChapters * 3000, // 假设每章3000字
+      targetWords: template.plotTemplate.totalChapters * 3000,
       currentWords: 0,
       status: 'draft',
       createdAt: now,
       updatedAt: now,
-      world,
-      characters,
       outline,
       chapters: [],
       config: {
@@ -280,6 +345,8 @@ export class TemplateManager {
         enableVectorRetrieval: true
       }
     }
+
+    return { projectFields, entities }
   }
 
   /**

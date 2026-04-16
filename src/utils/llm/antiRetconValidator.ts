@@ -3,6 +3,7 @@ import type { Project, ChapterOutline } from '@/types'
 import type { ChatMessage } from '@/types/ai'
 import { safeParseAIJson } from '../safeParseAIJson'
 import { sanitizeForPrompt } from '@/utils/inputSanitizer'
+import { useSandboxStore } from '@/stores/sandbox'
 
 export interface RetconViolation {
   category: string;       // ConStory-Bench 编码，如 "A3", "D1", "E2"
@@ -37,21 +38,31 @@ export async function validateChapterLogic(
   }
 
   // 构建世界法则约束
-  const rules = project.world?.rules?.map(r => r.name + ': ' + r.description).join('\n') || '无明确世界法则。'
+  const sandboxStore = useSandboxStore()
+  const resolvedState = sandboxStore.activeEntitiesState
+  const rules = sandboxStore.entities
+    .filter(e => e.type === 'LORE' && e.category === 'world-rule')
+    .map(r => r.name + ': ' + r.systemPrompt)
+    .join('\n') || '无明确世界法则。'
 
-  // V3: 更丰富的角色状态信息
+  // V3: 更丰富的角色状态信息（从 V5 sandbox 获取）
   const charactersInvolved = (chapterOutline.characters || []).map(charName => {
-    const char = project.characters.find(c => c.name === charName)
-    if (char) {
-      const state = char.currentState
-      const parts = [`${char.name}`]
-      if (char.background) parts.push(`身份:${char.background.substring(0, 40)}`)
-      if (state?.status) parts.push(`状态:${state.status}`)
-      if (state?.location) parts.push(`位置:${state.location}`)
-      if (state?.faction) parts.push(`阵营:${state.faction}`)
+    const entity = sandboxStore.entities.find(e => e.type === 'CHARACTER' && e.name === charName)
+    if (entity) {
+      const resolved = resolvedState[entity.id]
+      const parts = [`${entity.name}`]
+      if (entity.systemPrompt) parts.push(`身份:${entity.systemPrompt.substring(0, 40)}`)
+      if (resolved?.vitalStatus) parts.push(`状态:${resolved.vitalStatus}`)
+      if (resolved?.location) {
+        const locationStr = typeof resolved.location === 'object'
+          ? `(${resolved.location.x}, ${resolved.location.y})`
+          : String(resolved.location)
+        parts.push(`位置:${locationStr}`)
+      }
+      if (resolved?.properties?.['faction']) parts.push(`阵营:${resolved.properties['faction']}`)
       // 能力列表
-      if (char.abilities && char.abilities.length > 0) {
-        parts.push(`能力:${char.abilities.map(a => a.name).join('、')}`)
+      if (resolved?.abilities && resolved.abilities.length > 0) {
+        parts.push(`能力:${resolved.abilities.map(a => a.name).join('、')}`)
       }
       return parts.join(' | ')
     }

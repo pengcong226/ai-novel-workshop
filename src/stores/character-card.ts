@@ -1,5 +1,11 @@
 /**
  * 角色卡状态管理
+ *
+ * @deprecated This store is retained as an adapter for SillyTavern character card
+ * import/export only. Internal data should use the V5 Sandbox Store (Entity + StateEvent).
+ * - Import functions should dispatch Entity+StateEvent to sandbox store after parsing
+ * - Export functions should read from sandbox store, not from local state
+ * - The `worldbookEntries` field will be removed (worldbook entries now live as LORE entities)
  * @module stores/character-card
  */
 
@@ -16,6 +22,8 @@ import type {
 import { createCharacterCardImporter } from '@/services/character-card-importer'
 import { createCharacterCardExporter } from '@/services/character-card-exporter'
 import { getLogger } from '@/utils/logger'
+import { useSandboxStore } from './sandbox'
+import { v4 as uuidv4 } from 'uuid'
 
 const logger = getLogger('character-card:store')
 
@@ -462,6 +470,124 @@ export const useCharacterCardStore = defineStore('characterCard', () => {
     logger.info('角色卡数据已清空')
   }
 
+  /**
+   * V5 Bridge: Populate local state from sandbox store for export
+   * Reads CHARACTER entity + LORE entities and maps to SillyTavern format
+   */
+  function syncFromSandbox(entityId: string): void {
+    try {
+      const sandboxStore = useSandboxStore()
+      const entity = sandboxStore.entities.find(e => e.id === entityId)
+      if (!entity) return
+
+      const resolvedState = sandboxStore.activeEntitiesState
+      const resolved = resolvedState[entityId]
+
+      // Map CHARACTER entity to SillyTavern card format
+      character.value = {
+        name: entity.name,
+        description: entity.systemPrompt || '',
+        personality: resolved?.properties?.['personality'] || '',
+        scenario: resolved?.properties?.['scenario'] || '',
+        first_mes: resolved?.properties?.['first_mes'] || '',
+        mes_example: resolved?.properties?.['mes_example'] || ''
+      }
+
+      // Map LORE entities to CharacterBookEntry format
+      const loreEntities = sandboxStore.entities.filter(e => e.type === 'LORE' && !e.isArchived)
+      worldbookEntries.value = loreEntities.map((lore, index) => ({
+        uid: index,
+        key: lore.aliases || [],
+        keysecondary: [],
+        content: lore.systemPrompt || '',
+        comment: lore.name,
+        constant: false,
+        disable: lore.isArchived,
+        selective: false,
+        order: 0,
+        position: 0,
+        depth: 4,
+        probability: 100,
+        useProbability: true,
+        displayIndex: index
+      }))
+
+      projectId.value = entity.projectId
+    } catch (e) {
+      logger.warn('syncFromSandbox failed:', e)
+    }
+  }
+
+  /**
+   * V5 Bridge: Dispatch imported character card to sandbox store
+   * After parsing a SillyTavern card, create CHARACTER + LORE entities
+   */
+  async function dispatchToSandbox(targetProjectId: string): Promise<void> {
+    try {
+      const sandboxStore = useSandboxStore()
+
+      // Create CHARACTER entity
+      if (character.value.name) {
+        const entityId = uuidv4()
+        await sandboxStore.addEntity({
+          id: entityId,
+          projectId: targetProjectId,
+          type: 'CHARACTER',
+          name: character.value.name,
+          aliases: [],
+          importance: 'major',
+          category: 'imported',
+          systemPrompt: [
+            character.value.description,
+            character.value.personality ? `性格：${character.value.personality}` : '',
+            character.value.scenario ? `场景：${character.value.scenario}` : ''
+          ].filter(Boolean).join('\n'),
+          visualMeta: {},
+          isArchived: false,
+          createdAt: Date.now()
+        })
+
+        // Create StateEvents for properties
+        const properties: Array<{ key: string; value: string }> = []
+        if (character.value.first_mes) properties.push({ key: 'first_mes', value: character.value.first_mes })
+        if (character.value.mes_example) properties.push({ key: 'mes_example', value: character.value.mes_example })
+        if (character.value.personality) properties.push({ key: 'personality', value: character.value.personality })
+
+        for (const prop of properties) {
+          await sandboxStore.addStateEvent({
+            id: uuidv4(),
+            projectId: targetProjectId,
+            chapterNumber: 0,
+            entityId,
+            eventType: 'PROPERTY_UPDATE',
+            payload: { key: prop.key, value: prop.value },
+            source: 'MIGRATION'
+          })
+        }
+      }
+
+      // Create LORE entities for worldbook entries
+      for (const entry of worldbookEntries.value) {
+        if (!entry.content && (!entry.key || entry.key.length === 0)) continue
+        await sandboxStore.addEntity({
+          id: uuidv4(),
+          projectId: targetProjectId,
+          type: 'LORE',
+          name: entry.comment || entry.key?.[0] || 'Imported Lore',
+          aliases: entry.key || [],
+          importance: 'minor',
+          category: 'character-book',
+          systemPrompt: entry.content || '',
+          visualMeta: {},
+          isArchived: !!entry.disable,
+          createdAt: Date.now()
+        })
+      }
+    } catch (e) {
+      logger.warn('dispatchToSandbox failed:', e)
+    }
+  }
+
   return {
     // 状态
     character,
@@ -500,6 +626,10 @@ export const useCharacterCardStore = defineStore('characterCard', () => {
     addRegexScript,
     updateRegexScript,
     deleteRegexScript,
-    clear
+    clear,
+
+    // V5 Bridge
+    syncFromSandbox,
+    dispatchToSandbox
   }
 })

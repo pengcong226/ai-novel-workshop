@@ -3,7 +3,8 @@
  * 提供多维度质量评估和改进建议
  */
 
-import type { Chapter, Character, WorldSetting, Outline } from '@/types'
+import type { Chapter, Outline } from '@/types'
+import type { ResolvedEntity } from '@/stores/sandbox'
 
 /**
  * 质量维度
@@ -83,23 +84,32 @@ export interface CustomRule {
 }
 
 /**
+ * 解析 ResolvedEntity.properties 中的 JSON 字符串数组
+ */
+function parseJsonProperty(entity: ResolvedEntity, key: string): string[] {
+  const raw = entity.properties[key]
+  if (!raw) return []
+  try { return JSON.parse(raw) } catch { return [] }
+}
+
+/**
  * 质量检查器
  */
 export class QualityChecker {
   private config: QualityCheckConfig
-  private worldSetting?: WorldSetting
-  private characters?: Character[]
+  private loreEntities?: ResolvedEntity[]
+  private characters?: ResolvedEntity[]
   private _outline?: Outline
 
   constructor(
     config: QualityCheckConfig,
-    worldSetting?: WorldSetting,
-    characters?: Character[],
+    loreEntities?: ResolvedEntity[],
+    characters?: ResolvedEntity[],
     outline?: Outline,
     private llmJudge?: (request: LLMJudgeRequest) => Promise<LLMJudgeResult | null>
   ) {
     this.config = config
-    this.worldSetting = worldSetting
+    this.loreEntities = loreEntities
     this.characters = characters
     this._outline = outline
   }
@@ -324,7 +334,8 @@ export class QualityChecker {
 
         if (character) {
           // 检查性格展现
-          const personalityPatterns = character.personality.map(p => new RegExp(p, 'i'))
+          const personality = parseJsonProperty(character, 'personality')
+          const personalityPatterns = personality.map(p => new RegExp(p, 'i'))
           const hasPersonality = personalityPatterns.some(pattern => pattern.test(content))
 
           if (!hasPersonality && dialogues.length > 3) {
@@ -333,20 +344,8 @@ export class QualityChecker {
               message: `人物"${charName}"的性格特征展现不足`,
               severity: 2
             })
-            suggestions.push(`建议通过对话或行为展现"${charName}"的性格特征：${character.personality.join('、')}`)
+            suggestions.push(`建议通过对话或行为展现"${charName}"的性格特征：${personality.join('、')}`)
             score -= 0.5
-          }
-
-          // 检查人物成长
-          const growthPatterns = ['成长', '改变', '变化', '感悟', '明白', '领悟']
-          const hasGrowth = growthPatterns.some(word => content.includes(word))
-
-          if (hasGrowth && character.development) {
-            // 检查成长是否符合设定
-            const lastDevelopment = character.development[character.development.length - 1]
-            if (lastDevelopment && lastDevelopment.chapter < chapter.number) {
-              // 可以添加成长轨迹的一致性检查
-            }
           }
         }
       })
@@ -492,32 +491,42 @@ export class QualityChecker {
     let score = 10
 
     // 检查世界观设定一致性
-    if (this.worldSetting) {
+    if (this.loreEntities && this.loreEntities.length > 0) {
       // 检查力量体系
-      if (this.worldSetting.powerSystem) {
-        const powerLevels = this.worldSetting.powerSystem.levels.map(l => l.name)
-        const mentionedLevels = powerLevels.filter(level => content.includes(level))
-
+      const powerSystemEntities = this.loreEntities.filter(e => e.category === '力量体系')
+      if (powerSystemEntities.length > 0) {
+        const levelNames: string[] = []
+        powerSystemEntities.forEach(entity => {
+          const levelsRaw = entity.properties['levels']
+          if (levelsRaw) {
+            try {
+              const levels = JSON.parse(levelsRaw)
+              if (Array.isArray(levels)) {
+                levels.forEach((l: { name?: string }) => { if (l.name) levelNames.push(l.name) })
+              }
+            } catch { /* ignore parse errors */ }
+          }
+        })
+        const mentionedLevels = levelNames.filter(level => content.includes(level))
         if (mentionedLevels.length > 0) {
           // 可以进一步检查力量等级的使用是否合理
         }
       }
 
       // 检查地点
-      const locations = this.worldSetting.geography.locations
-      const mentionedLocations = locations.filter(loc => content.includes(loc.name))
-
-      if (mentionedLocations.length > 0) {
-        // 检查地点描述是否一致
-        mentionedLocations.forEach(loc => {
-          if (loc.description && content.includes(loc.description)) {
+      const locationEntities = this.loreEntities.filter(e => e.type === 'LOCATION')
+      locationEntities.forEach(loc => {
+        if (content.includes(loc.name)) {
+          const description = loc.properties['description'] || ''
+          if (description && content.includes(description)) {
             // 描述一致
           }
-        })
-      }
+        }
+      })
 
       // 检查规则
-      this.worldSetting.rules.forEach(rule => {
+      const ruleEntities = this.loreEntities.filter(e => e.category === '规则')
+      ruleEntities.forEach(rule => {
         if (content.includes(rule.name)) {
           // 规则被提及，可以检查使用是否正确
         }
@@ -550,15 +559,17 @@ export class QualityChecker {
         character.abilities.forEach(ability => {
           if (content.includes(ability.name)) {
             // 检查能力描述是否一致
-            if (ability.description && !content.includes(ability.description.substring(0, 10))) {
+            const abilityDesc = character.properties[`ability_desc_${ability.name}`] || ''
+            if (abilityDesc && !content.includes(abilityDesc.substring(0, 10))) {
               // 可能不一致
             }
           }
         })
 
         // 检查外貌描述一致性
-        if (character.appearance && content.includes(character.name)) {
-          const _appearanceKeywords = character.appearance.split(/[，,、]/).filter(k => k.trim())
+        const appearance = character.properties['appearance'] || ''
+        if (appearance && content.includes(character.name)) {
+          const _appearanceKeywords = appearance.split(/[，,、]/).filter(k => k.trim())
           // 可以检查外貌关键词是否出现
         }
       }
@@ -627,6 +638,7 @@ export class QualityChecker {
 
       if (character) {
         // 检查性格组合是否常见
+        const personality = parseJsonProperty(character, 'personality')
         const commonPersonalityCombos = [
           ['冷漠', '高傲'],
           ['热情', '开朗'],
@@ -635,7 +647,7 @@ export class QualityChecker {
         ]
 
         const isCommonCombo = commonPersonalityCombos.some(combo =>
-          combo.every(p => character.personality.includes(p))
+          combo.every(p => personality.includes(p))
         )
 
         if (isCommonCombo) {
@@ -651,18 +663,21 @@ export class QualityChecker {
     })
 
     // 检查世界观创新性
-    if (this.worldSetting && this.worldSetting.powerSystem) {
-      const commonPowerSystems = ['修仙', '魔法', '斗气', '武魂', '异能']
-      const powerSystemName = this.worldSetting.powerSystem.name
+    if (this.loreEntities) {
+      const powerSystemEntities = this.loreEntities.filter(e => e.category === '力量体系')
+      if (powerSystemEntities.length > 0) {
+        const commonPowerSystems = ['修仙', '魔法', '斗气', '武魂', '异能']
+        const powerSystemName = powerSystemEntities.map(e => e.properties['name'] || e.name).join('')
 
-      if (commonPowerSystems.some(sys => powerSystemName.includes(sys))) {
-        issues.push({
-          type: 'info',
-          message: '力量体系属于常见类型',
-          severity: 1
-        })
-        suggestions.push('建议在力量体系中增加独特设定')
-        score -= 0.3
+        if (commonPowerSystems.some(sys => powerSystemName.includes(sys))) {
+          issues.push({
+            type: 'info',
+            message: '力量体系属于常见类型',
+            severity: 1
+          })
+          suggestions.push('建议在力量体系中增加独特设定')
+          score -= 0.3
+        }
       }
     }
 
@@ -782,7 +797,7 @@ export class QualityChecker {
         dimension: baseDimension.name,
         content: chapter.content,
         chapterNumber: chapter.number,
-        worldHint: this.worldSetting?.name,
+        worldHint: this.loreEntities?.map(e => e.name).slice(0, 5).join('、'),
         characterHints: this.characters?.map(c => c.name).slice(0, 10)
       })
 
@@ -945,8 +960,8 @@ export const DEFAULT_QUALITY_CHECK_CONFIG: QualityCheckConfig = {
  * 创建质量检查器
  */
 export function createQualityChecker(
-  worldSetting?: WorldSetting,
-  characters?: Character[],
+  loreEntities?: ResolvedEntity[],
+  characters?: ResolvedEntity[],
   outline?: Outline,
   config?: Partial<QualityCheckConfig>,
   llmJudge?: (request: LLMJudgeRequest) => Promise<LLMJudgeResult | null>
@@ -956,7 +971,7 @@ export function createQualityChecker(
     ...config
   }
 
-  return new QualityChecker(finalConfig, worldSetting, characters, outline, llmJudge)
+  return new QualityChecker(finalConfig, loreEntities, characters, outline, llmJudge)
 }
 
 /**

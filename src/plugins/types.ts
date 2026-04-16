@@ -9,7 +9,8 @@
  */
 
 import type { Component } from 'vue'
-import type { Project, Chapter, Character, WorldSetting, Outline } from '@/types'
+import type { Project, Chapter, Outline } from '@/types'
+import type { ResolvedEntity } from '@/stores/sandbox'
 
 // Inline AI types used by plugin context (not all exported from @/types/ai)
 type Message = { role: string; content: string }
@@ -356,8 +357,8 @@ export interface PluginContext {
     saveProject(): Promise<void>
     updateProject(updates: Partial<Project>): void
     getChapters(): Chapter[]
-    getCharacters(): Character[]
-    getWorldSetting(): WorldSetting
+    getCharacters(): ResolvedEntity[]
+    getWorldSetting(): Record<string, unknown>
     getOutline(): Outline
   }
 
@@ -524,8 +525,8 @@ export interface ImportOptions {
 export interface ImportResult {
   project: Partial<Project>
   chapters?: Chapter[]
-  characters?: Character[]
-  worldSetting?: WorldSetting
+  characters?: ResolvedEntity[]
+  worldSetting?: Record<string, unknown>
   outline?: Outline
 }
 
@@ -535,8 +536,8 @@ export interface ImportResult {
 export interface ProcessorContext {
   project?: Project
   chapter?: Chapter
-  characters?: Character[]
-  worldSetting?: WorldSetting
+  characters?: ResolvedEntity[]
+  worldSetting?: Record<string, unknown>
   outline?: Outline
   config?: Record<string, any>
 }
@@ -560,8 +561,8 @@ export interface EditorContext {
 export interface ActionContext {
   project: Project
   chapter?: Chapter
-  characters?: Character[]
-  worldSetting?: WorldSetting
+  characters?: ResolvedEntity[]
+  worldSetting?: Record<string, unknown>
 }
 
 /**

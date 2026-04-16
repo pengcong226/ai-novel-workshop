@@ -5,27 +5,21 @@
  * 1. 动态 Token 预算（根据模型窗口自适应，告别 6000 硬编码）
  * 2. 沙漏式上下文布局（头部放约束，尾部放指令，对抗 Lost in the Middle）
  * 3. System / User 角色分离
- * 4. 表格记忆系统（借鉴 st-memory-enhancement）
- * 5. 向量检索相关章节
+ * 4. 向量检索相关章节
  */
 
 import type { Project, Chapter, ChapterOutline, VectorServiceConfig } from '@/types'
 import type { ResolvedEntity } from '@/stores/sandbox'
 import type { Entity } from '@/types/sandbox'
-import {
-  type MemorySystem
-} from './tableMemory'
 import { sanitizeForPrompt, validateInput } from './inputSanitizer'
 import { getVectorService, type VectorService } from '@/services/vector-service'
-import { countTokens as countLLMTokens } from './llm/tokenizer'
-import { ContextPipeline, type ContextPayload } from './context/pipeline'
+import { ContextPipeline, type ContextPayload, estimateTokens, truncateToTokens } from './context/pipeline'
 import {
   SystemPromptMiddleware,
   AuthorsNoteMiddleware,
   StateConstraintsMiddleware,
   CharacterInfoMiddleware,
   WorldInfoMiddleware,
-  MemoryTableMiddleware,
   VectorContextMiddleware,
   SummaryMiddleware,
   RecentChaptersMiddleware,
@@ -40,7 +34,6 @@ interface TokenBudget {
   AUTHORS_NOTE: number
   WORLD_INFO: number
   CHARACTERS: number
-  MEMORY_TABLES: number
   VECTOR_CONTEXT: number
   SUMMARY: number
   RECENT_CHAPTERS: number
@@ -60,12 +53,11 @@ function createTokenBudget(modelContextWindow: number = 128000): TokenBudget {
     AUTHORS_NOTE: Math.floor(effectiveBudget * 0.03),
     WORLD_INFO: Math.floor(effectiveBudget * 0.12),
     CHARACTERS: Math.floor(effectiveBudget * 0.10),
-    MEMORY_TABLES: Math.floor(effectiveBudget * 0.08),
     VECTOR_CONTEXT: Math.floor(effectiveBudget * 0.15),
     SUMMARY: Math.floor(effectiveBudget * 0.10),
     RECENT_CHAPTERS: Math.floor(effectiveBudget * 0.25),
     OUTLINE: Math.floor(effectiveBudget * 0.05),
-    RESERVE: Math.floor(effectiveBudget * 0.07)
+    RESERVE: Math.floor(effectiveBudget * 0.15)
   }
 }
 
@@ -95,7 +87,6 @@ export interface BuildContext {
   worldInfo: string
   characters: string
   stateConstraints: string  // V4-D4: 档案员前置约束
-  memoryTables: string  // 表格记忆
   vectorContext: string // 向量检索上下文（新增）
   summary: string
   recentChapters: string
@@ -105,51 +96,7 @@ export interface BuildContext {
   warnings: string[]
 }
 
-/**
- * Token计数（优先使用统一 tokenizer，失败时降级到估算）
- */
-function estimateTokens(text: string): number {
-  if (!text) return 0
-
-  try {
-    // 上下文构建默认按 OpenAI 分词规则估算，显著优于字符比例公式
-    return countLLMTokens(text, 'openai')
-  } catch {
-    // 降级：保守估算，避免 token 低估导致超限
-    const chineseChars = (text.match(/[\u4e00-\u9fa5]/g) || []).length
-    const englishWords = (text.match(/[a-zA-Z]+/g) || []).length
-    const otherChars = text.length - chineseChars - englishWords
-
-    return Math.ceil(chineseChars * 1.5 + englishWords + otherChars / 3)
-  }
-}
-
-/**
- * 截断文本到指定token数
- */
-function truncateToTokens(text: string, maxTokens: number): string {
-  if (!text) return ''
-
-  const currentTokens = estimateTokens(text)
-  if (currentTokens <= maxTokens) return text
-
-  // 简单截断（可以优化为智能截断）
-  const ratio = maxTokens / currentTokens
-  let targetLength = Math.floor(text.length * ratio * 0.9) // 留10%余量
-  if (targetLength < 0) targetLength = 0
-
-  let truncated = text.substring(0, targetLength)
-  
-  // 安全截断：避免切断 Unicode 代理对（Surrogate Pair），防止产生非法的 JSON 字符串导致 400 报错
-  if (truncated.length > 0) {
-    const lastCode = truncated.charCodeAt(truncated.length - 1)
-    if (lastCode >= 0xD800 && lastCode <= 0xDBFF) {
-      truncated = truncated.substring(0, truncated.length - 1)
-    }
-  }
-
-  return truncated + '\n...(内容已截断)'
-}
+// estimateTokens and truncateToTokens are imported from ./context/pipeline
 
 /**
  * 构建Author's Note（最高优先级指令）
@@ -272,8 +219,9 @@ export function inferCharacterStates(recentChapters: Chapter[], project: Project
       if (resolved) {
         const parts = [entity.name]
         if (resolved.properties.status) parts.push(resolved.properties.status)
-        if (resolved.location && typeof resolved.location === 'string') {
-          parts.push(`在${resolved.location}`)
+        if (resolved.location) {
+          const locStr = typeof resolved.location === 'string' ? resolved.location : `(${resolved.location.x}, ${resolved.location.y})`
+          parts.push(`在${locStr}`)
         }
         return parts.join('/')
       }
@@ -302,8 +250,9 @@ export function buildStateConstraints(entities: Entity[], activeState: Record<st
     if (isDead) parts.push(`生存状态:已死亡`)
     else if (resolved.properties.status) parts.push(`当前状态:${resolved.properties.status}`)
 
-    if (resolved.location && typeof resolved.location === 'string') {
-      parts.push(`当前位置:${resolved.location}`)
+    if (resolved.location) {
+      const locStr = typeof resolved.location === 'string' ? resolved.location : `(${resolved.location.x}, ${resolved.location.y})`
+      parts.push(`当前位置:${locStr}`)
     }
     if (resolved.properties.faction) parts.push(`所属阵营:${resolved.properties.faction}`)
 
@@ -325,46 +274,80 @@ export function buildWorldInfo(
 ): string {
   const parts: string[] = []
 
-  // 1. 核心世界观（最高优先级）
-  if (project.world) {
-    const world = project.world
-    parts.push(`【核心世界观】`)
-    parts.push(`名称：${world.name || '未命名世界'}`)
+  try {
+    const { useSandboxStore } = require('@/stores/sandbox')
+    const sandboxStore = useSandboxStore()
+    const activeState = sandboxStore.activeEntitiesState
 
-    if (world.era) {
-      parts.push(`时代：${world.era.time || '未知'} | 科技水平：${world.era.techLevel || '未知'}`)
-    }
+    // 1. 核心世界观（最高优先级）
+    const worldEntity = sandboxStore.entities.find((e: Entity) => e.type === 'WORLD')
+    const worldResolved = worldEntity ? activeState[worldEntity.id] : null
 
-    if (world.powerSystem) {
-      parts.push(`力量体系：${world.powerSystem.name || '未知'}`)
-      if (world.powerSystem.levels && world.powerSystem.levels.length > 0) {
-        parts.push(`等级划分：${world.powerSystem.levels.map(l => l.name).join(' → ')}`)
+    if (worldEntity) {
+      parts.push(`【核心世界观】`)
+      parts.push(`名称：${worldEntity.name || '未命名世界'}`)
+
+      const eraTime = worldResolved?.properties['eraTime']
+      const eraTechLevel = worldResolved?.properties['eraTechLevel']
+      if (eraTime || eraTechLevel) {
+        parts.push(`时代：${eraTime || '未知'} | 科技水平：${eraTechLevel || '未知'}`)
+      }
+
+      // 力量体系：优先查找 LORE entity with category 'power-system'，降级用 WORLD entity properties
+      const powerSystemLore = sandboxStore.entities.find(
+        (e: Entity) => e.type === 'LORE' && e.category === 'power-system' && !e.isArchived
+      )
+      const powerSystemResolved = powerSystemLore ? activeState[powerSystemLore.id] : null
+      const powerSystemRaw = powerSystemResolved?.properties['name']
+        || worldResolved?.properties['powerSystem']
+
+      if (powerSystemRaw) {
+        let powerSystemName = ''
+        try {
+          const parsed = JSON.parse(powerSystemRaw)
+          powerSystemName = parsed.name || powerSystemLore?.name || '未知'
+          parts.push(`力量体系：${powerSystemName}`)
+          if (parsed.levels && Array.isArray(parsed.levels) && parsed.levels.length > 0) {
+            parts.push(`等级划分：${parsed.levels.map((l: any) => l.name || l).join(' → ')}`)
+          }
+        } catch {
+          powerSystemName = powerSystemLore?.name || powerSystemRaw || '未知'
+          parts.push(`力量体系：${powerSystemName}`)
+        }
       }
     }
-  }
 
-  // 2. 主要势力（与当前章节相关）
-  if (project.world?.factions && project.world.factions.length > 0) {
-    // 提取前文提到的势力
-    const mentionedFactions = project.world.factions.filter(f => {
-      if (!recentChapters || recentChapters.length === 0) return false
-      return recentChapters.some(ch => (ch.content || '').includes(f.name))
-    })
+    // 2. 主要势力（与当前章节相关）
+    const factions = sandboxStore.entities.filter((e: Entity) => e.type === 'FACTION' && !e.isArchived)
+    if (factions.length > 0) {
+      // 提取前文提到的势力
+      const mentionedFactions = factions.filter((f: { name: string }) => {
+        if (!recentChapters || recentChapters.length === 0) return false
+        return recentChapters.some(ch => (ch.content || '').includes(f.name))
+      })
 
-    if (mentionedFactions.length > 0) {
-      parts.push(`\n【相关势力】`)
-      mentionedFactions.forEach(f => {
-        parts.push(`${f.name}：${f.description}`)
+      if (mentionedFactions.length > 0) {
+        parts.push(`\n【相关势力】`)
+        mentionedFactions.forEach((f: { name: string; systemPrompt?: string; id: string }) => {
+          const fResolved = activeState[f.id]
+          parts.push(`${f.name}：${fResolved?.properties['description'] || f.systemPrompt || ''}`)
+        })
+      }
+    }
+
+    // 3. 世界规则（动态注入）
+    const worldRules = sandboxStore.entities.filter(
+      (e: Entity) => e.type === 'LORE' && e.category === 'world-rule' && !e.isArchived
+    )
+    if (worldRules.length > 0) {
+      parts.push(`\n【世界规则】`)
+      worldRules.slice(0, 5).forEach((rule: { name: string; systemPrompt?: string; id: string }) => {
+        const rResolved = activeState[rule.id]
+        parts.push(`- ${rule.name}：${rResolved?.properties['description'] || rule.systemPrompt || ''}`)
       })
     }
-  }
-
-  // 3. 世界规则（动态注入）
-  if (project.world?.rules && project.world.rules.length > 0) {
-    parts.push(`\n【世界规则】`)
-    project.world.rules.slice(0, 5).forEach(rule => {
-      parts.push(`- ${rule.name}：${rule.description}`)
-    })
+  } catch {
+    // Fallback: if sandbox store is unavailable, return empty
   }
 
   return parts.join('\n')
@@ -729,7 +712,6 @@ export async function buildVectorContext(
 export async function buildChapterContext(
   project: Project,
   currentChapter: Chapter,
-  memorySystem?: MemorySystem,  // 表格记忆系统
   vectorConfig?: VectorServiceConfig, // 向量服务配置（新增）
   modelContextWindow: number = 128000
 ): Promise<BuildContext> {
@@ -749,7 +731,6 @@ export async function buildChapterContext(
   const payload: ContextPayload = {
     project,
     currentChapter,
-    memorySystem,
     vectorService,
     budget: {
       total: budget.TOTAL,
@@ -759,7 +740,6 @@ export async function buildChapterContext(
         'AUTHORS_NOTE': budget.AUTHORS_NOTE,
         'WORLD_INFO': budget.WORLD_INFO,
         'CHARACTERS': budget.CHARACTERS,
-        'MEMORY_TABLES': budget.MEMORY_TABLES,
         'VECTOR_CONTEXT': budget.VECTOR_CONTEXT,
         'SUMMARY': budget.SUMMARY,
         'RECENT_CHAPTERS': budget.RECENT_CHAPTERS,
@@ -777,7 +757,6 @@ export async function buildChapterContext(
       worldInfo: '',
       characters: '',
       stateConstraints: '',
-      memoryTables: '',
       vectorContext: '',
       summary: '',
       recentChapters: '',
@@ -796,7 +775,6 @@ export async function buildChapterContext(
     .use(new WorldInfoMiddleware())
     .use(new CharacterInfoMiddleware())
     .use(new StateConstraintsMiddleware())
-    .use(new MemoryTableMiddleware())
     .use(new VectorContextMiddleware())
     .use(new SummaryMiddleware())
     .use(new RecentChaptersMiddleware())
@@ -834,12 +812,6 @@ export async function buildChapterContext(
         minTokens: 120
       },
       {
-        name: '表格记忆',
-        get: () => payload.builtSections.memoryTables,
-        set: (value: string) => { payload.builtSections.memoryTables = value },
-        minTokens: 120
-      },
-      {
         name: '最近章节',
         get: () => payload.builtSections.recentChapters,
         set: (value: string) => { payload.builtSections.recentChapters = value },
@@ -853,7 +825,6 @@ export async function buildChapterContext(
       estimateTokens(payload.builtSections.worldInfo) +
       estimateTokens(payload.builtSections.characters) +
       estimateTokens(payload.builtSections.stateConstraints) +
-      estimateTokens(payload.builtSections.memoryTables) +
       estimateTokens(payload.builtSections.vectorContext) +
       estimateTokens(payload.builtSections.summary) +
       estimateTokens(payload.builtSections.recentChapters) +
@@ -897,7 +868,6 @@ export async function buildChapterContext(
     worldInfo: payload.builtSections.worldInfo,
     characters: payload.builtSections.characters,
     stateConstraints: payload.builtSections.stateConstraints,
-    memoryTables: payload.builtSections.memoryTables,
     vectorContext: payload.builtSections.vectorContext,
     summary: payload.builtSections.summary,
     recentChapters: payload.builtSections.recentChapters,
@@ -920,7 +890,7 @@ export interface PromptPayload {
  * 将上下文转换为分角色 Prompt（V3 沙漏布局）
  *
  * 头部 (system)：刚性约束 + 人物设定 → 模型注意力最强
- * 中段 (user 前半)：世界观 + 记忆 + 向量召回 + 摘要 → 参考素材
+ * 中段 (user 前半)：世界观 + 向量召回 + 摘要 → 参考素材
  * 尾部 (user 后半)：最近正文 + 大纲 + 执行指令 → 模型注意力最强
  */
 export function contextToPromptPayload(context: BuildContext, chapterTitle: string, targetWords: number = 2000): PromptPayload {
@@ -962,10 +932,6 @@ export function contextToPromptPayload(context: BuildContext, chapterTitle: stri
     userParts.push('【世界观设定】')
     userParts.push(context.worldInfo)
   }
-  if (context.memoryTables) {
-    userParts.push('【记忆追踪】')
-    userParts.push(context.memoryTables)
-  }
   if (context.vectorContext) {
     userParts.push('【历史相关片段】')
     userParts.push(context.vectorContext)
@@ -989,7 +955,6 @@ export function contextToPromptPayload(context: BuildContext, chapterTitle: stri
   userParts.push(`章节标题：${chapterTitle}`)
   userParts.push(`目标字数：约${targetWords}字`)
   userParts.push(`必须严格承接前文剧情，保持连贯性。`)
-  userParts.push(`严格遵循记忆追踪中的角色状态、物品归属、关系等信息。`)
   userParts.push(`情节紧凑，引人入胜，场景描写生动，对话自然流畅。`)
   userParts.push(`直接返回章节内容文本，不要包含标题和其他说明。`)
 

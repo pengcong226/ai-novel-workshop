@@ -79,11 +79,6 @@
             <span class="option-hint">评估情节、人物、节奏等维度</span>
           </el-form-item>
 
-          <el-form-item label="生成续写建议">
-            <el-switch v-model="importOptions.generateContinuationSuggestions" />
-            <span class="option-hint">分析情节线、伏笔、人物出场等</span>
-          </el-form-item>
-
           <el-divider content-position="left">AI增强分析</el-divider>
 
           <el-alert
@@ -555,7 +550,6 @@ interface ImportResultData {
   project: Partial<Project> & { stats?: ImportStatsData; author?: string; worldSetting?: unknown }
   stats?: ImportStatsData
   qualityMetrics?: QualityMetricsData
-  continuationSuggestions?: unknown[]
   [key: string]: unknown
 }
 
@@ -582,7 +576,6 @@ interface PreviewData extends Partial<Project> {
 const uploadRef = ref()
 const importResult = ref<any>(null)
 const qualityMetrics = ref<QualityMetricsData | null>(null)
-const continuationSuggestions = ref<unknown[]>([])
 
 const importForm = ref({
   title: '',
@@ -598,7 +591,6 @@ const importOptions = ref<ImportOptions>({
   extractWorld: true,
   generateOutlineFromChapters: true,
   analyzeQualityMetrics: true,
-  generateContinuationSuggestions: true,
   useAIAnalysis: true,
   minCharacterOccurrence: 3
 })
@@ -1191,7 +1183,6 @@ async function processTraditional() {
   importResult.value = result
   previewData.value = result.project
   qualityMetrics.value = result.qualityMetrics || null
-  continuationSuggestions.value = result.continuationSuggestions || []
 
   progress.value.status = 'success'
   progress.value.message = '处理完成!'

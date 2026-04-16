@@ -143,6 +143,8 @@ async function sendMessage() {
 
     interface DraftEntity {
       name: string;
+      aliases?: string[];
+      importance?: 'critical' | 'major' | 'minor' | 'background';
       category: string;
       type: 'CHARACTER' | 'FACTION' | 'LOCATION' | 'LORE' | 'ITEM';
       systemPrompt: string;
@@ -163,8 +165,11 @@ async function sendMessage() {
           projectId: projectStore.currentProject?.id || '',
           type: ent.type || 'CHARACTER',
           name: ent.name || 'Unnamed',
+          aliases: ent.aliases || [],
+          importance: ent.importance || 'major',
           category: ent.category || 'NPC',
           systemPrompt: ent.systemPrompt || '',
+          isArchived: false,
           createdAt: Date.now()
         });
       });

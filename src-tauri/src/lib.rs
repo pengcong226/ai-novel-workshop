@@ -485,15 +485,20 @@ fn save_entity(
     }
     let entity_type = v["type"].as_str().unwrap_or_default().to_string();
     let name = v["name"].as_str().unwrap_or_default().to_string();
+    let aliases = v["aliases"].as_array()
+        .map(|arr| serde_json::to_string(arr).unwrap_or_else(|_| "[]".to_string()))
+        .unwrap_or_else(|| "[]".to_string());
+    let importance = v["importance"].as_str().unwrap_or_default().to_string();
     let category = v["category"].as_str().unwrap_or_default().to_string();
     let system_prompt = v["systemPrompt"].as_str().unwrap_or_default().to_string();
     let visual_meta = v["visualMeta"].to_string();
+    let is_archived = if v["isArchived"].as_bool().unwrap_or(false) { 1 } else { 0 };
     let created_at = v["createdAt"].as_i64().unwrap_or(0);
 
     let db = lock_db!(state);
     db.execute(
-        "INSERT OR REPLACE INTO entities (id, project_id, entity_type, name, category, system_prompt, visual_meta, created_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
-        rusqlite::params![id, project_id, entity_type, name, category, system_prompt, visual_meta, created_at],
+        "INSERT OR REPLACE INTO entities (id, project_id, entity_type, name, aliases, importance, category, system_prompt, visual_meta, is_archived, created_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)",
+        rusqlite::params![id, project_id, entity_type, name, aliases, importance, category, system_prompt, visual_meta, is_archived, created_at],
     )
     .map_err(|e| e.to_string())?;
     Ok(())
@@ -526,10 +531,47 @@ fn save_state_event(
 }
 
 #[tauri::command]
+fn delete_entity(
+    state: State<'_, AppState>,
+    project_id: String,
+    entity_id: String,
+) -> Result<(), String> {
+    let db = lock_db!(state);
+    let tx = db.unchecked_transaction().map_err(|e| e.to_string())?;
+    tx.execute(
+        "DELETE FROM entities WHERE project_id = ?1 AND id = ?2",
+        rusqlite::params![project_id, entity_id],
+    )
+    .map_err(|e| e.to_string())?;
+    tx.execute(
+        "DELETE FROM state_events WHERE project_id = ?1 AND entity_id = ?2",
+        rusqlite::params![project_id, entity_id],
+    )
+    .map_err(|e| e.to_string())?;
+    tx.commit().map_err(|e| e.to_string())?;
+    Ok(())
+}
+
+#[tauri::command]
+fn delete_state_event(
+    state: State<'_, AppState>,
+    project_id: String,
+    event_id: String,
+) -> Result<(), String> {
+    let db = lock_db!(state);
+    db.execute(
+        "DELETE FROM state_events WHERE project_id = ?1 AND id = ?2",
+        rusqlite::params![project_id, event_id],
+    )
+    .map_err(|e| e.to_string())?;
+    Ok(())
+}
+
+#[tauri::command]
 fn load_entities(state: State<'_, AppState>, project_id: String) -> Result<String, String> {
     let db = lock_db!(state);
     let mut stmt = db
-        .prepare("SELECT id, entity_type, name, category, system_prompt, visual_meta, created_at FROM entities WHERE project_id = ?1")
+        .prepare("SELECT id, entity_type, name, aliases, importance, category, system_prompt, visual_meta, is_archived, created_at FROM entities WHERE project_id = ?1")
         .map_err(|e| e.to_string())?;
     let mut rows = stmt.query(rusqlite::params![project_id]).map_err(|e| e.to_string())?;
 
@@ -538,20 +580,28 @@ fn load_entities(state: State<'_, AppState>, project_id: String) -> Result<Strin
         let id: String = row.get(0).map_err(|e| e.to_string())?;
         let entity_type: String = row.get(1).map_err(|e| e.to_string())?;
         let name: String = row.get(2).map_err(|e| e.to_string())?;
-        let category: String = row.get(3).map_err(|e| e.to_string())?;
-        let system_prompt: String = row.get(4).map_err(|e| e.to_string())?;
-        let visual_meta_str: String = row.get(5).map_err(|e| e.to_string())?;
-        let created_at: i64 = row.get(6).map_err(|e| e.to_string())?;
+        let aliases_str: String = row.get(3).map_err(|e| e.to_string())?;
+        let importance: String = row.get(4).map_err(|e| e.to_string())?;
+        let category: String = row.get(5).map_err(|e| e.to_string())?;
+        let system_prompt: String = row.get(6).map_err(|e| e.to_string())?;
+        let visual_meta_str: String = row.get(7).map_err(|e| e.to_string())?;
+        let is_archived_int: i32 = row.get(8).map_err(|e| e.to_string())?;
+        let created_at: i64 = row.get(9).map_err(|e| e.to_string())?;
 
         let visual_meta: serde_json::Value = serde_json::from_str(&visual_meta_str).unwrap_or(serde_json::Value::Null);
+        let aliases: Vec<String> = serde_json::from_str(&aliases_str).unwrap_or_default();
+        let is_archived = is_archived_int != 0;
 
         let entity = serde_json::json!({
             "id": id,
             "type": entity_type,
             "name": name,
+            "aliases": aliases,
+            "importance": importance,
             "category": category,
             "systemPrompt": system_prompt,
             "visualMeta": visual_meta,
+            "isArchived": is_archived,
             "createdAt": created_at
         });
         entities.push(entity);
@@ -668,9 +718,12 @@ fn init_db(app_handle: &tauri::AppHandle) -> Result<Connection, String> {
             project_id TEXT NOT NULL,
             entity_type TEXT NOT NULL,
             name TEXT NOT NULL,
-            category TEXT,
-            system_prompt TEXT,
+            aliases TEXT NOT NULL,
+            importance TEXT NOT NULL,
+            category TEXT NOT NULL,
+            system_prompt TEXT NOT NULL,
             visual_meta TEXT,
+            is_archived INTEGER NOT NULL DEFAULT 0,
             created_at INTEGER NOT NULL
         )",
         [],
@@ -691,6 +744,25 @@ fn init_db(app_handle: &tauri::AppHandle) -> Result<Connection, String> {
     )
     .map_err(|e| format!("Failed to create state_events table: {}", e))?;
 
+    // Schema migrations for existing databases missing V5 columns
+    let v5_columns = [
+        ("aliases", "TEXT NOT NULL DEFAULT '[]'"),
+        ("importance", "TEXT NOT NULL DEFAULT 'major'"),
+        ("category", "TEXT NOT NULL DEFAULT ''"),
+        ("is_archived", "INTEGER NOT NULL DEFAULT 0"),
+    ];
+    for (col, col_type) in &v5_columns {
+        // ALTER TABLE ADD COLUMN ignores if column already exists (SQLite >= 3.35.0 with IF NOT EXISTS)
+        // For broader compat, we catch the "duplicate column" error silently
+        let sql = format!("ALTER TABLE entities ADD COLUMN {} {}", col, col_type);
+        if let Err(e) = conn.execute(&sql, []) {
+            let msg = e.to_string();
+            if !msg.contains("duplicate column name") {
+                return Err(format!("Failed to migrate entities table: {}", e));
+            }
+        }
+    }
+
     conn.execute(
         "CREATE INDEX IF NOT EXISTS idx_entities_project ON entities(project_id)",
         [],
@@ -702,6 +774,12 @@ fn init_db(app_handle: &tauri::AppHandle) -> Result<Connection, String> {
         [],
     )
     .map_err(|e| format!("Failed to create state_events index: {}", e))?;
+
+    conn.execute(
+        "CREATE INDEX IF NOT EXISTS idx_state_events_entity ON state_events(entity_id)",
+        [],
+    )
+    .map_err(|e| format!("Failed to create state_events entity index: {}", e))?;
 
     conn.execute(
         "CREATE INDEX IF NOT EXISTS idx_chapters_project ON chapters(project_id)",
@@ -780,6 +858,8 @@ pub fn run() {
             load_state_events,
             save_entity,
             save_state_event,
+            delete_entity,
+            delete_state_event,
             vector::add_vector_documents,
             vector::delete_vector_document,
             vector::delete_vector_documents,

@@ -12,7 +12,6 @@ import {
   buildOutline,
   buildVectorContext
 } from '../contextBuilder';
-import { generateMemoryPrompt, initNovelMemory } from '../tableMemory';
 import { WorldbookInjector } from '@/services/worldbook-injector';
 import { useSandboxStore } from '@/stores/sandbox';
 
@@ -155,15 +154,16 @@ export class WorldInfoMiddleware implements ContextMiddleware {
     let worldInfo = buildWorldInfo(project, currentChapter, recentChapters);
     const budget = payload.budget.distribution[this.name] || 5000;
 
-    // V3: 接通 WorldbookInjector
+    // V5: 接通 WorldbookInjector
     if (project.worldbook?.entries && project.worldbook.entries.length > 0) {
       try {
+        const sandboxStore = useSandboxStore();
         const injector = new WorldbookInjector(project.worldbook);
         const injectionResult = injector.inject({
           projectId: project.id,
           currentChapter: currentChapter.number,
           currentContent: recentContent,
-          characters: project.characters || [],
+          characters: sandboxStore.entities.filter(e => e.type === 'CHARACTER'),
           recentEvents: [],
           worldState: {},
           chapterContext: {
@@ -192,39 +192,6 @@ export class WorldInfoMiddleware implements ContextMiddleware {
       payload.budget.remaining -= tokens;
       payload.totalTokensUsed += tokens;
     }
-  }
-}
-
-export class MemoryTableMiddleware implements ContextMiddleware {
-  name = 'MEMORY_TABLES';
-
-  async process(payload: ContextPayload) {
-    const { project, currentChapter, memorySystem } = payload;
-    const recentCount = project.config?.advancedSettings?.recentChaptersCount ?? 3;
-    const chapters = project.chapters || [];
-    const recentContent = chapters
-      .filter(c => c.number < currentChapter.number && c.number >= currentChapter.number - recentCount)
-      .map(c => c.content)
-      .join('\n\n');
-
-    let memoryText = '';
-    if (memorySystem) {
-      memoryText = generateMemoryPrompt(memorySystem, recentContent);
-    } else {
-      const newMemory = initNovelMemory(project);
-      memoryText = generateMemoryPrompt(newMemory, recentContent);
-    }
-
-    if (!memoryText) return;
-
-    const budget = payload.budget.distribution[this.name] || 4000;
-    memoryText = enforceSectionBudget(payload, '表格记忆', memoryText, budget);
-    payload.builtSections.memoryTables = memoryText;
-
-    payload.userHeadParts.push('【记忆追踪】\n' + memoryText);
-    const tokens = estimateTokens(memoryText);
-    payload.budget.remaining -= tokens;
-    payload.totalTokensUsed += tokens;
   }
 }
 

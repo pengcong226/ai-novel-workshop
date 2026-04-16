@@ -247,6 +247,8 @@ import { useRouter } from 'vue-router'
 import { useProjectStore } from '@/stores/project'
 import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'element-plus'
 import { Plus, Edit, Download, Delete, MoreFilled, UploadFilled, Upload } from '@element-plus/icons-vue'
+import { templateManager } from '@/utils/templateManager'
+import { useSandboxStore } from '@/stores/sandbox'
 const TemplateLibrary = defineAsyncComponent(() => import('@/components/TemplateLibrary.vue'))
 import type { NovelTemplate } from '@/types'
 
@@ -430,33 +432,38 @@ async function createFromTemplate() {
     // 3. 应用模板内容
     if (projectStore.currentProject) {
       const templateData = selectedTemplate.value
-      const projectData = projectStore.currentProject
+      const projectId = projectStore.currentProject.id
 
-      if (templateImportOptions.value.includes('world')) {
-        projectData.world = JSON.parse(JSON.stringify(templateData.world))
-        // 更新所有实体的ID以避免冲突
-        projectData.world.id = crypto.randomUUID()
+      // Use templateManager.applyTemplate which returns V5 Entity data
+      const { projectFields, entities: templateEntities } = templateManager.applyTemplate(
+        templateData.meta.id,
+        projectStore.currentProject.title,
+        templateData.meta.description
+      )
+
+      // Apply project fields (outline, config, description)
+      if (templateImportOptions.value.includes('outline') && projectFields.outline) {
+        projectStore.currentProject.outline = projectFields.outline
       }
 
-      if (templateImportOptions.value.includes('characters')) {
-        projectData.characters = JSON.parse(JSON.stringify(templateData.characters)).map((c: any) => ({
-          ...c,
-          id: crypto.randomUUID()
-        }))
+      // Apply V5 entities to sandbox store
+      const sandboxStore = useSandboxStore()
+      for (const entity of templateEntities) {
+        // Skip entities not selected by user
+        if (!templateImportOptions.value.includes('world') && entity.type !== 'CHARACTER') continue
+        if (!templateImportOptions.value.includes('characters') && entity.type === 'CHARACTER') continue
+
+        entity.projectId = projectId
+        await sandboxStore.addEntity(entity)
       }
 
-      if (templateImportOptions.value.includes('outline')) {
-        projectData.outline = JSON.parse(JSON.stringify(templateData.outline))
-        projectData.outline.id = crypto.randomUUID()
+      // Update project metadata
+      if (projectFields.config) {
+        projectStore.currentProject.config = projectFields.config as any
       }
+      projectStore.currentProject.description = templateData.meta.description
 
-      // 更新项目元数据
-      if (projectStore.currentProject) {
-        projectStore.currentProject.config = projectData.config
-        projectStore.currentProject.description = selectedTemplate.value.meta.description
-      }
-
-      // 保存项目
+      // Save project
       await projectStore.saveCurrentProject()
     }
 

@@ -3,7 +3,8 @@
  * 从人物设定和章节内容中提取关系数据
  */
 
-import type { Character, Chapter} from '@/types'
+import type { Chapter } from '@/types'
+import type { ResolvedEntity } from '@/stores/sandbox'
 
 /**
  * 关系类型配置
@@ -55,39 +56,45 @@ export interface GraphData {
 /**
  * 从人物列表提取关系图数据
  */
-export function extractRelationships(characters: Character[]): GraphData {
+export function extractRelationships(entities: ResolvedEntity[]): GraphData {
   const nodes: GraphNode[] = []
   const edges: GraphEdge[] = []
   const addedEdges = new Set<string>()
 
   // 创建节点
-  characters.forEach(char => {
+  entities.forEach(char => {
+    const gender = (char.properties['gender'] as GraphNode['gender']) || 'other'
+    const age = Number(char.properties['age']) || 0
+    const powerLevel = char.properties['powerLevel']
+    const personality = JSON.parse(char.properties['personality'] || '[]') as string[]
+    const appearances = char.abilities.length > 0 ? char.abilities.length : 1
+
     nodes.push({
       id: char.id,
       label: char.name,
-      gender: char.gender,
-      age: char.age,
-      powerLevel: char.powerLevel,
-      personality: char.personality,
-      appearances: char.appearances.length,
-      isMain: char.appearances.length > 0 // 至少出场过算主要角色
+      gender,
+      age,
+      powerLevel,
+      personality,
+      appearances,
+      isMain: appearances > 0
     })
   })
 
   // 创建边（关系）
-  characters.forEach(char => {
-    char.relationships.forEach(rel => {
+  entities.forEach(char => {
+    char.relations.forEach(rel => {
       // 避免重复边（A->B 和 B->A 视为同一条边）
       const edgeKey = [char.id, rel.targetId].sort().join('-')
 
       if (!addedEdges.has(edgeKey)) {
-        const relConfig = RELATIONSHIP_TYPES[rel.type]
+        const relConfig = RELATIONSHIP_TYPES[rel.type as keyof typeof RELATIONSHIP_TYPES] || RELATIONSHIP_TYPES.other
         edges.push({
           source: char.id,
           target: rel.targetId,
           type: rel.type,
           label: relConfig.label,
-          description: rel.description,
+          description: rel.attitude || '',
           strength: relConfig.strength,
           color: relConfig.color
         })
@@ -105,13 +112,13 @@ export function extractRelationships(characters: Character[]): GraphData {
  */
 export function extractFromChapters(
   chapters: Chapter[],
-  characters: Character[]
+  entities: ResolvedEntity[]
 ): Map<string, { count: number; chapters: number[] }> {
   const interactions = new Map<string, { count: number; chapters: number[] }>()
   const characterNames = new Map<string, string>()
 
   // 建立名字到ID的映射（包括别名）
-  characters.forEach(char => {
+  entities.forEach(char => {
     characterNames.set(char.name, char.id)
     char.aliases.forEach(alias => {
       characterNames.set(alias, char.id)

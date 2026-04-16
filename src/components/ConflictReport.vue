@@ -411,12 +411,14 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
 import { useProjectStore } from '@/stores/project'
+import { useSandboxStore } from '@/stores/sandbox'
 import { ElMessage } from 'element-plus'
 import { Setting, Search, Download, Document, Warning } from '@element-plus/icons-vue'
 import type { ConflictType, ConflictSeverity, ConflictReport, ConflictDetectionConfig, ConflictDetectionResult } from '@/types/conflicts'
 import { ConflictDetector, DEFAULT_CONFIG, exportConflictsAsMarkdown, exportConflictsAsJSON } from '@/utils/conflictDetector'
 
 const projectStore = useProjectStore()
+const sandboxStore = useSandboxStore()
 const project = computed(() => projectStore.currentProject)
 
 const detecting = ref(false)
@@ -466,7 +468,11 @@ async function runDetection() {
   detecting.value = true
 
   try {
-    const detector = new ConflictDetector(project.value, config.value)
+    const detector = new ConflictDetector({
+      entities: Object.values(sandboxStore.activeEntitiesState),
+      chapters: project.value.chapters || [],
+      outline: project.value.outline
+    }, config.value)
     result.value = await detector.detect()
 
     ElMessage.success(`检测完成！发现 ${result.value.statistics.total} 个冲突`)

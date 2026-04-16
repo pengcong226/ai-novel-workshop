@@ -9,7 +9,8 @@
  * 5. 伏笔检测
  */
 
-import type { Project, Chapter, Character, WorldSetting } from '@/types'
+import type { Chapter, Outline } from '@/types'
+import type { ResolvedEntity } from '@/stores/sandbox'
 import type {
   ConflictReport,
   ConflictDetectionConfig,
@@ -34,15 +35,28 @@ export const DEFAULT_CONFIG: ConflictDetectionConfig = {
 }
 
 /**
+ * 冲突检测器输入参数
+ */
+export interface ConflictDetectorInput {
+  entities: ResolvedEntity[]
+  chapters: Chapter[]
+  outline?: Outline
+}
+
+/**
  * 冲突检测器类
  */
 export class ConflictDetector {
   private config: ConflictDetectionConfig
-  private project: Project
+  private entities: ResolvedEntity[]
+  private chapters: Chapter[]
+  private outline?: Outline
   private conflicts: ConflictReport[] = []
 
-  constructor(project: Project, config?: Partial<ConflictDetectionConfig>) {
-    this.project = project
+  constructor(input: ConflictDetectorInput, config?: Partial<ConflictDetectionConfig>) {
+    this.entities = input.entities
+    this.chapters = input.chapters
+    this.outline = input.outline
     this.config = { ...DEFAULT_CONFIG, ...config }
   }
 
@@ -105,18 +119,18 @@ export class ConflictDetector {
    * 检测人物设定冲突
    */
   private async detectCharacterConflicts(): Promise<void> {
-    const chapters = this.project.chapters || []
-    const characters = this.project.characters || []
+    const chapters = this.chapters || []
+    const characterEntities = this.entities.filter(e => e.type === 'CHARACTER')
 
-    for (const character of characters) {
+    for (const entity of characterEntities) {
       // 检测性格变化
-      await this.detectPersonalityConflicts(character, chapters)
+      await this.detectPersonalityConflicts(entity, chapters)
 
       // 检测能力矛盾
-      await this.detectAbilityConflicts(character, chapters)
+      await this.detectAbilityConflicts(entity, chapters)
 
       // 检测外貌不一致
-      await this.detectAppearanceConflicts(character, chapters)
+      await this.detectAppearanceConflicts(entity, chapters)
     }
   }
 
@@ -124,7 +138,7 @@ export class ConflictDetector {
    * 检测人物性格冲突
    */
   private async detectPersonalityConflicts(
-    character: Character,
+    entity: ResolvedEntity,
     chapters: Chapter[]
   ): Promise<void> {
     const personalityKeywords: Record<string, string[]> = {
@@ -138,17 +152,15 @@ export class ConflictDetector {
       '阴沉': ['阴沉', '悲观', '忧郁', '沉闷']
     }
 
-    // 获取人物性格设定
-    const _basePersonalities = character.personality || []
-
     // 在各章节中搜索性格描述
     const appearances: Array<{ chapter: number; text: string; traits: string[] }> = []
 
     for (const chapter of chapters) {
       if (!chapter.content) continue
 
-      // 查找人物出场
-      if (!chapter.content.includes(character.name)) continue
+      // 查找人物出场（检查名称和别名）
+      const namesToMatch = [entity.name, ...entity.aliases]
+      if (!namesToMatch.some(n => chapter.content!.includes(n))) continue
 
       // 提取性格特征
       const foundTraits: string[] = []
@@ -189,8 +201,8 @@ export class ConflictDetector {
         this.addConflict({
           type: 'character_personality',
           severity: 'warning',
-          title: `${character.name}性格前后矛盾`,
-          description: `人物"${character.name}"在第${appearance1.chapter}章表现为"${trait1}"，但在第${appearance2.chapter}章表现为"${trait2}"，性格表现不一致`,
+          title: `${entity.name}性格前后矛盾`,
+          description: `人物"${entity.name}"在第${appearance1.chapter}章表现为"${trait1}"，但在第${appearance2.chapter}章表现为"${trait2}"，性格表现不一致`,
           evidences: [
             {
               type: 'text',
@@ -215,11 +227,11 @@ export class ConflictDetector {
             {
               id: uuidv4(),
               type: 'manual',
-              description: `检查人物"${character.name}"的性格设定，确保前后一致，或添加合理的性格转变过程`,
+              description: `检查人物"${entity.name}"的性格设定，确保前后一致，或添加合理的性格转变过程`,
               confidence: 0.8
             }
           ],
-          relatedCharacterIds: [character.id],
+          relatedCharacterIds: [entity.id],
           relatedChapters: [appearance1.chapter, appearance2.chapter]
         })
       }
@@ -230,17 +242,19 @@ export class ConflictDetector {
    * 检测人物能力冲突
    */
   private async detectAbilityConflicts(
-    character: Character,
+    entity: ResolvedEntity,
     chapters: Chapter[]
   ): Promise<void> {
-    // 获取人物能力设定
-    const baseAbilities = character.abilities || []
+    // 获取人物能力设定 - V5: use ResolvedEntity.abilities
+    const baseAbilities = entity.abilities || []
 
     // 检测能力突然出现或消失
     const abilityAppearances = new Map<string, number[]>()
 
     for (const chapter of chapters) {
-      if (!chapter.content || !chapter.content.includes(character.name)) continue
+      if (!chapter.content) continue
+      const namesToMatch = [entity.name, ...entity.aliases]
+      if (!namesToMatch.some(n => chapter.content!.includes(n))) continue
 
       for (const ability of baseAbilities) {
         if (chapter.content.includes(ability.name)) {
@@ -273,8 +287,8 @@ export class ConflictDetector {
         this.addConflict({
           type: 'character_ability',
           severity: 'info',
-          title: `${character.name}能力"${abilityName}"长期未使用`,
-          description: `人物"${character.name}"的能力"${abilityName}"在第${sortedChapters[0]}章出现后，在第${sortedChapters[sortedChapters.length - 1]}章再次出现，中间间隔较长`,
+          title: `${entity.name}能力"${abilityName}"长期未使用`,
+          description: `人物"${entity.name}"的能力"${abilityName}"在第${sortedChapters[0]}章出现后，在第${sortedChapters[sortedChapters.length - 1]}章再次出现，中间间隔较长`,
           evidences: [
             {
               type: 'text',
@@ -297,7 +311,7 @@ export class ConflictDetector {
               confidence: 0.7
             }
           ],
-          relatedCharacterIds: [character.id],
+          relatedCharacterIds: [entity.id],
           relatedChapters: sortedChapters
         })
       }
@@ -308,22 +322,26 @@ export class ConflictDetector {
    * 检测人物外貌冲突
    */
   private async detectAppearanceConflicts(
-    character: Character,
+    entity: ResolvedEntity,
     chapters: Chapter[]
   ): Promise<void> {
-    if (!character.appearance) return
+    // V5: appearance from properties
+    const appearance = entity.properties['appearance'] || ''
+    if (!appearance) return
 
     // 提取外貌关键词
-    const appearanceKeywords = this.extractAppearanceKeywords(character.appearance)
+    const appearanceKeywords = this.extractAppearanceKeywords(appearance)
 
     // 在章节中搜索外貌描述
     const appearanceDescriptions: Array<{ chapter: number; description: string }> = []
 
     for (const chapter of chapters) {
-      if (!chapter.content || !chapter.content.includes(character.name)) continue
+      if (!chapter.content) continue
+      const namesToMatch = [entity.name, ...entity.aliases]
+      if (!namesToMatch.some(n => chapter.content!.includes(n))) continue
 
       // 查找外貌描述段落
-      const paragraphs = chapter.content.split('\n').filter(p => p.includes(character.name))
+      const paragraphs = chapter.content.split('\n').filter(p => namesToMatch.some(n => p.includes(n)))
 
       for (const para of paragraphs) {
         // 检查是否包含外貌关键词
@@ -347,8 +365,8 @@ export class ConflictDetector {
         this.addConflict({
           type: 'character_appearance',
           severity: 'info',
-          title: `${character.name}外貌描述重复`,
-          description: `人物"${character.name}"的外貌在多个章节重复描述，可能造成冗余`,
+          title: `${entity.name}外貌描述重复`,
+          description: `人物"${entity.name}"的外貌在多个章节重复描述，可能造成冗余`,
           evidences: appearanceDescriptions.slice(0, 3).map(d => ({
             type: 'text',
             description: `第${d.chapter}章描述`,
@@ -363,7 +381,7 @@ export class ConflictDetector {
               confidence: 0.6
             }
           ],
-          relatedCharacterIds: [character.id],
+          relatedCharacterIds: [entity.id],
           relatedChapters: uniqueChapters
         })
       }
@@ -374,7 +392,7 @@ export class ConflictDetector {
    * 检测时间线冲突
    */
   private async detectTimelineConflicts(): Promise<void> {
-    const chapters = this.project.chapters || []
+    const chapters = this.chapters || []
 
     if (chapters.length < 2) return
 
@@ -424,10 +442,12 @@ export class ConflictDetector {
    * 检测人物年龄冲突
    */
   private async detectAgeConflicts(chapters: Chapter[]): Promise<void> {
-    const characters = this.project.characters || []
+    const characterEntities = this.entities.filter(e => e.type === 'CHARACTER')
 
-    for (const character of characters) {
-      if (!character.age || character.age <= 0) continue
+    for (const entity of characterEntities) {
+      // V5: age from properties
+      const entityAge = Number(entity.properties['age']) || 0
+      if (!entityAge || entityAge <= 0) continue
 
       // 在章节中搜索年龄描述
       const agePatterns = [
@@ -439,10 +459,12 @@ export class ConflictDetector {
       const ageAppearances: Array<{ chapter: number; age: number; text: string }> = []
 
       for (const chapter of chapters) {
-        if (!chapter.content || !chapter.content.includes(character.name)) continue
+        if (!chapter.content) continue
+        const namesToMatch = [entity.name, ...entity.aliases]
+        if (!namesToMatch.some(n => chapter.content!.includes(n))) continue
 
         // 查找年龄描述
-        const paragraphs = chapter.content.split('\n').filter(p => p.includes(character.name))
+        const paragraphs = chapter.content.split('\n').filter(p => namesToMatch.some(n => p.includes(n)))
 
         for (const para of paragraphs) {
           for (const pattern of agePatterns) {
@@ -473,8 +495,8 @@ export class ConflictDetector {
           this.addConflict({
             type: 'timeline_age',
             severity: 'warning',
-            title: `${character.name}年龄描述不一致`,
-            description: `人物"${character.name}"的年龄在不同章节描述不一致，设定年龄为${character.age}岁，但在第${firstAppearance.chapter}章提到${firstAppearance.age}岁，第${lastAppearance.chapter}章提到${lastAppearance.age}岁`,
+            title: `${entity.name}年龄描述不一致`,
+            description: `人物"${entity.name}"的年龄在不同章节描述不一致，设定年龄为${entityAge}岁，但在第${firstAppearance.chapter}章提到${firstAppearance.age}岁，第${lastAppearance.chapter}章提到${lastAppearance.age}岁`,
             evidences: ageAppearances.map(a => ({
               type: 'text',
               description: `第${a.chapter}章年龄描述`,
@@ -489,7 +511,7 @@ export class ConflictDetector {
                 confidence: 0.85
               }
             ],
-            relatedCharacterIds: [character.id],
+            relatedCharacterIds: [entity.id],
             relatedChapters: ageAppearances.map(a => a.chapter)
           })
         }
@@ -501,29 +523,34 @@ export class ConflictDetector {
    * 检测世界观冲突
    */
   private async detectWorldConflicts(): Promise<void> {
-    const world = this.project.world
-    if (!world) return
+    const chapters = this.chapters || []
 
-    const chapters = this.project.chapters || []
+    // V5: extract world-related entities
+    const loreEntities = this.entities.filter(e => e.type === 'LORE')
+    const locationEntities = this.entities.filter(e => e.type === 'LOCATION')
+
+    if (loreEntities.length === 0 && locationEntities.length === 0) return
 
     // 检测规则冲突
-    await this.detectWorldRuleConflicts(world, chapters)
+    await this.detectWorldRuleConflicts(loreEntities, chapters)
 
     // 检测设定冲突
-    await this.detectWorldSettingConflicts(world, chapters)
+    await this.detectWorldSettingConflicts(loreEntities, chapters)
   }
 
   /**
    * 检测世界规则冲突
    */
   private async detectWorldRuleConflicts(
-    world: WorldSetting,
+    loreEntities: ResolvedEntity[],
     _chapters: Chapter[]
   ): Promise<void> {
-    if (!world.rules || world.rules.length === 0) return
+    // V5: rules are LORE entities with category '规则'
+    const ruleEntities = loreEntities.filter(e => e.category === '规则')
+    if (ruleEntities.length === 0) return
 
     // 提取关键规则
-    for (const _rule of world.rules) {
+    for (const _ruleEntity of ruleEntities) {
       // 检查是否有章节违反该规则
       // （简化实现，实际需要AI辅助分析）
     }
@@ -533,12 +560,13 @@ export class ConflictDetector {
    * 检测世界设定冲突
    */
   private async detectWorldSettingConflicts(
-    world: WorldSetting,
+    loreEntities: ResolvedEntity[],
     chapters: Chapter[]
   ): Promise<void> {
-    // 检测力量体系冲突
-    if (world.powerSystem) {
-      await this.detectPowerSystemConflicts(world, chapters)
+    // V5: power system is LORE entities with category '力量体系'
+    const powerSystemEntities = loreEntities.filter(e => e.category === '力量体系')
+    if (powerSystemEntities.length > 0) {
+      await this.detectPowerSystemConflicts(powerSystemEntities, chapters)
     }
   }
 
@@ -546,12 +574,30 @@ export class ConflictDetector {
    * 检测力量体系冲突
    */
   private async detectPowerSystemConflicts(
-    world: WorldSetting,
+    powerSystemEntities: ResolvedEntity[],
     chapters: Chapter[]
   ): Promise<void> {
-    if (!world.powerSystem || !world.powerSystem.levels) return
+    // V5: power levels come from LORE entities' properties['levels'] (JSON string)
+    const allLevelNames: string[] = []
+    for (const entity of powerSystemEntities) {
+      try {
+        const raw = entity.properties['levels']
+        if (raw) {
+          const levels = JSON.parse(raw)
+          if (Array.isArray(levels)) {
+            for (const level of levels) {
+              if (level.name && typeof level.name === 'string') {
+                allLevelNames.push(level.name)
+              }
+            }
+          }
+        }
+      } catch {
+        // skip unparseable levels
+      }
+    }
 
-    const levels = world.powerSystem.levels
+    if (allLevelNames.length === 0) return
 
     // 在章节中搜索力量等级描述
     const levelAppearances = new Map<string, number[]>()
@@ -559,12 +605,12 @@ export class ConflictDetector {
     for (const chapter of chapters) {
       if (!chapter.content) continue
 
-      for (const level of levels) {
-        if (chapter.content.includes(level.name)) {
-          if (!levelAppearances.has(level.name)) {
-            levelAppearances.set(level.name, [])
+      for (const levelName of allLevelNames) {
+        if (chapter.content.includes(levelName)) {
+          if (!levelAppearances.has(levelName)) {
+            levelAppearances.set(levelName, [])
           }
-          levelAppearances.get(level.name)!.push(chapter.number)
+          levelAppearances.get(levelName)!.push(chapter.number)
         }
       }
     }
@@ -577,8 +623,8 @@ export class ConflictDetector {
    * 检测情节逻辑冲突
    */
   private async detectPlotLogicConflicts(): Promise<void> {
-    const chapters = this.project.chapters || []
-    const outline = this.project.outline
+    const chapters = this.chapters || []
+    const outline = this.outline
 
     if (!outline) return
 
@@ -637,32 +683,33 @@ export class ConflictDetector {
    */
   private async detectCharacterBehaviorConflicts(chapters: Chapter[]): Promise<void> {
     // 简化实现：检测人物突然出现或消失
-    const characters = this.project.characters || []
+    const characterEntities = this.entities.filter(e => e.type === 'CHARACTER')
     const characterAppearances = new Map<string, number[]>()
 
     for (const chapter of chapters) {
       if (!chapter.content) continue
 
-      for (const character of characters) {
-        if (chapter.content.includes(character.name)) {
-          if (!characterAppearances.has(character.id)) {
-            characterAppearances.set(character.id, [])
+      for (const entity of characterEntities) {
+        const namesToMatch = [entity.name, ...entity.aliases]
+        if (namesToMatch.some(n => chapter.content!.includes(n))) {
+          if (!characterAppearances.has(entity.id)) {
+            characterAppearances.set(entity.id, [])
           }
-          characterAppearances.get(character.id)!.push(chapter.number)
+          characterAppearances.get(entity.id)!.push(chapter.number)
         }
       }
     }
 
     // 检测重要人物长期未出场
-    for (const character of characters) {
-      const appearances = characterAppearances.get(character.id) || []
+    for (const entity of characterEntities) {
+      const appearances = characterAppearances.get(entity.id) || []
 
       if (appearances.length === 0) {
         this.addConflict({
           type: 'plot_logic',
           severity: 'info',
-          title: `人物"${character.name}"从未出场`,
-          description: `人物"${character.name}"在设定中存在，但在所有章节中都未出场`,
+          title: `人物"${entity.name}"从未出场`,
+          description: `人物"${entity.name}"在设定中存在，但在所有章节中都未出场`,
           evidences: [],
           suggestions: [
             {
@@ -672,19 +719,22 @@ export class ConflictDetector {
               confidence: 0.7
             }
           ],
-          relatedCharacterIds: [character.id]
+          relatedCharacterIds: [entity.id]
         })
       } else if (appearances.length >= 3) {
         // 检测突然消失
         const lastAppearance = Math.max(...appearances)
         const currentChapter = chapters.length
 
-        if (currentChapter - lastAppearance > 10 && character.appearances && character.appearances.length > 0) {
+        // V5: no chapter-based appearance tracking, use importance as proxy
+        // Only flag for critical/major entities that disappear
+        const isImportant = entity.importance === 'critical' || entity.importance === 'major'
+        if (currentChapter - lastAppearance > 10 && isImportant) {
           this.addConflict({
             type: 'plot_logic',
             severity: 'info',
-            title: `人物"${character.name}"长期未出场`,
-            description: `人物"${character.name}"在第${lastAppearance}章后，已有${currentChapter - lastAppearance}章未出场`,
+            title: `人物"${entity.name}"长期未出场`,
+            description: `人物"${entity.name}"在第${lastAppearance}章后，已有${currentChapter - lastAppearance}章未出场`,
             evidences: [
               {
                 type: 'text',
@@ -700,7 +750,7 @@ export class ConflictDetector {
                 confidence: 0.65
               }
             ],
-            relatedCharacterIds: [character.id],
+            relatedCharacterIds: [entity.id],
             relatedChapters: [lastAppearance]
           })
         }
@@ -786,10 +836,10 @@ export class ConflictDetector {
  * 快速检测函数
  */
 export async function detectConflicts(
-  project: Project,
+  input: ConflictDetectorInput,
   config?: Partial<ConflictDetectionConfig>
 ): Promise<ConflictDetectionResult> {
-  const detector = new ConflictDetector(project, config)
+  const detector = new ConflictDetector(input, config)
   return await detector.detect()
 }
 

@@ -7,7 +7,7 @@
  */
 
 import type { Worldbook, WorldbookEntry, WorldbookGroup } from '@/types/worldbook'
-import type { Character } from '@/types'
+import type { Entity } from '@/types/sandbox'
 import { getLogger } from '@/utils/logger'
 
 const logger = getLogger('worldbook:injector')
@@ -114,7 +114,7 @@ export interface InjectionContext {
   currentContent: string
 
   /** 项目中的角色列表 */
-  characters: Character[]
+  characters: Entity[]
 
   /** 最近的事件列表 */
   recentEvents: string[]
@@ -603,7 +603,7 @@ export class WorldbookInjector {
         chapterContext.characterIds!.includes(c.id)
       )
       searchSources.push(...contextCharacters.map(c => c.name))
-      searchSources.push(...contextCharacters.map(c => c.background))
+      searchSources.push(...contextCharacters.map(c => c.systemPrompt))
     }
 
     const searchText = searchSources.join(' ')

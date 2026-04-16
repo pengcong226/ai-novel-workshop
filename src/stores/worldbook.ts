@@ -1,7 +1,15 @@
 /**
  * 世界书状态管理
  *
- * 使用 Pinia Composition API 管理世界书状态和条目 CRUD
+ * @deprecated This store is being phased out in favor of the V5 Sandbox Store.
+ * Worldbook entries are being migrated to Entity(type='LORE') + StateEvent.
+ * This store is kept as a thin facade for backward compatibility during the transition.
+ * After all consumers are migrated, this store will be deleted.
+ *
+ * Migration notes:
+ * - `addEntry`/`updateEntry`/`deleteEntry` now also dispatch to sandboxStore.addEntity/updateEntity with type: 'LORE'
+ * - `loadWorldbook` delegates to `sandboxStore.loadData`
+ * - `injectEntries` logic should be replaced by `useEntityContextInjector` composable
  */
 
 import { defineStore } from 'pinia'
@@ -10,6 +18,7 @@ import type { Worldbook, WorldbookEntry, WorldbookGroup } from '@/types/worldboo
 import { WorldbookInjector } from '@/services/worldbook-injector'
 import { WorldbookAIAssistant } from '@/services/worldbook-ai'
 import { useStorage } from './storage'
+import { useSandboxStore } from './sandbox'
 import { getLogger } from '@/utils/logger'
 import { v4 as uuidv4 } from 'uuid'
 
@@ -174,6 +183,7 @@ export const useWorldbookStore = defineStore('worldbook', () => {
 
   /**
    * 保存世界书
+   * 通过 project store 统一持久化，避免 load-modify-save 竞态
    */
   async function saveWorldbook(): Promise<void> {
     if (!worldbook.value || !projectId.value) {
@@ -187,26 +197,29 @@ export const useWorldbookStore = defineStore('worldbook', () => {
     try {
       logger.info('开始保存世界书', { projectId: projectId.value })
 
-      // 加载项目数据
-      const projectData = await storage.loadProject(projectId.value)
-
-      if (!projectData) {
-        throw new Error('项目不存在')
-      }
-
       // 更新时间戳
       if (worldbook.value.metadata) {
         worldbook.value.metadata.updatedAt = new Date()
-      }
-
-      // 更新条目数
-      if (worldbook.value.metadata) {
         worldbook.value.metadata.totalEntries = entries.value.length
       }
 
-      // 保存到项目
-      projectData.worldbook = worldbook.value
-      await storage.saveProject(projectData)
+      // 通过 project store 统一保存，避免竞态
+      const { useProjectStore } = await import('./project')
+      const projectStore = useProjectStore()
+      const project = projectStore.currentProject
+
+      if (project && project.id === projectId.value) {
+        project.worldbook = worldbook.value
+        projectStore.debouncedSaveCurrentProject()
+      } else {
+        // fallback: 项目不在当前上下文时，仍用独立保存
+        const projectData = await storage.loadProject(projectId.value)
+        if (!projectData) {
+          throw new Error('项目不存在')
+        }
+        projectData.worldbook = worldbook.value
+        await storage.saveProject(projectData)
+      }
 
       logger.info('世界书保存完成', {
         entryCount: entries.value.length
@@ -261,6 +274,29 @@ export const useWorldbookStore = defineStore('worldbook', () => {
 
     await saveWorldbook()
 
+    // V5 Bridge: Also dispatch as a LORE entity in sandbox store
+    const entityId = uuidv4()
+    try {
+      const sandboxStore = useSandboxStore()
+      if (projectId.value) {
+        await sandboxStore.addEntity({
+          id: entityId,
+          projectId: projectId.value,
+          type: 'LORE',
+          name: newEntry.comment || newEntry.key?.[0] || `LORE-${newEntry.uid}`,
+          aliases: newEntry.key || [],
+          importance: 'minor',
+          category: newEntry.novelWorkshop?.category || 'general',
+          systemPrompt: newEntry.content || '',
+          visualMeta: { worldbookUid: String(newEntry.uid) },
+          isArchived: !!newEntry.disable,
+          createdAt: Date.now()
+        })
+      }
+    } catch (e) {
+      logger.warn('V5 bridge: failed to sync entry to sandbox store', e)
+    }
+
     logger.info('条目已添加', { entryId: newEntry.uid })
 
     return newEntry
@@ -297,6 +333,27 @@ export const useWorldbookStore = defineStore('worldbook', () => {
 
     await saveWorldbook()
 
+    // V5 Bridge: Also update the corresponding LORE entity in sandbox store
+    try {
+      const sandboxStore = useSandboxStore()
+      const loreEntity = sandboxStore.entities.find(
+        e => e.type === 'LORE' && e.visualMeta?.worldbookUid === String(entryId)
+      )
+      if (loreEntity) {
+        const entityUpdates: Record<string, any> = {}
+        if (updates.comment !== undefined) entityUpdates.name = updates.comment || loreEntity.name
+        if (updates.content !== undefined) entityUpdates.systemPrompt = updates.content
+        if (updates.key !== undefined) entityUpdates.aliases = updates.key
+        if (updates.disable !== undefined) entityUpdates.isArchived = !!updates.disable
+        if (updates.novelWorkshop?.category !== undefined) entityUpdates.category = updates.novelWorkshop.category
+        if (Object.keys(entityUpdates).length > 0) {
+          await sandboxStore.updateEntity(loreEntity.id, entityUpdates)
+        }
+      }
+    } catch (e) {
+      logger.warn('V5 bridge: failed to sync update to sandbox store', e)
+    }
+
     logger.info('条目已更新', { entryId })
 
     return updatedEntry
@@ -319,6 +376,19 @@ export const useWorldbookStore = defineStore('worldbook', () => {
     worldbook.value.entries.splice(index, 1)
 
     await saveWorldbook()
+
+    // V5 Bridge: Also archive the corresponding LORE entity in sandbox store
+    try {
+      const sandboxStore = useSandboxStore()
+      const loreEntity = sandboxStore.entities.find(
+        e => e.type === 'LORE' && e.visualMeta?.worldbookUid === String(entryId)
+      )
+      if (loreEntity) {
+        await sandboxStore.updateEntity(loreEntity.id, { isArchived: true })
+      }
+    } catch (e) {
+      logger.warn('V5 bridge: failed to sync delete to sandbox store', e)
+    }
 
     logger.info('条目已删除', { entryId })
   }
@@ -699,6 +769,30 @@ export const useWorldbookStore = defineStore('worldbook', () => {
       }
 
       await saveWorldbook()
+
+      // V5 Bridge: Also dispatch imported entries as LORE entities in sandbox store
+      try {
+        const sandboxStore = useSandboxStore()
+        if (projectId.value) {
+          for (const entry of entriesToImport) {
+            await sandboxStore.addEntity({
+              id: uuidv4(),
+              projectId: projectId.value,
+              type: 'LORE',
+              name: entry.comment || entry.key?.[0] || `LORE-${entry.uid}`,
+              aliases: entry.key || [],
+              importance: 'minor',
+              category: entry.novelWorkshop?.category || 'general',
+              systemPrompt: entry.content || '',
+              visualMeta: { worldbookUid: String(entry.uid) },
+              isArchived: !!entry.disable,
+              createdAt: Date.now()
+            })
+          }
+        }
+      } catch (e) {
+        logger.warn('V5 bridge: failed to sync imported entries to sandbox store', e)
+      }
 
       logger.info('条目导入完成', {
         imported: entriesToImport.length,

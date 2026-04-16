@@ -31,30 +31,6 @@ export type {
   IndexStats,
 } from './vector-service';
 
-// 记忆服务
-export { MemoryService } from './memory-service';
-export type {
-  MemoryLevel,
-  MemoryEntry,
-  RetrievalResult,
-  MemoryConfig,
-  VectorStore as VectorStoreInterface,
-  AIService as AIServiceInterface,
-} from './memory-service';
-
-// 记忆系统适配器
-export {
-  MemorySystemManager,
-  AIServiceAdapter,
-  VectorStoreAdapter,
-  createMemorySystem,
-} from './memory-adapter';
-export type {
-  MemorySystemConfig,
-  ContextOptions,
-  BuiltContext,
-} from './memory-adapter';
-
 // 世界书导入器
 export {
   WorldbookImporter,

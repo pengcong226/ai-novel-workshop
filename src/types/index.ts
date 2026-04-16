@@ -1,5 +1,3 @@
-export * from './entity'
-
 // 类型定义
 
 import type { KnowledgeBase } from './knowledge-base'
@@ -10,13 +8,6 @@ import type { Worldbook } from './worldbook'
 export type { Worldbook, WorldbookEntry, WorldbookGroup, WorldbookCondition } from './worldbook'
 export type { Preset, PresetExample } from './preset'
 export type { TraceImportSession } from './conversation-trace'
-
-// V3 图元时序类型体系
-export type {
-  EntityNode, CharacterV3, CharacterStateSlice, InventoryItem, AbilityRecord,
-  DetailedEntityRelation, WorldEntityV3, WorldNarrative, PlotNarrative,
-  ChapterPlanV3, PlotBeat
-} from './entity'
 
 // 项目状态
 export type ProjectStatus = 'draft' | 'writing' | 'completed'
@@ -34,8 +25,11 @@ export interface Project {
   updatedAt: Date
 
   // 设定
-  world: WorldSetting
-  characters: Character[]
+  /** @deprecated Use sandbox WORLD/FACTION/LOCATION entities instead. Cleared after V5 migration. */
+  world?: WorldSetting
+
+  /** @deprecated Use sandboxStore.entities.filter(e => e.type === 'CHARACTER') instead. Cleared after V5 migration. */
+  characters?: Character[]
   outline: Outline
 
   // 章节
@@ -44,10 +38,10 @@ export interface Project {
   // 配置
   config: ProjectConfig
 
-  // 表格记忆系统
+  /** @deprecated Use sandboxStore.activeEntitiesState instead. Cleared after V5 migration. */
   memory?: string  // JSON 格式的记忆系统数据
 
-  // 世界书系统（酒馆生态兼容）
+  /** @deprecated Use sandboxStore.entities.filter(e => e.type === 'LORE') instead. Cleared after V5 migration. */
   worldbook?: Worldbook
 
   // 知识库
@@ -61,6 +55,7 @@ export interface Project {
 }
 
 // 世界观设定
+/** @deprecated Use Entity(type='WORLD') + Entity(type='FACTION') + Entity(type='LORE') in sandbox store instead */
 export interface WorldSetting {
   id: string
   name: string
@@ -92,6 +87,7 @@ export interface PowerSystemSetting {
   items: Item[]
 }
 
+/** @deprecated Use Entity(type='FACTION') in sandbox store instead */
 export interface Faction {
   id: string
   name: string
@@ -100,12 +96,14 @@ export interface Faction {
   relationships: string[]
 }
 
+/** @deprecated Use Entity(type='LORE', category='world-rule') in sandbox store instead */
 export interface WorldRule {
   id: string
   name: string
   description: string
 }
 
+/** @deprecated Use Entity(type='LOCATION') in sandbox store instead */
 export interface Location {
   id: string
   name: string
@@ -201,9 +199,11 @@ export interface Item {
 }
 
 // 人物标签类型
+/** @deprecated Use EntityImportance from @/types/sandbox instead */
 export type CharacterTag = 'protagonist' | 'supporting' | 'antagonist' | 'minor' | 'other'
 
 // 人物状态
+/** @deprecated Use sandboxStore.activeEntitiesState[id] for resolved state instead */
 export interface CharacterState {
   location: string      // 当前位置
   status: string        // 当前状态（健康、受伤、修炼中等）
@@ -225,6 +225,7 @@ export interface CharacterStateHistory {
 }
 
 // 人物
+/** @deprecated Use Entity(type='CHARACTER') + StateEvent in sandbox store instead */
 export interface Character {
   id: string
   name: string
@@ -592,40 +593,6 @@ export interface KeyEvent {
   eventDescription: string
   importance: number
   tags: string[]
-}
-
-// 兼容旧版生成类型（避免与当前主类型冲突）
-export interface LegacyModelProvider {
-  id: string
-  name: string
-  type: 'openai' | 'anthropic' | 'local' | 'custom'
-  apiKey: string
-  baseUrl: string
-  models: LegacyModel[]
-}
-
-export interface LegacyModel {
-  id: string
-  name: string
-  type: 'planning' | 'writing' | 'checking'
-  cost: number
-  performance: number
-}
-
-export interface LegacyGenerationRequest {
-  type: 'world' | 'character' | 'outline' | 'chapter'
-  prompt: string
-  context: any
-  model: string
-  preset: 'fast' | 'standard' | 'quality'
-}
-
-export interface LegacyGenerationResponse {
-  content: string
-  model: string
-  tokens: number
-  cost: number
-  quality?: number
 }
 
 // UI状态
