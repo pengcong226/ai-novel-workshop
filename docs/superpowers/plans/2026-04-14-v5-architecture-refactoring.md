@@ -1,6 +1,6 @@
 # V5 Entity & StateEvent Architecture Refactoring Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [x]`) syntax for tracking.
 
 **Goal:** Complete the V5 Multi-View Sandbox Architecture refactoring by unifying all character, worldbook, and sandbox data under the `Entity` and `StateEvent` models.
 
@@ -15,16 +15,16 @@
 **Files:**
 - Modify: `src/types/sandbox.ts`
 
-- [ ] **Step 1: Expand EntityType and Entity Importance**
+- [x] **Step 1: Expand EntityType and Entity Importance**
 
 Replace `EntityType` and add `EntityImportance` in `src/types/sandbox.ts`:
 
 ```typescript
-export type EntityType = 'CHARACTER' | 'FACTION' | 'LOCATION' | 'LORE' | 'ITEM' | 'CONCEPT';
+export type EntityType = 'CHARACTER' | 'FACTION' | 'LOCATION' | 'LORE' | 'ITEM' | 'CONCEPT' | 'WORLD';
 export type EntityImportance = 'critical' | 'major' | 'minor' | 'background';
 ```
 
-- [ ] **Step 2: Expand Entity interface**
+- [x] **Step 2: Expand Entity interface**
 
 Update the `Entity` interface in `src/types/sandbox.ts`:
 
@@ -42,13 +42,14 @@ export interface Entity {
     color?: string;
     icon?: string;
     defaultCoordinates?: { x: number; y: number };
+    worldbookUid?: string;
   };
   isArchived: boolean;
   createdAt: number;
 }
 ```
 
-- [ ] **Step 3: Expand StateEventType and StateEvent**
+- [x] **Step 3: Expand StateEventType and StateEvent**
 
 Update the `StateEventType` and `StateEvent` interface in `src/types/sandbox.ts`:
 
@@ -88,7 +89,7 @@ export interface StateEvent {
 **Files:**
 - Modify: `src-tauri/src/lib.rs`
 
-- [ ] **Step 1: Update SQLite `entities` table creation schema**
+- [x] **Step 1: Update SQLite `entities` table creation schema**
 
 Find `CREATE TABLE IF NOT EXISTS entities` in `src-tauri/src/lib.rs` and update it:
 
@@ -108,13 +109,13 @@ Find `CREATE TABLE IF NOT EXISTS entities` in `src-tauri/src/lib.rs` and update 
 )",
 ```
 
-- [ ] **Step 2: Update `save_entity` command**
+- [x] **Step 2: Update `save_entity` command**
 
 Modify the `save_entity` command in `src-tauri/src/lib.rs` to extract and save the new fields:
 Parse aliases array to string, get importance, and isArchived boolean to int.
 Insert into the 11 columns in the SQL statement.
 
-- [ ] **Step 3: Update `load_entities` command**
+- [x] **Step 3: Update `load_entities` command**
 
 Modify the `load_entities` command to parse the new fields back into JSON and return the 11 columns.
 
@@ -123,15 +124,15 @@ Modify the `load_entities` command to parse the new fields back into JSON and re
 **Files:**
 - Modify: `src/stores/sandbox.ts`
 
-- [ ] **Step 1: Implement `loadData`**
+- [x] **Step 1: Implement `loadData`**
 
 Replace the stubbed `loadData` method in `src/stores/sandbox.ts` with actual Tauri `invoke` calls for `load_entities` and `load_state_events`.
 
-- [ ] **Step 2: Add direct CRUD operations**
+- [x] **Step 2: Add direct CRUD operations**
 
 Add `addEntity`, `updateEntity`, `addStateEvent` functions that call Tauri invokes and update the local ref arrays.
 
-- [ ] **Step 3: Export the new methods**
+- [x] **Step 3: Export the new methods**
 
 Add the new methods to the `return` statement of `useSandboxStore`.
 
@@ -140,15 +141,15 @@ Add the new methods to the `return` statement of `useSandboxStore`.
 **Files:**
 - Modify: `src/stores/sandbox.ts`
 
-- [ ] **Step 1: Export AbilityRecord and ResolvedEntity types**
+- [x] **Step 1: Export AbilityRecord and ResolvedEntity types**
 
 Add `AbilityRecord` and `ResolvedEntity` interfaces.
 
-- [ ] **Step 2: Update ActiveEntityState to ResolvedEntity**
+- [x] **Step 2: Update ActiveEntityState to ResolvedEntity**
 
 Replace `ActiveEntityState` references with `ResolvedEntity`. 
 
-- [ ] **Step 3: Add new event handlers to the reducer**
+- [x] **Step 3: Add new event handlers to the reducer**
 
 Add handlers for `VITAL_STATUS_CHANGE` and `ABILITY_CHANGE` in the switch statement inside the `activeEntitiesState` computed.
 
@@ -157,7 +158,7 @@ Add handlers for `VITAL_STATUS_CHANGE` and `ABILITY_CHANGE` in the switch statem
 **Files:**
 - Create: `src/utils/v1ToV5Migration.ts`
 
-- [ ] **Step 1: Write migration script**
+- [x] **Step 1: Write migration script**
 
 Create `src/utils/v1ToV5Migration.ts` with a function `migrateV1ToV5` that maps `Character` arrays and `WorldbookEntry` arrays into `Entity[]` and `StateEvent[]`.
 
@@ -166,7 +167,7 @@ Create `src/utils/v1ToV5Migration.ts` with a function `migrateV1ToV5` that maps 
 **Files:**
 - Modify: `src/stores/project.ts`
 
-- [ ] **Step 1: Wire up migration logic in `openProject`**
+- [x] **Step 1: Wire up migration logic in `openProject`**
 
 In `src/stores/project.ts`, run `migrateV1ToV5` if `projectData.characters` exists and has items, save entities via `useSandboxStore`, clear old characters, and save project.
 
@@ -175,6 +176,6 @@ In `src/stores/project.ts`, run `migrateV1ToV5` if `projectData.characters` exis
 **Files:**
 - Modify: `src/services/generation-scheduler.ts`
 
-- [ ] **Step 1: Remove V3 state updater crash**
+- [x] **Step 1: Remove V3 state updater crash**
 
 In `src/services/generation-scheduler.ts`, remove the call to `runStateUpdatePipeline(chapter.content, project.characters as any, chapter.number, project.id)`.

@@ -1,5 +1,7 @@
 # 角色卡UI组件使用指南
 
+> **V5 Architecture Note**: In the V5 refactoring, the character-card store serves as a **facade store** bridging to the sandbox store's `CHARACTER`-type Entity data. UI components that directly use the character-card store are being migrated to use the sandbox store directly. Character card import/export remains supported for SillyTavern compatibility.
+
 ## 组件清单
 
 ### 1. CharacterCardPanel.vue - 角色卡管理面板

@@ -554,8 +554,10 @@ interface Project {
   updatedAt: Date;
 
   // 关联数据
-  worldView: WorldView;
-  characters: Character[];
+  /** @deprecated Use sandbox WORLD/FACTION/LOCATION entities instead. Cleared after V5 migration. */
+  worldView?: WorldView;
+  /** @deprecated Use sandboxStore.entities.filter(e => e.type === 'CHARACTER') instead. Cleared after V5 migration. */
+  characters?: Character[];
   outline: Outline;
   chapters: Chapter[];
 
@@ -580,41 +582,96 @@ interface AIConfig {
 }
 ```
 
-### 6.2 设定结构
+### 6.2 设定结构（V5 Entity + StateEvent 架构）
 
 ```typescript
+// V5 实体类型（替代旧 Character / WorldSetting 统一模型）
+type EntityType = 'CHARACTER' | 'FACTION' | 'LOCATION' | 'LORE' | 'ITEM' | 'CONCEPT' | 'WORLD';
+type EntityImportance = 'critical' | 'major' | 'minor' | 'background';
+
 interface Entity {
   id: string;
   projectId: string;
+  type: EntityType;
   name: string;
-  type: EntityType; // character | location | item | faction | concept
-  description: string;
   aliases: string[];
-  relationships: EntityRelationship[];
-  attributes: Record<string, any>;
-  tags: string[];
-  createdAt: string;
-  updatedAt: string;
+  importance: EntityImportance;
+  category: string;
+  systemPrompt: string;
+  visualMeta?: {
+    color?: string;
+    icon?: string;
+    defaultCoordinates?: { x: number; y: number };
+    worldbookUid?: string;
+  };
+  isArchived: boolean;
+  createdAt: number;
 }
 
-type EntityType = 'character' | 'location' | 'item' | 'faction' | 'concept';
-
-interface EntityRelationship {
+interface EntityRelation {
   targetId: string;
   type: string;
-  description: string;
-  attitude: number; // 动态好感度，-100 到 100
+  attitude?: string;         // 动态好感度文本描述
 }
+
+// V5 状态事件类型
+type StateEventType =
+  | 'PROPERTY_UPDATE'
+  | 'RELATION_ADD'
+  | 'RELATION_REMOVE'
+  | 'RELATION_UPDATE'
+  | 'LOCATION_MOVE'
+  | 'VITAL_STATUS_CHANGE'
+  | 'ABILITY_CHANGE';
 
 interface StateEvent {
   id: string;
   projectId: string;
-  chapterId?: string;
-  entityId?: string;
-  type: EventType; // CREATED | UPDATED | STATUS_CHANGE | RELATION_UPDATE等
-  description: string;
-  timestamp: string;
-  changes: Record<string, any>;
+  chapterNumber: number;
+  entityId: string;
+  eventType: StateEventType;
+  payload: {
+    key?: string;
+    value?: string;
+    targetId?: string;
+    relationType?: string;
+    attitude?: string;
+    coordinates?: { x: number; y: number };
+    status?: string;
+    abilityName?: string;
+    abilityStatus?: string;
+  };
+  source: 'MANUAL' | 'AI_EXTRACTED' | 'MIGRATION';
+}
+
+/** @deprecated V1 类型 - 使用 Entity(type='CHARACTER') + StateEvent 替代 */
+interface Character {
+  id: string;
+  name: string;
+  aliases: string[];
+  role: 'protagonist' | 'antagonist' | 'supporting' | 'minor';
+  attributes: {
+    age: number;
+    gender: string;
+    appearance: string;
+    personality: string[];
+    abilities: string[];
+  };
+  background: string;
+  goals: string[];
+  relationships: Relationship[];
+  arc: CharacterArc;
+  appearances: string[]; // 出场章节ID
+}
+
+/** @deprecated V1 类型 - 使用 Entity(type='WORLD') + Entity(type='FACTION') + Entity(type='LORE') 替代 */
+interface WorldView {
+  basicRules: BasicRules;
+  history: HistoricalEvent[];
+  locations: Location[];
+  factions: Faction[];
+  magicSystem?: MagicSystem;
+  technology?: Technology;
 }
 ```
 
@@ -745,10 +802,9 @@ interface CompressedContext {
     vector: Memory[];              // 向量检索结果
   };
 
-  // 设定
-  activeCharacters: Character[];
-  relevantSettings: Setting[];
-  worldView: WorldView;
+  // V5 实体设定（替代旧 activeCharacters / relevantSettings / worldView）
+  activeEntities: Entity[];        // 按相关度排序的活跃实体
+  activeRelations: EntityRelation[]; // 活跃实体间的关系
 }
 ```
 

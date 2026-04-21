@@ -1,5 +1,7 @@
 # V5 Entity & StateEvent Architecture Refactoring
 
+**Status: COMPLETE** — All 5 phases done. Entity+StateEvent is primary model, legacy types @deprecated.
+
 **Goal:** Complete the V5 Multi-View Sandbox Architecture refactoring by unifying all character, worldbook, and sandbox data under the `Entity` and `StateEvent` models, eliminating the 4 competing data models and 3 competing state trackers.
 
 **Architecture:** We will adopt the V5 Event Sourcing model (`sandbox.ts`) as the single source of truth. We will expand the base `Entity` type to hold static identity fields, and expand `StateEvent` types to capture all dynamic state changes. A new computed view `ResolvedEntity` will replace `CharacterV3`/`WorldEntityV3`. The old V1 models will be migrated on project load, and `character-card.ts` will be retained purely as an import/export adapter.
@@ -12,7 +14,7 @@
 
 **Base Entity Expansion:**
 ```typescript
-export type EntityType = 'CHARACTER' | 'FACTION' | 'LOCATION' | 'LORE' | 'ITEM' | 'CONCEPT';
+export type EntityType = 'CHARACTER' | 'FACTION' | 'LOCATION' | 'LORE' | 'ITEM' | 'CONCEPT' | 'WORLD';
 export type EntityImportance = 'critical' | 'major' | 'minor' | 'background';
 
 export interface Entity {
@@ -28,6 +30,7 @@ export interface Entity {
     color?: string;
     icon?: string;
     defaultCoordinates?: { x: number; y: number };
+    worldbookUid?: string;
   };
   isArchived: boolean;       // Added: From V1 Character
   createdAt: number;
@@ -156,11 +159,11 @@ Update all UI components to consume `useSandboxStore().activeEntitiesState` inst
 
 We will use **Option A: Incremental Migration** to minimize risk.
 
-- **Phase 1: Foundation.** Expand `sandbox.ts` types and Tauri backend. Implement `loadData` and CRUD.
-- **Phase 2: Migration Script.** Write the V1->V5 converter and wire it to project load.
-- **Phase 3: Pipeline Refactor.** Swap the context builder, context radar, and generation scheduler to use `sandbox.ts`. Delete `tableMemory.ts` and `state-updater.ts`.
-- **Phase 4: UI Refactor.** Convert frontend views (Character Tracker, Stats) to use `ResolvedEntity`.
-- **Phase 5: Cleanup.** Delete `worldbook.ts`, `entity.ts`, and old types.
+- **Phase 1: Foundation.** Expand `sandbox.ts` types and Tauri backend. Implement `loadData` and CRUD. ✅ COMPLETE
+- **Phase 2: Migration Script.** Write the V1->V5 converter and wire it to project load. ✅ COMPLETE
+- **Phase 3: Pipeline Refactor.** Swap the context builder, context radar, and generation scheduler to use `sandbox.ts`. Delete `tableMemory.ts` and `state-updater.ts`. ✅ COMPLETE
+- **Phase 4: UI Refactor.** Convert frontend views (Character Tracker, Stats) to use `ResolvedEntity`. ✅ COMPLETE
+- **Phase 5: Cleanup.** Delete `worldbook.ts`, `entity.ts`, and old types. ✅ COMPLETE
 
 ---
 *Self-Review Checklist: All placeholders removed? Yes. Consistent typing? Yes. Solves race conditions? Yes (by deleting worldbook store). Solves silent crashes? Yes (by replacing V3 pipeline).*

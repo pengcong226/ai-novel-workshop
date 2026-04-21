@@ -23,10 +23,10 @@
 - [ ] **`update_outline`**：允许 Agent 自动续写或修改后续章节的大纲规划。
 - [ ] **`save_chapter`**：允许 Agent 在本地完成章节生成后，直接将正文和字数统计持久化到数据库中。
 
-## 阶段四：高级记忆工具 (Memory System Tools)
-*目标：打通本项目最核心的“表格记忆系统”。*
-- [ ] **`read_memory_tables`**：让 Agent 读取当前的表格记忆状态。
-- [ ] **`update_memory_table`**：允许 Agent 在写完一章后，调用工具更新物品、人物状态等表格记录（如执行 `updateRow` 语义）。
+## 阶段四：高级记忆工具 (Entity & StateEvent Tools)
+*目标：打通本项目最核心的”Entity & StateEvent状态记忆系统”。*
+- [ ] **`list_entities`**：让 Agent 读取当前的实体（角色/地点/物品等）及其属性。
+- [ ] **`save_state_event`**：允许 Agent 在写完一章后，调用工具记录状态变更事件（如角色位置变化、受伤、获得物品等）。
 
 ## 阶段五：使用指南与发布
 *目标：提供明确的接入配置。*

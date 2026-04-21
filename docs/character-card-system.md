@@ -1,5 +1,7 @@
 # 角色卡系统完整文档
 
+> **V5 Architecture Note**: In the V5 refactoring, the character-card store (`src/stores/character-card.ts`) now serves as a **facade store** that bridges to the sandbox store's `CHARACTER`-type Entity data. The primary data model is now Entity + StateEvent. Character card import/export is still supported for SillyTavern compatibility, but internal state management flows through the sandbox store.
+
 ## 系统概述
 
 基于【明月秋青写卡】2.2.3.json分析，已为AI小说工坊创建了完整的角色卡导入/导出系统。

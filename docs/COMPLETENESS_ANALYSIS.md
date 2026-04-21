@@ -116,19 +116,20 @@
 
 ## 二、记忆系统（核心创新）
 
-### 2.1 表格记忆系统 ✅ 100%
+### 2.1 ~~表格记忆系统~~ → Entity & StateEvent 状态记忆系统 (V5) ✅ 100%
+> **V5 Migration Note**: The V1 table memory system (`tableMemory.ts`, `MemoryTables.vue`) has been replaced by the V5 Entity + StateEvent architecture (`sandbox.ts`, `SandboxTimeline.vue`).
+
 **需求功能：**
-- ✅ CSV格式表格记忆
-- ✅ AI可执行命令更新表格
+- ✅ Entity属性 + StateEvent变更日志 (replaces CSV格式表格记忆)
+- ✅ Tool Calling JSON Schema更新 (replaces AI可执行命令更新表格)
 - ✅ 触发式更新
 - ✅ 分层记忆管理
-- ✅ 表格可视化编辑
+- ✅ 时间线可视化编辑 (SandboxTimeline.vue replaces MemoryTables.vue)
 
 **实现位置：**
-- `src/utils/tableMemory.ts` - 表格记忆核心
-- `src/components/MemoryTables.vue` - 表格编辑界面
-- `src/utils/tableExporter.ts` - 表格导出
-- `src/utils/tableHistory.ts` - 撤销/重做
+- `src/stores/sandbox.ts` - Entity + StateEvent 核心 (replaces `tableMemory.ts`)
+- `src/components/Sandbox/SandboxTimeline.vue` - 状态事件时间线 (replaces `MemoryTables.vue`)
+- `src/components/Sandbox/SandboxDocument.vue` - 实体文档编辑器
 
 **完善建议：** 无需补充，功能完整
 

@@ -210,7 +210,7 @@ TOTAL: 6000 tokens
   SYSTEM_PROMPT:       300
   AUTHORS_NOTE:        200
   ENTITY_GRAPH:        800   <-- Entity/StateEvent 直接注入（非向量）
-  MEMORY_TABLES:       500
+  ENTITY_STATE:        500   <-- Entity属性 + StateEvent变更日志
   PLOT_ANCHOR:         400   <-- 命运锚点预警（非向量）
   VECTOR_CONTEXT:      600   <-- Graph-Guided RAG 检索结果
   SUMMARY:             600

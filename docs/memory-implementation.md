@@ -1,8 +1,19 @@
-# AI小说工坊 - 记忆系统实现文档
+# AI小说工坊 - 记忆系统实现文档 -- PARTIALLY DEPRECATED
+
+> **DEPRECATED SECTIONS**: Sections 一 (表格记忆系统), 六.2 (AI静默更新表格记忆) describe the V1 `tableMemory.ts` system which has been deleted. The project now uses the **Entity & StateEvent** architecture. Key replacements:
+> - `tableMemory.ts` → deleted; replaced by Entity & StateEvent system (`src/stores/sandbox.ts`)
+> - `memory-service.ts` → deleted; replaced by sandbox store
+> - `state-updater.ts` → deleted; generation-scheduler now directly creates StateEvents
+> - `updateRow/insertRow/deleteRow` → Tool Calling with JSON Schema (`PROPERTY_UPDATE`, `RELATION_ADD`, etc.)
+> - `MemoryTables.vue` → `SandboxTimeline.vue`
+> - `Characters.vue` → `CharacterDevelopment.vue`
+> - `WorldSetting.vue` → `SandboxDocument.vue`
+>
+> Sections 二 (分层记忆系统), 三 (向量检索), 四 (混合存储), 五 (滚动大纲), 七 (智能降级), 八 (性能优化), 九 (性能指标), 十 (最佳实践) remain valid as architectural references.
 
 ## 概述
 
-本文档详细说明AI小说工坊的记忆系统实现,包括表格记忆系统、分层记忆管理、向量检索以及SQLite/Tauri混合存储架构。
+本文档详细说明AI小说工坊的记忆系统实现,包括V5 Entity & StateEvent状态记忆系统、分层记忆管理、向量检索以及SQLite/Tauri混合存储架构。
 
 ---
 

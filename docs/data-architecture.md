@@ -125,7 +125,8 @@ interface ChapterOutline {
   foreshadowing: string[]; // 伏笔
 }
 
-// 世界观 (V5 原子化存储节点)
+// 世界观 (V1 类型，已废弃)
+/** @deprecated Use Entity(type='WORLD') + Entity(type='FACTION') + Entity(type='LORE') in sandbox store instead */
 interface Worldview {
   basicRules: BasicRules;
   history: HistoricalEvent[];
@@ -135,7 +136,8 @@ interface Worldview {
   technology?: Technology;
 }
 
-// 实体 (V5 原子化存储节点)
+// 实体 (V1 类型，已废弃)
+/** @deprecated Use Entity(type='CHARACTER') + StateEvent in sandbox store instead */
 interface Character {
   id: string;
   name: string;
@@ -153,6 +155,64 @@ interface Character {
   relationships: Relationship[];
   arc: CharacterArc;
   appearances: string[]; // 出场章节ID
+}
+
+// V5 实体类型（当前主模型）
+type EntityType = 'CHARACTER' | 'FACTION' | 'LOCATION' | 'LORE' | 'ITEM' | 'CONCEPT' | 'WORLD';
+type EntityImportance = 'critical' | 'major' | 'minor' | 'background';
+
+interface Entity {
+  id: string;
+  projectId: string;
+  type: EntityType;
+  name: string;
+  aliases: string[];
+  importance: EntityImportance;
+  category: string;
+  systemPrompt: string;
+  visualMeta?: {
+    color?: string;
+    icon?: string;
+    defaultCoordinates?: { x: number; y: number };
+    worldbookUid?: string;
+  };
+  isArchived: boolean;
+  createdAt: number;
+}
+
+type StateEventType =
+  | 'PROPERTY_UPDATE'
+  | 'RELATION_ADD'
+  | 'RELATION_REMOVE'
+  | 'RELATION_UPDATE'
+  | 'LOCATION_MOVE'
+  | 'VITAL_STATUS_CHANGE'
+  | 'ABILITY_CHANGE';
+
+interface StateEvent {
+  id: string;
+  projectId: string;
+  chapterNumber: number;
+  entityId: string;
+  eventType: StateEventType;
+  payload: {
+    key?: string;
+    value?: string;
+    targetId?: string;
+    relationType?: string;
+    attitude?: string;
+    coordinates?: { x: number; y: number };
+    status?: string;
+    abilityName?: string;
+    abilityStatus?: string;
+  };
+  source: 'MANUAL' | 'AI_EXTRACTED' | 'MIGRATION';
+}
+
+interface EntityRelation {
+  targetId: string;
+  type: string;
+  attitude?: string;
 }
 
 // 章节

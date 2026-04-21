@@ -1,5 +1,7 @@
 # V5 Multi-View Sandbox Design Spec
 
+**Status: COMPLETE** — All phases implemented. V5 Entity+StateEvent architecture is the single source of truth.
+
 ## 1. Overview
 The current Character Card and Worldbook systems, inherited from RP/chat-focused applications (like SillyTavern), contain redundant fields (e.g., `first_mes`, `scenario`) and lack the dynamic state tracking necessary for long-form novel generation. 
 
@@ -86,9 +88,9 @@ The frontend will present the unified data through four reactive views.
 4.  **Broadcast**: The backend saves the new `StateEvent`s to SQLite. A reactive state manager (Pinia) broadcasts the updates.
 5.  **Multi-View Reaction**: Document tags glow, Graph nodes connect, and Map avatars animate to their new coordinates automatically.
 
-## 5. Migration Strategy
+## 5. Migration Strategy ✅ COMPLETE
 
-The existing Character Cards (V1-V3) and Worldbook entries will be migrated via a one-time script:
+The existing Character Cards (V1-V3) and Worldbook entries have been migrated via `v1ToV5Migration.ts`:
 *   `name`, `description`, and `personality` -> `Entity.systemPrompt`
 *   `first_mes`, `mes_example`, `scenario` -> **Discarded** (No longer needed).
 *   Current Worldbook keywords -> Initial `RELATION_ADD` events at chapter 0.

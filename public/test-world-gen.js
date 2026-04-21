@@ -102,9 +102,8 @@ async function testWorldGeneration() {
 
     // 尝试解析JSON
     if (response.content && response.content.trim()) {
+      let jsonStr = response.content.trim()
       try {
-        let jsonStr = response.content.trim()
-
         // 提取JSON
         const jsonMatch = jsonStr.match(/```json\s*([\s\S]*?)\s*```/)
         if (jsonMatch) {

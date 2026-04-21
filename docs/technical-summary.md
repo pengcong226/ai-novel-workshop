@@ -20,7 +20,7 @@
 │  系统提示 + 【铁律区】(死亡/封印状态)   2,000 tokens (最高优先)     │
 │  实体与状态事件信息                 1,800 tokens (精确匹配)     │
 │  活跃人物信息 + 近期经历              1,500 tokens (动态抽取)     │
-│  表格记忆库 (SQLite/CSV映射)       1,500 tokens (动态更新)     │
+│  Entity & StateEvent 状态记忆系统   1,500 tokens (动态更新)     │
 │  长期记忆 (OP-RAG 向量保序检索)     2,000 tokens (时序补充)     │
 │  短期记忆 (最近3章完整上下文)       6,000 tokens (固定截断)     │
 │  当前章节细纲推演                    500 tokens (固定)          │
@@ -63,7 +63,7 @@
       ↓
 交给本地低价小模型 (如Ollama Qwen-7B / GLM) 进行 `state_extraction`
       ↓
-将新人物/世界观直接更新入 SQLite 的 `ProjectStore` 和 `MemoryTables`
+将新人物/世界观直接更新入 SQLite 的 `ProjectStore` 和 Entity/StateEvent 系统
 ```
 
 ### 3. 一致性检查机制 (ConStory-Bench 十九项矩阵)

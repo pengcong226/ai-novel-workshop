@@ -62,9 +62,10 @@ src/
 │   └── AIAssistant.vue     # AI助手
 ├── services/        # 核心服务
 │   ├── ai-service.ts       # AI服务（完整实现）
-│   ├── memory-service.ts   # 记忆系统
+│   ├── generation-scheduler.ts # V5 批量章节生成引擎
 │   └── vector-service.ts   # 向量服务
 ├── stores/         # 状态管理
+│   ├── sandbox.ts          # V5 Entity & StateEvent 核心 (replaces memory-service.ts)
 │   ├── project.ts          # 项目状态
 │   └── storage.ts          # IndexedDB封装
 ├── types/          # 类型定义

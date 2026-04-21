@@ -265,13 +265,13 @@ indexedDB.deleteDatabase('transformers-cache')
 const TOKEN_BUDGET = {
   WORLD_BOOK: 1800,      // 世界书（精确控制）
   RAG_CONTEXT: 400,      // RAG（智能补充）
-  MEMORY_TABLES: 500,    // 表格记忆
+  ENTITY_STATE: 500,     // Entity & StateEvent 状态记忆
 }
 ```
 
 - **世界书**：关键词精确匹配，优先级高
 - **RAG**：语义相似度检索，补充世界书遗漏内容
-- **表格记忆**：状态追踪，动态更新
+- **Entity & StateEvent**：状态追踪，动态更新
 
 ## 更多资源
 

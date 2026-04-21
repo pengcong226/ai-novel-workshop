@@ -634,7 +634,7 @@
         "name": "YuanJing",
         "type": "custom",
         "baseUrl": "https://maas-api.ai-yuanjing.com/openapi/compatible-mode/v1",
-        "apiKey": "sk-d8d192577f254368be75d78f60245000",
+        "apiKey": "sk-your-api-key-here",
         "isEnabled": true,
         "models": [
           {

@@ -1,4 +1,13 @@
-# 表格记忆系统 (Table Memory System)
+# 表格记忆系统 (Table Memory System) -- DEPRECATED
+
+> **DEPRECATED**: This document describes the V1 table memory system (`tableMemory.ts`) which has been deleted in the V5 refactoring. The project now uses the **Entity & StateEvent** architecture via the `sandbox` Pinia store. See `docs/technical-summary.md` for the current V5 architecture.
+>
+> Key replacements:
+> - `tableMemory.ts` → deleted; replaced by Entity & StateEvent system (`src/stores/sandbox.ts`)
+> - `MemoryTables.vue` → `SandboxTimeline.vue` (for StateEvent viewing)
+> - `updateRow/insertRow/deleteRow` commands → Tool Calling with JSON Schema (`PROPERTY_UPDATE`, `RELATION_ADD`, etc.)
+> - CSV table format → Entity attributes + StateEvent change log
+> - `memory-service.ts` / `memory-adapter.ts` → deleted; replaced by sandbox store
 
 > 借鉴 SillyTavern 的 st-memory-enhancement 插件实现
 

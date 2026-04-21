@@ -1,5 +1,7 @@
 # V5 Refactoring Completion: Final Cleanup & Migration
 
+**Status: COMPLETE** — All 5 phases done. Dead code deleted, stores migrated, UI components use sandbox store.
+
 **Goal:** Finish the remaining V5 refactoring work — migrate generation-scheduler to V5, convert old UI components, clean up dead code, and deprecate old stores.
 
 **Architecture:** Entity+StateEvent is already the single source of truth. This spec covers the "last mile": wiring the scheduler and UI components to it, and removing the dead layers.
@@ -192,11 +194,11 @@ After all consumers are migrated:
 
 ## 6. Execution Order
 
-Phase 1 — Pipeline (generation-scheduler V5 migration, Section 1)
-Phase 2 — Context (context builder + radar, Section 3)
-Phase 3 — UI (component migration, Section 2)
-Phase 4 — Store deprecation (Section 4)
-Phase 5 — Dead code cleanup (Section 5)
+Phase 1 — Pipeline (generation-scheduler V5 migration, Section 1) ✅ COMPLETE
+Phase 2 — Context (context builder + radar, Section 3) ✅ COMPLETE
+Phase 3 — UI (component migration, Section 2) ✅ COMPLETE
+Phase 4 — Store deprecation (Section 4) ✅ COMPLETE
+Phase 5 — Dead code cleanup (Section 5) ✅ COMPLETE
 
 Each phase produces working, testable code. No phase depends on a later phase.
 

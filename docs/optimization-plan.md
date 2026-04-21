@@ -4,7 +4,7 @@
 
 ### ✅ 已完成功能
 - 完整的前后端架构 (Vue 3 + Tauri + SQLite)
-- 表格记忆系统 (Token效率提升40%)
+- Entity & StateEvent 状态记忆系统 (V5, replaces V1 table memory)
 - 滚动大纲生成引擎
 - 向量检索系统 (双模式)
 - 自动设定生长
@@ -363,8 +363,11 @@ const ERROR_MESSAGES: Record<string, string> = {
 **问题**: 测试覆盖率不足
 
 **优化方案**:
+
+> **V5 Note**: The V1 table memory API (`createSheet`, `insertRow`, `updateRow`, `deleteRow` from `tableMemory.ts`) has been replaced by the V5 Entity + StateEvent architecture. The test examples below are preserved for historical reference only.
+
 ```typescript
-// src/utils/__tests__/tableMemory.test.ts
+// src/utils/__tests__/tableMemory.test.ts (DELETED - V1 API)
 
 describe('TableMemory', () => {
   test('should create sheet with correct headers', () => {
@@ -614,7 +617,7 @@ Week 3-4:
 
 每次优化后测试:
 - 章节生成功能
-- 表格记忆更新
+- Entity & StateEvent 状态更新
 - 向量检索
 - 项目保存/加载
 - 批量生成

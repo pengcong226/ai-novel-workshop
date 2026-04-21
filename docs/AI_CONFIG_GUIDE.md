@@ -151,7 +151,7 @@
 2. **优化提示词**：减少不必要的上下文
 3. **调整温度**：较低温度减少重试次数
 4. **批量生成**：一次生成多章节比分次生成更省
-5. **使用表格记忆**：节省 70% tokens
+5. **使用Entity & StateEvent状态记忆**：节省 70% tokens
 
 ### Q5: 支持自定义提供商吗？
 
@@ -249,7 +249,7 @@ location.reload()
 ### 3. Token 优化
 
 **减少 Token 使用**：
-- 使用表格记忆系统（节省 70%）
+- 使用Entity & StateEvent状态记忆系统（节省 70%）
 - 合理设置 Max Tokens
 - 避免重复内容
 - 使用摘要功能
@@ -266,7 +266,7 @@ location.reload()
 2. 创建详细大纲
 3. 分批生成章节（每次 3-5 章）
 4. 定期检查一致性
-5. 使用表格记忆跟踪状态
+5. 使用Entity & StateEvent跟踪状态
 
 **避免**：
 - 一次生成过多章节
@@ -276,7 +276,7 @@ location.reload()
 ## 获取帮助
 
 ### 文档资源
-- [表格记忆系统](./table-memory-system.md)
+- [Entity & StateEvent 状态记忆系统](./table-memory-system.md) (legacy doc, see technical-summary.md for V5)
 - [AI 集成设计](./ai-integration-design.md)
 - [架构设计](./architecture.md)
 

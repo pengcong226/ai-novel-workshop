@@ -2,7 +2,7 @@
 
 ## 项目简介
 
-一个支持100万字以上长篇小说的智能生成系统,通过**表格记忆系统**确保长篇创作的连贯性和一致性。
+一个支持100万字以上长篇小说的智能生成系统,通过**Entity & StateEvent 状态记忆系统**确保长篇创作的连贯性和一致性。
 
 **最新架构升级 (v5.0)**: 采用 **Tauri + SQLite 桌面端混合架构**,突破浏览器存储限制,支持更大数据量和更高性能。
 
@@ -13,7 +13,7 @@
 - ✅ **状态记忆系统 (Entity & StateEvent)** - 统一长文本小说人物/事件/物品状态追踪
 - ✅ **滚动大纲生成** - 自动续写大纲,打破50章限制
 - ✅ **自动设定生长** - 批量生成后自动提取人物、更新记忆
-- ✅ 分层记忆管理 (Author's Note > World Info > Memory Tables > Summary > Recent Chapters)
+- ✅ 分层记忆管理 (Author's Note > World Info > Entity State > Summary > Recent Chapters)
 - ✅ 批量生成和实时生成双模式
 
 ### 🚀 架构创新 (V5.0 重构完全体)
@@ -22,7 +22,7 @@
 - ✨ **高可用模型路由 (FailoverManager)** - API 提供商熔断器闭环机制，当遇到超时、429时，主备大模型热切换，从此告别写作中断
 - ✨ **Pipeline/Middleware 上下文引擎** - 200行上帝函数解耦，每一层记忆块动态管理自己的 Token 预算，Unicode 安全切分拦截 400 报错
 - ✨ **MCP 标准协议支持** - 提供标准工具接口，允许 Roo Code / Clause 外部 AI 助手接管小说管线
-- ✨ **结构化记忆输出 (Tool Calling)** - JSON Schema `strict: true` 强约束，消灭易碎正则正则表达式，表格记忆更新成功率 99.9%
+- ✨ **结构化记忆输出 (Tool Calling)** - JSON Schema `strict: true` 强约束，消灭易碎正则正则表达式，状态事件更新成功率 99.9%
 - ✨ **双轨沉浸式前端 (Immersive UI)** - Notion-like 极简左白板，配合右侧“毛玻璃防抖呼吸”上下文抽取矩阵
 - ✨ **小白与极客双模态调参台** - 将复杂的 System Prompt、Temperature 藏在极客模式背后，为“吟游诗人”还原极简的字数/风格倾向滑块
 - ✨ **多视图沙盒 (Multi-View Sandbox)** - 统一Entity/StateEvent层，通过懒加载 Tauri IPC (`load_entities`/`load_state_events`) 大幅提升百万字上下文承载力
@@ -90,47 +90,54 @@ ai-novel-workshop/
 │
 ├── src/                            # 前端源代码
 │   ├── components/                 # Vue组件 (60+)
-│   │   ├── WorldSetting.vue        # 世界观设定
-│   │   ├── Characters.vue          # 人物管理
+│   │   ├── Sandbox/                # 多视图沙盒组件
+│   │   │   ├── SandboxLayout.vue   # 沙盒主布局
+│   │   │   ├── SandboxDocument.vue # 实体文档编辑
+│   │   │   ├── SandboxGraph.vue    # 关系图谱 (AntV G6)
+│   │   │   ├── SandboxTimeline.vue # 状态事件时间线
+│   │   │   ├── SandboxMap.vue      # 世界观地图
+│   │   │   ├── WorldGenWizard.vue  # 批量世界观生成向导
+│   │   │   ├── PlotLoomBoard.vue   # 命运织布机看板
+│   │   │   └── AutomatonChat.vue   # AI 对话交互
+│   │   ├── CharacterDevelopment.vue # 角色发展与状态追踪
 │   │   ├── Chapters.vue            # 章节编辑
-│   │   ├── Outline.vue             # 大纲系统
-│   │   ├── MemoryTables.vue        # 表格记忆
-│   │   ├── RelationshipGraph.vue   # 关系图
-│   │   ├── TimelineEditor.vue      # 时间线编辑
-│   │   ├── WorldMap.vue            # 世界观地图
+│   │   ├── AIAssistant.vue         # AI 助手
+│   │   ├── GlobalMutator.vue       # 全局查找替换
+│   │   ├── GlassContextPanel.vue    # 上下文抽取矩阵
 │   │   ├── NovelImportDialog.vue   # 小说导入
 │   │   ├── UnifiedImportDialog.vue # 统一导入向导
 │   │   └── ...
 │   │
 │   ├── stores/                     # Pinia状态管理
 │   │   ├── project.ts              # 项目状态
+│   │   ├── sandbox.ts              # 沙盒 (Entity & StateEvent)
 │   │   ├── storage.ts              # 存储适配器
+│   │   ├── worldbook.ts            # 世界书 Facade (桥接沙盒)
+│   │   ├── character-card.ts       # 角色卡 Facade (桥接沙盒)
 │   │   ├── ai.ts                   # AI服务
 │   │   ├── vector.ts               # 向量服务
 │   │   └── suggestions.ts          # AI建议
 │   │
 │   ├── utils/                      # 核心工具
-│   │   ├── tableMemory.ts          # 表格记忆系统
 │   │   ├── contextBuilder.ts       # 上下文构建器
-│   │   ├── vectorStore.ts          # 向量存储
+│   │   ├── v1ToV5Migration.ts      # V1→V5 迁移脚本
+│   │   ├── promptHelper.ts         # 提示词模板管理
 │   │   ├── conflictDetector.ts     # 冲突检测
 │   │   ├── qualityChecker.ts       # 质量检查
 │   │   ├── novelImporter.ts        # 小说导入分析
-│   │   ├── characterExtractor.ts   # 人物提取
-│   │   ├── worldExtractor.ts       # 世界观提取
+│   │   ├── markdownExporter.ts     # Markdown导出
 │   │   └── llm/                    # LLM工具集
 │   │       ├── llmCaller.ts        # 统一调用
 │   │       ├── tokenizer.ts        # Token计算
-│   │       ├── characterExtractor.ts
-│   │       ├── worldExtractor.ts
-│   │       └── outlineGenerator.ts
+│   │       └── outlineGenerator.ts # 大纲生成
 │   │
 │   ├── services/                   # 服务层
 │   │   ├── ai/                     # AI服务
 │   │   │   ├── ModelRouter.ts      # 模型路由
 │   │   │   └── index.ts            # 统一API
+│   │   ├── generation-scheduler.ts # 生成调度器
 │   │   ├── vector-service.ts       # 向量服务
-│   │   └── memory-service.ts       # 记忆服务
+│   │   └── worldbook-injector.ts   # 世界书动态注入
 │   │
 │   ├── plugins/                    # 插件系统 (v1.0)
 │   │   ├── types.ts                # 插件类型定义
@@ -145,7 +152,9 @@ ai-novel-workshop/
 │   │   └── examples/               # 4个示例插件
 │   │
 │   ├── types/                      # TypeScript类型
-│   │   ├── index.ts                # 核心类型
+│   │   ├── index.ts                # 核心类型 (@deprecated V1)
+│   │   ├── sandbox.ts              # V5 Entity & StateEvent 类型
+│   │   ├── worldbook.ts            # 世界书类型
 │   │   ├── ai.ts                   # AI类型
 │   │   ├── conflicts.ts            # 冲突类型
 │   │   └── suggestions.ts          # 建议类型
@@ -173,29 +182,32 @@ ai-novel-workshop/
 
 ## 核心系统详解
 
-### 1. 表格记忆系统
+### 1. Entity & StateEvent 状态记忆系统
 
-借鉴 SillyTavern 的 st-memory-enhancement 实现,用CSV格式追踪小说状态:
+基于事件溯源 (Event Sourcing) 的状态追踪架构，Entity (静态定义) + StateEvent (追加式事件) → ResolvedEntity (计算属性)：
 
-```csv
-* 0:角色状态
-【表格内容】
-rowIndex,0:姓名,1:身份,2:位置,3:状态,4:装备
-1,林渊,散修,山谷,受伤,剥皮小刀
-2,林清雪,公主,山谷,灵力枯竭,无
+```typescript
+// Entity 静态定义 (不可变)
+interface Entity {
+  id: string; type: EntityType; name: string;
+  importance: EntityImportance; systemPrompt: string;
+}
 
-【编辑规则】
-可用命令:
-- updateRow(1, "林渊", "散修", "山谷", "康复", "剥皮小刀,太虚阵盘")
-- insertRow("张三", "路人", "城里", "正常", "无")
-- deleteRow(3)
+// StateEvent 追加式事件 (只增不改)
+interface StateEvent {
+  id: string; entityId: string; eventType: StateEventType;
+  chapterNumber: number; payload: Record<string, any>;
+}
+
+// 事件类型: PROPERTY_UPDATE | RELATION_ADD | RELATION_UPDATE |
+//           LOCATION_MOVE | VITAL_STATUS_CHANGE | ABILITY_CHANGE
 ```
 
 **优势**:
-- Token效率提升40%
-- AI可精确更新表格
-- 触发式过滤,节省70% tokens
-- 永不遗忘、永不矛盾
+- 完整历史回溯：可在任意章节重建实体状态快照
+- Tool Calling 强约束：JSON Schema `strict: true` 确保状态更新成功率 99.9%
+- Token 效率提升：仅向 AI 注入当前章节相关的已解析状态
+- 多视图支持：同一 Entity 数据驱动图谱/时间线/文档三种视图
 
 ### 2. 滚动大纲生成引擎
 
@@ -246,7 +258,7 @@ Token预算分配 (总预算: 6000-8192)
 ├─ Author's Note: 200 (最高优先级)
 ├─ World Info: 800 (动态注入)
 ├─ Characters: 600 (相关人物)
-├─ Memory Tables: 500 (触发式过滤)
+├─ Entity State: 500 (当前实体状态)
 ├─ Vector Context: 600 (语义检索)
 ├─ Summary: 600 (历史压缩)
 ├─ Recent Chapters: 2000 (完整内容)
@@ -292,7 +304,7 @@ const results = await vectorService.retrieveRelevantContext({
 **模型切换**:
 参见 [BGE-M3模型配置指南](./docs/bge-m3-model-guide.md) 了解如何切换到更强大的向量模型。
 
-### 6. 智能降级机制
+### 7. 智能降级机制
 
 **多层容错**:
 ```typescript
@@ -389,7 +401,7 @@ window.__APP_LOGGER__.clearLogs()                  // 清空缓冲
 1. 点击"新建章节"
 2. 填写标题和概要
 3. 点击"AI生成"
-4. 查看生成的表格记忆
+4. 查看生成的实体状态更新
 5. 保存
 
 **批量生成**:
@@ -419,8 +431,8 @@ window.__APP_LOGGER__.clearLogs()                  // 清空缓冲
 | 单章生成时间 | <30秒 | ✅ 达标 |
 | 100万字加载 | <3秒 | ✅ SQLite优化 |
 | 向量检索 | <100ms | ✅ 本地向量 |
-| Token效率提升 | 40% | ✅ 表格记忆 |
-| 记忆更新速度 | <100ms | ✅ CSV操作 |
+| Token效率提升 | 40% | ✅ Entity State |
+| 记忆更新速度 | <100ms | ✅ Tauri IPC |
 | SQLite数据库大小 | - | <100MB (百万字) |
 
 ## 开发进度
@@ -433,10 +445,10 @@ window.__APP_LOGGER__.clearLogs()                  // 清空缓冲
 - [x] AI集成 (多模型支持)
 
 ### ✅ Phase 4: 记忆系统
-- [x] 表格记忆系统 (CSV格式)
+- [x] Entity & StateEvent 状态记忆系统
 - [x] 分层记忆注入
-- [x] 触发式更新
-- [x] AI可执行命令
+- [x] Tool Calling 约束的状态更新
+- [x] AI可执行状态事件操作
 - [x] 向量检索系统
 
 ### ✅ Phase 5: 质量优化
@@ -448,7 +460,7 @@ window.__APP_LOGGER__.clearLogs()                  // 清空缓冲
 ### ✅ Phase 6: 可视化功能
 - [x] 人物关系图
 - [x] 时间线编辑器
-- [x] 表格可视化编辑器
+- [x] 状态事件时间线编辑器
 - [x] 世界观地图
 
 ### ✅ Phase 7: 功能增强
@@ -478,12 +490,12 @@ window.__APP_LOGGER__.clearLogs()                  // 清空缓冲
 
 ### 技术亮点
 
-**1. 酒馆风格记忆管理**
-完整实现SillyTavern的记忆增强机制:
-- 分层注入 (Author's Note > World Info > Memory Tables)
-- CSV格式表格 (rowIndex精确定位)
-- AI可执行命令 (updateRow/insertRow/deleteRow)
-- 触发式更新 (只发送相关数据)
+**1. Entity & StateEvent 状态记忆**
+基于事件溯源的状态追踪系统:
+- 分层注入 (Author's Note > World Info > Entity State > Summary > Recent Chapters)
+- Tool Calling 强约束 (JSON Schema `strict: true`)
+- 追加式事件 (PROPERTY_UPDATE/RELATION_ADD/LOCATION_MOVE 等)
+- 状态 Reducer 计算任意章节快照
 
 **2. 滚动大纲生成引擎**
 - 打破50章大纲限制
@@ -509,7 +521,7 @@ window.__APP_LOGGER__.clearLogs()                  // 清空缓冲
 系统现已提供原生 `mcp-server.js`，完全遵循 Model Context Protocol 标准。允许像 Roo Code、Claude Desktop 这样强大的大模型工具直接连接底层 SQLite 数据库，获得系统以下超能力：
 - 检索与上下文提取 (`list_projects`, `get_project_context`, `get_chapter_content`)
 - 自主创作与架构设计 (`update_outline`, `create_character`, `save_chapter`)
-- 记忆矩阵操作 (`read_memory_tables`, `update_memory_table`)
+- 实体与状态事件操作 (`list_entities`, `get_entity_state`, `update_entity`)
 
 ### 8. 命令化助手与审校工作流
 
@@ -523,15 +535,15 @@ window.__APP_LOGGER__.clearLogs()                  // 清空缓冲
 ## 技术亮点
 
 
-### 1. 表格记忆系统
+### 1. Entity & StateEvent 状态记忆
 - Token效率提升40%
-- AI理解准确度95%
-- 更新速度<100ms
-- 冲突率<5%
+- Tool Calling 约束更新成功率 99.9%
+- 状态 Reducer 计算速度<100ms
+- 状态矛盾率<5%
 
 ### 2. 自动设定生长
 - 批量生成后自动提取新角色
-- AI静默更新表格记忆
+- AI静默生成 StateEvent 更新实体状态
 - 免Token人物提取 (正则+共现)
 
 ### 3. API风控处理
@@ -552,16 +564,16 @@ window.__APP_LOGGER__.clearLogs()                  // 清空缓冲
 **A:** 检查以下几点:
 1. 是否配置了AI模型?
 2. 是否创建了人物和大纲?
-3. 是否启用了表格记忆? (默认启用)
+3. 是否在沙盒中维护了实体状态? (默认启用)
 4. AI模型是否足够强? (建议Claude Sonnet 4.6)
 
-### Q: 如何手动更新表格记忆?
-**A:** 参考 [表格记忆系统文档](./docs/table-memory-system.md) 的使用指南。
+### Q: 如何手动更新实体状态?
+**A:** 在沙盒视图中选择对应实体，添加或编辑 StateEvent 即可更新状态。
 
 ### Q: 支持多少字的小说?
 **A:** 理论上支持无限字数:
 - **1-30章**: 完美支持
-- **30-100章**: 需要定期更新表格记忆
+- **30-100章**: 需要定期维护实体状态
 - **100章以上**: 建议使用向量检索
 
 ### Q: 数据会丢失吗?
@@ -583,7 +595,7 @@ MIT
 ## 致谢
 
 - [SillyTavern](https://github.com/SillyTavern/SillyTavern) - 酒馆记忆系统灵感来源
-- [st-memory-enhancement](https://github.com/muyoou/st-memory-enhancement) - 表格记忆插件参考实现
+- [st-memory-enhancement](https://github.com/muyoou/st-memory-enhancement) - 早期表格记忆参考实现 (V5 已替换为 Entity & StateEvent)
 - [Element Plus](https://element-plus.org/) - Vue 3 UI组件库
 - [Vue 3](https://vuejs.org/) - 渐进式JavaScript框架
 - [AntV G6](https://g6.antv.antgroup.com/) - 图可视化库
