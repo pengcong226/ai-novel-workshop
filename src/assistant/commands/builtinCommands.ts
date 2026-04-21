@@ -2,6 +2,7 @@ import { CommandRegistry } from './registry';
 import type { AssistantCommand } from './types';
 import { buildReviewPrompt } from '../review/reviewPromptFactory';
 import type { ReviewProfile } from '../review/reviewProfiles';
+import { useSandboxStore } from '@/stores/sandbox';
 
 export const builtinCommandRegistry = new CommandRegistry();
 
@@ -70,7 +71,7 @@ const reviewCommand: AssistantCommand = {
       }
 
       const promptContext = { project, chapter };
-      const apiMessages = buildReviewPrompt(profile, promptContext) as any[];
+      const apiMessages = buildReviewPrompt(profile, promptContext, useSandboxStore()) as any[];
 
       const response = await aiStore.chat(apiMessages, { type: 'assistant' as any, complexity: 'high', priority: 'balanced' });
       const rawContent = response.content;

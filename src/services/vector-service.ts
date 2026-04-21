@@ -1,6 +1,7 @@
 import type { Project, Chapter } from '@/types';
 import { invoke } from '@tauri-apps/api/core';
 import { getLogger } from '@/utils/logger';
+import { getVectorDimensionByModel } from '@/utils/vector-dimension';
 
 /**
  * 向量数据库服务 (V5 架构重构版)
@@ -47,6 +48,8 @@ export interface SearchOptions {
   topK?: number;
   filter?: Record<string, unknown>;
   minScore?: number;
+  /** 图谱命中权重（0-1），越高越偏向图谱相关实体 */
+  vectorWeight?: number;
   /** 当前章节号 (用于时序衰减重排) */
   currentChapterNumber?: number;
   /** 当前章节涉及实体名 (用于图谱命中重排) */
@@ -154,7 +157,7 @@ class LocalEmbeddingModel extends EmbeddingModel {
   }
 
   getDimension(): number {
-    return this.config.dimension || 1024;
+    return getVectorDimensionByModel('local', this.config.model);
   }
 }
 
@@ -224,13 +227,7 @@ class OpenAIEmbeddingModel extends EmbeddingModel {
   }
 
   getDimension(): number {
-    const modelDimensions: Record<string, number> = {
-      'text-embedding-3-small': 1536,
-      'text-embedding-3-large': 3072,
-      'text-embedding-ada-002': 1536,
-    };
-    const model = this.config.model || 'text-embedding-3-small';
-    return modelDimensions[model] || this.config.dimension || 1536;
+    return getVectorDimensionByModel('openai', this.config.model);
   }
 }
 
@@ -256,7 +253,6 @@ interface ChapterChunk {
  */
 function chunkChapterContent(
   chapterId: string,
-  chapterNumber: number,
   content: string,
   characterNames: string[],
   locationNames: string[]
@@ -331,8 +327,7 @@ function chunkChapterContent(
 
 /**
  * 从文本中简单提取可能的人名/地名关键词 (用于元数据标签)
- * 这是轻量级启发式，不依赖 NER 模型
- * @deprecated 内联在 chunkChapterContent 中，此函数已不再使用
+ * 这是轻量级启发式，保留说明供后续维护参考。
  */
 
 // ============================================================================
@@ -344,16 +339,20 @@ function chunkChapterContent(
  */
 function applyGraphHitRerank(
   results: SearchResult[],
-  activeEntityNames: string[]
+  activeEntityNames: string[],
+  boostWeight: number = 0.7
 ): SearchResult[] {
   if (!activeEntityNames || activeEntityNames.length === 0) return results;
+
+  const safeWeight = Math.min(Math.max(boostWeight, 0), 1);
+  const boostMultiplier = 1 + safeWeight;
 
   return results.map(r => {
     const chunkEntities: string[] = r.metadata?.entityNames || [];
     const hasHit = chunkEntities.some(e => activeEntityNames.includes(e));
     return {
       ...r,
-      score: hasHit ? r.score * 1.5 : r.score,
+      score: hasHit ? r.score * boostMultiplier : r.score,
     };
   });
 }
@@ -395,7 +394,7 @@ function applyCombinedRerank(
 
   // 1. 图谱命中提权
   if (options.activeEntityNames && options.activeEntityNames.length > 0) {
-    reranked = applyGraphHitRerank(reranked, options.activeEntityNames);
+    reranked = applyGraphHitRerank(reranked, options.activeEntityNames, options.vectorWeight ?? 0.7);
   }
 
   // 2. 时序衰减
@@ -515,7 +514,6 @@ export class VectorService {
     for (const chapter of project.chapters || []) {
       const chunks = chunkChapterContent(
         chapter.id,
-        chapter.number,
         chapter.content || '',
         characterNames,
         locationNames
@@ -574,7 +572,6 @@ export class VectorService {
 
     const chunks = chunkChapterContent(
       chapter.id,
-      chapter.number,
       chapter.content || '',
       characterNames,
       locationNames
@@ -689,7 +686,8 @@ export class VectorService {
   async retrieveRelevantContext(
     currentChapter: Chapter,
     project: Project,
-    activeEntityNames: string[] = []
+    activeEntityNames: string[] = [],
+    retrievalOptions: Pick<SearchOptions, 'topK' | 'minScore' | 'vectorWeight'> = {}
   ): Promise<SearchResult[]> {
     if (!this.initialized) {
       await this.initialize();
@@ -704,17 +702,21 @@ export class VectorService {
 
     // 优先使用图谱实体构建查询 (Graph-Guided)
     if (activeEntityNames.length > 0) {
+      const topK = retrievalOptions.topK ?? 5;
+      const minScore = retrievalOptions.minScore ?? 0.35;
+      const vectorWeight = retrievalOptions.vectorWeight ?? 0.7;
       // 针对每个核心实体构建子查询，取并集
       const allResults: SearchResult[] = [];
 
       for (const entityName of activeEntityNames.slice(0, 5)) { // 最多 5 个实体
         const entityQuery = `${entityName} ${currentChapter.outline?.location || ''}`;
         const results = await this.vectorSearch(entityQuery, {
-          topK: 5,
+          topK,
           currentChapterNumber: currentChapter.number,
           activeEntityNames,
           filter: { projectId: project.id },
-          minScore: 0.35,
+          minScore,
+          vectorWeight,
         });
         allResults.push(...results);
       }
@@ -735,7 +737,7 @@ export class VectorService {
         resultCount: deduped.length,
       });
 
-      return deduped.slice(0, 15); // 最多返回 15 个切片
+      return deduped.slice(0, topK);
     }
 
     // Fallback: 如果没有图谱实体，使用大纲信息构建查询
@@ -751,13 +753,17 @@ export class VectorService {
       }
     }
 
+    const fallbackTopK = retrievalOptions.topK ?? 10;
+    const fallbackMinScore = retrievalOptions.minScore ?? 0.4;
+    const fallbackVectorWeight = retrievalOptions.vectorWeight ?? 0.7;
     const fallbackQuery = queryParts.join(' ') || currentChapter.title;
     return this.vectorSearch(fallbackQuery, {
-      topK: 10,
+      topK: fallbackTopK,
       currentChapterNumber: currentChapter.number,
       activeEntityNames,
       filter: { projectId: project.id },
-      minScore: 0.4,
+      minScore: fallbackMinScore,
+      vectorWeight: fallbackVectorWeight,
     });
   }
 
@@ -905,5 +911,5 @@ export async function indexExternalArtifacts(
   config?: any
 ): Promise<number> {
   const service = await getVectorService(config);
-  return service.indexExternalArtifacts(artifacts);
+  return service.indexExternalArtifacts(artifacts, projectId);
 }

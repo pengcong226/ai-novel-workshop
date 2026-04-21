@@ -15,6 +15,9 @@ import { useSandboxStore } from '@/stores/sandbox'
 import { sanitizeForPrompt, validateInput } from './inputSanitizer'
 import { getVectorService, type VectorService } from '@/services/vector-service'
 import { ContextPipeline, type ContextPayload, estimateTokens, truncateToTokens } from './context/pipeline'
+import { getLogger } from '@/utils/logger'
+
+const logger = getLogger('contextBuilder')
 import {
   SystemPromptMiddleware,
   AuthorsNoteMiddleware,
@@ -62,9 +65,6 @@ function createTokenBudget(modelContextWindow: number = 128000): TokenBudget {
   }
 }
 
-// 向后兼容：保持一个默认实例供旧代码路径使用
-const TOKEN_BUDGET = createTokenBudget(128000)
-
 /**
  * 章节摘要
  */
@@ -104,8 +104,7 @@ export interface BuildContext {
  */
 export function buildAuthorsNote(
   currentChapter: number,
-  recentChapters: Chapter[],
-  project: Project
+  recentChapters: Chapter[]
 ): string {
   const parts: string[] = []
 
@@ -113,8 +112,8 @@ export function buildAuthorsNote(
   if (currentChapter > 1) {
     parts.push(`【作者注释 - 极其重要！】`)
     parts.push(`这是第${currentChapter}章，必须严格承接前文剧情。`)
-    parts.push(`当前场景：${inferCurrentScene(recentChapters, project)}`)
-    parts.push(`当前人物状态：${inferCharacterStates(recentChapters, project)}`)
+    parts.push(`当前场景：${inferCurrentScene(recentChapters)}`)
+    parts.push(`当前人物状态：${inferCharacterStates(recentChapters)}`)
 
     // 提取前文关键信息
     const lastChapter = recentChapters[0]
@@ -141,7 +140,7 @@ export function buildAuthorsNote(
  * 推断当前场景
  * V3 重构：优先从角色 currentState 中读取真实位置，不再用硬编码关键词碰撞
  */
-export function inferCurrentScene(recentChapters: Chapter[], project: Project): string {
+export function inferCurrentScene(recentChapters: Chapter[]): string {
   if (!recentChapters || recentChapters.length === 0) {
     return '故事开始'
   }
@@ -196,7 +195,7 @@ export function isCharacterActive(resolved: ResolvedEntity): boolean {
   return !isDead
 }
 
-export function inferCharacterStates(recentChapters: Chapter[], project: Project): string {
+export function inferCharacterStates(recentChapters: Chapter[]): string {
   if (!recentChapters || recentChapters.length === 0) {
     return ''
   }
@@ -235,9 +234,10 @@ export function inferCharacterStates(recentChapters: Chapter[], project: Project
  * V4-D4: 提取前置状态约束，注入系统提示词头部
  */
 export function buildStateConstraints(entities: Entity[], activeState: Record<string, ResolvedEntity>, involvedNames: string[]): string {
+  const entityByName = new Map(entities.map(e => [e.name, e]))
   const constraints: string[] = []
   for (const name of involvedNames) {
-    const entity = entities.find(e => e.name === name)
+    const entity = entityByName.get(name)
     if (!entity) continue
     const resolved = activeState[entity.id]
     if (!resolved) continue
@@ -267,7 +267,7 @@ export function buildStateConstraints(entities: Entity[], activeState: Record<st
  * 构建World Info（动态注入关键设定）
  */
 export function buildWorldInfo(
-  project: Project,
+  _project: Project,
   _currentChapter: Chapter,
   recentChapters: Chapter[]
 ): string {
@@ -355,7 +355,6 @@ export function buildWorldInfo(
  * 构建人物设定（动态注入相关人物）
  */
 export function buildCharacterInfo(
-  project: Project,
   currentChapter: Chapter,
   recentChapters: Chapter[]
 ): string {
@@ -427,8 +426,9 @@ export function buildCharacterInfo(
 
       // 人物关系（from ResolvedEntity）
       if (resolved?.relations && resolved.relations.length > 0) {
+        const entityById = new Map(charEntities.map(e => [e.id, e]))
         const relations = resolved.relations.slice(0, 3).map(r => {
-          const target = charEntities.find(e => e.id === r.targetId)
+          const target = entityById.get(r.targetId)
           return target ? `${r.type}(${target.name})${r.attitude ? ' - ' + r.attitude : ''}` : ''
         }).filter(r => r).join('、')
 
@@ -642,7 +642,8 @@ export async function buildVectorContext(
   currentChapter: Chapter,
   vectorService?: VectorService,
   maxTokens: number = 19200,
-  activeEntityNames: string[] = []
+  activeEntityNames: string[] = [],
+  retrievalOptions: Pick<VectorServiceConfig, 'topK' | 'minScore' | 'vectorWeight'> = {}
 ): Promise<string> {
   if (!vectorService) {
     return ''
@@ -653,7 +654,8 @@ export async function buildVectorContext(
     const results = await vectorService.retrieveRelevantContext(
       currentChapter,
       project,
-      activeEntityNames
+      activeEntityNames,
+      retrievalOptions
     )
 
     if (results.length === 0) {
@@ -674,7 +676,7 @@ export async function buildVectorContext(
       const rawPreview = result.content.substring(0, 500)
       const validation = validateInput(rawPreview)
       if (!validation.valid) {
-        console.warn('[ContextBuilder] 检测到可疑检索片段，已清洗:', validation.warnings)
+        logger.warn('检测到可疑检索片段，已清洗', validation.warnings)
       }
 
       const preview = sanitizeForPrompt(rawPreview, {
@@ -698,7 +700,7 @@ export async function buildVectorContext(
 
     return context
   } catch (error) {
-    console.error('[ContextBuilder] 向量检索失败:', error)
+    logger.error('向量检索失败', error)
     return ''
   }
 }
@@ -710,7 +712,8 @@ export async function buildChapterContext(
   project: Project,
   currentChapter: Chapter,
   vectorConfig?: VectorServiceConfig, // 向量服务配置（新增）
-  modelContextWindow: number = 128000
+  modelContextWindow: number = 128000,
+  rewriteDirectionPrompt?: string
 ): Promise<BuildContext> {
   const budget = createTokenBudget(modelContextWindow)
 
@@ -720,7 +723,7 @@ export async function buildChapterContext(
     try {
       vectorService = await getVectorService({ ...vectorConfig, projectId: project.id } as any)
     } catch (error) {
-      console.warn('[ContextBuilder] 向量检索初始化失败:', error)
+      logger.warn('向量检索初始化失败', error)
     }
   }
 
@@ -729,6 +732,9 @@ export async function buildChapterContext(
     project,
     currentChapter,
     vectorService,
+    vectorConfig,
+    rewriteDirectionPrompt,
+    recentChapters: [],
     budget: {
       total: budget.TOTAL,
       remaining: budget.TOTAL,

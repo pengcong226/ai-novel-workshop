@@ -14,6 +14,9 @@ import {
 } from '../contextBuilder';
 import { WorldbookInjector } from '@/services/worldbook-injector';
 import { useSandboxStore } from '@/stores/sandbox';
+import { getLogger } from '@/utils/logger';
+
+const logger = getLogger('context:middlewares')
 
 function enforceSectionBudget(payload: ContextPayload, sectionName: string, text: string, budget: number): string {
   if (!text || budget <= 0) return '';
@@ -29,18 +32,15 @@ export class SystemPromptMiddleware implements ContextMiddleware {
 
   async process(payload: ContextPayload) {
     const { project, currentChapter } = payload;
-    const recentCount = project.config?.advancedSettings?.recentChaptersCount ?? 3;
     const targetWordCount = project.config?.advancedSettings?.targetWordCount ?? 2000;
+    const recentCount = project.config?.advancedSettings?.recentChaptersCount ?? 3;
 
-    const chapters = project.chapters || [];
-    const recentChapters = chapters
-      .filter(ch => ch.number < currentChapter.number && ch.number >= currentChapter.number - recentCount)
-      .sort((a, b) => b.number - a.number);
+    const recentChapters = payload.recentChapters;
 
     const promptVariables = {
       chapter: `第${currentChapter.number}章 ${currentChapter.title}`,
       characters: currentChapter.outline?.characters?.join('、') || '相关人物待补充',
-      scenes: currentChapter.outline?.location || inferCurrentScene(recentChapters, project) || '场景信息待补充',
+      scenes: currentChapter.outline?.location || inferCurrentScene(recentChapters) || '场景信息待补充',
       context: `题材：${project.genre}\n目标字数：${targetWordCount}\n写作深度：${project.config?.writingDepth || 'standard'}\n最近章节数：${recentCount}`,
       genre: project.genre || '未指定题材',
       style: project.config?.writingDepth || 'standard',
@@ -67,14 +67,16 @@ export class AuthorsNoteMiddleware implements ContextMiddleware {
   name = 'AUTHORS_NOTE';
 
   async process(payload: ContextPayload) {
-    const { project, currentChapter } = payload;
-    const recentCount = project.config?.advancedSettings?.recentChaptersCount ?? 3;
-    const chapters = project.chapters || [];
-    const recentChapters = chapters
-      .filter(ch => ch.number < currentChapter.number && ch.number >= currentChapter.number - recentCount)
-      .sort((a, b) => b.number - a.number);
+    const { currentChapter } = payload;
+    const recentChapters = payload.recentChapters;
 
-    let note = buildAuthorsNote(currentChapter.number, recentChapters, project);
+    let note = buildAuthorsNote(currentChapter.number, recentChapters);
+
+    // Append rewrite direction prompt if present
+    if (payload.rewriteDirectionPrompt) {
+      note += `\n\n【改写方向指引】\n${payload.rewriteDirectionPrompt}`;
+    }
+
     const budget = payload.budget.distribution[this.name] || 1000;
 
     note = enforceSectionBudget(payload, '作者注释', note, budget);
@@ -91,7 +93,7 @@ export class StateConstraintsMiddleware implements ContextMiddleware {
   name = 'STATE_CONSTRAINTS';
 
   async process(payload: ContextPayload) {
-    const { project, currentChapter } = payload;
+    const { currentChapter } = payload;
     const involvedCharNames = currentChapter.outline?.characters || [];
 
     // V5: Get entity data from sandbox store
@@ -115,14 +117,10 @@ export class CharacterInfoMiddleware implements ContextMiddleware {
   name = 'CHARACTERS';
 
   async process(payload: ContextPayload) {
-    const { project, currentChapter } = payload;
-    const recentCount = project.config?.advancedSettings?.recentChaptersCount ?? 3;
-    const chapters = project.chapters || [];
-    const recentChapters = chapters
-      .filter(ch => ch.number < currentChapter.number && ch.number >= currentChapter.number - recentCount)
-      .sort((a, b) => b.number - a.number);
+    const { currentChapter } = payload;
+    const recentChapters = payload.recentChapters;
 
-    let charactersInfo = buildCharacterInfo(project, currentChapter, recentChapters);
+    let charactersInfo = buildCharacterInfo(currentChapter, recentChapters);
     const budget = payload.budget.distribution[this.name] || 4000;
 
     charactersInfo = enforceSectionBudget(payload, '人物设定', charactersInfo, budget);
@@ -132,8 +130,9 @@ export class CharacterInfoMiddleware implements ContextMiddleware {
     // 此逻辑稍后在 contextToPromptPayload 处理，这里先存着
     if (charactersInfo) {
       payload.userHeadParts.push('【完整角色设定】\n' + charactersInfo);
-      payload.totalTokensUsed += estimateTokens(charactersInfo);
-      payload.budget.remaining -= estimateTokens(charactersInfo);
+      const tokens = estimateTokens(charactersInfo);
+      payload.totalTokensUsed += tokens;
+      payload.budget.remaining -= tokens;
     }
   }
 }
@@ -143,11 +142,7 @@ export class WorldInfoMiddleware implements ContextMiddleware {
 
   async process(payload: ContextPayload) {
     const { project, currentChapter } = payload;
-    const recentCount = project.config?.advancedSettings?.recentChaptersCount ?? 3;
-    const chapters = project.chapters || [];
-    const recentChapters = chapters
-      .filter(ch => ch.number < currentChapter.number && ch.number >= currentChapter.number - recentCount)
-      .sort((a, b) => b.number - a.number);
+    const recentChapters = payload.recentChapters;
     const recentContent = recentChapters.map(ch => ch.content || '').join('\n\n');
 
     let worldInfo = buildWorldInfo(project, currentChapter, recentChapters);
@@ -178,7 +173,7 @@ export class WorldInfoMiddleware implements ContextMiddleware {
           payload.warnings.push(`世界书注入了 ${injectionResult.stats.injected} 个词条（共 ${injectionResult.totalTokens} tokens）`);
         }
       } catch (e) {
-        console.warn('[ContextBuilder] WorldbookInjector 注入失败，跳过:', e);
+        logger.warn('WorldbookInjector 注入失败，跳过', e);
       }
     }
 
@@ -208,14 +203,15 @@ export class VectorContextMiddleware implements ContextMiddleware {
         let activeEntityNames: string[] = [];
         try {
           const sandboxStore = useSandboxStore();
-          // 获取与当前章节相关的实体名
+          // O(S) build active entity ID set, then O(E) filter
+          const activeEntityIds = new Set<string>()
+          for (const ev of sandboxStore.stateEvents) {
+            if (ev.chapterNumber <= currentChapter.number) {
+              activeEntityIds.add(ev.entityId)
+            }
+          }
           activeEntityNames = sandboxStore.entities
-            .filter(e => {
-              // 实体在当前章节有状态变更，或者出现在属性中
-              return sandboxStore.stateEvents.some(
-                ev => ev.entityId === e.id && ev.chapterNumber <= currentChapter.number
-              );
-            })
+            .filter(e => activeEntityIds.has(e.id))
             .map(e => e.name);
         } catch {
           // SandboxStore 可能未初始化，使用章节大纲中的人物名作为 fallback
@@ -227,10 +223,15 @@ export class VectorContextMiddleware implements ContextMiddleware {
           currentChapter,
           payload.vectorService,
           budget,
-          activeEntityNames
+          activeEntityNames,
+          {
+            topK: payload.vectorConfig?.topK,
+            minScore: payload.vectorConfig?.minScore,
+            vectorWeight: payload.vectorConfig?.vectorWeight,
+          }
         );
       } catch (error) {
-        console.warn('[ContextBuilder] 向量检索失败，将使用降级方案:', error);
+        logger.warn('向量检索失败，将使用降级方案', error);
         payload.warnings.push('向量检索失败，已使用降级方案');
       }
     }

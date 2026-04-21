@@ -4,6 +4,7 @@ import type { KnowledgeBase } from './knowledge-base'
 import type { Preset } from './preset'
 import type { TraceImportSession } from './conversation-trace'
 import type { Worldbook } from './worldbook'
+import type { PlotEventRecord } from './rewrite-continuation'
 
 export type { Worldbook, WorldbookEntry, WorldbookGroup, WorldbookCondition } from './worldbook'
 export type { Preset, PresetExample } from './preset'
@@ -52,6 +53,9 @@ export interface Project {
 
   // 预设系统
   presets?: Preset[]
+
+  // 情节事件 (Phase 3: 深度导入提取的伏笔/转折/高潮等)
+  plotEvents?: PlotEventRecord[]
 }
 
 // 世界观设定
@@ -665,6 +669,12 @@ export interface VectorServiceConfig {
   baseUrl?: string
   /** 项目ID */
   projectId?: string
+  /** 检索返回条数 */
+  topK?: number
+  /** 相似度阈值 */
+  minScore?: number
+  /** 向量检索权重（用于重排加权） */
+  vectorWeight?: number
   /** 外部导入索引最大条数 */
   maxExternalArtifactsToIndex?: number
   /** 外部导入单条内容最大长度 */

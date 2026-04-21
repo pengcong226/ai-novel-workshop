@@ -17,6 +17,11 @@ export function useContextRadar(
   const activeContextCharacters = ref<ResolvedEntity[]>([])
   const activeContextWorldbook = ref<Entity[]>([])
 
+  function entityMatchesText(entity: Entity, text: string): boolean {
+    if (text.includes(entity.name)) return true
+    return entity.aliases?.some(alias => alias && text.includes(alias)) ?? false
+  }
+
   const scanContextDebounced = debounce((text: string) => {
     const project = projectRef.value
     if (!project) return
@@ -29,13 +34,8 @@ export function useContextRadar(
     // Scan CHARACTER entities by name or alias
     const matchedCharacterIds = new Set<string>()
     for (const entity of sandboxStore.entities) {
-      if (entity.isArchived) continue
-      if (entity.type !== 'CHARACTER') continue
-      if (text.includes(entity.name)) {
-        matchedCharacterIds.add(entity.id)
-        continue
-      }
-      if (entity.aliases?.some(alias => alias && text.includes(alias))) {
+      if (entity.isArchived || entity.type !== 'CHARACTER') continue
+      if (entityMatchesText(entity, text)) {
         matchedCharacterIds.add(entity.id)
       }
     }
@@ -48,10 +48,8 @@ export function useContextRadar(
 
     // Scan LORE entities by name or alias keyword match
     activeContextWorldbook.value = sandboxStore.entities.filter(entity => {
-      if (entity.isArchived) return false
-      if (entity.type !== 'LORE') return false
-      if (text.includes(entity.name)) return true
-      return entity.aliases?.some(alias => alias && text.includes(alias)) ?? false
+      if (entity.isArchived || entity.type !== 'LORE') return false
+      return entityMatchesText(entity, text)
     })
   }, 1500)
 

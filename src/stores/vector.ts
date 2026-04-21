@@ -10,6 +10,9 @@
 
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
+import { getLogger } from '@/utils/logger'
+
+const logger = getLogger('vector')
 import {
   VectorService,
   createVectorService,
@@ -49,7 +52,7 @@ export const useVectorStore = defineStore('vector', () => {
       isInitialized.value = true
     } catch (e) {
       error.value = e instanceof Error ? e.message : String(e)
-      console.error('Failed to initialize vector service:', e)
+      logger.error('Failed to initialize vector service:', e)
       throw e
     } finally {
       isLoading.value = false
@@ -123,10 +126,11 @@ export const useVectorStore = defineStore('vector', () => {
   async function retrieveRelevantContext(
     currentChapter: Parameters<VectorService['retrieveRelevantContext']>[0],
     project: Parameters<VectorService['retrieveRelevantContext']>[1],
-    activeEntityNames?: string[]
+    activeEntityNames?: string[],
+    retrievalOptions?: Parameters<VectorService['retrieveRelevantContext']>[3]
   ): Promise<SearchResult[]> {
     await ensureInitialized()
-    return service.value!.retrieveRelevantContext(currentChapter, project, activeEntityNames)
+    return service.value!.retrieveRelevantContext(currentChapter, project, activeEntityNames, retrievalOptions)
   }
 
   // ============================================================================

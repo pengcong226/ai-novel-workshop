@@ -1,6 +1,9 @@
 import type { ModelConfig, TaskContext } from '@/types/ai';
 import { CircuitBreaker } from './CircuitBreaker';
 import type { ModelRouter } from './ModelRouter';
+import { getLogger } from '@/utils/logger';
+
+const logger = getLogger('FailoverManager')
 
 /**
  * 故障转移管理器
@@ -52,7 +55,7 @@ export class FailoverManager {
 
       // 1. 检查熔断状态
       if (!breaker.canRequest()) {
-        console.log(`[Failover] ${model.provider} 处于熔断状态，自动切换到备用模型...`);
+        logger.info(`${model.provider} 处于熔断状态，自动切换到备用模型...`);
         continue;
       }
 
@@ -77,7 +80,7 @@ export class FailoverManager {
         // 4. 记录失败以驱动熔断器状态流转
         breaker.onFailure(error);
 
-        console.warn(`[Failover] ${model.provider} 请求失败 (${lastError.message})，准备切换下一顺位...`);
+        logger.warn(`${model.provider} 请求失败 (${lastError.message})，准备切换下一顺位...`);
       }
     }
 

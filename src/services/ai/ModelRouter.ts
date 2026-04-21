@@ -12,6 +12,9 @@ import type {
   ModelTier,
   Priority
 } from '../../types/ai';
+import { getLogger } from '@/utils/logger';
+
+const logger = getLogger('ModelRouter')
 
 /**
  * 默认模型配置
@@ -248,25 +251,6 @@ export class ModelRouter {
   }
 
   /**
-   * 最优模型选择
-   */
-  private optimizeSelection(
-    candidates: ModelConfig[],
-    context: TaskContext
-  ): ModelConfig {
-    // 计算每个模型的综合得分
-    const scoredCandidates = candidates.map(model => ({
-      model,
-      score: this.calculateScore(model, context),
-    }));
-
-    // 按得分降序排序
-    scoredCandidates.sort((a, b) => b.score - a.score);
-
-    return scoredCandidates[0].model;
-  }
-
-  /**
    * 计算模型得分
    * 得分范围: 0-1，越高越好
    */
@@ -379,7 +363,7 @@ export class ModelRouter {
       const models = this.tierModels.get(tierOrder[i]) ?? [];
       const available = models.find(m => m.enabled);
       if (available) {
-        console.warn(
+        logger.warn(
           `No available models in tier "${tier}", falling back to ${available.id}`
         );
         return available;
@@ -388,7 +372,7 @@ export class ModelRouter {
 
     // 如果所有层级都没有可用模型，返回默认模型
     const defaultModel = DEFAULT_MODELS.writing[0];
-    console.error('No available models, using default fallback');
+    logger.error('No available models, using default fallback');
     return defaultModel;
   }
 

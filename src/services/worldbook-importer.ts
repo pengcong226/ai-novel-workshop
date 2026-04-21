@@ -6,6 +6,8 @@
  */
 
 import { v4 as uuidv4 } from 'uuid'
+import { parsePngCard } from './png-parser'
+import { getLogger } from '@/utils/logger'
 import type {
   Worldbook,
   WorldbookEntry,
@@ -39,6 +41,8 @@ interface TavernParserResult {
   }
   raw: Record<string, unknown>
 }
+
+const logger = getLogger('worldbook-importer')
 
 /**
  * 世界书导入器
@@ -312,7 +316,7 @@ export class WorldbookImporter {
 
         // 如果角色卡没有世界书，返回空世界书而不是报错
         // 这样可以让统一导入器继续处理角色卡的其他数据
-        console.log('角色卡不包含世界书数据')
+        logger.info('角色卡不包含世界书数据')
         return {
           name: parsed.data?.name || '角色卡',
           description: '从角色卡导入，不包含世界书',
@@ -396,7 +400,7 @@ export class WorldbookImporter {
         const entry = JSON.parse(lines[i])
         entries.push(entry)
       } catch (error) {
-        console.warn(`JSONL 第 ${i + 1} 行解析失败:`, error)
+        logger.warn(`JSONL 第 ${i + 1} 行解析失败:`, error)
       }
     }
 
@@ -581,193 +585,16 @@ export class WorldbookImporter {
   }
 
   /**
-   * 内建 PNG 解析器
    * 从 PNG 文件中提取 chara 或 ccv3 元数据
+   * 委托给 png-parser 模块
    */
   private async parsePngCard(input: Buffer | ArrayBuffer): Promise<TavernParserResult> {
-    let buffer: Uint8Array
-
-    if (input instanceof ArrayBuffer) {
-      buffer = new Uint8Array(input)
-    } else {
-      buffer = input
-    }
-
-    // 验证 PNG 签名
-    const pngSignature = new Uint8Array([0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A])
-    if (!this.arrayEquals(buffer.slice(0, 8), pngSignature)) {
-      throw new Error('不是有效的 PNG 文件')
-    }
-
-    // 解析 PNG chunks
-    let offset = 8 // 跳过 PNG 签名
-    const chunks: Array<{ type: string; data: Uint8Array }> = []
-
-    while (offset < buffer.length) {
-      // 读取 chunk 长度 (4 bytes, big-endian)
-      const length = (buffer[offset] << 24) | (buffer[offset + 1] << 16) | (buffer[offset + 2] << 8) | buffer[offset + 3]
-      offset += 4
-
-      // 读取 chunk 类型 (4 bytes)
-      const type = String.fromCharCode(buffer[offset], buffer[offset + 1], buffer[offset + 2], buffer[offset + 3])
-      offset += 4
-
-      // 读取 chunk 数据
-      const data = buffer.slice(offset, offset + length)
-      offset += length
-
-      // 跳过 CRC (4 bytes)
-      offset += 4
-
-      chunks.push({ type, data })
-    }
-
-    // 查找 tEXt 或 zTXt chunk
-    for (const chunk of chunks) {
-      if (chunk.type === 'tEXt') {
-        // tEXt chunk 格式: keyword\0text
-        const nullIndex = chunk.data.indexOf(0)
-        const keyword = String.fromCharCode(...chunk.data.slice(0, nullIndex))
-        const text = new TextDecoder().decode(chunk.data.slice(nullIndex + 1))
-
-        if (keyword === 'chara' || keyword === 'ccv3') {
-          try {
-            // Base64 解码
-            const decoded = atob(text)
-            const data = JSON.parse(decoded)
-
-            return {
-              kind: this.detectKind(data),
-              format: keyword,
-              data: this.normalizeData(data),
-              raw: data
-            }
-          } catch (e) {
-            console.error('解析 tEXt chunk 失败:', e)
-          }
-        }
-      } else if (chunk.type === 'zTXt') {
-        // zTXt chunk 格式: keyword\0compression_method + compressed_text
-        const nullIndex = chunk.data.indexOf(0)
-        const keyword = String.fromCharCode(...chunk.data.slice(0, nullIndex))
-        const compressionMethod = chunk.data[nullIndex + 1]
-        const compressedData = chunk.data.slice(nullIndex + 2)
-
-        if (keyword === 'chara' || keyword === 'ccv3') {
-          try {
-            // 仅支持 compression method 0 (deflate)
-            if (compressionMethod !== 0) {
-              console.warn(`不支持的压缩方法: ${compressionMethod}`)
-              continue
-            }
-
-            // 解压缩
-            const { inflate } = await import('pako')
-            const decompressed = inflate(compressedData)
-            const decoded = new TextDecoder().decode(decompressed)
-
-            // Base64 解码
-            const text = atob(decoded)
-            const data = JSON.parse(text)
-
-            return {
-              kind: this.detectKind(data),
-              format: keyword,
-              data: this.normalizeData(data),
-              raw: data
-            }
-          } catch (e) {
-            console.error('解析 zTXt chunk 失败:', e)
-          }
-        }
-      }
-    }
-
-    throw new Error('PNG 文件中未找到世界书数据 (chara 或 ccv3 chunk)')
-  }
-
-  /**
-   * 比较两个 Uint8Array 是否相等
-   */
-  private arrayEquals(a: Uint8Array, b: Uint8Array): boolean {
-    if (a.length !== b.length) return false
-    for (let i = 0; i < a.length; i++) {
-      if (a[i] !== b[i]) return false
-    }
-    return true
-  }
-
-  /**
-   * 检测数据类型
-   */
-  private detectKind(data: any): 'character' | 'worldbook' | 'unknown' {
-    if (data.spec === 'chara_card_v2' || data.spec === 'chara_card_v3') {
-      if (data.data?.character) {
-        return 'character'
-      }
-      if (data.data?.entries) {
-        return 'worldbook'
-      }
-    }
-
-    if (data.char_name || data.name) {
-      return 'character'
-    }
-
-    if (data.entries) {
-      return 'worldbook'
-    }
-
-    return 'unknown'
-  }
-
-  /**
-   * 规范化数据格式
-   */
-  private normalizeData(data: any): TavernParserResult['data'] {
-    // Character Card V2/V3 格式
-    if (data.spec === 'chara_card_v2' || data.spec === 'chara_card_v3') {
-      // 角色卡中的世界书数据在 character_book 字段中
-      const characterBook = data.data?.character_book
-      return {
-        entries: characterBook?.entries || [],
-        name: characterBook?.name || data.data?.name || '',
-        description: characterBook?.description || data.data?.description || '',
-        scan_depth: characterBook?.scan_depth,
-        token_budget: characterBook?.token_budget,
-        recursive_scanning: characterBook?.recursive_scanning
-      }
-    }
-
-    // Character Card V1 格式
-    if (data.char_name || data.name) {
-      // V1 格式也可能包含 character_book
-      const characterBook = data.character_book
-      return {
-        entries: characterBook?.entries || [],
-        name: data.char_name || data.name || '',
-        description: data.char_persona || data.description || ''
-      }
-    }
-
-    // 直接是条目数组
-    if (Array.isArray(data)) {
-      return {
-        entries: data
-      }
-    }
-
-    // 已经是世界书格式
-    return {
-      entries: data.entries || [],
-      name: data.name || '',
-      description: data.description || '',
-      scan_depth: data.scan_depth,
-      token_budget: data.token_budget,
-      recursive_scanning: data.recursive_scanning
-    }
+    const arrayBuffer = input instanceof ArrayBuffer ? input : new Uint8Array(input).buffer
+    const result = await parsePngCard(arrayBuffer)
+    return result as TavernParserResult
   }
 }
+
 
 /**
  * 创建世界书导入器实例

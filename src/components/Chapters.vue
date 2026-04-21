@@ -35,6 +35,8 @@
             <el-icon><MagicStick /></el-icon>
             批量生成
           </el-button>
+          <el-button type="success" plain @click="showContinuationPanel = true">续写</el-button>
+          <el-button type="warning" plain @click="showRewritePanel = true">改写</el-button>
           <el-button @click="addChapter">
             <el-icon><Plus /></el-icon>
             新建章节
@@ -120,7 +122,7 @@
                 v-for="button in pluginToolbarButtons"
                 :key="button.id"
                 size="small"
-                @click="button.handler({ chapter, content: chapter.content })"
+                @click="void handlePluginToolbarClick(chapter, button.handler)"
               >
                 <el-icon v-if="button.icon">
                   <component :is="button.icon" />
@@ -395,6 +397,28 @@
       @exported="handleExportComplete"
     />
 
+    <!-- 续写面板 -->
+    <ContinuationPanel
+      v-if="showContinuationPanel"
+      @close="showContinuationPanel = false"
+      @started="showContinuationPanel = false"
+    />
+
+    <!-- 改写面板 -->
+    <RewritePanel
+      v-if="showRewritePanel"
+      @close="showRewritePanel = false"
+      @started="showRewritePanel = false"
+    />
+
+    <!-- 改写差异报告 -->
+    <StateDiffViewer
+      v-if="diffReport"
+      :report="diffReport"
+      @accept="acceptRewrite"
+      @reject="rejectRewrite"
+    />
+
     <!-- 章节验证对话框 -->
     <el-dialog
       v-model="showValidationDialog"
@@ -452,10 +476,12 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus, MagicStick, Download, ArrowDown, CircleCheck, ArrowLeft } from '@element-plus/icons-vue'
 import { v4 as uuidv4 } from 'uuid'
 import type { Chapter, Checkpoint } from '@/types'
+import type { ChatMessage } from '@/types/ai'
 import ExportSettings from './ExportSettings.vue'
 import { useChapterExport } from '@/composables/useChapterExport'
-import type { ChatMessage } from '@/types/ai'
+import { getLogger } from '@/utils/logger'
 
+const logger = getLogger('chapters')
 const projectStore = useProjectStore()
 const pluginStore = usePluginStore()
 const project = computed(() => projectStore.currentProject)
@@ -486,6 +512,15 @@ const saveStatus = ref<'idle' | 'saving' | 'saved' | 'error'>('idle')
 let autoSaveTimer: ReturnType<typeof setTimeout> | null = null
 
 import { generationScheduler } from '@/services/generation-scheduler'
+import { normalizeProjectConfig } from '@/utils/project-config-normalizer'
+import ContinuationPanel from './RewriteContinuation/ContinuationPanel.vue'
+import RewritePanel from './RewriteContinuation/RewritePanel.vue'
+import StateDiffViewer from './RewriteContinuation/StateDiffViewer.vue'
+import { useRewriteContinuation } from '@/composables/useRewriteContinuation'
+
+const showContinuationPanel = ref(false)
+const showRewritePanel = ref(false)
+const { diffReport, acceptRewrite, rejectRewrite } = useRewriteContinuation()
 
 const chapterForm = ref<Chapter>({
   id: '',
@@ -552,6 +587,25 @@ const validating = ref(false)
 const showValidationDialog = ref(false)
 const validationIssues = ref<string[]>([])
 
+function getChapterToolbarContent(chapter: Chapter): string {
+  return chapter.summaryData?.summary || chapter.summary || ''
+}
+
+async function handlePluginToolbarClick(chapter: Chapter, handler: (payload: { chapter: Chapter; content: string }) => void | Promise<void>) {
+  let content = getChapterToolbarContent(chapter)
+
+  try {
+    const fullChapter = await projectStore.loadChapter(chapter.id)
+    if (fullChapter?.content) {
+      content = fullChapter.content
+    }
+  } catch (error) {
+    logger.warn('加载插件工具栏章节正文失败', { chapterId: chapter.id, error })
+  }
+
+  await handler({ chapter, content })
+}
+
 // 验证章节
 async function validateChapters() {
   if (!project.value || chapters.value.length === 0) {
@@ -572,16 +626,17 @@ async function validateChapters() {
       }
     }
 
-    // 检查内容连续性
+    // 检查内容连续性（惰性加载模式下优先使用已存在的字数元数据）
     for (const chapter of chapters.value) {
-      if (chapter.content.length < 100) {
+      const chapterWordCount = chapter.wordCount ?? chapter.content?.length ?? 0
+      if (chapterWordCount < 100) {
         validationIssues.value.push(`第${chapter.number}章内容过短（少于100字符）`)
       }
     }
 
     // 检查标题重复
-    const titles = chapters.value.map(ch => ch.title)
-    const duplicates = titles.filter((title, index) => titles.indexOf(title) !== index)
+    const titles = chapters.value.map((ch: Chapter) => ch.title)
+    const duplicates = titles.filter((title: string, index: number) => titles.indexOf(title) !== index)
     if (duplicates.length > 0) {
       validationIssues.value.push(`发现重复的章节标题：${[...new Set(duplicates)].join('、')}`)
     }
@@ -603,7 +658,7 @@ async function validateChapters() {
 // 监听project加载
 watch(project, (newProject) => {
   if (newProject) {
-    console.log('[Chapters] 项目加载完成')
+    logger.info('项目加载完成')
   }
 }, { immediate: true })
 
@@ -640,7 +695,7 @@ function clearAutoSaveTimer() {
   }
 }
 
-function syncChapterDraftToProject() {
+async function persistChapterDraftSilently() {
   if (!project.value || !showEditDialog.value) {
     return
   }
@@ -650,14 +705,7 @@ function syncChapterDraftToProject() {
   draftData.wordCount = draftData.content.length
   chapterForm.value.id = draftData.id
 
-  const existingIndex = project.value.chapters.findIndex(c => c.id === draftData.id)
-  if (existingIndex >= 0) {
-    project.value.chapters[existingIndex] = draftData
-  } else {
-    project.value.chapters.push(draftData)
-  }
-
-  project.value.currentWords = project.value.chapters.reduce((sum, c) => sum + (c.wordCount || 0), 0)
+  await projectStore.saveChapter(draftData)
 }
 
 function scheduleAutoSave() {
@@ -673,11 +721,10 @@ function scheduleAutoSave() {
   saveStatus.value = 'saving'
   autoSaveTimer = setTimeout(async () => {
     try {
-      syncChapterDraftToProject()
-      await projectStore.debouncedSaveCurrentProject()
+      await persistChapterDraftSilently()
       saveStatus.value = 'saved'
     } catch (error) {
-      console.error('自动保存失败:', error)
+      logger.error('自动保存失败', error)
       saveStatus.value = 'error'
     }
   }, 3000)
@@ -708,8 +755,8 @@ onMounted(() => {
 })
 
 onUnmounted(() => {
-  clearAutoSaveTimer()
   window.removeEventListener('keydown', handleEditorKeydown)
+  clearAutoSaveTimer()
 })
 
 function resetForm() {
@@ -762,7 +809,7 @@ async function editChapter(chapter: any) {
       form.content = form.content || ''
     }
   } catch (err) {
-    console.error('加载章节正文失败:', err)
+    logger.error('加载章节正文失败', err)
     form.content = form.content || ''
   }
   
@@ -886,7 +933,7 @@ async function runQualityCheckSilently(targetChapter: Chapter, notify: boolean =
       ElMessage.warning(`自动质量检查：${report.overallScore.toFixed(1)}/10，低于阈值 ${threshold}`)
     }
   } catch (error) {
-    console.warn('自动质量检查失败:', error)
+    logger.warn('自动质量检查失败', error)
   }
 }
 
@@ -899,7 +946,6 @@ async function generateContent() {
 
     if (aiStore.checkInitialized()) {
       generationStatus.value = '正在加载项目数据...'
-      const projectStore = await import('@/stores/project').then(m => m.useProjectStore())
       const project = projectStore.currentProject
 
       if (!project) {
@@ -911,16 +957,22 @@ async function generateContent() {
       generationStatus.value = '正在构建AI记忆与上下文...'
       const { buildChapterContext, contextToPromptPayload } = await import('@/utils/contextBuilder')
 
-      console.log('[章节生成] 使用上下文构建器构建记忆...')
+      logger.info('使用上下文构建器构建记忆')
 
       // 构建上下文
-      const context = await buildChapterContext(project, chapterForm.value)
+      const normalizedProjectConfig = normalizeProjectConfig(project.config)
+      const vectorConfig = normalizedProjectConfig.enableVectorRetrieval
+        ? normalizedProjectConfig.vectorConfig
+        : undefined
+      const contextWindow = normalizedProjectConfig.advancedSettings?.maxContextTokens ?? 128000
+      const context = await buildChapterContext(project, chapterForm.value, vectorConfig, contextWindow)
 
-      console.log('[章节生成] 上下文构建完成:')
-      console.log(`  - 总Token数: ${context.totalTokens}`)
-      console.log(`  - 警告: ${context.warnings.length > 0 ? context.warnings.join(', ') : '无'}`)
-      console.log(`  - Author Note 长度: ${context.authorsNote.length}`)
-      console.log(`  - 最近章节: ${context.recentChapters ? '有' : '无'}`)
+      logger.info('上下文构建完成', {
+        totalTokens: context.totalTokens,
+        warnings: context.warnings,
+        authorsNoteLength: context.authorsNote.length,
+        hasRecentChapters: !!context.recentChapters
+      })
 
       // V3-fix: 使用 system/user 角色分离（与批量生成路径一致）
       generationStatus.value = '正在组合提示词...'
@@ -937,7 +989,7 @@ async function generateContent() {
       ]
       const aiContext = { type: 'chapter' as const, complexity: 'high' as const, priority: 'quality' as const }
 
-      console.log('[章节生成] 开始调用AI服务...')
+      logger.info('开始调用AI服务')
       generationStatus.value = `前文长度 ${context.totalTokens} Tokens。正在请求AI...`
       const generationOptions = buildGenerationOptions(project.config?.advancedSettings)
       
@@ -959,12 +1011,12 @@ async function generateContent() {
           generationOptions
         )
       } catch (streamError) {
-        console.warn('[章节生成] 流式生成失败，回退普通模式:', streamError)
+        logger.warn('流式生成失败，回退普通模式', streamError)
         generationStatus.value = '流式中断，正在切换普通模式重试...'
         response = await aiStore.chat(messages, aiContext, generationOptions)
       }
       
-      console.log('[章节生成] AI响应完成长度:', response.content.length)
+      logger.info('AI响应完成', { length: response.content.length })
 
       generationStatus.value = '正在解析返回数据...'
       chapterForm.value.content = response.content.trim()
@@ -985,7 +1037,7 @@ async function generateContent() {
           chapterForm.value.content = (postResult as any).chapter.content
         }
       } catch (err) {
-        console.error('执行 post-generation 管道失败:', err)
+        logger.error('执行 post-generation 管道失败', err)
       }
 
       chapterForm.value.wordCount = chapterForm.value.content.length
@@ -1000,7 +1052,7 @@ async function generateContent() {
       await generateDefaultContent()
     }
   } catch (error) {
-    console.error('[章节生成] 失败:', error)
+    logger.error('章节生成失败', error)
     ElMessage.error('生成失败：' + (error as Error).message)
     await generateDefaultContent()
   } finally {
@@ -1051,14 +1103,15 @@ async function checkQuality() {
 
     // 1. 传统质量检查
     const { createQualityChecker } = await import('@/utils/qualityChecker')
-    const { useSandboxStore: useSandboxStoreQC } = await import('@/stores/sandbox')
-    const sandboxStoreQC = useSandboxStoreQC()
-    const loreEntitiesQC = Object.values(sandboxStoreQC.activeEntitiesState).filter(e => e.type === 'LORE')
-    const characterEntitiesQC = Object.values(sandboxStoreQC.activeEntitiesState).filter(e => e.type === 'CHARACTER')
+    const { useSandboxStore } = await import('@/stores/sandbox')
+    const sandboxStore = useSandboxStore()
+    const resolved = Object.values(sandboxStore.activeEntitiesState)
+    const loreEntities = resolved.filter(e => e.type === 'LORE')
+    const characterEntities = resolved.filter(e => e.type === 'CHARACTER')
 
     const checker = createQualityChecker(
-      loreEntitiesQC,
-      characterEntitiesQC,
+      loreEntities,
+      characterEntities,
       project.value.outline,
       project.value.config
     )
@@ -1073,10 +1126,8 @@ async function checkQuality() {
 
     // 2. 冲突检测（针对当前章节）
     const { ConflictDetector } = await import('@/utils/conflictDetector')
-    const { useSandboxStore } = await import('@/stores/sandbox')
-    const sandboxStore = useSandboxStore()
     const detector = new ConflictDetector({
-      entities: Object.values(sandboxStore.activeEntitiesState),
+      entities: resolved,
       chapters: chapters.value,
       outline: project.value.outline
     })
@@ -1121,7 +1172,7 @@ async function checkQuality() {
     // 显示详细报告
     showQualityReportDialog(report)
   } catch (error) {
-    console.error('质量检查失败:', error)
+    logger.error('质量检查失败', error)
     ElMessage.error('质量检查失败：' + (error as Error).message)
   }
 }
@@ -1192,10 +1243,25 @@ async function executeBatchGeneration() {
       autoSave: batchForm.value.autoSave,
       autoUpdateSettings: batchForm.value.autoUpdateSettings,
       enableCheckpoint: batchForm.value.enableCheckpoint,
-      checkpointInterval: batchForm.value.checkpointInterval
+      checkpointInterval: batchForm.value.checkpointInterval,
+      onCheckpointConfirm: async (chaptersGenerated) => {
+        try {
+          await ElMessageBox.confirm(
+            `已连续生成 ${chaptersGenerated} 章，是否继续生成接下来的章节？\n您可以趁此时检查前文质量，若有跑偏请手动修正。`,
+            '断点审查',
+            { confirmButtonText: '继续生成', cancelButtonText: '终止批量', type: 'info' }
+          )
+          return true
+        } catch {
+          return false
+        }
+      },
+      onBatchComplete: (chaptersGenerated) => {
+        ElMessage.success(`批量生成游历完成！产出 ${chaptersGenerated} 章纯度百分百的内容。`)
+      }
     })
   } catch (error) {
-    console.error('[批量生成] 失败:', error)
+    logger.error('批量生成失败', error)
     ElMessage.error('批量生成失败：' + (error as Error).message)
   }
 }

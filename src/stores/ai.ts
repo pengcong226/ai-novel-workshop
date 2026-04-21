@@ -19,7 +19,53 @@ export const useAIStore = defineStore('ai', () => {
     return new Promise(resolve => setTimeout(resolve, ms))
   }
 
-  // V3: 共享模型路由逻辑，消除 chat/chatStream 中的重复代码
+  /**
+   * 构建 AI 请求上下文（消除 chat/chatStream 重复代码）
+   */
+  function buildRequestContext(
+    context: TaskContext | undefined,
+    requestedBy: string
+  ): TaskContext {
+    const projectStore = useProjectStore()
+    const config = projectStore.currentProject?.config || projectStore.globalConfig
+
+    let preferredModel = resolvePreferredModel(config, context?.type, configuredModel.value)
+
+    if (!preferredModel && config?.providers) {
+      const fallbackProvider = config.providers.find(provider =>
+        provider.isEnabled && provider.models?.some(model => model.isEnabled)
+      )
+      preferredModel = fallbackProvider?.models.find(model => model.isEnabled)?.id || null
+    }
+
+    const requestContext: TaskContext = preferredModel
+      ? {
+          type: context?.type || 'chapter',
+          complexity: context?.complexity || 'medium',
+          priority: context?.priority || 'balanced',
+          tokenBudget: context?.tokenBudget,
+          preferredModel,
+          metadata: {
+            ...context?.metadata,
+            requestedBy
+          }
+        }
+      : context || {
+          type: 'chapter',
+          complexity: 'medium',
+          priority: 'balanced'
+        }
+
+    if (preferredModel) {
+      logger.info(`AI ${requestedBy} 使用指定模型`, { preferredModel, type: requestContext.type })
+    } else {
+      logger.info(`AI ${requestedBy} 使用路由器自动选模`, { type: requestContext.type })
+    }
+
+    return requestContext
+  }
+
+  // 共享模型路由逻辑
   function resolvePreferredModel(
     cfg: any,
     contextType?: string,
@@ -273,42 +319,7 @@ export const useAIStore = defineStore('ai', () => {
       }
     }
 
-    const projectStore = useProjectStore()
-    const config = projectStore.currentProject?.config || projectStore.globalConfig
-
-    let preferredModel = resolvePreferredModel(config, context?.type, configuredModel.value)
-
-    if (!preferredModel && config?.providers) {
-      const fallbackProvider = config.providers.find(provider =>
-        provider.isEnabled && provider.models?.some(model => model.isEnabled)
-      )
-      preferredModel = fallbackProvider?.models.find(model => model.isEnabled)?.id || null
-    }
-
-    const requestContext: TaskContext = preferredModel
-      ? {
-          type: context?.type || 'chapter',
-          complexity: context?.complexity || 'medium',
-          priority: context?.priority || 'balanced',
-          tokenBudget: context?.tokenBudget,
-          preferredModel,
-          metadata: {
-            ...context?.metadata,
-            requestedBy: 'ai-store'
-          }
-        }
-      : context || {
-          type: 'chapter',
-          complexity: 'medium',
-          priority: 'balanced'
-        }
-
-    if (preferredModel) {
-      logger.info('AI chat 使用指定模型', { preferredModel, type: requestContext.type })
-    } else {
-      logger.info('AI chat 使用路由器自动选模', { type: requestContext.type })
-    }
-
+    const requestContext = buildRequestContext(context, 'ai-store')
     return await aiService.value.chat(messages, requestContext, options)
   }
 
@@ -334,42 +345,7 @@ export const useAIStore = defineStore('ai', () => {
       }
     }
 
-    const projectStore = useProjectStore()
-    const config = projectStore.currentProject?.config || projectStore.globalConfig
-
-    let preferredModel = resolvePreferredModel(config, context?.type, configuredModel.value)
-
-    if (!preferredModel && config?.providers) {
-      const fallbackProvider = config.providers.find(provider =>
-        provider.isEnabled && provider.models?.some(model => model.isEnabled)
-      )
-      preferredModel = fallbackProvider?.models.find(model => model.isEnabled)?.id || null
-    }
-
-    const requestContext: TaskContext = preferredModel
-      ? {
-          type: context?.type || 'chapter',
-          complexity: context?.complexity || 'medium',
-          priority: context?.priority || 'balanced',
-          tokenBudget: context?.tokenBudget,
-          preferredModel,
-          metadata: {
-            ...context?.metadata,
-            requestedBy: 'ai-store-stream'
-          }
-        }
-      : context || {
-          type: 'chapter',
-          complexity: 'medium',
-          priority: 'balanced'
-        }
-
-    if (preferredModel) {
-      logger.info('AI stream 使用指定模型', { preferredModel, type: requestContext.type })
-    } else {
-      logger.info('AI stream 使用路由器自动选模', { type: requestContext.type })
-    }
-
+    const requestContext = buildRequestContext(context, 'ai-store-stream')
     return await aiService.value.chatStream(messages, callback, requestContext, options)
   }
 

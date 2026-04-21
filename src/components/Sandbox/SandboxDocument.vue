@@ -41,7 +41,7 @@
       <!-- Bottom Section: Dynamic Computed State -->
       <div class="field-group state-group">
         <div class="field-title state-title">
-          <i class="ri-node-tree"></i> 动态状态快照 (第 {{ sandboxStore.currentChapter }} 章)
+          <i class="ri-node-tree"></i> 动态状态快照
         </div>
         <p class="state-desc">
           基于大纲时间线的 StateEvent 实时推演，AI 只会读取当前最新状态以防止吃书。
@@ -113,9 +113,14 @@ const currentState = computed<ResolvedEntity | null>(() => {
   return sandboxStore.activeEntitiesState[activeEntityId.value] || null
 })
 
+const entityNameMap = computed(() => {
+  const map = new Map<string, string>()
+  for (const e of sandboxStore.entities) map.set(e.id, e.name)
+  return map
+})
+
 function getEntityName(id: string) {
-  const e = sandboxStore.entities.find(e => e.id === id)
-  return e ? e.name : id
+  return entityNameMap.value.get(id) ?? id
 }
 
 async function saveEntity() {

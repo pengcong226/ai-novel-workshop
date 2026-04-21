@@ -224,6 +224,14 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus, Upload, List, Download, Search } from '@element-plus/icons-vue'
 import { v4 as uuidv4 } from 'uuid'
 import type { ModelProvider, ModelInfo } from '@/types'
+import { enforceSecureAnthropicAccess } from '@/utils/anthropic-guard'
+
+function guardAnthropicProvider(): boolean {
+  if (providerForm.value.type === 'anthropic') {
+    try { enforceSecureAnthropicAccess(providerForm.value.baseUrl) } catch (e) { ElMessage.error((e as Error).message); return false }
+  }
+  return true
+}
 
 const props = defineProps<{ providers: ModelProvider[] }>()
 const emit = defineEmits(['update:providers', 'save'])
@@ -370,6 +378,7 @@ async function deleteProvider(providerId: string) {
 async function testProvider() {
   if (!providerForm.value.baseUrl.trim()) { ElMessage.warning('请输入Base URL'); return }
   if (!providerForm.value.apiKey.trim()) { ElMessage.warning('请输入API Key'); return }
+  if (!guardAnthropicProvider()) return
   testingProvider.value = true
   try {
     const testUrl = providerForm.value.baseUrl.endsWith('/v1') ? providerForm.value.baseUrl + '/chat/completions' : providerForm.value.baseUrl + (providerForm.value.baseUrl.endsWith('/') ? 'v1/chat/completions' : '/v1/chat/completions')
@@ -410,6 +419,7 @@ function saveModels() { showModelsDialog.value = false; ElMessage.success('模�
 async function fetchModelsFromAPI() {
   if (!providerForm.value.baseUrl.trim()) { ElMessage.warning('请先输入 Base URL'); return }
   if (!providerForm.value.apiKey.trim()) { ElMessage.warning('请先输入 API Key'); return }
+  if (!guardAnthropicProvider()) return
   fetchingModels.value = true
   try {
     let modelsUrl = providerForm.value.baseUrl; if (!modelsUrl.endsWith('/models')) { modelsUrl = modelsUrl.replace(/\/$/, '') + '/models' }

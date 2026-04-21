@@ -12,6 +12,7 @@ import type {
   ChatResponse,
   CostEstimate
 } from '../types'
+import { enforceSecureAnthropicAccess } from '@/utils/anthropic-guard'
 
 type ModelConfig = any
 type CostBreakdown = CostEstimate
@@ -73,6 +74,7 @@ class AnthropicProvider implements ProviderInstance {
       const otherMessages = request.messages.filter(m => m.role !== 'system')
 
       // 调用Anthropic API
+      enforceSecureAnthropicAccess('https://api.anthropic.com/v1')
       const response = await fetch('https://api.anthropic.com/v1/messages', {
         method: 'POST',
         headers: {
@@ -124,6 +126,7 @@ class AnthropicProvider implements ProviderInstance {
     const systemMessage = request.messages.find(m => m.role === 'system')
     const otherMessages = request.messages.filter(m => m.role !== 'system')
 
+    enforceSecureAnthropicAccess('https://api.anthropic.com/v1')
     const response = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
       headers: {
@@ -192,6 +195,7 @@ class AnthropicProvider implements ProviderInstance {
 
     try {
       // 发送测试请求验证API密钥
+      enforceSecureAnthropicAccess('https://api.anthropic.com/v1')
       const response = await fetch('https://api.anthropic.com/v1/messages', {
         method: 'POST',
         headers: {

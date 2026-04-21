@@ -2,9 +2,98 @@ import { defineStore } from 'pinia';
 import { ref, computed } from 'vue';
 import { v4 as uuidv4 } from 'uuid';
 import type { Entity, StateEvent, EntityRelation } from '../types/sandbox';
+import type { EntityStateSnapshot } from '../types/rewrite-continuation';
+import { captureSnapshot, replayReducer } from '@/utils/stateDiff';
 import { getLogger } from '@/utils/logger';
 
 const logger = getLogger('sandbox:store');
+
+const ENTITY_TYPES = new Set([
+  'CHARACTER', 'FACTION', 'LOCATION', 'LORE', 'ITEM', 'CONCEPT', 'WORLD'
+] as const);
+
+const ENTITY_IMPORTANCE = new Set(['critical', 'major', 'minor', 'background'] as const);
+
+const STATE_EVENT_TYPES = new Set([
+  'PROPERTY_UPDATE',
+  'RELATION_ADD',
+  'RELATION_REMOVE',
+  'RELATION_UPDATE',
+  'LOCATION_MOVE',
+  'VITAL_STATUS_CHANGE',
+  'ABILITY_CHANGE'
+] as const);
+
+const STATE_EVENT_SOURCES = new Set(['MANUAL', 'AI_EXTRACTED', 'MIGRATION'] as const);
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null;
+}
+
+function isStringArray(value: unknown): value is string[] {
+  return Array.isArray(value) && value.every(item => typeof item === 'string');
+}
+
+function isLoadedEntity(value: unknown): value is Omit<Entity, 'projectId'> & { projectId?: string } {
+  if (!isRecord(value)) return false;
+
+  return (
+    typeof value.id === 'string' &&
+    (value.projectId === undefined || typeof value.projectId === 'string') &&
+    typeof value.type === 'string' &&
+    ENTITY_TYPES.has(value.type as Entity['type']) &&
+    typeof value.name === 'string' &&
+    isStringArray(value.aliases) &&
+    typeof value.importance === 'string' &&
+    ENTITY_IMPORTANCE.has(value.importance as Entity['importance']) &&
+    typeof value.category === 'string' &&
+    typeof value.systemPrompt === 'string' &&
+    typeof value.isArchived === 'boolean' &&
+    typeof value.createdAt === 'number'
+  );
+}
+
+function isLoadedStateEvent(value: unknown): value is Omit<StateEvent, 'projectId'> & { projectId?: string } {
+  if (!isRecord(value)) return false;
+
+  return (
+    typeof value.id === 'string' &&
+    (value.projectId === undefined || typeof value.projectId === 'string') &&
+    typeof value.chapterNumber === 'number' &&
+    typeof value.entityId === 'string' &&
+    typeof value.eventType === 'string' &&
+    STATE_EVENT_TYPES.has(value.eventType as StateEvent['eventType']) &&
+    isRecord(value.payload) &&
+    typeof value.source === 'string' &&
+    STATE_EVENT_SOURCES.has(value.source as StateEvent['source'])
+  );
+}
+
+function parseEntityArray(rawJson: string, fallbackProjectId: string): Entity[] | null {
+  try {
+    const parsed: unknown = JSON.parse(rawJson);
+    if (!Array.isArray(parsed) || !parsed.every(isLoadedEntity)) return null;
+    return parsed.map(entity => ({
+      ...entity,
+      projectId: entity.projectId ?? fallbackProjectId
+    }));
+  } catch {
+    return null;
+  }
+}
+
+function parseStateEventArray(rawJson: string, fallbackProjectId: string): StateEvent[] | null {
+  try {
+    const parsed: unknown = JSON.parse(rawJson);
+    if (!Array.isArray(parsed) || !parsed.every(isLoadedStateEvent)) return null;
+    return parsed.map(event => ({
+      ...event,
+      projectId: event.projectId ?? fallbackProjectId
+    }));
+  } catch {
+    return null;
+  }
+}
 
 export interface AbilityRecord {
   name: string;
@@ -38,27 +127,37 @@ export const useSandboxStore = defineStore('sandbox', () => {
     try {
       const { invoke } = await import('@tauri-apps/api/core');
 
-      const entitiesJson = await invoke<string>('load_entities', { projectId });
-      try {
-        entities.value = JSON.parse(entitiesJson);
-      } catch (e) {
-        logger.error('Failed to parse entities JSON:', e);
+      const [entitiesJson, eventsJson] = await Promise.all([
+        invoke<string>('load_entities', { projectId }),
+        invoke<string>('load_state_events', { projectId })
+      ]);
+
+      const parsedEntities = parseEntityArray(entitiesJson, projectId);
+      const parsedStateEvents = parseStateEventArray(eventsJson, projectId);
+
+      if (!parsedEntities) {
+        logger.error('Failed to parse or validate entities JSON');
+      }
+
+      if (!parsedStateEvents) {
+        logger.error('Failed to parse or validate state events JSON');
+      }
+
+      if (!parsedEntities || !parsedStateEvents) {
         entities.value = [];
-      }
-
-      const eventsJson = await invoke<string>('load_state_events', { projectId });
-      try {
-        stateEvents.value = JSON.parse(eventsJson);
-      } catch (e) {
-        logger.error('Failed to parse state events JSON:', e);
         stateEvents.value = [];
+        isLoaded.value = false;
+        return;
       }
 
+      entities.value = parsedEntities;
+      stateEvents.value = parsedStateEvents;
       isLoaded.value = true;
     } catch (e) {
       logger.error('Failed to load sandbox data:', e);
       entities.value = [];
       stateEvents.value = [];
+      isLoaded.value = false;
     } finally {
       isLoading.value = false;
     }
@@ -146,90 +245,29 @@ export const useSandboxStore = defineStore('sandbox', () => {
     }
   }
 
-  // Computed state reducer
+  // Computed state reducer — delegates to the canonical replayReducer in stateDiff.ts
   const activeEntitiesState = computed(() => {
-    const reducedState: Record<string, ResolvedEntity> = {};
-
-    entities.value.forEach(entity => {
-      reducedState[entity.id] = {
-        ...entity,
-        properties: {},
-        relations: [],
-        location: null,
-        vitalStatus: 'alive',
-        abilities: []
-      };
-    });
-
     const combinedEvents = [...stateEvents.value, ...pendingStateEvents.value];
+    const reduced = replayReducer(entities.value, combinedEvents, currentChapter.value);
 
-    if (pendingStateEvents.value.length > 0) {
-      combinedEvents.sort((a, b) => a.chapterNumber - b.chapterNumber);
+    // Map ReducedEntity → ResolvedEntity (merge Entity base fields with reducer output)
+    const result: Record<string, ResolvedEntity> = {};
+    for (const entity of entities.value) {
+      const r = reduced[entity.id];
+      if (!r) continue;
+      result[entity.id] = {
+        ...entity,
+        properties: r.properties,
+        relations: r.relations.map(rel => ({ targetId: rel.targetId, type: rel.type, attitude: rel.attitude })),
+        location: r.location ? (() => {
+          const parts = r.location.split(',');
+          return parts.length === 2 ? { x: Number(parts[0]), y: Number(parts[1]) } : null;
+        })() : null,
+        vitalStatus: r.vitalStatus,
+        abilities: r.abilities.map(a => ({ name: a.name, status: a.status as AbilityRecord['status'], acquiredChapter: a.acquiredChapter }))
+      };
     }
-
-    const relevantEvents = combinedEvents
-      .filter(event => event.chapterNumber <= currentChapter.value);
-
-    relevantEvents.forEach(event => {
-      const target = reducedState[event.entityId];
-      if (!target) return;
-
-      switch (event.eventType) {
-        case 'PROPERTY_UPDATE':
-          if (event.payload.key && event.payload.value !== undefined) {
-            target.properties[event.payload.key] = event.payload.value;
-          }
-          break;
-        case 'RELATION_ADD':
-          if (event.payload.targetId && event.payload.relationType) {
-            target.relations.push({
-              targetId: event.payload.targetId,
-              type: event.payload.relationType,
-              attitude: event.payload.attitude
-            });
-          }
-          break;
-        case 'RELATION_REMOVE':
-          if (event.payload.targetId) {
-            target.relations = target.relations.filter((r: EntityRelation) => r.targetId !== event.payload.targetId || (event.payload.relationType && r.type !== event.payload.relationType));
-          }
-          break;
-        case 'RELATION_UPDATE':
-          if (event.payload.targetId && event.payload.attitude) {
-            const rel = target.relations.find((r: EntityRelation) => r.targetId === event.payload.targetId);
-            if (rel) {
-              rel.attitude = event.payload.attitude;
-            }
-          }
-          break;
-        case 'LOCATION_MOVE':
-          if (event.payload.coordinates) {
-            target.location = event.payload.coordinates;
-          }
-          break;
-        case 'VITAL_STATUS_CHANGE':
-          if (event.payload.status) {
-            target.vitalStatus = event.payload.status;
-          }
-          break;
-        case 'ABILITY_CHANGE':
-          if (event.payload.abilityName && event.payload.abilityStatus) {
-            const existing = target.abilities.find(a => a.name === event.payload.abilityName);
-            if (existing) {
-              existing.status = event.payload.abilityStatus as AbilityRecord['status'];
-            } else {
-              target.abilities.push({
-                name: event.payload.abilityName,
-                status: event.payload.abilityStatus as AbilityRecord['status'],
-                acquiredChapter: event.chapterNumber
-              });
-            }
-          }
-          break;
-      }
-    });
-
-    return reducedState;
+    return result;
   });
 
   function clearDrafts() {
@@ -298,10 +336,156 @@ export const useSandboxStore = defineStore('sandbox', () => {
     }
   }
 
+  async function batchAddEntities(newEntities: Entity[]) {
+    if (newEntities.length === 0) return;
+
+    const { invoke } = await import('@tauri-apps/api/core');
+    const projectId = newEntities[0].projectId;
+    if (!projectId) throw new Error('batchAddEntities: entities must have a projectId');
+    try {
+      await invoke('batch_save_entities', {
+        projectId,
+        entitiesJson: JSON.stringify(newEntities)
+      });
+
+      const merged = new Map(entities.value.map(entity => [entity.id, entity]));
+      for (const entity of newEntities) {
+        merged.set(entity.id, entity);
+      }
+      entities.value = [...merged.values()];
+    } catch (e) {
+      logger.error('Failed to batch add entities:', e);
+      throw e;
+    }
+  }
+
+  async function batchAddStateEvents(events: StateEvent[]) {
+    if (events.length === 0) return;
+
+    const { invoke } = await import('@tauri-apps/api/core');
+    const projectId = events[0].projectId;
+    if (!projectId) throw new Error('batchAddStateEvents: events must have a projectId');
+    try {
+      await invoke('batch_save_state_events', {
+        projectId,
+        eventsJson: JSON.stringify(events)
+      });
+
+      const merged = new Map(stateEvents.value.map(event => [event.id, event]));
+      for (const event of events) {
+        merged.set(event.id, event);
+      }
+      stateEvents.value = [...merged.values()];
+      stateEvents.value.sort((a, b) => a.chapterNumber - b.chapterNumber);
+    } catch (e) {
+      logger.error('Failed to batch add state events:', e);
+      throw e;
+    }
+  }
+
+  async function deleteStateEventsByChapterRange(startChapter: number, endChapter: number) {
+    const { invoke } = await import('@tauri-apps/api/core');
+    const projectId = stateEvents.value[0]?.projectId || entities.value[0]?.projectId;
+    if (!projectId) throw new Error('deleteStateEventsByChapterRange: no project loaded');
+
+    try {
+      await invoke('delete_state_events_by_range', { projectId, startChapter, endChapter });
+      stateEvents.value = stateEvents.value.filter(
+        e => e.chapterNumber < startChapter || e.chapterNumber > endChapter
+      );
+    } catch (e) {
+      logger.error('Failed to delete state events by range:', e);
+      throw e;
+    }
+  }
+
+  async function deleteEntitiesByIds(ids: string[]) {
+    if (ids.length === 0) return;
+
+    const { invoke } = await import('@tauri-apps/api/core');
+    const uniqueIds = [...new Set(ids)];
+    const existingIdSet = new Set(entities.value.map(e => e.id));
+    const idsToDelete = uniqueIds.filter(id => existingIdSet.has(id));
+    if (idsToDelete.length === 0) return;
+
+    const idSet = new Set(idsToDelete);
+    const projectId =
+      entities.value.find(e => idSet.has(e.id))?.projectId ||
+      entities.value[0]?.projectId ||
+      stateEvents.value[0]?.projectId;
+
+    if (!projectId) throw new Error('deleteEntitiesByIds: no project loaded');
+
+    const results = await Promise.allSettled(
+      idsToDelete.map(id => invoke('delete_entity', { projectId, entityId: id }))
+    );
+
+    const deletedIds = new Set<string>();
+    const failures: Array<{ id: string; reason: string }> = [];
+
+    results.forEach((result, index) => {
+      const id = idsToDelete[index];
+      if (result.status === 'fulfilled') {
+        deletedIds.add(id);
+        return;
+      }
+
+      const reason = result.reason instanceof Error
+        ? result.reason.message
+        : String(result.reason);
+      failures.push({ id, reason });
+    });
+
+    if (failures.length === 0) {
+      entities.value = entities.value.filter(e => !deletedIds.has(e.id));
+      stateEvents.value = stateEvents.value.filter(e => !deletedIds.has(e.entityId));
+      return;
+    }
+
+    const failureSummary = failures.map(f => `${f.id}(${f.reason})`).join(', ');
+    logger.error('Failed to delete some entities by IDs:', failures);
+
+    try {
+      await loadData(projectId);
+      if (!isLoaded.value) {
+        throw new Error('Sandbox reload returned invalid data');
+      }
+    } catch (reloadError) {
+      logger.error('Failed to reload sandbox data after partial deletion:', reloadError);
+      if (deletedIds.size > 0) {
+        entities.value = entities.value.filter(e => !deletedIds.has(e.id));
+        stateEvents.value = stateEvents.value.filter(e => !deletedIds.has(e.entityId));
+      }
+      const reloadMessage = reloadError instanceof Error
+        ? reloadError.message
+        : String(reloadError);
+      throw new Error(`Failed to delete entities: ${failureSummary}; reload failed: ${reloadMessage}`);
+    }
+
+    throw new Error(`Failed to delete entities: ${failureSummary}`);
+  }
+
+  function getStateSnapshotAt(chapterNumber: number): EntityStateSnapshot[] {
+    return captureSnapshot(entities.value, stateEvents.value, chapterNumber);
+  }
+
+  function buildNameToIdMap(): Record<string, string> {
+    const map: Record<string, string> = {};
+    for (const entity of entities.value) {
+      map[entity.name] = entity.id;
+      for (const alias of entity.aliases) {
+        map[alias] = entity.id;
+      }
+    }
+    return map;
+  }
+
   return {
     entities, stateEvents, pendingStateEvents, currentChapter, activeEntitiesState,
     isLoading, isLoaded, loadData,
     draftEntities, draftRelations, isWizardMode, clearDrafts, addDraftEntity, addDraftRelation, commitDrafts,
-    addEntity, updateEntity, deleteEntity, addStateEvent, deleteStateEvent
+    addEntity, updateEntity, deleteEntity, addStateEvent, deleteStateEvent,
+    batchAddEntities, batchAddStateEvents,
+    deleteStateEventsByChapterRange, deleteEntitiesByIds, getStateSnapshotAt, buildNameToIdMap
   };
 });

@@ -1,4 +1,4 @@
-import type { Project, Chapter } from '@/types';
+import type { Project, Chapter, VectorServiceConfig } from '@/types';
 import type { VectorService } from '@/services/vector-service';
 import { countTokens as countLLMTokens } from '../llm/tokenizer';
 
@@ -9,6 +9,7 @@ export interface ContextPayload {
   project: Project;
   currentChapter: Chapter;
   vectorService?: VectorService;
+  vectorConfig?: VectorServiceConfig;
 
   // 预算管理
   budget: {
@@ -16,6 +17,12 @@ export interface ContextPayload {
     remaining: number;
     distribution: Record<string, number>; // 预设各模块的上限
   };
+
+  // Rewrite/Continuation
+  rewriteDirectionPrompt?: string;
+
+  // Shared pre-computed data (populated by pipeline before middleware execution)
+  recentChapters: Chapter[];
 
   // 最终的输出内容
   systemParts: string[];
@@ -98,10 +105,16 @@ export class ContextPipeline {
   }
 
   async execute(payload: ContextPayload): Promise<ContextPayload> {
-    for (const middleware of this.middlewares) {
-      const budgetKey = middleware.name;
-      const sectionBudget = payload.budget.distribution[budgetKey] || payload.budget.remaining;
+    // Pre-compute recentChapters once for all middlewares
+    if (!payload.recentChapters || payload.recentChapters.length === 0) {
+      const recentCount = payload.project.config?.advancedSettings?.recentChaptersCount ?? 3;
+      const chapters = payload.project.chapters || [];
+      payload.recentChapters = chapters
+        .filter(ch => ch.number < payload.currentChapter.number && ch.number >= payload.currentChapter.number - recentCount)
+        .sort((a, b) => b.number - a.number);
+    }
 
+    for (const middleware of this.middlewares) {
       if (payload.budget.remaining <= 0) {
         payload.warnings.push(`[${middleware.name}] 由于 Token 预算耗尽被跳过。`);
         continue;

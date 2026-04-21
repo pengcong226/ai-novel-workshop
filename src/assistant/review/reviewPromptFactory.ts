@@ -1,17 +1,19 @@
 import { reviewProfiles, type ReviewProfile } from './reviewProfiles';
 import { useSandboxStore } from '@/stores/sandbox';
 
-export function buildReviewPrompt(profile: ReviewProfile, context: any) {
+type SandboxStore = ReturnType<typeof useSandboxStore>;
+
+export function buildReviewPrompt(profile: ReviewProfile, context: any, sandboxStore?: SandboxStore) {
   const profileConfig = reviewProfiles[profile] || reviewProfiles['consistency'];
 
   let userContent = `【项目信息】\n`;
   if (context.project) {
     userContent += `名称：${context.project.title || '未知'}\n`;
-    // V5: 从 sandbox store 获取世界观名称
-    const sandboxStore = useSandboxStore();
-    const worldEntity = sandboxStore.entities.find(e => e.type === 'WORLD');
-    if (worldEntity?.name) {
-      userContent += `世界观：${worldEntity.name}\n`;
+    if (sandboxStore) {
+      const worldEntity = sandboxStore.entities.find(e => e.type === 'WORLD');
+      if (worldEntity?.name) {
+        userContent += `世界观：${worldEntity.name}\n`;
+      }
     }
   }
 

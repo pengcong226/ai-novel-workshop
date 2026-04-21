@@ -413,17 +413,17 @@ function initMessages() {
 // 设置事件监听
 function setupEventListeners() {
   // 监听章节保存事件
-  window.addEventListener('chapter-save', handleChapterSave as EventListener)
+  window.addEventListener('chapter-save', handleChapterSave)
   // 监听人物更新事件
-  window.addEventListener('character-update', handleCharacterUpdate as EventListener)
+  window.addEventListener('character-update', handleCharacterUpdate)
   // 监听大纲变更事件
-  window.addEventListener('outline-change', handleOutlineChange as EventListener)
+  window.addEventListener('outline-change', handleOutlineChange)
 }
 
 function removeEventListeners() {
-  window.removeEventListener('chapter-save', handleChapterSave as EventListener)
-  window.removeEventListener('character-update', handleCharacterUpdate as EventListener)
-  window.removeEventListener('outline-change', handleOutlineChange as EventListener)
+  window.removeEventListener('chapter-save', handleChapterSave)
+  window.removeEventListener('character-update', handleCharacterUpdate)
+  window.removeEventListener('outline-change', handleOutlineChange)
 }
 
 // 事件处理器

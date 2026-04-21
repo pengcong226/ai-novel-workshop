@@ -4,6 +4,7 @@
  */
 
 import type { ExtractedCharacter } from './characterExtractor'
+import { isWebRuntime } from './anthropic-guard'
 export interface AIAnalysisConfig {
   enabled: boolean
   provider: 'claude' | 'openai' | 'local' | 'custom'
@@ -89,7 +90,9 @@ async function callAI(
     apiURL = '/api/claude/v1/messages'
     headers['x-api-key'] = config.apiKey || ''
     headers['anthropic-version'] = '2023-06-01'
-    headers['anthropic-dangerous-direct-browser-access'] = 'true'
+    if (!isWebRuntime()) {
+      headers['anthropic-dangerous-direct-browser-access'] = 'true'
+    }
 
     // Claude使用不同的请求格式
     delete (body as any).messages

@@ -702,7 +702,8 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
+import { debounce } from 'lodash-es'
 import StorytellerPanel from './config/StorytellerPanel.vue'
 import ProviderManager from './config/ProviderManager.vue'
 import { useProjectStore } from '@/stores/project'
@@ -712,12 +713,21 @@ import { Refresh, Grid, Setting, Download } from '@element-plus/icons-vue'
 import type { ProjectConfig, VectorServiceConfig } from '@/types'
 import { DEFAULT_SYSTEM_PROMPTS, SYSTEM_PROMPT_VARIABLES } from '@/utils/systemPrompts'
 import { getVectorService, resetVectorService as clearVectorServiceCache } from '@/services/vector-service'
+import { getVectorDimensionByModel } from '@/utils/vector-dimension'
+import { normalizeProjectConfig, getDefaultProjectConfig } from '@/utils/project-config-normalizer'
+import { getLogger } from '@/utils/logger'
 import PluginManager from './PluginManager.vue'
 import { useThemeStore } from '@/stores/theme'
 
 const projectStore = useProjectStore()
 const pluginStore = usePluginStore()
 const themeStore = useThemeStore()
+const logger = getLogger('project:config')
+const refreshVectorIndexStatusDebounced = debounce(async () => {
+  if (!vectorConfig.value.enabled) return
+  clearVectorServiceCache()
+  await _updateVectorIndexStatus()
+}, 400)
 
 const project = computed(() => projectStore.currentProject)
 
@@ -757,48 +767,36 @@ async function refreshPlugins() {
   }
 }
 
-const configForm = ref<ProjectConfig>({
-  preset: 'standard',
-  providers: [],
-  plannerModel: '',
-  writerModel: '',
-  sentinelModel: '',
-  extractorModel: '',
-  systemPrompts: { ...DEFAULT_SYSTEM_PROMPTS },
-  planningDepth: 'medium',
-  writingDepth: 'standard',
-  enableQualityCheck: true,
-  qualityThreshold: 7,
-  maxCostPerChapter: 0.15,
-  enableAISuggestions: true,
-  enableVectorRetrieval: true
-})
+const configForm = ref<ProjectConfig>(normalizeProjectConfig({
+  systemPrompts: { ...DEFAULT_SYSTEM_PROMPTS }
+}))
 
 const showAdvanced = ref(false)
 const advancedConfig = ref({
-  temperature: 0.8,
-  topP: 0.9,
-  maxTokens: 4096,
-  maxContextTokens: 8192,
-  recentChaptersCount: 3,
-  targetWordCount: 2000,
-  frequencyPenalty: 0,
-  presencePenalty: 0,
-  stopSequences: [] as string[]
+  temperature: configForm.value.advancedSettings?.temperature ?? 0.8,
+  topP: configForm.value.advancedSettings?.topP ?? 0.9,
+  maxTokens: configForm.value.advancedSettings?.maxTokens ?? 4096,
+  maxContextTokens: configForm.value.advancedSettings?.maxContextTokens ?? 8192,
+  recentChaptersCount: configForm.value.advancedSettings?.recentChaptersCount ?? 3,
+  targetWordCount: configForm.value.advancedSettings?.targetWordCount ?? 2000,
+  frequencyPenalty: configForm.value.advancedSettings?.frequencyPenalty ?? 0,
+  presencePenalty: configForm.value.advancedSettings?.presencePenalty ?? 0,
+  stopSequences: [...(configForm.value.advancedSettings?.stopSequences ?? [])] as string[]
 })
 
 // 配置界面模式切换
 const configMode = ref<'storyteller'|'engineer'>('storyteller')
 // 向量检索配置
 const vectorConfig = ref({
-  enabled: false,
-  provider: 'local' as 'local' | 'openai',
-  model: 'Xenova/all-MiniLM-L6-v2',
-  apiKey: '',
-  baseUrl: '',
-  topK: 5,
-  minScore: 0.6,
-  vectorWeight: 0.7
+  enabled: configForm.value.enableVectorRetrieval,
+  provider: configForm.value.vectorConfig?.provider ?? 'local' as 'local' | 'openai',
+  model: configForm.value.vectorConfig?.model
+    ?? (configForm.value.vectorConfig?.provider === 'openai' ? 'text-embedding-3-small' : 'Xenova/all-MiniLM-L6-v2'),
+  apiKey: configForm.value.vectorConfig?.apiKey ?? '',
+  baseUrl: configForm.value.vectorConfig?.baseUrl ?? '',
+  topK: configForm.value.vectorConfig?.topK ?? 5,
+  minScore: configForm.value.vectorConfig?.minScore ?? 0.6,
+  vectorWeight: configForm.value.vectorConfig?.vectorWeight ?? 0.7
 })
 
 const vectorIndexStatus = ref<{
@@ -821,6 +819,15 @@ const averageChapterCost = computed(() => {
   return costStats.value.totalCost / costStats.value.totalCalls
 })
 
+const estimatedCost = computed(() => {
+  const targetWords = project.value?.targetWords ?? 0
+  const perChapterWords = advancedConfig.value.targetWordCount || 2000
+  if (targetWords <= 0 || perChapterWords <= 0) return 0
+
+  const estimatedChapters = Math.ceil(targetWords / perChapterWords)
+  return estimatedChapters * configForm.value.maxCostPerChapter
+})
+
 // 系统提示词配置
 const activePromptTab = ref('planner')
 const systemPrompts = ref({
@@ -841,82 +848,126 @@ const qualityMarks = {
   10: '完美'
 }
 
-const estimatedCost = computed(() => {
-  const targetWords = project.value?.targetWords || 100000
-  const avgCostPerChapter = configForm.value.maxCostPerChapter
-  const avgWordsPerChapter = 3000
-  const chapterCount = Math.ceil(targetWords / avgWordsPerChapter)
-  return chapterCount * avgCostPerChapter
-})
+function buildVectorServiceConfig(projectId?: string): VectorServiceConfig {
+  return {
+    provider: vectorConfig.value.provider,
+    model: vectorConfig.value.model,
+    dimension: getVectorDimensionByModel(vectorConfig.value.provider, vectorConfig.value.model),
+    apiKey: vectorConfig.value.apiKey,
+    baseUrl: vectorConfig.value.baseUrl,
+    projectId,
+    topK: vectorConfig.value.topK,
+    minScore: vectorConfig.value.minScore,
+    vectorWeight: vectorConfig.value.vectorWeight
+  }
+}
+
+function getNormalizedConfigWithOverrides(overrides: Partial<ProjectConfig> = {}): ProjectConfig {
+  const merged = normalizeProjectConfig({
+    ...configForm.value,
+    ...overrides,
+    systemPrompts: { ...systemPrompts.value },
+    advancedSettings: { ...advancedConfig.value },
+    enableVectorRetrieval: vectorConfig.value.enabled,
+    vectorConfig: {
+      ...configForm.value.vectorConfig,
+      provider: vectorConfig.value.provider,
+      model: vectorConfig.value.model,
+      dimension: getVectorDimensionByModel(vectorConfig.value.provider, vectorConfig.value.model),
+      apiKey: vectorConfig.value.apiKey,
+      baseUrl: vectorConfig.value.baseUrl,
+      projectId: project.value?.id,
+      topK: vectorConfig.value.topK,
+      minScore: vectorConfig.value.minScore,
+      vectorWeight: vectorConfig.value.vectorWeight
+    }
+  })
+
+  configForm.value = merged
+  return merged
+}
+
+function applyConfigToEditorState(config: ProjectConfig) {
+  const normalizedConfig = normalizeProjectConfig(config)
+  const fallbackAdvancedSettings = getDefaultProjectConfig().advancedSettings!
+  const advancedSettings = normalizedConfig.advancedSettings ?? fallbackAdvancedSettings
+  configForm.value = normalizedConfig
+
+  advancedConfig.value = {
+    temperature: advancedSettings.temperature,
+    topP: advancedSettings.topP,
+    maxTokens: advancedSettings.maxTokens,
+    maxContextTokens: advancedSettings.maxContextTokens ?? 8192,
+    recentChaptersCount: advancedSettings.recentChaptersCount ?? 3,
+    targetWordCount: advancedSettings.targetWordCount ?? 2000,
+    frequencyPenalty: advancedSettings.frequencyPenalty,
+    presencePenalty: advancedSettings.presencePenalty,
+    stopSequences: [...advancedSettings.stopSequences]
+  }
+
+  systemPrompts.value = {
+    ...DEFAULT_SYSTEM_PROMPTS,
+    ...normalizedConfig.systemPrompts
+  }
+
+  vectorConfig.value = {
+    enabled: normalizedConfig.enableVectorRetrieval,
+    provider: normalizedConfig.vectorConfig?.provider ?? 'local',
+    model: normalizedConfig.vectorConfig?.model
+      ?? (normalizedConfig.vectorConfig?.provider === 'openai'
+        ? 'text-embedding-3-small'
+        : 'Xenova/all-MiniLM-L6-v2'),
+    apiKey: normalizedConfig.vectorConfig?.apiKey ?? '',
+    baseUrl: normalizedConfig.vectorConfig?.baseUrl ?? '',
+    topK: normalizedConfig.vectorConfig?.topK ?? 5,
+    minScore: normalizedConfig.vectorConfig?.minScore ?? 0.6,
+    vectorWeight: normalizedConfig.vectorConfig?.vectorWeight ?? 0.7
+  }
+}
 
 onMounted(async () => {
-  // 优先加载项目配置，其次加载全局配置
+  let initialConfig: ProjectConfig | null = null
+
   if (project.value?.config) {
-    configForm.value = JSON.parse(JSON.stringify(project.value.config))
+    initialConfig = normalizeProjectConfig(project.value.config)
   } else {
-    // 加载全局配置
     await projectStore.loadGlobalConfig()
     if (projectStore.globalConfig) {
-      configForm.value = JSON.parse(JSON.stringify(projectStore.globalConfig))
+      initialConfig = normalizeProjectConfig(projectStore.globalConfig)
     }
   }
 
-  // 确保 providers 数组存在
+  applyConfigToEditorState(initialConfig ?? normalizeProjectConfig(undefined))
+
   if (!configForm.value.providers) {
     configForm.value.providers = []
   }
 
-  // 加载系统提示词配置
-  if (configForm.value.systemPrompts) {
-    systemPrompts.value = { ...DEFAULT_SYSTEM_PROMPTS, ...configForm.value.systemPrompts }
-  }
+  await _updateVectorIndexStatus()
 })
 
 async function saveConfig() {
   try {
-    console.log('[ProjectConfig] 开始保存配置...')
-
-    // 保存高级设置到配置中
-    configForm.value.advancedSettings = advancedConfig.value
-
-    // 保存系统提示词配置
-    configForm.value.systemPrompts = { ...systemPrompts.value }
+    const normalizedConfig = getNormalizedConfigWithOverrides()
 
     if (project.value) {
-      console.log('[ProjectConfig] 当前项目ID:', project.value.id)
-      console.log('[ProjectConfig] 配置提供商数量:', configForm.value.providers.length)
-
-      // 直接更新 config 字段，不要重新赋值整个对象
-      project.value.config = JSON.parse(JSON.stringify(configForm.value))
-
+      project.value.config = normalizedConfig
       await projectStore.saveCurrentProject()
-
-      console.log('[ProjectConfig] 配置保存成功')
       ElMessage.success('项目配置已保存')
     } else {
-      // 保存到全局配置
-      const configData = JSON.parse(JSON.stringify(configForm.value))
-      await projectStore.saveGlobalConfig(configData)
+      await projectStore.saveGlobalConfig(normalizedConfig)
       ElMessage.success('全局配置已保存')
     }
 
-    console.log('配置已保存:', {
-      providers: configForm.value.providers.length,
-      models: configForm.value.providers.reduce((sum, p) => sum + p.models.length, 0),
-      advanced: configForm.value.advancedSettings
-    })
+    await _updateVectorIndexStatus()
   } catch (error) {
-    console.error('[ProjectConfig] 保存配置失败:', error)
+    logger.error('保存配置失败', error)
     ElMessage.error('保存配置失败：' + (error as Error).message)
   }
 }
 
 function exportConfig() {
-  const config = {
-    ...configForm.value,
-    advanced: advancedConfig.value
-  }
-
+  const config = getNormalizedConfigWithOverrides()
   const data = JSON.stringify(config, null, 2)
   const blob = new Blob([data], { type: 'application/json' })
   const url = URL.createObjectURL(blob)
@@ -933,50 +984,20 @@ function exportConfig() {
 function importConfig(file: File) {
   const reader = new FileReader()
 
-  reader.onload = (e) => {
+  reader.onload = async (e) => {
     try {
-      const data = JSON.parse(e.target?.result as string)
-
-      // 导入主配置
-      if (data.preset) configForm.value.preset = data.preset
-      if (data.providers) configForm.value.providers = data.providers
-      if (data.plannerModel) configForm.value.plannerModel = data.plannerModel
-      if (data.writerModel) configForm.value.writerModel = data.writerModel
-      if (data.sentinelModel) configForm.value.sentinelModel = data.sentinelModel
-      if (data.extractorModel !== undefined) configForm.value.extractorModel = data.extractorModel
-      if (data.planningDepth) configForm.value.planningDepth = data.planningDepth
-      if (data.writingDepth) configForm.value.writingDepth = data.writingDepth
-      if (data.enableQualityCheck !== undefined) configForm.value.enableQualityCheck = data.enableQualityCheck
-      if (data.qualityThreshold) configForm.value.qualityThreshold = data.qualityThreshold
-      if (data.maxCostPerChapter) configForm.value.maxCostPerChapter = data.maxCostPerChapter
-      if (data.enableAISuggestions !== undefined) configForm.value.enableAISuggestions = data.enableAISuggestions
-
-      // 导入系统提示词配置
-      if (data.systemPrompts) {
-        systemPrompts.value = { ...DEFAULT_SYSTEM_PROMPTS, ...data.systemPrompts }
-        configForm.value.systemPrompts = systemPrompts.value
+      const rawData = JSON.parse(e.target?.result as string) as Partial<ProjectConfig> & {
+        advanced?: Partial<ProjectConfig['advancedSettings']>
       }
 
-      // 导入高级设置
-      if (data.advanced || data.advancedSettings) {
-        const advanced = data.advanced || data.advancedSettings
-        advancedConfig.value = {
-          temperature: advanced.temperature ?? 0.8,
-          topP: advanced.topP ?? 0.9,
-          maxTokens: advanced.maxTokens ?? 4096,
-          maxContextTokens: advanced.maxContextTokens ?? 8192,
-          recentChaptersCount: advanced.recentChaptersCount ?? 3,
-          targetWordCount: advanced.targetWordCount ?? 2000,
-          frequencyPenalty: advanced.frequencyPenalty ?? 0,
-          presencePenalty: advanced.presencePenalty ?? 0,
-          stopSequences: advanced.stopSequences ?? []
-        }
-      }
+      const importedConfig = normalizeProjectConfig(rawData)
+      applyConfigToEditorState(importedConfig)
+      await _updateVectorIndexStatus()
 
-      const providerCount = data.providers?.length || 0
+      const providerCount = importedConfig.providers?.length || 0
       ElMessage.success(`配置已导入：${providerCount} 个提供商`)
     } catch (error) {
-      console.error('导入配置失败:', error)
+      logger.error('导入配置失败', error)
       ElMessage.error('配置文件格式错误，请检查文件内容')
     }
   }
@@ -990,47 +1011,9 @@ function importConfig(file: File) {
 }
 
 function resetConfig() {
-  configForm.value = {
-    preset: 'standard',
-    providers: [],
-    plannerModel: '',
-    writerModel: '',
-    sentinelModel: '',
-    extractorModel: '',
-    systemPrompts: { ...DEFAULT_SYSTEM_PROMPTS },
-    planningDepth: 'medium',
-    writingDepth: 'standard',
-    enableQualityCheck: true,
-    qualityThreshold: 7,
-    maxCostPerChapter: 0.15,
-    enableAISuggestions: true,
-    enableVectorRetrieval: true,
-    advancedSettings: {
-      temperature: 0.8,
-      topP: 0.9,
-      maxTokens: 4096,
-      maxContextTokens: 8192,
-      recentChaptersCount: 3,
-      targetWordCount: 2000,
-      frequencyPenalty: 0,
-      presencePenalty: 0,
-      stopSequences: []
-    }
-  }
-
-  advancedConfig.value = {
-    temperature: 0.8,
-    topP: 0.9,
-    maxTokens: 4096,
-    maxContextTokens: 8192,
-    recentChaptersCount: 3,
-    targetWordCount: 2000,
-    frequencyPenalty: 0,
-    presencePenalty: 0,
-    stopSequences: []
-  }
-
-  systemPrompts.value = { ...DEFAULT_SYSTEM_PROMPTS }
+  const defaultConfig = normalizeProjectConfig(undefined)
+  applyConfigToEditorState(defaultConfig)
+  void _updateVectorIndexStatus()
 
   ElMessage.success('配置已重置')
 }
@@ -1091,14 +1074,7 @@ async function rebuildVectorIndex() {
   rebuildingIndex.value = true
 
   try {
-    const config: VectorServiceConfig = {
-      provider: vectorConfig.value.provider,
-      model: vectorConfig.value.model,
-      dimension: vectorConfig.value.provider === 'local' ? 384 : 1536,
-      apiKey: vectorConfig.value.apiKey,
-      baseUrl: vectorConfig.value.baseUrl,
-      projectId: project.value.id
-    }
+    const config = buildVectorServiceConfig(project.value.id)
 
     // 重建前必须清理旧的缓存实例，否则配置更改不会生效
     clearVectorServiceCache()
@@ -1119,7 +1095,7 @@ async function rebuildVectorIndex() {
 
     ElMessage.success(`索引重建完成，共 ${docCount} 个文档`)
   } catch (error) {
-    console.error('重建索引失败:', error)
+    logger.error('重建索引失败', error)
     ElMessage.error('重建索引失败：' + (error as Error).message)
   } finally {
     rebuildingIndex.value = false
@@ -1144,12 +1120,7 @@ async function clearVectorIndex() {
       }
     )
 
-    const config: VectorServiceConfig = {
-      provider: vectorConfig.value.provider,
-      model: vectorConfig.value.model,
-      dimension: vectorConfig.value.provider === 'local' ? 384 : 1536,
-      projectId: project.value.id
-    }
+    const config = buildVectorServiceConfig(project.value.id)
 
     const vectorService = await getVectorService(config)
     await vectorService.clear()
@@ -1165,7 +1136,7 @@ async function clearVectorIndex() {
     ElMessage.success('索引已清空')
   } catch (error) {
     if (error !== 'cancel') {
-      console.error('清空索引失败:', error)
+      logger.error('清空索引失败', error)
       ElMessage.error('清空索引失败：' + (error as Error).message)
     }
   }
@@ -1179,14 +1150,7 @@ async function _updateVectorIndexStatus() {
   }
 
   try {
-    const config: VectorServiceConfig = {
-      provider: vectorConfig.value.provider,
-      model: vectorConfig.value.model,
-      dimension: vectorConfig.value.provider === 'local' ? 384 : 1536,
-      apiKey: vectorConfig.value.apiKey,
-      baseUrl: vectorConfig.value.baseUrl,
-      projectId: project.value.id
-    }
+    const config = buildVectorServiceConfig(project.value.id)
 
     const vectorService = await getVectorService(config)
     const documentCount = await vectorService.getDocumentCount()
@@ -1196,10 +1160,39 @@ async function _updateVectorIndexStatus() {
       documentCount
     }
   } catch (error) {
-    console.error('获取索引状态失败:', error)
+    logger.error('获取索引状态失败', error)
     vectorIndexStatus.value = null
   }
 }
+
+watch(() => project.value?.id, () => {
+  void _updateVectorIndexStatus()
+})
+
+watch(() => vectorConfig.value.enabled, async (enabled) => {
+  configForm.value.enableVectorRetrieval = enabled
+  if (enabled) {
+    await _updateVectorIndexStatus()
+  } else {
+    vectorIndexStatus.value = null
+  }
+})
+
+watch(
+  () => [
+    vectorConfig.value.provider,
+    vectorConfig.value.model,
+    vectorConfig.value.apiKey,
+    vectorConfig.value.baseUrl
+  ],
+  () => {
+    void refreshVectorIndexStatusDebounced()
+  }
+)
+
+onUnmounted(() => {
+  refreshVectorIndexStatusDebounced.cancel()
+})
 
 </script>
 

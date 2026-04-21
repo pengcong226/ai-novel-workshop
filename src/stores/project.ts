@@ -7,6 +7,7 @@ import { getLogger } from '@/utils/logger'
 import { useStorage } from './storage'
 import { useSandboxStore } from './sandbox'
 import { migrateV1ToV5Full } from '@/utils/v1ToV5Migration'
+import { getDefaultProjectConfig, normalizeProjectConfig } from '@/utils/project-config-normalizer'
 
 export const useProjectStore = defineStore('project', () => {
   // 状态
@@ -32,7 +33,8 @@ export const useProjectStore = defineStore('project', () => {
       const configData = localStorage.getItem('global-config')
       if (configData) {
         const parsedConfig = JSON.parse(configData) as ProjectConfig
-        globalConfig.value = await decryptProjectConfig(parsedConfig)
+        const decryptedConfig = await decryptProjectConfig(parsedConfig)
+        globalConfig.value = normalizeProjectConfig(decryptedConfig)
       }
     } catch (e) {
       logger.error('加载全局配置失败', e)
@@ -42,9 +44,10 @@ export const useProjectStore = defineStore('project', () => {
   // 保存全局配置
   async function saveGlobalConfig(config: ProjectConfig) {
     try {
-      const encryptedConfig = await encryptProjectConfig(config)
+      const normalizedConfig = normalizeProjectConfig(config)
+      const encryptedConfig = await encryptProjectConfig(normalizedConfig)
       localStorage.setItem('global-config', JSON.stringify(encryptedConfig))
-      globalConfig.value = await decryptProjectConfig(encryptedConfig)
+      globalConfig.value = normalizedConfig
     } catch (e) {
       logger.error('保存全局配置失败', e)
       throw e
@@ -69,30 +72,7 @@ export const useProjectStore = defineStore('project', () => {
 
   // 创建新项目
   async function createProject(title: string, genre: string = '玄幻', targetWords: number = 100000) {
-    const defaultConfig: ProjectConfig = {
-      preset: globalConfig.value?.preset || 'standard',
-      plannerModel: globalConfig.value?.plannerModel || 'gpt-4-turbo',
-      writerModel: globalConfig.value?.writerModel || 'gpt-3.5-turbo',
-      sentinelModel: globalConfig.value?.sentinelModel || 'gpt-3.5-turbo',
-      extractorModel: globalConfig.value?.extractorModel || '',
-      systemPrompts: globalConfig.value?.systemPrompts || undefined,
-      planningDepth: globalConfig.value?.planningDepth || 'medium',
-      writingDepth: globalConfig.value?.writingDepth || 'standard',
-      enableQualityCheck: globalConfig.value?.enableQualityCheck ?? true,
-      qualityThreshold: globalConfig.value?.qualityThreshold || 7,
-      maxCostPerChapter: globalConfig.value?.maxCostPerChapter || 0.15,
-      enableAISuggestions: globalConfig.value?.enableAISuggestions ?? true,
-      enableLogicValidator: globalConfig.value?.enableLogicValidator ?? true,           // 默认开启防吃书查杀
-      enableZeroTouchExtraction: globalConfig.value?.enableZeroTouchExtraction ?? true, // 默认开启后台零触感提取
-      enableVectorRetrieval: globalConfig.value?.enableVectorRetrieval ?? true,
-      vectorConfig: globalConfig.value?.vectorConfig || {
-        provider: 'local',
-        model: '/dist/models/Xenova/bge-m3',  // 使用本地更高精度的BGE-M3模型
-        dimension: 1024,
-      },
-      providers: globalConfig.value?.providers ? JSON.parse(JSON.stringify(globalConfig.value.providers)) : [],
-      advancedSettings: globalConfig.value?.advancedSettings ? JSON.parse(JSON.stringify(globalConfig.value.advancedSettings)) : undefined
-    }
+    const defaultConfig: ProjectConfig = getDefaultProjectConfig(globalConfig.value || {})
 
     const newProject: Project = {
       id: uuidv4(),
@@ -147,6 +127,7 @@ export const useProjectStore = defineStore('project', () => {
       logger.debug('项目加载结果', { found: Boolean(projectData), projectId })
 
       if (projectData) {
+        projectData.config = normalizeProjectConfig(projectData.config)
         currentProject.value = projectData
         logger.info('项目加载成功', { projectId: projectData.id, title: projectData.title })
 
@@ -168,14 +149,12 @@ export const useProjectStore = defineStore('project', () => {
               projectId
             )
 
-            // 批量保存 Entity
-            for (const entity of entities) {
-              await sandboxStore.addEntity(entity)
+            // 批量保存 Entity 和 StateEvent
+            if (entities.length > 0) {
+              await sandboxStore.batchAddEntities(entities)
             }
-
-            // 批量保存 StateEvent
-            for (const event of stateEvents) {
-              await sandboxStore.addStateEvent(event)
+            if (stateEvents.length > 0) {
+              await sandboxStore.batchAddStateEvents(stateEvents)
             }
 
             logger.info('V5 迁移完成', { 
@@ -393,6 +372,7 @@ export const useProjectStore = defineStore('project', () => {
         title: currentProject.value.title
       })
       currentProject.value.updatedAt = new Date()
+      currentProject.value.config = normalizeProjectConfig(currentProject.value.config)
       await storage.saveProject(currentProject.value)
       logger.debug('项目已保存到 IndexedDB', { id: currentProject.value.id })
 

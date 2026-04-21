@@ -31,11 +31,9 @@ import zhCn from 'element-plus/es/locale/lang/zh-cn'
 import { setupGlobalErrorHandler, errorHandler, ErrorSeverity, type AppError } from '@/utils/errorHandler'
 import GlobalTaskObserver from '@/components/GlobalTaskObserver.vue'
 import GlobalMutator from '@/components/GlobalMutator.vue'
-import { useThemeStore } from '@/stores/theme'
 
 const currentError = ref<AppError | null>(null)
 const globalMutatorRef = ref<InstanceType<typeof GlobalMutator> | null>(null)
-const themeStore = useThemeStore()
 
 const errorTitle = computed(() => {
   if (!currentError.value) return ''

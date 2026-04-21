@@ -28,6 +28,8 @@ import { ModelRouter, SimpleUsageTracker } from './ai/ModelRouter';
 import { FailoverManager } from './ai/FailoverManager';
 import { ProviderRegistry } from '@/plugins/registries/provider-registry';
 import { getLogger } from '@/utils/logger';
+import { enforceSecureAnthropicAccess } from '@/utils/anthropic-guard';
+import { readSSEStream, openAIContentExtractor, claudeContentExtractor } from '@/utils/sse-stream';
 
 // ============================================================================
 // 常量定义
@@ -283,13 +285,15 @@ class RateLimiter {
     const startedAt = Date.now();
     const config = this.resolveConfig(override);
 
-    while (true) {
+    let slotAcquired = false;
+    while (!slotAcquired) {
       const result = this.checkLimit(key, tokens, override);
       if (result.allowed) {
         const state = this.getState(key);
         state.requestCount += 1;
         state.tokenCount += tokens;
         state.activeRequests += 1;
+        slotAcquired = true;
         return;
       }
 
@@ -662,40 +666,7 @@ class OpenAIProvider {
       );
     }
 
-    const reader = response.body?.getReader();
-    if (!reader) {
-      throw new AIServiceError('STREAM_ERROR', 'Failed to get stream reader', 'openai');
-    }
-
-    const decoder = new TextDecoder();
-    let buffer = '';
-
-    while (true) {
-      const { done, value } = await reader.read();
-
-      if (done) break;
-
-      buffer += decoder.decode(value, { stream: true });
-      const lines = buffer.split('\n');
-      buffer = lines.pop() || '';
-
-      for (const line of lines) {
-        if (line.startsWith('data: ')) {
-          const data = line.slice(6);
-          if (data === '[DONE]') return;
-
-          try {
-            const parsed = JSON.parse(data);
-            const content = parsed.choices?.[0]?.delta?.content;
-            if (content) {
-              yield content;
-            }
-          } catch {
-            // 忽略解析错误
-          }
-        }
-      }
-    }
+    yield* readSSEStream(response.body, openAIContentExtractor);
   }
 
   /**
@@ -762,10 +733,16 @@ class ClaudeProvider {
     this.baseUrl = config.baseUrl || 'https://api.anthropic.com/v1';
   }
 
+  private enforceSecureAnthropicAccess(): void {
+    enforceSecureAnthropicAccess(this.baseUrl);
+  }
+
   /**
    * 发送聊天请求
    */
   async chat(request: ChatRequest): Promise<ClaudeResponse> {
+    this.enforceSecureAnthropicAccess();
+
     // 分离系统消息
     const systemMessage = request.messages.find(m => m.role === 'system');
     const conversationMessages = request.messages.filter(m => m.role !== 'system');
@@ -800,7 +777,6 @@ class ClaudeProvider {
         'Content-Type': 'application/json',
         'x-api-key': this.apiKey,
         'anthropic-version': '2023-06-01',
-        'anthropic-dangerous-direct-browser-access': 'true',
       },
       body: JSON.stringify(claudePayload),
     });
@@ -832,6 +808,8 @@ class ClaudeProvider {
    * 流式聊天请求
    */
   async *chatStream(request: ChatRequest): AsyncGenerator<string> {
+    this.enforceSecureAnthropicAccess();
+
     const systemMessage = request.messages.find(m => m.role === 'system');
     const conversationMessages = request.messages.filter(m => m.role !== 'system');
 
@@ -841,7 +819,6 @@ class ClaudeProvider {
         'Content-Type': 'application/json',
         'x-api-key': this.apiKey,
         'anthropic-version': '2023-06-01',
-        'anthropic-dangerous-direct-browser-access': 'true',
       },
       body: JSON.stringify({
         model: request.model,
@@ -867,38 +844,7 @@ class ClaudeProvider {
       );
     }
 
-    const reader = response.body?.getReader();
-    if (!reader) {
-      throw new AIServiceError('STREAM_ERROR', 'Failed to get stream reader', 'anthropic');
-    }
-
-    const decoder = new TextDecoder();
-    let buffer = '';
-
-    while (true) {
-      const { done, value } = await reader.read();
-
-      if (done) break;
-
-      buffer += decoder.decode(value, { stream: true });
-      const lines = buffer.split('\n');
-      buffer = lines.pop() || '';
-
-      for (const line of lines) {
-        if (line.startsWith('data: ')) {
-          const data = line.slice(6);
-
-          try {
-            const parsed = JSON.parse(data);
-            if (parsed.type === 'content_block_delta' && parsed.delta?.text) {
-              yield parsed.delta.text;
-            }
-          } catch {
-            // 忽略解析错误
-          }
-        }
-      }
-    }
+    yield* readSSEStream(response.body, claudeContentExtractor);
   }
 
   /**
@@ -1029,40 +975,7 @@ class LocalProvider {
       );
     }
 
-    const reader = response.body?.getReader();
-    if (!reader) {
-      throw new AIServiceError('STREAM_ERROR', 'Failed to get stream reader', 'local');
-    }
-
-    const decoder = new TextDecoder();
-    let buffer = '';
-
-    while (true) {
-      const { done, value } = await reader.read();
-
-      if (done) break;
-
-      buffer += decoder.decode(value, { stream: true });
-      const lines = buffer.split('\n');
-      buffer = lines.pop() || '';
-
-      for (const line of lines) {
-        if (line.startsWith('data: ')) {
-          const data = line.slice(6);
-          if (data === '[DONE]') return;
-
-          try {
-            const parsed = JSON.parse(data);
-            const content = parsed.choices?.[0]?.delta?.content;
-            if (content) {
-              yield content;
-            }
-          } catch {
-            // 忽略解析错误
-          }
-        }
-      }
-    }
+    yield* readSSEStream(response.body, openAIContentExtractor);
   }
 }
 
@@ -1268,11 +1181,14 @@ export class AIService {
       },
       (fromModel, toModel) => {
         aiServiceLogger.warn(`[故障转移] 触发模型切换: ${fromModel.id} -> ${toModel.id}`);
-        try {
-          const { useTaskManager } = require('@/stores/taskManager');
-          const taskManager = useTaskManager();
-          taskManager.addToast(`模型 ${fromModel.id} 故障/熔断，已自动转移至 ${toModel.id}`, 'warning');
-        } catch(e) {}
+        void import('@/stores/taskManager')
+          .then(({ useTaskManager }) => {
+            const taskManager = useTaskManager();
+            taskManager.addToast(`模型 ${fromModel.id} 故障/熔断，已自动转移至 ${toModel.id}`, 'warning');
+          })
+          .catch(error => {
+            aiServiceLogger.debug('故障转移提示注入失败', { error });
+          });
       }
     );
 
@@ -1414,7 +1330,7 @@ export class AIService {
         yield* this.localProvider.chatStream(request);
         break;
 
-      case 'custom':
+      case 'custom': {
         if (!this.providerRegistry) {
           throw new AIServiceError('PROVIDER_REGISTRY_NOT_CONFIGURED', 'Provider registry not available');
         }
@@ -1422,6 +1338,7 @@ export class AIService {
         const providerId = request.model?.split('-')[0] || 'custom';
         yield* this.providerRegistry.chatStream(providerId, request);
         break;
+      }
 
       default:
         throw new AIServiceError('UNKNOWN_PROVIDER', `Unknown provider: ${provider}`);
