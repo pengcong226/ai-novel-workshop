@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
 import { getLogger } from '@/utils/logger'
+import { isWebRuntime } from '@/utils/anthropic-guard'
 
 const logger = getLogger('storage')
 
@@ -10,8 +11,7 @@ const DB_VERSION = 2 // 升级数据库版本以支持章节分离存储
 const PROJECTS_STORE = 'projects'
 const CHAPTERS_STORE = 'chapters'
 
-// 判断是否在 Tauri 环境中运行
-const isTauri = typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
+const isTauri = !isWebRuntime();
 
 class IndexedDBStorage {
   private db: IDBDatabase | null = null

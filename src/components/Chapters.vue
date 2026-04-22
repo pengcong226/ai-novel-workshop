@@ -1244,20 +1244,22 @@ async function executeBatchGeneration() {
       autoUpdateSettings: batchForm.value.autoUpdateSettings,
       enableCheckpoint: batchForm.value.enableCheckpoint,
       checkpointInterval: batchForm.value.checkpointInterval,
-      onCheckpointConfirm: async (chaptersGenerated) => {
-        try {
-          await ElMessageBox.confirm(
-            `已连续生成 ${chaptersGenerated} 章，是否继续生成接下来的章节？\n您可以趁此时检查前文质量，若有跑偏请手动修正。`,
-            '断点审查',
-            { confirmButtonText: '继续生成', cancelButtonText: '终止批量', type: 'info' }
-          )
-          return true
-        } catch {
-          return false
+      callbacks: {
+        onCheckpointConfirm: async (chaptersGenerated) => {
+          try {
+            await ElMessageBox.confirm(
+              `已连续生成 ${chaptersGenerated} 章，是否继续生成接下来的章节？\n您可以趁此时检查前文质量，若有跑偏请手动修正。`,
+              '断点审查',
+              { confirmButtonText: '继续生成', cancelButtonText: '终止批量', type: 'info' }
+            )
+            return true
+          } catch {
+            return false
+          }
+        },
+        onBatchComplete: (chaptersGenerated) => {
+          ElMessage.success(`批量生成游历完成！产出 ${chaptersGenerated} 章纯度百分百的内容。`)
         }
-      },
-      onBatchComplete: (chaptersGenerated) => {
-        ElMessage.success(`批量生成游历完成！产出 ${chaptersGenerated} 章纯度百分百的内容。`)
       }
     })
   } catch (error) {

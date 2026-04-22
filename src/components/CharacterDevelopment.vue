@@ -397,18 +397,10 @@ function getImportanceLabel(importance: EntityImportance): string {
   return IMPORTANCE_CONFIG[importance]?.label || importance
 }
 
-const EVENT_TYPE_TITLES: Record<StateEventType, string> = {
-  PROPERTY_UPDATE: '属性变化',
-  VITAL_STATUS_CHANGE: '生命事件',
-  ABILITY_CHANGE: '能力变化',
-  RELATION_ADD: '关系建立',
-  RELATION_REMOVE: '关系解除',
-  RELATION_UPDATE: '关系更新',
-  LOCATION_MOVE: '位置迁移'
-}
+import { STATE_EVENT_TYPE_LABELS } from '@/utils/eventTypeLabels'
 
 function getEventTitle(evt: StateEvent): string {
-  return EVENT_TYPE_TITLES[evt.eventType] || evt.eventType
+  return STATE_EVENT_TYPE_LABELS[evt.eventType] || evt.eventType
 }
 
 function getEventDescription(evt: StateEvent): string {

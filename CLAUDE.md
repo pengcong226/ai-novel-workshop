@@ -29,7 +29,7 @@ The app has two runtime modes:
 - **Tauri desktop mode**: Vue frontend + Rust backend (`src-tauri`) + SQLite persistence
 - **Browser mode**: Vue frontend + IndexedDB fallback
 
-Storage selection is environment-aware, so features can run in both modes, but desktop mode is the primary large-project path.
+Storage selection is environment-aware (`isWebRuntime()` from `src/utils/anthropic-guard.ts`), so features can run in both modes, but desktop mode is the primary large-project path.
 
 ### 2) Canonical Data Backbone (V5)
 
@@ -39,7 +39,7 @@ The canonical model is **Entity + StateEvent** event sourcing (legacy character/
 - `StateEvent`: append-only state mutation records with `chapterNumber`
 - `ResolvedEntity`: computed runtime projection for a target chapter
 
-Core reducer/projection lives in sandbox state flow (`src/stores/sandbox.ts`) and is the source of truth for chapter-level “current truth”.
+Core reducer/projection lives in sandbox state flow (`src/stores/sandbox.ts`) and is the source of truth for chapter-level "current truth".
 
 ### 3) Store Layer Responsibilities
 
@@ -68,13 +68,15 @@ This is the central place where token budget and memory priority are enforced.
 7. Extract state events (tool-calling JSON schema path)
 8. Optionally extract plot events for rewrite/continuation flows
 
+`BatchGenerationOptions` uses nested sub-objects: `extraction`, `rewrite`, `callbacks`.
+
 ### 6) Deep Import Pipeline (Batch Extraction)
 
 Deep import is a multi-step extraction system for existing novels:
 
-- `src/services/novel-extractor.ts`: extraction orchestration (supports batch chapter processing)
+- `src/services/novel-extractor.ts`: extraction orchestration (supports batch chapter processing with debounced cache)
 - `src/services/deep-import-schemas.ts`: strict JSON schemas for extraction outputs
-- `src/composables/useDeepImportSession.ts`: session/progress/checkpoint orchestration
+- `src/composables/useDeepImportSession.ts`: session/progress/checkpoint orchestration (module-scope singleton)
 - `src/components/Sandbox/deep-import/*`: config/progress/review UI
 - `src/utils/chapterParser.ts`: chapter boundary detection and parsing
 
@@ -84,7 +86,7 @@ Rewrite and continuation use snapshot/diff style state management:
 
 - Types: `src/types/rewrite-continuation.ts`
 - Service: `src/services/rewrite-continuation.ts`
-- Composable: `src/composables/useRewriteContinuation.ts`
+- Composable: `src/composables/useRewriteContinuation.ts` (module-scope singleton, concurrent-rewrite guard)
 - Diff utilities: `src/utils/stateDiff.ts`
 
 ### 8) Rust Backend (Tauri)
@@ -102,14 +104,18 @@ Routing is intentionally simple:
 
 Inside the workspace, major features are panel/component based (not route-heavy), with Sandbox as a central multi-view domain surface.
 
+### 10) Plugin System
+
+`src/plugins/` provides an extensible plugin architecture with registries (provider, processor, theme, importer, exporter, action-handler, toolbar, sidebar, menu, quick-command). Built-in plugins include OpenAI/Anthropic/local providers and assistant actions.
+
 ## Project-Specific Conventions
 
 - UI copy is Chinese-first.
 - Use V5 types from `src/types/sandbox.ts` for new work.
 - Treat `src/types/index.ts` as legacy/deprecated compatibility surface.
 - Prefer extending existing middleware/store/service flows rather than creating parallel pipelines.
-
-## Notes from Repository Scan
-
-- Existing `CLAUDE.md` already had strong V5 architecture notes; this version keeps that direction while adding missing command details (especially single-test execution) and tighter architecture mapping for current deep-import + rewrite workflows.
-- No `.cursorrules`, `.cursor/rules/`, or `.github/copilot-instructions.md` files were found in this repository during this scan.
+- Encrypted localStorage helpers live in `src/utils/crypto.ts` (`writeEncryptedLocalStorage`, `readEncryptedLocalStorage`) — use these instead of raw `encryptApiKeyV2`/`localStorage.setItem`.
+- Shared entity helpers are in `src/utils/entityHelpers.ts` (e.g., `buildNameToIdMapFromEntities`).
+- Shared event-type label/tag maps are in `src/utils/eventTypeLabels.ts`.
+- Runtime detection: always use `isWebRuntime()` from `src/utils/anthropic-guard.ts` instead of inline `__TAURI_INTERNALS__` checks.
+- Module-scope singleton composables (`useDeepImportSession`, `useRewriteContinuation`) share state across components — do not convert to per-instance without understanding the cross-component state sharing requirement.

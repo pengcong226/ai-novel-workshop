@@ -1,11 +1,12 @@
 import type { ModelProvider, ProjectConfig } from '@/types'
+import { isWebRuntime } from '@/utils/anthropic-guard'
 
 const ENCRYPTION_PREFIX = 'enc:v1:'
 const ENCRYPTION_PREFIX_V2 = 'enc:v2:'
 const APP_SECRET_SEED = 'ai-novel-workshop-config'
 
 function getEnvironmentSeed(): string {
-  const runtime = typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window ? 'tauri' : 'web'
+  const runtime = isWebRuntime() ? 'web' : 'tauri'
   const origin = typeof window !== 'undefined' ? window.location.origin : 'unknown-origin'
   const userAgent = typeof navigator !== 'undefined' ? navigator.userAgent : 'unknown-user-agent'
 
@@ -139,6 +140,26 @@ export async function decryptApiKeyV2(encrypted: string): Promise<string> {
   } catch (error) {
     console.warn('[crypto] API Key AES-GCM 解密失败', error)
     return ''
+  }
+}
+
+export async function writeEncryptedLocalStorage<T>(key: string, data: T): Promise<void> {
+  const serialized = JSON.stringify(data)
+  const encrypted = await encryptApiKeyV2(serialized)
+  localStorage.setItem(key, encrypted)
+}
+
+export async function readEncryptedLocalStorage<T>(key: string): Promise<T | null> {
+  const raw = localStorage.getItem(key)
+  if (!raw) return null
+  try {
+    if (isEncryptedApiKey(raw)) {
+      const decrypted = await decryptApiKeyV2(raw)
+      return JSON.parse(decrypted) as T
+    }
+    return JSON.parse(raw) as T
+  } catch {
+    return null
   }
 }
 

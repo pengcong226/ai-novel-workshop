@@ -88,12 +88,9 @@ const autoSave = ref(true)
 
 const baselineEntities = ref<EntityStateSnapshot[]>([])
 
-watch([rangeStart], () => {
-  if (rangeStart.value > 1) {
-    baselineEntities.value = sandboxStore.getStateSnapshotAt(rangeStart.value - 1)
-  } else {
-    baselineEntities.value = sandboxStore.getStateSnapshotAt(1)
-  }
+watch(rangeStart, () => {
+  const snapshotChapter = Math.max(rangeStart.value - 1, 1)
+  baselineEntities.value = sandboxStore.getStateSnapshotAt(snapshotChapter)
 }, { immediate: true })
 
 async function handleStart() {

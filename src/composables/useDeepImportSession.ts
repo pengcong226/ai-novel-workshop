@@ -17,7 +17,8 @@ import type {
   DeepImportSession,
   DeepImportEstimate,
   ExtractionProgress,
-  ChapterExtractionResult
+  ChapterExtractionResult,
+  SandboxCommitOps
 } from '@/types/deep-import'
 import type { Entity } from '@/types/sandbox'
 import type { PlotEventRecord } from '@/types/rewrite-continuation'
@@ -42,43 +43,26 @@ export function useDeepImportSession() {
   // Reactive State
   // --------------------------------------------------------------------------
 
-  // Aggregated review data across all extracted chapters
-  const allExtractedEntities = computed(() => {
+  const successfulResults = computed(() => {
     if (!session.value) return []
-    const entities: ChapterExtractionResult['entities']['newEntities'] = []
-    for (const [_, result] of session.value.results) {
-      if (result.status === 'success') {
-        entities.push(...result.entities.newEntities)
-      }
-    }
-    return entities
+    return [...session.value.results.values()].filter(r => r.status === 'success')
   })
 
-  const allExtractedStateEvents = computed(() => {
-    if (!session.value) return []
-    const events: ChapterExtractionResult['stateEvents']['events'] = []
-    for (const [_, result] of session.value.results) {
-      if (result.status === 'success') {
-        events.push(...result.stateEvents.events)
-      }
-    }
-    return events
-  })
+  const allExtractedEntities = computed(() =>
+    successfulResults.value.flatMap(r => r.entities.newEntities)
+  )
+
+  const allExtractedStateEvents = computed(() =>
+    successfulResults.value.flatMap(r => r.stateEvents.events)
+  )
+
+  const allExtractedPlotEvents = computed(() =>
+    successfulResults.value.flatMap(r => r.plotEvents?.plotEvents ?? [])
+  )
 
   const totalEntitiesCount = computed(() => allExtractedEntities.value.length)
   const totalStateEventsCount = computed(() => allExtractedStateEvents.value.length)
   const totalCostUSD = computed(() => session.value?.totalCostUSD ?? 0)
-
-  const allExtractedPlotEvents = computed(() => {
-    if (!session.value) return []
-    const events: ChapterExtractionResult['plotEvents'] extends undefined ? never : NonNullable<ChapterExtractionResult['plotEvents']>['plotEvents'] = []
-    for (const [_, result] of session.value.results) {
-      if (result.status === 'success' && result.plotEvents) {
-        events.push(...result.plotEvents.plotEvents)
-      }
-    }
-    return events
-  })
 
   // --------------------------------------------------------------------------
   // Cost Estimation
@@ -245,6 +229,29 @@ export function useDeepImportSession() {
   }
 
   // --------------------------------------------------------------------------
+  // Entity Update Merge Helper
+  // --------------------------------------------------------------------------
+
+  async function applyEntityUpdates(updatedEntities: SandboxCommitOps['updatedEntities']): Promise<void> {
+    const sandboxStore = useSandboxStore()
+    const merged = new Map<string, Partial<Entity>>()
+    for (const { id, updates } of updatedEntities) {
+      merged.set(id, {
+        ...(merged.get(id) ?? {}),
+        ...updates
+      })
+    }
+
+    if (merged.size > 0) {
+      await Promise.all(
+        [...merged.entries()].map(([id, updates]) =>
+          sandboxStore.updateEntity(id, updates)
+        )
+      )
+    }
+  }
+
+  // --------------------------------------------------------------------------
   // Commit Operations
   // --------------------------------------------------------------------------
 
@@ -255,12 +262,10 @@ export function useDeepImportSession() {
     const ops = extractor.value.resolveToSandboxOps(session.value)
 
     try {
-      // Add entities as drafts
       for (const entity of ops.newEntities) {
         sandboxStore.addDraftEntity(entity)
       }
 
-      // Add relations as draft relations
       for (const event of ops.stateEvents) {
         if (event.eventType === 'RELATION_ADD' && event.payload.targetId && event.payload.relationType) {
           sandboxStore.addDraftRelation(event.entityId, {
@@ -271,10 +276,8 @@ export function useDeepImportSession() {
         }
       }
 
-      // Commit all drafts at once
       await sandboxStore.commitDrafts()
 
-      // Commit non-relation state events
       const nonRelationEvents = ops.stateEvents.filter(
         e => e.eventType !== 'RELATION_ADD'
       )
@@ -282,24 +285,7 @@ export function useDeepImportSession() {
         await sandboxStore.batchAddStateEvents(nonRelationEvents)
       }
 
-      // Apply entity updates
-      const mergedDraftUpdates = new Map<string, Partial<Entity>>()
-      for (const { id, updates } of ops.updatedEntities) {
-        mergedDraftUpdates.set(id, {
-          ...(mergedDraftUpdates.get(id) ?? {}),
-          ...updates
-        })
-      }
-
-      if (mergedDraftUpdates.size > 0) {
-        await Promise.all(
-          [...mergedDraftUpdates.entries()].map(([id, updates]) =>
-            sandboxStore.updateEntity(id, updates)
-          )
-        )
-      }
-
-      // Persist plot events to project
+      await applyEntityUpdates(ops.updatedEntities)
       await persistPlotEvents()
 
       logger.info(`Committed ${ops.newEntities.length} entities and ${ops.stateEvents.length} state events as drafts`)
@@ -316,34 +302,15 @@ export function useDeepImportSession() {
     const ops = extractor.value.resolveToSandboxOps(session.value)
 
     try {
-      // Batch add all entities
       if (ops.newEntities.length > 0) {
         await sandboxStore.batchAddEntities(ops.newEntities)
       }
 
-      // Batch add all state events
       if (ops.stateEvents.length > 0) {
         await sandboxStore.batchAddStateEvents(ops.stateEvents)
       }
 
-      // Apply entity updates
-      const mergedDirectUpdates = new Map<string, Partial<Entity>>()
-      for (const { id, updates } of ops.updatedEntities) {
-        mergedDirectUpdates.set(id, {
-          ...(mergedDirectUpdates.get(id) ?? {}),
-          ...updates
-        })
-      }
-
-      if (mergedDirectUpdates.size > 0) {
-        await Promise.all(
-          [...mergedDirectUpdates.entries()].map(([id, updates]) =>
-            sandboxStore.updateEntity(id, updates)
-          )
-        )
-      }
-
-      // Persist plot events to project
+      await applyEntityUpdates(ops.updatedEntities)
       await persistPlotEvents()
 
       logger.info(`Direct committed ${ops.newEntities.length} entities and ${ops.stateEvents.length} state events`)

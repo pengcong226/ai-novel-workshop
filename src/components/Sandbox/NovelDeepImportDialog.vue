@@ -24,7 +24,7 @@
         v-if="currentStep === 0"
         :initial-source-text="sourceText"
         :initial-mode="extractionMode"
-        :initial-selected-pattern-name="selectedPatternName"
+        v-model:selected-pattern-name="selectedPatternName"
         @next="handleUploadNext"
       />
 
@@ -108,13 +108,11 @@ function handleUploadNext(payload: {
   chapters: ParsedChapter[]
   mode: 'full' | 'smart_sampling'
   sourceText: string
-  selectedPatternName: string
   detectedPatternName: string | null
 }) {
   parsedChapters.value = payload.chapters
   extractionMode.value = payload.mode
   sourceText.value = payload.sourceText
-  selectedPatternName.value = payload.selectedPatternName
   detectedPatternName.value = payload.detectedPatternName
   currentStep.value = 1
 }

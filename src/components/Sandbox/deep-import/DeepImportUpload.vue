@@ -70,7 +70,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, computed } from 'vue'
 import { UploadFilled } from '@element-plus/icons-vue'
 import type { UploadFile, UploadInstance } from 'element-plus'
 import {
@@ -87,13 +87,13 @@ import type {
 const props = withDefaults(defineProps<{
   initialSourceText?: string
   initialMode?: 'full' | 'smart_sampling'
-  initialSelectedPatternName?: string
+  selectedPatternName: string
 }>(), {
   initialMode: 'full',
-  initialSelectedPatternName: 'auto',
 })
 
 const emit = defineEmits<{
+  (e: 'update:selectedPatternName', value: string): void
   (e: 'next', payload: {
     chapters: ParsedChapter[]
     mode: 'full' | 'smart_sampling'
@@ -112,8 +112,12 @@ interface UploadParseResult {
 
 const uploadRef = ref<UploadInstance>()
 const extractionMode = ref<'full' | 'smart_sampling'>(props.initialMode)
-const selectedPatternName = ref<string>(props.initialSelectedPatternName)
 const sourceText = ref(props.initialSourceText || '')
+
+const selectedPatternName = computed({
+  get: () => props.selectedPatternName,
+  set: (val: string) => emit('update:selectedPatternName', val)
+})
 
 const parseResult = ref<UploadParseResult | null>(null)
 const chapterPatterns = getChapterPatterns()

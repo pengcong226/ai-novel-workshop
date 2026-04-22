@@ -36,11 +36,15 @@ const entityCount = computed(() => {
   return Object.keys(state).length
 })
 
-const eventCount = computed(() => {
-  return sandboxStore.stateEvents.filter(
-    e => e.chapterNumber === props.modelValue
-  ).length
+const eventCountByChapter = computed(() => {
+  const map = new Map<number, number>()
+  for (const e of sandboxStore.stateEvents) {
+    map.set(e.chapterNumber, (map.get(e.chapterNumber) ?? 0) + 1)
+  }
+  return map
 })
+
+const eventCount = computed(() => eventCountByChapter.value.get(props.modelValue) ?? 0)
 </script>
 
 <style scoped>

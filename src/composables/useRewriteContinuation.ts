@@ -2,6 +2,7 @@
  * Rewrite/Continuation Composable
  *
  * Reactive Vue wrapper around RewriteContinuationService.
+ * Module-scope refs ensure all consumers share the same reactive state.
  */
 
 import { ref } from 'vue'
@@ -13,12 +14,12 @@ import type {
 } from '@/types/rewrite-continuation'
 import { getErrorMessage } from '@/utils/getErrorMessage'
 
-export function useRewriteContinuation() {
-  const isRunning = ref(false)
-  const mode = ref<'continuation' | 'rewrite' | null>(null)
-  const diffReport = ref<StateDiffReport | null>(null)
-  const error = ref<string | null>(null)
+const isRunning = ref(false)
+const mode = ref<'continuation' | 'rewrite' | null>(null)
+const diffReport = ref<StateDiffReport | null>(null)
+const error = ref<string | null>(null)
 
+export function useRewriteContinuation() {
   async function startContinuation(options: ContinuationOptions): Promise<void> {
     isRunning.value = true
     mode.value = 'continuation'
@@ -35,6 +36,11 @@ export function useRewriteContinuation() {
   }
 
   async function startRewrite(options: RewriteOptions): Promise<void> {
+    if (isRunning.value) {
+      error.value = '已有改写/续写任务进行中'
+      return
+    }
+
     isRunning.value = true
     mode.value = 'rewrite'
     error.value = null

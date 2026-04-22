@@ -37,13 +37,19 @@ export interface BatchGenerationOptions {
   count: number
   autoSave: boolean
   autoUpdateSettings: boolean
-  enableAntiRetcon?: boolean
   enableCheckpoint?: boolean
   checkpointInterval?: number
-  extractPlotEvents?: boolean
-  rewriteDirectionPrompt?: string
-  onCheckpointConfirm?: (chaptersGenerated: number) => Promise<boolean>
-  onBatchComplete?: (chaptersGenerated: number) => void
+  extraction?: {
+    extractPlotEvents?: boolean
+    enableAntiRetcon?: boolean
+  }
+  rewrite?: {
+    directionPrompt?: string
+  }
+  callbacks?: {
+    onCheckpointConfirm?: (chaptersGenerated: number) => Promise<boolean>
+    onBatchComplete?: (chaptersGenerated: number) => void
+  }
 }
 
 function buildGenerationOptions(advancedSettings?: {
@@ -357,6 +363,7 @@ ${chapter.content.substring(0, 8000)}
     const projectStore = useProjectStore()
     const aiStore = useAIStore()
     const taskManager = useTaskManager()
+    const sandboxStore = useSandboxStore()
 
     const currentProject = projectStore.currentProject
     if (!currentProject || !aiStore.checkInitialized()) {
@@ -418,10 +425,15 @@ ${chapter.content.substring(0, 8000)}
     }
 
     try {
-      const shouldRunAntiRetcon = options.enableAntiRetcon ?? currentProject.config?.enableLogicValidator ?? false
+      const shouldRunAntiRetcon = options.extraction?.enableAntiRetcon ?? currentProject.config?.enableLogicValidator ?? false
 
       // Build chapter number index for O(1) lookups in batch loop
       const chapterByNumber = new Map(currentProject.chapters.map(c => [c.number, c]))
+      const normalizedProjectConfig = normalizeProjectConfig(currentProject.config)
+      const vectorConfig = normalizedProjectConfig.enableVectorRetrieval
+        ? normalizedProjectConfig.vectorConfig
+        : undefined
+      const contextWindow = normalizedProjectConfig.advancedSettings?.maxContextTokens ?? 128000
 
       for (let i = 0; i < options.count; i++) {
         if (this.isBatchCancelled) {
@@ -440,8 +452,8 @@ ${chapter.content.substring(0, 8000)}
         // V4-P1-⑦: 断点审查 (每 N 章暂停要求人工确认)
         if (options.enableCheckpoint && options.checkpointInterval && i > 0 && i % options.checkpointInterval === 0) {
             taskManager.updateTask(batchTask.id, { description: `已完成 ${i} 章生成，等待人工审查...` })
-            const shouldContinue = options.onCheckpointConfirm
-              ? await options.onCheckpointConfirm(i)
+            const shouldContinue = options.callbacks?.onCheckpointConfirm
+              ? await options.callbacks.onCheckpointConfirm(i)
               : true
             if (!shouldContinue) {
               this.cancelBatchGeneration()
@@ -508,19 +520,13 @@ ${chapter.content.substring(0, 8000)}
 
         // 构建上下文
         taskManager.updateTask(batchTask.id, { description: `正在编织第 ${chapterNumber} 章记忆矩阵...` })
-        const normalizedProjectConfig = normalizeProjectConfig(currentProject.config)
-        const vectorConfig = normalizedProjectConfig.enableVectorRetrieval
-          ? normalizedProjectConfig.vectorConfig
-          : undefined
-
-        const contextWindow = normalizedProjectConfig.advancedSettings?.maxContextTokens ?? 128000
 
         const context = await buildChapterContext(
           currentProject,
           chapterData,
           vectorConfig,
           contextWindow,
-          options.rewriteDirectionPrompt
+          options.rewrite?.directionPrompt
         )
 
         const targetWords = currentProject.config?.advancedSettings?.targetWordCount || 2000
@@ -613,7 +619,7 @@ ${chapter.content.substring(0, 8000)}
                     chapterData,
                     vectorConfig,
                     contextWindow,
-                    options.rewriteDirectionPrompt
+                    options.rewrite?.directionPrompt
                   )
                   const revisedPayload = contextToPromptPayload(revisedContext, chapterData.title, targetWords)
                   messages.length = 0
@@ -667,7 +673,6 @@ ${chapter.content.substring(0, 8000)}
         // Quality Check
         if (currentProject.config?.enableQualityCheck) {
           try {
-            const sandboxStore = useSandboxStore()
             const loreEntities = Object.values(sandboxStore.activeEntitiesState).filter(e => e.type === 'LORE')
             const characterEntities = Object.values(sandboxStore.activeEntitiesState).filter(e => e.type === 'CHARACTER')
             const checker = createQualityChecker(loreEntities, characterEntities, currentProject.outline, currentProject.config)
@@ -699,7 +704,6 @@ ${chapter.content.substring(0, 8000)}
         }
 
         // Update currentChapter so next chapter's context sees latest state
-        const sandboxStore = useSandboxStore()
         sandboxStore.currentChapter = chapterNumber
 
         // V4 Adaptation: 自动使用新的 Review 工作流产生交互建议
@@ -723,7 +727,6 @@ ${chapter.content.substring(0, 8000)}
             // V5 Tool Calling: Extract state events and dispatch to sandboxStore
             try {
               taskManager.updateTask(batchTask.id, { description: `正在抽取底层实体图谱状态...` })
-              const sandboxStore = useSandboxStore()
 
               const entityNames = sandboxStore.entities
                 .filter(e => e.type === 'CHARACTER')
@@ -830,7 +833,7 @@ ${chapterData.content}
         }
 
         // Plot event extraction when enabled (continuation/rewrite workflow)
-        if (options.extractPlotEvents) {
+        if (options.extraction?.extractPlotEvents) {
           try {
             taskManager.updateTask(batchTask.id, { description: `正在提取第 ${chapterNumber} 章情节事件...` })
 
@@ -879,7 +882,7 @@ ${chapterData.content}
 
       if (!this.isBatchCancelled) {
         taskManager.completeTask(batchTask.id, `成功生成 ${options.count} 个章节`)
-        options.onBatchComplete?.(options.count)
+        options.callbacks?.onBatchComplete?.(options.count)
       }
     } catch (error) {
       if (!options.autoSave) {

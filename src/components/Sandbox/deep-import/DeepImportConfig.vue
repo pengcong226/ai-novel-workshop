@@ -85,13 +85,7 @@
     <div class="config-actions">
       <el-button @click="$emit('back')">上一步</el-button>
       <el-button type="primary" @click="handleStart" :disabled="!canStart">
-        {{
-          mode === 'smart_sampling' && scanResults.length === 0
-            ? '请先扫描'
-            : mode === 'smart_sampling' && selectedChapters.size === 0
-              ? '请至少选择1章'
-              : '开始提取'
-        }}
+        {{ startButtonLabel }}
       </el-button>
     </div>
   </div>
@@ -143,6 +137,12 @@ const canStart = computed(() => {
     if (selectedChapters.value.size === 0) return false
   }
   return true
+})
+
+const startButtonLabel = computed(() => {
+  if (props.mode === 'smart_sampling' && scanResults.value.length === 0) return '请先扫描'
+  if (props.mode === 'smart_sampling' && selectedChapters.value.size === 0) return '请至少选择1章'
+  return '开始提取'
 })
 
 const contextWarning = computed(() => {

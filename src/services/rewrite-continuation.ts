@@ -21,7 +21,7 @@ import type {
 } from '@/types/rewrite-continuation'
 import type { ExtractedPlotEvent } from '@/types/deep-import'
 import { getLogger } from '@/utils/logger'
-import { encryptApiKeyV2, decryptApiKeyV2, isEncryptedApiKey } from '@/utils/crypto'
+import { writeEncryptedLocalStorage, readEncryptedLocalStorage } from '@/utils/crypto'
 
 const logger = getLogger('rewrite-continuation')
 
@@ -46,8 +46,10 @@ export class RewriteContinuationService {
       count: options.count,
       autoSave: options.autoSave,
       autoUpdateSettings: options.autoExtract,
-      extractPlotEvents: options.extractPlotEvents,
-      enableAntiRetcon: options.enableAntiRetcon,
+      extraction: {
+        extractPlotEvents: options.extractPlotEvents,
+        enableAntiRetcon: options.enableAntiRetcon
+      },
       enableCheckpoint: true,
       checkpointInterval: 10
     }
@@ -97,9 +99,13 @@ export class RewriteContinuationService {
       count: range.end - range.start + 1,
       autoSave: options.autoSave,
       autoUpdateSettings: true,
-      rewriteDirectionPrompt: options.newDirectionPrompt,
-      extractPlotEvents: options.extractPlotEvents,
-      enableAntiRetcon: options.enableAntiRetcon,
+      rewrite: {
+        directionPrompt: options.newDirectionPrompt
+      },
+      extraction: {
+        extractPlotEvents: options.extractPlotEvents,
+        enableAntiRetcon: options.enableAntiRetcon
+      },
       enableCheckpoint: false
     }
 
@@ -249,9 +255,7 @@ export class RewriteContinuationService {
   private async persistBackup(backup: RewriteBackup): Promise<void> {
     try {
       const key = `${BACKUP_KEY_PREFIX}${backup.projectId}`
-      const serialized = JSON.stringify(backup)
-      const encrypted = await encryptApiKeyV2(serialized)
-      localStorage.setItem(key, encrypted)
+      await writeEncryptedLocalStorage(key, backup)
     } catch (e) {
       logger.warn('Failed to persist rewrite backup:', e)
     }
@@ -271,14 +275,7 @@ export class RewriteContinuationService {
   static async checkPendingBackup(projectId: string): Promise<RewriteBackup | null> {
     try {
       const key = `${BACKUP_KEY_PREFIX}${projectId}`
-      const data = localStorage.getItem(key)
-      if (!data) return null
-
-      const payload = isEncryptedApiKey(data)
-        ? await decryptApiKeyV2(data)
-        : data
-
-      return JSON.parse(payload) as RewriteBackup
+      return await readEncryptedLocalStorage<RewriteBackup>(key)
     } catch {
       return null
     }

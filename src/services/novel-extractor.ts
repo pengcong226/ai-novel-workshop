@@ -35,7 +35,8 @@ import type {
   SerializedDeepImportSession
 } from '@/types/deep-import'
 import { serializeSession as serialize, deserializeSession as deserialize } from '@/types/deep-import'
-import { encryptApiKeyV2, decryptApiKeyV2, isEncryptedApiKey } from '@/utils/crypto'
+import { isEncryptedApiKey, decryptApiKeyV2, writeEncryptedLocalStorage } from '@/utils/crypto'
+import { buildNameToIdMapFromEntities } from '@/utils/entityHelpers'
 
 const logger = getLogger('novel:extractor')
 
@@ -201,12 +202,7 @@ export class NovelExtractor {
       }
       // Seed nameToIdMap from existing entities
       if (existingEntities) {
-        for (const entity of existingEntities) {
-          session.nameToIdMap[entity.name] = entity.id
-          for (const alias of entity.aliases) {
-            session.nameToIdMap[alias] = entity.id
-          }
-        }
+        session.nameToIdMap = buildNameToIdMapFromEntities(existingEntities)
       }
     }
 
@@ -317,7 +313,7 @@ export class NovelExtractor {
 
         consecutiveFailures = 0
 
-        await this.cacheSession(session)
+        this.debouncedCache(session)
 
         if (session.totalCostUSD >= this.options.maxCostUSD) {
           logger.warn(`Cost limit reached: $${session.totalCostUSD.toFixed(2)} >= $${this.options.maxCostUSD}`)
@@ -365,6 +361,8 @@ export class NovelExtractor {
 
     session.isComplete = session.extractedChapters.length >= session.totalChapters
     session.updatedAt = Date.now()
+
+    await this.flushCache(session)
 
     return session
   }
@@ -1024,17 +1022,33 @@ export class NovelExtractor {
     }
   }
 
+  private cacheTimer: ReturnType<typeof setTimeout> | null = null
+
   private async cacheSession(session: DeepImportSession): Promise<void> {
     try {
       const serialized = serialize(session)
       const key = `${this.projectId}_deep_import_${session.id}`
-      const payload = JSON.stringify(serialized)
-      const encryptedPayload = await encryptApiKeyV2(payload)
-      localStorage.setItem(key, encryptedPayload)
+      await writeEncryptedLocalStorage(key, serialized)
       NovelExtractor.addSessionKeyToIndex(this.projectId, key)
     } catch (err) {
       logger.warn('Failed to cache session:', err)
     }
+  }
+
+  private debouncedCache(session: DeepImportSession): void {
+    if (this.cacheTimer) clearTimeout(this.cacheTimer)
+    this.cacheTimer = setTimeout(() => {
+      this.cacheSession(session)
+      this.cacheTimer = null
+    }, 2000)
+  }
+
+  private async flushCache(session: DeepImportSession): Promise<void> {
+    if (this.cacheTimer) {
+      clearTimeout(this.cacheTimer)
+      this.cacheTimer = null
+    }
+    await this.cacheSession(session)
   }
 
   private static getSessionPrefix(projectId: string): string {

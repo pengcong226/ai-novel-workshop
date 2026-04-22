@@ -182,29 +182,31 @@ const showReviewPanel = computed(() => {
   return session.value.extractedChapters.length > 0
 })
 
-const reviewEntities = computed(() => {
+const recentResults = computed(() => {
   if (!session.value) return []
-  const entities: ChapterExtractionResult['entities']['newEntities'] = []
-  // Show entities from the latest batch of chapters
-  const recentChapters = session.value.extractedChapters.slice(-5)
-  for (const chNum of recentChapters) {
-    const result = session.value.results.get(chNum)
+  const chapters = session.value.extractedChapters.slice(-5)
+  const results: ChapterExtractionResult[] = []
+  for (const chNum of chapters) {
+    const result = session.value!.results.get(chNum)
     if (result?.status === 'success') {
-      entities.push(...result.entities.newEntities)
+      results.push(result)
     }
+  }
+  return results
+})
+
+const reviewEntities = computed(() => {
+  const entities: ChapterExtractionResult['entities']['newEntities'] = []
+  for (const result of recentResults.value) {
+    entities.push(...result.entities.newEntities)
   }
   return entities
 })
 
 const reviewEvents = computed(() => {
-  if (!session.value) return []
   const events: ChapterExtractionResult['stateEvents']['events'] = []
-  const recentChapters = session.value.extractedChapters.slice(-5)
-  for (const chNum of recentChapters) {
-    const result = session.value.results.get(chNum)
-    if (result?.status === 'success') {
-      events.push(...result.stateEvents.events)
-    }
+  for (const result of recentResults.value) {
+    events.push(...result.stateEvents.events)
   }
   return events
 })

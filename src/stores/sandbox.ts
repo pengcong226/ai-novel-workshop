@@ -4,6 +4,7 @@ import { v4 as uuidv4 } from 'uuid';
 import type { Entity, StateEvent, EntityRelation } from '../types/sandbox';
 import type { EntityStateSnapshot } from '../types/rewrite-continuation';
 import { captureSnapshot, replayReducer } from '@/utils/stateDiff';
+import { buildNameToIdMapFromEntities } from '@/utils/entityHelpers';
 import { getLogger } from '@/utils/logger';
 
 const logger = getLogger('sandbox:store');
@@ -376,7 +377,6 @@ export const useSandboxStore = defineStore('sandbox', () => {
         merged.set(event.id, event);
       }
       stateEvents.value = [...merged.values()];
-      stateEvents.value.sort((a, b) => a.chapterNumber - b.chapterNumber);
     } catch (e) {
       logger.error('Failed to batch add state events:', e);
       throw e;
@@ -470,14 +470,7 @@ export const useSandboxStore = defineStore('sandbox', () => {
   }
 
   function buildNameToIdMap(): Record<string, string> {
-    const map: Record<string, string> = {};
-    for (const entity of entities.value) {
-      map[entity.name] = entity.id;
-      for (const alias of entity.aliases) {
-        map[alias] = entity.id;
-      }
-    }
-    return map;
+    return buildNameToIdMapFromEntities(entities.value);
   }
 
   return {

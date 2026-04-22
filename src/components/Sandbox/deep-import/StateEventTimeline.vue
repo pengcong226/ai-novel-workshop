@@ -48,6 +48,7 @@
 
 <script setup lang="ts">
 import type { ExtractedStateEvent } from '@/types/deep-import'
+import { STATE_EVENT_TYPE_LABELS, STATE_EVENT_TYPE_TAG_TYPE, type ElementTagType } from '@/utils/eventTypeLabels'
 import EvidenceHighlight from './EvidenceHighlight.vue'
 
 defineProps<{
@@ -56,42 +57,15 @@ defineProps<{
 }>()
 
 function eventTypeLabel(type: string): string {
-  const map: Record<string, string> = {
-    PROPERTY_UPDATE: '属性更新',
-    RELATION_ADD: '关系建立',
-    RELATION_REMOVE: '关系解除',
-    RELATION_UPDATE: '关系变化',
-    VITAL_STATUS_CHANGE: '生死状态',
-    ABILITY_CHANGE: '能力变化',
-    LOCATION_MOVE: '位置移动'
-  }
-  return map[type] || type
+  return STATE_EVENT_TYPE_LABELS[type as keyof typeof STATE_EVENT_TYPE_LABELS] || type
 }
 
-function eventTypeColor(type: string): string {
-  const map: Record<string, string> = {
-    PROPERTY_UPDATE: '',
-    RELATION_ADD: 'success',
-    RELATION_REMOVE: 'danger',
-    RELATION_UPDATE: 'warning',
-    VITAL_STATUS_CHANGE: 'danger',
-    ABILITY_CHANGE: 'primary',
-    LOCATION_MOVE: 'info'
-  }
-  return map[type] || ''
+function eventTypeColor(type: string): ElementTagType {
+  return STATE_EVENT_TYPE_TAG_TYPE[type as keyof typeof STATE_EVENT_TYPE_TAG_TYPE] || ''
 }
 
-function eventTypeTagType(type: string): '' | 'success' | 'warning' | 'danger' | 'info' {
-  const map: Record<string, '' | 'success' | 'warning' | 'danger' | 'info'> = {
-    PROPERTY_UPDATE: '',
-    RELATION_ADD: 'success',
-    RELATION_REMOVE: 'danger',
-    RELATION_UPDATE: 'warning',
-    VITAL_STATUS_CHANGE: 'danger',
-    ABILITY_CHANGE: '',
-    LOCATION_MOVE: 'info'
-  }
-  return map[type] || ''
+function eventTypeTagType(type: string): ElementTagType {
+  return STATE_EVENT_TYPE_TAG_TYPE[type as keyof typeof STATE_EVENT_TYPE_TAG_TYPE] || ''
 }
 </script>
 

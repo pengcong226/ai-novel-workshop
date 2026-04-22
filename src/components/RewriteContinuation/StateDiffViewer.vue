@@ -105,7 +105,7 @@ defineEmits<{
 const activeTab = ref('changes')
 
 function categoryLabel(cat: StateDiffCategory): string {
-  const map: Record<string, string> = {
+  const map: Record<StateDiffCategory, string> = {
     property_added: '属性新增', property_removed: '属性移除', property_changed: '属性变更',
     relation_added: '关系建立', relation_removed: '关系解除', relation_changed: '关系变化',
     location_changed: '位置变化', vital_status_changed: '生死变化',
@@ -115,9 +115,8 @@ function categoryLabel(cat: StateDiffCategory): string {
 }
 
 function categoryTagType(cat: StateDiffCategory): '' | 'success' | 'warning' | 'danger' | 'info' {
-  if (cat.includes('added')) return 'success'
-  if (cat.includes('removed')) return 'danger'
-  if (cat === 'vital_status_changed') return 'danger'
+  if (cat === 'property_added' || cat === 'relation_added' || cat === 'entity_added') return 'success'
+  if (cat === 'property_removed' || cat === 'relation_removed' || cat === 'entity_removed' || cat === 'vital_status_changed') return 'danger'
   return 'warning'
 }
 
