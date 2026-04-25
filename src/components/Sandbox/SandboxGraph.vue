@@ -47,8 +47,12 @@ interface GraphEdgeData {
   [key: string]: unknown
 }
 
+type SandboxGraphInstance = Graph & {
+  data?: (data: { nodes: GraphNodeData[]; edges: GraphEdgeData[] }) => void
+}
+
 const graphContainer = ref<HTMLElement | null>(null)
-let graph: Graph | null = null
+let graph: SandboxGraphInstance | null = null
 const sandboxStore = useSandboxStore()
 
 const focusSelection = ref(['chapter', 'current'])
@@ -281,7 +285,7 @@ onMounted(() => {
     const width = graphContainer.value.scrollWidth || 800
     const height = graphContainer.value.scrollHeight || 500
 
-    graph = new Graph({
+    const graphOptions = {
       container: graphContainer.value,
       width,
       height,
@@ -302,7 +306,9 @@ onMounted(() => {
         type: 'line',
         color: '#e2e8f0'
       }
-    } as any)
+    } as unknown as ConstructorParameters<typeof Graph>[0]
+
+    graph = new Graph(graphOptions) as SandboxGraphInstance
 
     renderGraph()
 
@@ -327,10 +333,18 @@ watch([nodes, edges], () => {
 
 function renderGraph() {
   if (!graph) return
-  graph.setData({
+
+  const data = {
     nodes: nodes.value,
     edges: edges.value
-  })
+  }
+
+  if (typeof graph.setData === 'function') {
+    graph.setData(data)
+  } else {
+    graph.data?.(data)
+  }
+
   void graph.render()
 }
 

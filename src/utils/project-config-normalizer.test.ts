@@ -74,12 +74,37 @@ describe('project-config-normalizer', () => {
 
     expect(defaults.systemPrompts).toBeDefined()
     expect(defaults.vectorConfig?.topK).toBeDefined()
+    expect(defaults.vectorConfig?.model).toBe('Xenova/bge-small-zh-v1.5')
+    expect(defaults.vectorConfig?.dimension).toBe(512)
     expect(defaults.vectorConfig?.minScore).toBeDefined()
     expect(defaults.vectorConfig?.vectorWeight).toBeDefined()
     expect(defaults.enableAutoReview).toBe(false)
     expect(defaults.styleProfile).toBeUndefined()
     expect(defaults.advancedSettings?.maxContextTokens).toBeDefined()
     expect(defaults.advancedSettings?.targetWordCount).toBeDefined()
+  })
+
+  it('migrates legacy local bge-m3 vector defaults to the bundled model', () => {
+    const normalized = normalizeProjectConfig({
+      vectorConfig: {
+        provider: 'local',
+        model: '/dist/models/Xenova/bge-m3',
+      }
+    })
+
+    expect(normalized.vectorConfig?.model).toBe('Xenova/bge-small-zh-v1.5')
+    expect(normalized.vectorConfig?.dimension).toBe(512)
+  })
+
+  it('preserves explicit non-legacy vector model choices', () => {
+    const normalized = normalizeProjectConfig({
+      vectorConfig: {
+        provider: 'local',
+        model: 'Xenova/all-MiniLM-L6-v2',
+      }
+    })
+
+    expect(normalized.vectorConfig?.model).toBe('Xenova/all-MiniLM-L6-v2')
   })
 
   it('preserves partial style profile values while filling defaults', () => {

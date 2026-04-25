@@ -560,41 +560,65 @@ function initTrendChart(): void {
 <style scoped>
 .ai-assistant {
   position: fixed;
-  right: 20px;
-  bottom: 20px;
+  right: var(--ds-space-5);
+  bottom: var(--ds-space-5);
   z-index: 9999;
 }
 
 .ai-float-button {
-  width: 56px;
-  height: 56px;
+  width: 58px;
+  height: 58px;
   border-radius: 50%;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: var(--ds-accent);
   display: flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
-  transition: all 0.3s;
+  box-shadow: var(--ds-shadow-glow);
+  transition: all var(--ds-transition-normal);
+  animation: breathe 3s ease-in-out infinite;
 }
 
 .ai-float-button:hover {
-  transform: scale(1.1);
-  box-shadow: 0 6px 16px rgba(102, 126, 234, 0.6);
+  transform: translateY(-2px) scale(1.05);
+  background: var(--ds-accent-hover);
 }
 
 .ai-float-button .el-icon {
   color: white;
 }
 
+:deep(.el-drawer) {
+  background: var(--ds-bg-elevated) !important;
+}
+
+:deep(.el-drawer__header) {
+  margin-bottom: 0;
+  padding: var(--ds-space-5);
+  border-bottom: 1px solid var(--ds-surface-border);
+  color: var(--ds-text-primary);
+  font-weight: 600;
+}
+
+:deep(.el-drawer__body) {
+  padding: 0;
+}
+
 .chat-container {
   display: flex;
   flex-direction: column;
-  height: calc(100vh - 100px);
+  height: calc(100vh - 72px);
+  background: var(--ds-bg-elevated);
 }
 
 :deep(.chat-tabs) {
   height: 100%;
+}
+
+:deep(.chat-tabs .el-tabs__header) {
+  margin: 0;
+  padding: 0 var(--ds-space-5);
+  background: var(--ds-bg-secondary);
 }
 
 :deep(.chat-tabs .el-tabs__content) {

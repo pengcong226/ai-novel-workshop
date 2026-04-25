@@ -8,7 +8,14 @@
 const ALLOWED_OFFICIAL_HOSTS = new Set(['api.anthropic.com'])
 
 export function isWebRuntime(): boolean {
-  return typeof window !== 'undefined' && !('__TAURI_INTERNALS__' in window)
+  if (!__APP_IS_TAURI__) return true
+  if (typeof window === 'undefined') return false
+
+  const tauriInternals = (window as Window & {
+    __TAURI_INTERNALS__?: { invoke?: unknown }
+  }).__TAURI_INTERNALS__
+
+  return typeof tauriInternals?.invoke !== 'function'
 }
 
 export function isOfficialAnthropicEndpoint(baseUrl: string): boolean {

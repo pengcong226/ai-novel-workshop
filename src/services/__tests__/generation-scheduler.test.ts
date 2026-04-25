@@ -163,6 +163,14 @@ vi.mock('@/agents/ReaderAgent', () => ({
   ReaderAgent: vi.fn(),
 }))
 
+vi.mock('@/agents/SentinelAgent', () => ({
+  SentinelAgent: vi.fn(),
+}))
+
+vi.mock('@/agents/ExtractorAgent', () => ({
+  ExtractorAgent: vi.fn(),
+}))
+
 vi.mock('@/utils/logger', () => ({
   getLogger: () => ({
     error: vi.fn(),
@@ -370,6 +378,36 @@ describe('GenerationScheduler', () => {
       expect.any(Map)
     )
     expect(project.plotEvents).toEqual([{ id: 'plot-record-1' }])
+  })
+
+  it('registers sentinel and extractor in post-generation agent flow', async () => {
+    const scheduler = new GenerationScheduler()
+    const project = createProject({
+      enableAutoReview: true,
+      agentConfigs: [
+        { role: 'sentinel', enabled: true, phase: 'post-generation', priority: 2 },
+        { role: 'editor', enabled: true, phase: 'post-generation', priority: 5 },
+        { role: 'extractor', enabled: true, phase: 'post-generation', priority: 10 },
+      ],
+    })
+    mocks.projectStore.currentProject = project
+
+    await scheduler.executeBatchGeneration(createSchedulerOptions())
+    await Promise.resolve()
+
+    const { AgentOrchestrator } = await import('@/agents/AgentOrchestrator')
+    expect(AgentOrchestrator).toHaveBeenCalledWith(expect.objectContaining({
+      agents: expect.arrayContaining([
+        expect.any(Object),
+        expect.any(Object),
+        expect.any(Object),
+        expect.any(Object),
+      ]),
+      configs: expect.arrayContaining([
+        expect.objectContaining({ role: 'sentinel', enabled: true }),
+        expect.objectContaining({ role: 'extractor', enabled: true }),
+      ]),
+    }))
   })
 
   it('persists state events when auto update sees high-impact content', async () => {

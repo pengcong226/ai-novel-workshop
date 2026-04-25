@@ -524,12 +524,12 @@
 
           <el-form-item v-if="vectorConfig.provider === 'local'" label="本地模型">
             <el-select v-model="vectorConfig.model" placeholder="选择本地模型">
-              <el-option label="BGE Small (中文最强，极速版)" value="Xenova/bge-small-zh-v1.5" />
+              <el-option label="BGE Small 中文内置模型（默认）" value="Xenova/bge-small-zh-v1.5" />
               <el-option label="all-MiniLM-L6-v2 (推荐，384维)" value="Xenova/all-MiniLM-L6-v2" />
               <el-option label="all-mpnet-base-v2 (768维)" value="Xenova/all-mpnet-base-v2" />
               <el-option label="paraphrase-multilingual-MiniLM-L12-v2 (多语言)" value="Xenova/paraphrase-multilingual-MiniLM-L12-v2" />
             </el-select>
-            <div class="form-tip">完全离线运行，无需联网！(首次需要在后台执行 node 下载脚本)</div>
+            <div class="form-tip">默认模型已随应用内置，可离线运行；选择其他模型需要先下载到 public/models。</div>
           </el-form-item>
 
           <el-form-item label="检索数量">
@@ -871,7 +871,7 @@ const vectorConfig = ref({
   enabled: configForm.value.enableVectorRetrieval,
   provider: configForm.value.vectorConfig?.provider ?? 'local' as 'local' | 'openai',
   model: configForm.value.vectorConfig?.model
-    ?? (configForm.value.vectorConfig?.provider === 'openai' ? 'text-embedding-3-small' : 'Xenova/all-MiniLM-L6-v2'),
+    ?? (configForm.value.vectorConfig?.provider === 'openai' ? 'text-embedding-3-small' : 'Xenova/bge-small-zh-v1.5'),
   apiKey: configForm.value.vectorConfig?.apiKey ?? '',
   baseUrl: configForm.value.vectorConfig?.baseUrl ?? '',
   topK: configForm.value.vectorConfig?.topK ?? 5,
@@ -1008,7 +1008,7 @@ function applyConfigToEditorState(config: ProjectConfig) {
     model: normalizedConfig.vectorConfig?.model
       ?? (normalizedConfig.vectorConfig?.provider === 'openai'
         ? 'text-embedding-3-small'
-        : 'Xenova/all-MiniLM-L6-v2'),
+        : 'Xenova/bge-small-zh-v1.5'),
     apiKey: normalizedConfig.vectorConfig?.apiKey ?? '',
     baseUrl: normalizedConfig.vectorConfig?.baseUrl ?? '',
     topK: normalizedConfig.vectorConfig?.topK ?? 5,

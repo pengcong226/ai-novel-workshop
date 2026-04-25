@@ -732,27 +732,37 @@ function formatDate(date: Date | string) {
 }
 
 .header-card {
-  margin-bottom: 20px;
+  margin-bottom: var(--ds-space-5);
+  border-radius: var(--ds-radius-lg);
 }
 
 .header {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  gap: var(--ds-space-4);
 }
 
 .header h2 {
   margin: 0;
-  font-size: 20px;
+  color: var(--ds-text-primary);
+  font-size: var(--ds-text-xl);
 }
 
 .actions {
   display: flex;
-  gap: 10px;
+  gap: var(--ds-space-2);
+  flex-wrap: wrap;
+  justify-content: flex-end;
 }
 
 .content {
   min-height: 400px;
+}
+
+.chapters-virtual-container,
+.chapters-container {
+  padding-right: var(--ds-space-1);
 }
 
 .chapters-virtual-container {
@@ -764,12 +774,35 @@ function formatDate(date: Date | string) {
 .chapters-list {
   display: flex;
   flex-direction: column;
-  gap: 20px;
+  gap: var(--ds-space-5);
 }
 
 .chapter-card {
+  position: relative;
   margin-bottom: 0;
-  transition: opacity 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
+  overflow: hidden;
+  border-radius: var(--ds-radius-lg);
+  background: var(--ds-surface);
+  border: 1px solid var(--ds-surface-border);
+  transition:
+    transform var(--ds-transition-normal),
+    opacity var(--ds-transition-normal),
+    border-color var(--ds-transition-normal),
+    box-shadow var(--ds-transition-normal);
+}
+
+.chapter-card::before {
+  content: '';
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 4px;
+  background: var(--ds-accent);
+}
+
+.chapter-card:hover {
+  transform: translateY(-2px);
+  border-color: color-mix(in srgb, var(--ds-accent) 28%, var(--ds-surface-border));
+  box-shadow: var(--ds-shadow-md);
 }
 
 .chapter-card.is-dragging {
@@ -777,32 +810,37 @@ function formatDate(date: Date | string) {
 }
 
 .chapter-card.is-drag-over {
-  box-shadow: 0 0 0 2px #409eff inset;
+  box-shadow: 0 0 0 2px var(--ds-accent) inset;
 }
 
 .chapter-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 15px;
+  gap: var(--ds-space-4);
+  margin-bottom: var(--ds-space-4);
 }
 
 .chapter-info {
   display: flex;
   align-items: center;
-  gap: 15px;
+  gap: var(--ds-space-3);
+  min-width: 0;
 }
 
 .drag-handle {
-  width: 28px;
-  height: 28px;
-  border: 1px solid #dcdfe6;
-  border-radius: 6px;
-  background: #fff;
-  color: #909399;
+  width: 30px;
+  height: 30px;
+  border: 1px solid var(--ds-surface-border);
+  border-radius: var(--ds-radius-sm);
+  background:
+    radial-gradient(circle, var(--ds-text-tertiary) 1px, transparent 1.5px) 5px 5px / 8px 8px,
+    var(--ds-bg-secondary);
+  color: transparent;
   cursor: grab;
-  font-size: 16px;
+  font-size: 0;
   line-height: 1;
+  transition: all var(--ds-transition-fast);
 }
 
 .drag-handle:active {
@@ -810,51 +848,62 @@ function formatDate(date: Date | string) {
 }
 
 .drag-handle:hover {
-  color: #409eff;
-  border-color: #409eff;
+  border-color: var(--ds-accent);
+  background:
+    radial-gradient(circle, var(--ds-accent) 1px, transparent 1.5px) 5px 5px / 8px 8px,
+    var(--ds-accent-subtle);
 }
 
 .chapter-number {
-  font-size: 18px;
-  font-weight: 600;
-  color: #409eff;
+  flex-shrink: 0;
+  color: var(--ds-accent-text);
+  font-size: var(--ds-text-lg);
+  font-weight: 700;
 }
 
 .chapter-title {
-  font-size: 18px;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--ds-text-primary);
+  font-size: var(--ds-text-lg);
   font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .chapter-stats {
   display: flex;
-  gap: 20px;
-  color: #909399;
-  font-size: 14px;
+  gap: var(--ds-space-4);
+  color: var(--ds-text-tertiary);
+  font-size: var(--ds-text-sm);
+  flex-shrink: 0;
 }
 
 .chapter-content {
-  margin-bottom: 15px;
+  margin-bottom: var(--ds-space-4);
 }
 
 .content-preview {
-  color: #606266;
-  line-height: 1.6;
+  color: var(--ds-text-secondary);
+  line-height: 1.7;
 }
 
 .chapter-actions {
   display: flex;
-  gap: 10px;
-  padding-top: 15px;
-  border-top: 1px solid #e4e7ed;
+  gap: var(--ds-space-2);
+  padding-top: var(--ds-space-4);
+  border-top: 1px solid var(--ds-surface-border);
+  flex-wrap: wrap;
 }
 
 .quality-score {
-  margin-top: 10px;
-  padding: 8px 12px;
-  background: #f0f9ff;
-  border-radius: 4px;
-  font-size: 14px;
-  color: #409eff;
+  margin-top: var(--ds-space-3);
+  padding: var(--ds-space-2) var(--ds-space-3);
+  background: var(--ds-accent-subtle);
+  border: 1px solid color-mix(in srgb, var(--ds-accent) 24%, transparent);
+  border-radius: var(--ds-radius-sm);
+  color: var(--ds-accent-text);
+  font-size: var(--ds-text-sm);
 }
 
 .reading-preview-container {
@@ -864,54 +913,70 @@ function formatDate(date: Date | string) {
 }
 
 :deep(.reading-preview-dialog .el-dialog__body) {
-  padding: 12px 20px 0;
+  padding: var(--ds-space-3) var(--ds-space-5) 0;
 }
 
 .checkpoints-list {
   display: flex;
   flex-direction: column;
-  gap: 20px;
+  gap: var(--ds-space-5);
 }
 
 .checkpoint-item {
   margin-bottom: 0;
+  border-radius: var(--ds-radius-md);
 }
 
 .checkpoint-header {
   display: flex;
   align-items: center;
-  gap: 15px;
+  gap: var(--ds-space-3);
+  color: var(--ds-text-primary);
   font-weight: 600;
 }
 
 .checkpoint-time {
-  color: #909399;
-  font-size: 14px;
+  color: var(--ds-text-tertiary);
+  font-size: var(--ds-text-sm);
 }
 
 .checkpoint-desc {
-  color: #606266;
-  font-size: 14px;
+  color: var(--ds-text-secondary);
+  font-size: var(--ds-text-sm);
 }
 
 .checkpoint-content {
-  margin: 15px 0;
-  color: #606266;
-  line-height: 1.6;
+  margin: var(--ds-space-4) 0;
+  color: var(--ds-text-secondary);
+  line-height: 1.7;
 }
 
 .checkpoint-actions {
   display: flex;
-  gap: 10px;
+  gap: var(--ds-space-2);
 }
 
 .batch-progress {
-  margin-top: 20px;
+  margin-top: var(--ds-space-5);
 }
 
 .progress-text {
-  margin-top: 10px;
+  margin-top: var(--ds-space-3);
   text-align: center;
-  color: #909399;
+  color: var(--ds-text-tertiary);
+}
+
+@media (max-width: 768px) {
+  .header,
+  .chapter-header,
+  .chapter-stats {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .actions,
+  .chapter-actions {
+    justify-content: flex-start;
+  }
 }
 </style>

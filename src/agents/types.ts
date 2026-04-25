@@ -71,7 +71,7 @@ export const DEFAULT_AGENT_CONFIGS: AgentConfig[] = [
 
 export const AGENT_PHASES: AgentPhase[] = ['pre-generation', 'generation', 'post-generation']
 
-export const ACTIVE_AGENT_ROLES: AgentRole[] = ['planner', 'editor', 'reader']
+export const ACTIVE_AGENT_ROLES: AgentRole[] = ['planner', 'sentinel', 'extractor', 'editor', 'reader']
 
 export const AGENT_ROLE_LABELS: Record<AgentRole, string> = {
   planner: '规划师',

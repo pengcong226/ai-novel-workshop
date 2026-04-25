@@ -134,15 +134,23 @@ describe('project-config-normalizer agent config', () => {
     })
   })
 
-  it('keeps inactive framework roles disabled even if persisted as enabled', () => {
+  it('allows sentinel and extractor as active post-generation agents', () => {
     const normalized = normalizeProjectConfig({
       agentConfigs: [
+        { role: 'sentinel', enabled: true, phase: 'post-generation', priority: 2 },
         { role: 'extractor', enabled: true, phase: 'post-generation', priority: 10 },
       ],
     })
 
+    expect(normalized.agentConfigs?.find(config => config.role === 'sentinel')).toMatchObject({
+      enabled: true,
+      phase: 'post-generation',
+      priority: 2,
+    })
     expect(normalized.agentConfigs?.find(config => config.role === 'extractor')).toMatchObject({
-      enabled: false,
+      enabled: true,
+      phase: 'post-generation',
+      priority: 10,
     })
   })
 

@@ -1080,20 +1080,21 @@ onUnmounted(clearAutoSaveTimer)
 <style scoped>
 :deep(.immersive-editor-dialog) {
   --el-dialog-padding-primary: 0;
-  background-color: var(--el-bg-color-page);
+  background-color: var(--ds-bg-primary);
 }
+
 :deep(.immersive-editor-dialog .el-dialog__header) {
   padding: 0;
   margin: 0;
 }
+
 :deep(.immersive-editor-dialog .el-dialog__body) {
   padding: 0;
   height: calc(100vh - 60px);
   overflow: hidden;
-  background: radial-gradient(circle at center, #ffffff 0%, #f4f6f9 100%);
-}
-html.dark :deep(.immersive-editor-dialog .el-dialog__body) {
-  background: radial-gradient(circle at center, #1a1a1a 0%, #0d0d0d 100%);
+  background:
+    radial-gradient(circle at 50% 0, var(--ds-accent-subtle), transparent 34%),
+    var(--ds-bg-primary);
 }
 
 .immersive-header {
@@ -1101,26 +1102,22 @@ html.dark :deep(.immersive-editor-dialog .el-dialog__body) {
   align-items: center;
   justify-content: space-between;
   height: 60px;
-  padding: 0 20px;
-  background: rgba(255, 255, 255, 0.7);
-  backdrop-filter: blur(12px);
-  border-bottom: 1px solid rgba(0,0,0,0.05);
-}
-html.dark .immersive-header {
-  background: rgba(30, 30, 30, 0.7);
-  border-bottom: 1px solid rgba(255,255,255,0.05);
+  padding: 0 var(--ds-space-5);
+  background: var(--ds-glass-bg);
+  backdrop-filter: var(--ds-glass-blur);
+  border-bottom: 1px solid var(--ds-glass-border);
 }
 
 .header-left {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: var(--ds-space-2);
   width: 250px;
 }
+
 .header-chapter-num {
+  color: var(--ds-text-secondary);
   font-weight: 600;
-  color: var(--el-text-color-primary);
-  opacity: 0.8;
 }
 
 .header-center {
@@ -1128,27 +1125,36 @@ html.dark .immersive-header {
   display: flex;
   justify-content: center;
 }
+
 :deep(.immersive-title-input .el-input__wrapper) {
-  box-shadow: none !important;
-  background: transparent;
-  font-size: 20px;
-  font-weight: bold;
+  width: 440px;
+  border-radius: var(--ds-radius-full);
+  background: var(--ds-bg-secondary);
+  box-shadow: 0 0 0 1px var(--ds-surface-border) inset !important;
+  font-size: var(--ds-text-xl);
+  font-weight: 700;
   text-align: center;
-  width: 400px;
 }
+
+:deep(.immersive-title-input .el-input__wrapper.is-focus) {
+  box-shadow: 0 0 0 1px var(--ds-accent) inset, var(--ds-shadow-glow) !important;
+}
+
 :deep(.immersive-title-input .el-input__inner) {
+  color: var(--ds-text-primary);
   text-align: center;
 }
 
 .header-right {
   display: flex;
   align-items: center;
-  gap: 15px;
+  gap: var(--ds-space-3);
   width: 250px;
   justify-content: flex-end;
 }
+
 .immersive-status {
-  font-size: 13px;
+  font-size: var(--ds-text-sm);
   font-weight: 500;
 }
 
@@ -1162,26 +1168,30 @@ html.dark .immersive-header {
   flex: 1;
   display: flex;
   flex-direction: column;
-  padding: 0 15%;
+  padding: 0 min(15%, 180px);
   position: relative;
 }
 
 .immersive-toolbar {
   display: flex;
   align-items: center;
-  height: 50px;
-  padding: 0 10;
-  opacity: 0.6;
-  transition: opacity 0.3s;
+  gap: var(--ds-space-2);
+  min-height: 54px;
+  padding: var(--ds-space-2) 0;
+  opacity: 0.72;
+  transition: opacity var(--ds-transition-normal);
+  flex-wrap: wrap;
 }
+
 .immersive-toolbar:hover {
   opacity: 1;
 }
+
 .word-count {
   margin-left: auto;
-  font-size: 13px;
-  color: var(--el-text-color-secondary);
-  font-family: monospace;
+  color: var(--ds-text-tertiary);
+  font-family: var(--ds-font-mono);
+  font-size: var(--ds-text-sm);
 }
 
 .quality-report-dialog {
@@ -1189,26 +1199,42 @@ html.dark .immersive-header {
 }
 
 .quality-dimension-card {
-  margin-bottom: 15px;
+  margin-bottom: var(--ds-space-4);
+  border-radius: var(--ds-radius-md);
+  background: var(--ds-surface);
 }
 
 .quality-dimension-card .dimension-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 10px;
+  gap: var(--ds-space-4);
+  margin-bottom: var(--ds-space-3);
 }
 
 .quality-dimension-card .dimension-name {
+  color: var(--ds-text-primary);
+  font-size: var(--ds-text-sm);
   font-weight: 600;
-  font-size: 14px;
 }
 
-.quality-dimension-card .dimension-issues {
-  margin-top: 10px;
-}
-
+.quality-dimension-card .dimension-issues,
 .dimension-issues {
-  margin-top: 10px;
+  margin-top: var(--ds-space-3);
+}
+
+@media (max-width: 1024px) {
+  .immersive-editor-area {
+    padding: 0 var(--ds-space-6);
+  }
+
+  .header-left,
+  .header-right {
+    width: auto;
+  }
+
+  :deep(.immersive-title-input .el-input__wrapper) {
+    width: min(360px, 45vw);
+  }
 }
 </style>

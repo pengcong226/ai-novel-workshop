@@ -25,10 +25,17 @@ const DEFAULT_ADVANCED_SETTINGS: AdvancedSettings = {
   stopSequences: []
 }
 
+const DEFAULT_LOCAL_EMBEDDING_MODEL = 'Xenova/bge-small-zh-v1.5'
+const LEGACY_LOCAL_EMBEDDING_MODELS = new Set([
+  '/dist/models/Xenova/bge-m3',
+  '/models/Xenova/bge-m3',
+  'Xenova/bge-m3',
+])
+
 const DEFAULT_VECTOR_CONFIG: VectorServiceConfig = {
   provider: 'local',
-  model: '/dist/models/Xenova/bge-m3',
-  dimension: 1024,
+  model: DEFAULT_LOCAL_EMBEDDING_MODEL,
+  dimension: 512,
   topK: 5,
   minScore: 0.6,
   vectorWeight: 0.7
@@ -114,6 +121,11 @@ function normalizeAdvancedSettings(
   }
 }
 
+function normalizeVectorModel(model: string | undefined): string | undefined {
+  if (!model) return model
+  return LEGACY_LOCAL_EMBEDDING_MODELS.has(model) ? DEFAULT_LOCAL_EMBEDDING_MODEL : model
+}
+
 function normalizeVectorConfig(
   vectorConfig: unknown,
   fallback: VectorServiceConfig
@@ -124,7 +136,7 @@ function normalizeVectorConfig(
 
   return {
     provider: source.provider ?? fallback.provider,
-    model: source.model ?? fallback.model,
+    model: normalizeVectorModel(source.model) ?? fallback.model,
     dimension: source.dimension ?? fallback.dimension,
     apiKey: source.apiKey ?? fallback.apiKey,
     baseUrl: source.baseUrl ?? fallback.baseUrl,

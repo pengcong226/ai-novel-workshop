@@ -863,7 +863,7 @@ fn delete_entity(
     project_id: String,
     entity_id: String,
 ) -> Result<(), String> {
-    let db = lock_db!(state);
+    let mut db = lock_db!(state);
     let tx = db.transaction().map_err(|e| e.to_string())?;
     let rows = tx.execute(
         "DELETE FROM entities WHERE project_id = ?1 AND id = ?2",
@@ -923,7 +923,7 @@ fn batch_save_entities(
     entities_json: String,
 ) -> Result<(), String> {
     let arr: Vec<serde_json::Value> = serde_json::from_str(&entities_json).map_err(|e| e.to_string())?;
-    let db = lock_db!(state);
+    let mut db = lock_db!(state);
     let tx = db.transaction().map_err(|e| e.to_string())?;
     for v in &arr {
         let id = v["id"].as_str().unwrap_or_default().to_string();
@@ -956,7 +956,7 @@ fn batch_save_state_events(
     events_json: String,
 ) -> Result<(), String> {
     let arr: Vec<serde_json::Value> = serde_json::from_str(&events_json).map_err(|e| e.to_string())?;
-    let db = lock_db!(state);
+    let mut db = lock_db!(state);
     let tx = db.transaction().map_err(|e| e.to_string())?;
     for v in &arr {
         let id = v["id"].as_str().unwrap_or_default().to_string();

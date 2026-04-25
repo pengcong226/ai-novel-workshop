@@ -10,15 +10,14 @@
 
       <el-alert type="info" :closable="false" show-icon>
         <template #title>多 Agent 协作写作状态</template>
-        <div>这里展示当前项目的 Agent 配置。当前只有编辑审校和读者反馈接入生成后流程，运行日志会写入调试日志。</div>
+        <div>这里展示当前项目的 Agent 配置。生成前可运行规划师，生成后可按优先级运行哨兵、编辑审校、读者反馈和抽取器。</div>
       </el-alert>
 
       <div class="agent-grid">
         <el-card v-for="agent in agentConfigs" :key="agent.role" shadow="never" class="agent-card">
           <div class="agent-title">
             <span>{{ agentLabels[agent.role] }}</span>
-            <el-tag v-if="agent.role !== 'editor' && agent.role !== 'reader'" size="small" type="info">未接入</el-tag>
-            <el-tag v-else :type="agent.enabled ? 'success' : 'info'" size="small">
+            <el-tag :type="agent.enabled ? 'success' : 'info'" size="small">
               {{ agent.enabled ? '已启用' : '已关闭' }}
             </el-tag>
           </div>
@@ -68,7 +67,7 @@ const agentConfigs = computed(() =>
 }
 
 .console-card {
-  border-radius: 12px;
+  border-radius: var(--ds-radius-lg);
 }
 
 .card-header,
@@ -85,24 +84,41 @@ const agentConfigs = computed(() =>
 
 .agent-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
-  gap: 16px;
-  margin-top: 20px;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: var(--ds-space-4);
+  margin-top: var(--ds-space-5);
 }
 
 .agent-card {
-  border-radius: 10px;
+  position: relative;
+  overflow: hidden;
+  border-radius: var(--ds-radius-md);
+}
+
+.agent-card::before {
+  content: '';
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 4px;
+  background: var(--ds-accent);
 }
 
 .agent-title {
   font-weight: 600;
-  margin-bottom: 12px;
+  margin-bottom: var(--ds-space-3);
+  padding-left: var(--ds-space-2);
+}
+
+.agent-title span:first-child::before {
+  content: '🤖';
+  margin-right: var(--ds-space-2);
 }
 
 .agent-meta {
   flex-direction: column;
-  gap: 6px;
-  color: #606266;
-  font-size: 13px;
+  gap: var(--ds-space-2);
+  color: var(--ds-text-secondary);
+  font-size: var(--ds-text-sm);
+  padding-left: var(--ds-space-2);
 }
 </style>

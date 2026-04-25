@@ -1,42 +1,51 @@
 <template>
   <div class="project-list">
-    <!-- 头部工具栏 -->
-    <div class="header">
-      <div class="header-content">
-        <h1>我的项目</h1>
-        <p class="subtitle">管理你的小说创作项目</p>
+    <section class="hero-section slide-up">
+      <div class="hero-content">
+        <p class="hero-kicker">AI 小说工坊</p>
+        <h1 class="hero-title">创作工坊</h1>
+        <p class="hero-subtitle">
+          {{ projectStore.projects.length }} 部作品 · {{ totalWords }} 万字
+        </p>
       </div>
-      <div class="header-actions">
-        <el-button @click="showImportDialog = true">
-          <el-icon><Upload /></el-icon> 导入项目
+      <div class="hero-actions">
+        <el-button round @click="showImportDialog = true">
+          <el-icon><Upload /></el-icon>
+          导入
         </el-button>
-        <el-button type="primary" @click="showCreateDialog = true">
-          <el-icon><Plus /></el-icon> 新建项目
+        <el-button type="primary" round @click="showCreateDialog = true">
+          <el-icon><Plus /></el-icon>
+          新建项目
         </el-button>
       </div>
-    </div>
+    </section>
 
-    <!-- 项目列表内容 -->
-    <div class="main" v-loading="projectStore.loading">
-      <el-empty
+    <main class="main" v-loading="projectStore.loading">
+      <div
         v-if="!projectStore.loading && projectStore.projects.length === 0"
-        description="暂无项目，开始你的创作之旅吧！"
+        class="empty-state glass-panel fade-in"
       >
-        <el-button type="primary" @click="showCreateDialog = true">新建项目</el-button>
-        <el-button @click="showTemplateCreateDialog = true" style="margin-left: 10px;">从模板创建</el-button>
-      </el-empty>
+        <div class="empty-emoji">✍️</div>
+        <h2>开始你的第一部作品</h2>
+        <p>从空白项目或模板出发，把设定、章节和审校流程集中到一个创作空间。</p>
+        <div class="empty-actions">
+          <el-button type="primary" round @click="showCreateDialog = true">新建项目</el-button>
+          <el-button round @click="showTemplateCreateDialog = true">从模板创建</el-button>
+        </div>
+      </div>
 
       <div v-else class="project-grid">
-        <el-card
-          v-for="project in projectStore.projects"
+        <article
+          v-for="(project, idx) in projectStore.projects"
           :key="project.id"
-          class="project-card"
-          shadow="hover"
+          class="project-card fade-in"
+          :style="{ animationDelay: `${idx * 60}ms` }"
           @click="openProject(project.id)"
         >
-          <template #header>
+          <div class="card-accent" :style="{ background: getAccentGradient(project.genre) }"></div>
+          <div class="card-body">
             <div class="card-header">
-              <span class="project-title" :title="project.title">{{ project.title }}</span>
+              <h3 class="card-title" :title="project.title">{{ project.title }}</h3>
               <el-dropdown @click.stop trigger="click" @command="(cmd: string) => handleCommand(cmd, project.id)">
                 <el-icon class="more-btn"><MoreFilled /></el-icon>
                 <template #dropdown>
@@ -54,40 +63,38 @@
                 </template>
               </el-dropdown>
             </div>
-          </template>
 
-          <div class="project-content">
-            <div class="info-row">
-              <span class="label">类型：</span>
-              <el-tag size="small" type="info">{{ project.genre || '未分类' }}</el-tag>
-            </div>
-            
-            <div class="info-row status-row">
-              <span class="label">状态：</span>
+            <div class="card-meta">
+              <el-tag size="small">{{ project.genre || '未分类' }}</el-tag>
               <el-tag size="small" :type="getStatusType(project.status)">
                 {{ getStatusText(project.status) }}
               </el-tag>
+              <span class="card-date">{{ formatRelativeTime(project.updatedAt) }}</span>
             </div>
 
-            <div class="progress-section">
-              <div class="progress-info">
-                <span class="words">{{ formatNumber(project.currentWords) }} / {{ formatNumber(project.targetWords) }} 字</span>
-                <span class="percent">{{ getProgress(project.currentWords, project.targetWords) }}%</span>
+            <p v-if="project.description" class="card-description">
+              {{ project.description }}
+            </p>
+            <p v-else class="card-description muted">
+              尚未填写作品简介
+            </p>
+
+            <div class="card-progress">
+              <div class="progress-header">
+                <span class="progress-text">{{ formatNumber(project.currentWords) }} / {{ formatNumber(project.targetWords) }} 字</span>
+                <span class="progress-percent">{{ getProgress(project.currentWords, project.targetWords) }}%</span>
               </div>
-              <el-progress 
-                :percentage="getProgress(project.currentWords, project.targetWords)" 
-                :show-text="false"
-                :color="getProgressColor"
-              />
-            </div>
-
-            <div class="project-footer">
-              <span class="update-time">最后更新：{{ formatDate(project.updatedAt) }}</span>
+              <div class="progress-bar">
+                <div
+                  class="progress-fill"
+                  :style="{ width: getProgress(project.currentWords, project.targetWords) + '%' }"
+                ></div>
+              </div>
             </div>
           </div>
-        </el-card>
+        </article>
       </div>
-    </div>
+    </main>
 
     <!-- 新建项目对话框 -->
     <el-dialog
@@ -242,7 +249,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, reactive, defineAsyncComponent } from 'vue'
+import { ref, onMounted, reactive, defineAsyncComponent, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { useProjectStore } from '@/stores/project'
 import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'element-plus'
@@ -256,6 +263,11 @@ const logger = getLogger('views:ProjectList')
 
 const router = useRouter()
 const projectStore = useProjectStore()
+
+const totalWords = computed(() => {
+  const words = projectStore.projects.reduce((sum, project) => sum + (project.currentWords || 0), 0)
+  return (words / 10000).toFixed(1)
+})
 
 // 对话框状态
 const showCreateDialog = ref(false)
@@ -550,207 +562,294 @@ function formatDate(date: Date | string) {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 }
 
-const getProgressColor = (percentage: number) => {
-  if (percentage < 30) return '#909399'
-  if (percentage < 70) return '#e6a23c'
-  return '#67c23a'
+function formatRelativeTime(date: Date | string) {
+  const timestamp = new Date(date).getTime()
+  const diffDays = Math.floor((Date.now() - timestamp) / 86400000)
+
+  if (diffDays <= 0) return '今天更新'
+  if (diffDays === 1) return '昨天更新'
+  if (diffDays < 30) return `${diffDays} 天前`
+  return formatDate(date)
+}
+
+function getAccentGradient(genre?: string) {
+  const gradients: Record<string, string> = {
+    '玄幻': 'linear-gradient(90deg, #6c5ce7, #a78bfa)',
+    '都市': 'linear-gradient(90deg, #3b82f6, #60a5fa)',
+    '科幻': 'linear-gradient(90deg, #06b6d4, #22d3ee)',
+    '武侠': 'linear-gradient(90deg, #f59e0b, #fbbf24)',
+    '历史': 'linear-gradient(90deg, #ef4444, #f87171)',
+    '言情': 'linear-gradient(90deg, #ec4899, #f472b6)',
+    '悬疑': 'linear-gradient(90deg, #8b5cf6, #c084fc)',
+    '游戏': 'linear-gradient(90deg, #10b981, #34d399)',
+    '奇幻': 'linear-gradient(90deg, #6366f1, #818cf8)',
+    '轻小说': 'linear-gradient(90deg, #f97316, #fb923c)'
+  }
+  return gradients[genre || ''] || 'linear-gradient(90deg, var(--ds-accent), var(--ds-accent-hover))'
 }
 </script>
 
 <style scoped>
 .project-list {
-  height: 100vh;
-  display: flex;
-  flex-direction: column;
-  background-color: #f5f7fa;
-}
-
-.header {
-  background: white;
-  border-bottom: 1px solid #e4e7ed;
-  padding: 20px 40px;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
-}
-
-.header-content h1 {
-  margin: 0;
-  font-size: 24px;
-  color: #303133;
-}
-
-.header-content .subtitle {
-  margin: 5px 0 0;
-  font-size: 14px;
-  color: #909399;
-}
-
-.header-actions {
-  display: flex;
-  gap: 10px;
-}
-
-.main {
-  flex: 1;
-  padding: 20px 40px;
+  min-height: 100vh;
+  background:
+    radial-gradient(circle at top left, color-mix(in srgb, var(--ds-accent) 16%, transparent), transparent 34%),
+    var(--ds-bg-primary);
+  padding: var(--ds-space-8);
+  color: var(--ds-text-primary);
   overflow-y: auto;
 }
 
-.loading {
+.hero-section {
   display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  height: 200px;
-  color: #909399;
+  justify-content: space-between;
+  align-items: flex-end;
+  gap: var(--ds-space-6);
+  margin-bottom: var(--ds-space-10);
+  padding-bottom: var(--ds-space-6);
+  border-bottom: 1px solid var(--ds-surface-border);
 }
 
-.loading .el-icon {
-  font-size: 32px;
-  margin-bottom: 10px;
+.hero-kicker {
+  margin: 0 0 var(--ds-space-2);
+  color: var(--ds-accent-text);
+  font-size: var(--ds-text-xs);
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+}
+
+.hero-title {
+  margin: 0;
+  font-size: var(--ds-text-3xl);
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  line-height: 1.1;
+  background: linear-gradient(135deg, var(--ds-text-primary), var(--ds-accent-text));
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.hero-subtitle {
+  margin: var(--ds-space-2) 0 0;
+  color: var(--ds-text-tertiary);
+  font-size: var(--ds-text-md);
+}
+
+.hero-actions,
+.empty-actions {
+  display: flex;
+  gap: var(--ds-space-3);
+  flex-wrap: wrap;
+}
+
+.main {
+  min-height: 320px;
+}
+
+.empty-state {
+  max-width: 560px;
+  margin: var(--ds-space-12) auto;
+  padding: var(--ds-space-10);
+  text-align: center;
+}
+
+.empty-emoji {
+  font-size: 56px;
+  margin-bottom: var(--ds-space-4);
+}
+
+.empty-state h2 {
+  margin: 0;
+  font-size: var(--ds-text-2xl);
+  background: linear-gradient(135deg, var(--ds-text-primary), var(--ds-accent-text));
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.empty-state p {
+  margin: var(--ds-space-3) auto var(--ds-space-6);
+  max-width: 420px;
+  color: var(--ds-text-secondary);
+}
+
+.empty-actions {
+  justify-content: center;
 }
 
 .project-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
-  gap: 20px;
+  gap: var(--ds-space-5);
 }
 
 .project-card {
+  background: var(--ds-surface);
+  border: 1px solid var(--ds-surface-border);
+  border-radius: var(--ds-radius-lg);
+  overflow: hidden;
   cursor: pointer;
-  transition: all 0.3s ease;
-  border: 1px solid #e4e7ed;
+  transition: all var(--ds-transition-normal);
+  opacity: 0;
 }
 
 .project-card:hover {
-  transform: translateY(-5px);
-  box-shadow: 0 8px 16px rgba(0, 0, 0, 0.1);
-  border-color: #c0c4cc;
+  border-color: var(--ds-accent);
+  transform: translateY(-3px);
+  box-shadow: var(--ds-shadow-lg), var(--ds-shadow-glow);
+}
+
+.card-accent {
+  height: 4px;
+}
+
+.card-body {
+  padding: var(--ds-space-5);
 }
 
 .card-header {
   display: flex;
+  align-items: flex-start;
   justify-content: space-between;
-  align-items: center;
+  gap: var(--ds-space-3);
 }
 
-.project-title {
-  font-size: 18px;
+.card-title {
+  min-width: 0;
+  margin: 0;
+  color: var(--ds-text-primary);
+  font-size: var(--ds-text-lg);
   font-weight: 600;
-  color: #303133;
+  line-height: 1.35;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
 .more-btn {
-  font-size: 20px;
-  color: #909399;
+  color: var(--ds-text-tertiary);
   cursor: pointer;
-  padding: 4px;
-  border-radius: 4px;
-  transition: background-color 0.2s;
+  padding: var(--ds-space-1);
+  border-radius: var(--ds-radius-sm);
+  transition: all var(--ds-transition-fast);
 }
 
 .more-btn:hover {
-  background-color: #f0f2f5;
-  color: #303133;
+  background: var(--ds-bg-hover);
+  color: var(--ds-text-primary);
 }
 
-.project-content {
-  display: flex;
-  flex-direction: column;
-  gap: 15px;
-}
-
-.info-row {
+.card-meta {
   display: flex;
   align-items: center;
-  font-size: 14px;
+  gap: var(--ds-space-2);
+  margin-top: var(--ds-space-3);
+  color: var(--ds-text-tertiary);
+  font-size: var(--ds-text-sm);
+  flex-wrap: wrap;
 }
 
-.info-row .label {
-  color: #909399;
-  width: 60px;
+.card-date {
+  margin-left: auto;
 }
 
-.progress-section {
-  background: #f8f9fa;
-  padding: 12px;
-  border-radius: 8px;
-  margin-top: 5px;
+.card-description {
+  min-height: 44px;
+  margin: var(--ds-space-4) 0 0;
+  color: var(--ds-text-secondary);
+  font-size: var(--ds-text-sm);
+  line-height: 1.6;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
 }
 
-.progress-info {
+.card-description.muted {
+  color: var(--ds-text-tertiary);
+}
+
+.card-progress {
+  margin-top: var(--ds-space-5);
+}
+
+.progress-header {
   display: flex;
   justify-content: space-between;
-  margin-bottom: 8px;
-  font-size: 13px;
+  gap: var(--ds-space-3);
+  margin-bottom: var(--ds-space-2);
+  font-size: var(--ds-text-xs);
 }
 
-.progress-info .words {
-  color: #606266;
-  font-family: monospace;
+.progress-text {
+  color: var(--ds-text-tertiary);
+  font-family: var(--ds-font-mono);
 }
 
-.progress-info .percent {
-  color: #409eff;
+.progress-percent {
+  color: var(--ds-accent-text);
   font-weight: 600;
 }
 
-.project-footer {
-  margin-top: auto;
-  padding-top: 15px;
-  border-top: 1px solid #ebeef5;
-  display: flex;
-  justify-content: flex-end;
+.progress-bar {
+  height: 4px;
+  background: var(--ds-bg-tertiary);
+  border-radius: var(--ds-radius-full);
+  overflow: hidden;
 }
 
-.update-time {
-  font-size: 12px;
-  color: #c0c4cc;
+.progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--ds-accent), var(--ds-accent-hover));
+  border-radius: var(--ds-radius-full);
+  transition: width var(--ds-transition-slow);
 }
 
 .form-tip {
-  font-size: 12px;
-  color: #909399;
-  margin-top: 5px;
+  font-size: var(--ds-text-xs);
+  color: var(--ds-text-tertiary);
+  margin-top: var(--ds-space-1);
   line-height: 1.4;
 }
 
-/* 响应式调整 */
-@media (max-width: 768px) {
-  .header {
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 15px;
-    padding: 15px 20px;
-  }
-  
-  .main {
-    padding: 15px 20px;
-  }
-  
-  .project-grid {
-    grid-template-columns: 1fr;
-  }
-}
-
 .template-create-form {
-  padding: 0 20px;
+  padding: 0 var(--ds-space-5);
 }
 
 .mr-2 {
-  margin-right: 8px;
+  margin-right: var(--ds-space-2);
 }
 
 .mt-4 {
-  margin-top: 16px;
+  margin-top: var(--ds-space-4);
 }
 
 .mb-4 {
-  margin-bottom: 16px;
+  margin-bottom: var(--ds-space-4);
+}
+
+@media (max-width: 768px) {
+  .project-list {
+    padding: var(--ds-space-5);
+  }
+
+  .hero-section {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .hero-title {
+    font-size: var(--ds-text-2xl);
+  }
+
+  .project-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .hero-actions {
+    width: 100%;
+  }
 }
 </style>

@@ -24,6 +24,9 @@ const customProxyTarget = getCustomProxyTarget()
 
 export default defineConfig({
   plugins: [vue()],
+  define: {
+    __APP_IS_TAURI__: Boolean(process.env.TAURI_ENV_PLATFORM)
+  },
   resolve: {
     alias: {
       '@': resolve(__dirname, 'src')

@@ -1,5 +1,5 @@
 use rusqlite::{Connection, Result};
-use std::sync::{Arc, RwLock};
+use std::sync::Arc;
 use tauri::State;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;

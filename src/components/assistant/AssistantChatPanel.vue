@@ -97,18 +97,19 @@ defineExpose({ messagesRef })
   height: 100%;
   display: flex;
   flex-direction: column;
+  background: var(--ds-bg-elevated);
 }
 
 .messages {
   flex: 1;
   overflow-y: auto;
-  padding: 20px;
+  padding: var(--ds-space-5);
 }
 
 .message {
   display: flex;
-  gap: 12px;
-  margin-bottom: 20px;
+  gap: var(--ds-space-3);
+  margin-bottom: var(--ds-space-5);
 }
 
 .message.user {
@@ -121,47 +122,52 @@ defineExpose({ messagesRef })
 
 .message-content {
   flex: 1;
-  max-width: 80%;
+  max-width: 82%;
 }
 
 .message-text {
-  padding: 12px 16px;
-  border-radius: 12px;
-  line-height: 1.6;
+  padding: var(--ds-space-3) var(--ds-space-4);
+  border-radius: var(--ds-radius-md);
+  line-height: 1.7;
   word-wrap: break-word;
+  border: 1px solid var(--ds-surface-border);
 }
 
 .message.user .message-text {
-  background: #409eff;
-  color: white;
-  border-bottom-right-radius: 4px;
+  background: var(--ds-accent-subtle);
+  color: var(--ds-text-primary);
+  border-color: color-mix(in srgb, var(--ds-accent) 24%, transparent);
+  border-bottom-right-radius: var(--ds-radius-sm);
 }
 
 .message.assistant .message-text {
-  background: #f0f2f5;
-  color: #333;
-  border-bottom-left-radius: 4px;
+  background: var(--ds-surface);
+  color: var(--ds-text-primary);
+  border-left: 2px solid var(--ds-accent);
+  border-bottom-left-radius: var(--ds-radius-sm);
 }
 
 .message-actions {
-  margin-top: 8px;
+  margin-top: var(--ds-space-2);
   display: flex;
-  gap: 8px;
+  gap: var(--ds-space-2);
   flex-wrap: wrap;
 }
 
 .typing-indicator {
   display: flex;
-  gap: 4px;
-  padding: 12px 16px;
-  background: #f0f2f5;
-  border-radius: 12px;
+  gap: var(--ds-space-1);
+  padding: var(--ds-space-3) var(--ds-space-4);
+  background: var(--ds-surface);
+  border: 1px solid var(--ds-surface-border);
+  border-left: 2px solid var(--ds-accent);
+  border-radius: var(--ds-radius-md);
 }
 
 .typing-indicator span {
   width: 8px;
   height: 8px;
-  background: #999;
+  background: var(--ds-accent);
   border-radius: 50%;
   animation: typing 1.4s infinite;
 }
@@ -184,21 +190,27 @@ defineExpose({ messagesRef })
 }
 
 .quick-actions {
-  padding: 12px 20px;
-  border-top: 1px solid #e4e7ed;
+  padding: var(--ds-space-3) var(--ds-space-5);
+  border-top: 1px solid var(--ds-surface-border);
   display: flex;
-  gap: 8px;
+  gap: var(--ds-space-2);
   flex-wrap: wrap;
+  background: var(--ds-bg-secondary);
+}
+
+.quick-actions .el-button {
+  border-radius: var(--ds-radius-full) !important;
 }
 
 .input-area {
-  padding: 16px 20px;
-  border-top: 1px solid #e4e7ed;
+  padding: var(--ds-space-4) var(--ds-space-5);
+  border-top: 1px solid var(--ds-surface-border);
+  background: var(--ds-bg-tertiary);
 }
 
 .input-actions {
   display: flex;
   justify-content: space-between;
-  margin-top: 12px;
+  margin-top: var(--ds-space-3);
 }
 </style>

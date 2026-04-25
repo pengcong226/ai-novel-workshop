@@ -406,14 +406,15 @@ onMounted(() => {
   border-radius: 8px;
   font-size: 13px;
   line-height: 1.5;
+  color: var(--el-text-color-primary);
 }
 .msg-ai {
-  background: rgba(30, 41, 59, 0.6);
-  border: 1px solid rgba(255,255,255,0.05);
+  background: var(--el-bg-color-overlay);
+  border: 1px solid var(--el-border-color-light);
 }
 .msg-user {
-  background: rgba(64, 158, 255, 0.14);
-  border: 1px solid rgba(64, 158, 255, 0.25);
+  background: var(--el-color-primary-light-9);
+  border: 1px solid var(--el-color-primary-light-7);
 }
 .msg-system {
   background: transparent;
@@ -464,7 +465,7 @@ onMounted(() => {
   word-break: break-word;
   max-height: 160px;
   overflow-y: auto;
-  color: #d1d5db;
+  color: var(--el-text-color-regular);
   font-size: 12px;
 }
 .quick-actions {
@@ -484,9 +485,9 @@ onMounted(() => {
 .chat-input textarea {
   flex: 1;
   width: 100%;
-  background: rgba(0,0,0,0.4);
-  border: 1px solid var(--border-color);
-  color: white;
+  background: var(--el-bg-color);
+  border: 1px solid var(--el-border-color);
+  color: var(--el-text-color-primary);
   padding: 12px;
   border-radius: 8px;
   outline: none;

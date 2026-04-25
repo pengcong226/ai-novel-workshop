@@ -152,74 +152,59 @@ onUnmounted(() => {
 </script>
 
 <style>
-* {
-  margin: 0;
-  padding: 0;
-  box-sizing: border-box;
-}
-
 html, body, #app, .app-container {
   height: 100%;
   width: 100%;
   overflow: hidden;
 }
 
-body {
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial,
-    'Noto Sans', sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol',
-    'Noto Color Emoji';
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
-  background-color: #f5f7fa;
-}
-
-/* 离线状态提示 */
 .offline-banner {
   position: fixed;
   top: 0;
   left: 0;
   right: 0;
   z-index: 10000;
-  padding: 8px 16px;
-  background: #fdf6ec;
-  color: #b88230;
-  border-bottom: 1px solid #faecd8;
+  padding: var(--ds-space-2) var(--ds-space-4);
+  background: color-mix(in srgb, var(--ds-warning) 14%, var(--ds-bg-elevated));
+  color: var(--ds-warning);
+  border-bottom: 1px solid color-mix(in srgb, var(--ds-warning) 24%, transparent);
   text-align: center;
-  font-size: 14px;
+  font-size: var(--ds-text-base);
 }
 
-/* 全局错误样式 */
 .error-boundary {
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
   height: 100vh;
-  padding: 40px;
+  padding: var(--ds-space-10);
   text-align: center;
+  background: var(--ds-bg-primary);
+  color: var(--ds-text-primary);
 }
 
 .error-icon {
   font-size: 64px;
-  margin-bottom: 24px;
+  margin-bottom: var(--ds-space-6);
 }
 
 .error-title {
-  font-size: 24px;
+  font-size: var(--ds-text-xl);
   font-weight: 600;
-  margin-bottom: 16px;
-  color: #303133;
+  margin-bottom: var(--ds-space-4);
+  color: var(--ds-text-primary);
 }
 
 .error-message {
-  font-size: 14px;
-  color: #606266;
-  margin-bottom: 24px;
+  font-size: var(--ds-text-base);
+  color: var(--ds-text-secondary);
+  margin-bottom: var(--ds-space-6);
   max-width: 600px;
 }
 
 .error-actions {
   display: flex;
-  gap: 12px;
+  gap: var(--ds-space-3);
 }
 </style>

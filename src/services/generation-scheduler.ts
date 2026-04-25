@@ -20,6 +20,8 @@ import { AgentOrchestrator } from '@/agents/AgentOrchestrator'
 import { PlannerAgent } from '@/agents/PlannerAgent'
 import { EditorAgent } from '@/agents/EditorAgent'
 import { ReaderAgent } from '@/agents/ReaderAgent'
+import { SentinelAgent } from '@/agents/SentinelAgent'
+import { ExtractorAgent } from '@/agents/ExtractorAgent'
 import type { AgentConfig } from '@/agents/types'
 
 const logger = getLogger('generation:scheduler')
@@ -162,8 +164,13 @@ export class GenerationScheduler {
     if (!project) return
 
     const orchestrator = new AgentOrchestrator({
-      agents: [new EditorAgent(), new ReaderAgent()],
-      configs: configs.filter(config => config.role === 'editor' || config.role === 'reader'),
+      agents: [
+        new SentinelAgent(),
+        new EditorAgent(),
+        new ReaderAgent(),
+        new ExtractorAgent({ extractChapter: chapter => this.updateProjectSettings(chapter) }),
+      ],
+      configs: configs.filter(config => ['sentinel', 'editor', 'reader', 'extractor'].includes(config.role)),
       logger,
       onTrace: event => logger.debug('[Agent]', event),
     })

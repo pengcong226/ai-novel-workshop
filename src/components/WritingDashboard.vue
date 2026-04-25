@@ -192,31 +192,34 @@ function getStatusType(status: Chapter['status']): 'info' | 'warning' | 'success
 .writing-dashboard {
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: var(--ds-space-4);
 }
 
 .dashboard-hero {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 20px;
-  padding: 28px;
-  border-radius: 18px;
-  background: linear-gradient(135deg, #ecf5ff, #f5f7fa);
-  border: 1px solid #d9ecff;
+  gap: var(--ds-space-5);
+  padding: var(--ds-space-8);
+  border-radius: var(--ds-radius-xl);
+  background:
+    linear-gradient(135deg, var(--ds-accent-subtle), transparent),
+    var(--ds-surface);
+  border: 1px solid var(--ds-surface-border);
+  box-shadow: var(--ds-shadow-md);
 }
 
 .eyebrow {
-  margin: 0 0 8px;
-  color: #409eff;
+  margin: 0 0 var(--ds-space-2);
+  color: var(--ds-accent-text);
   font-weight: 700;
   letter-spacing: 0.08em;
 }
 
 .dashboard-hero h1 {
   margin: 0;
-  font-size: 28px;
-  color: #303133;
+  font-size: var(--ds-text-2xl);
+  color: var(--ds-text-primary);
 }
 
 .subtitle,
@@ -224,34 +227,45 @@ function getStatusType(status: Chapter['status']): 'info' | 'warning' | 'success
 .metric-foot,
 .recent-meta,
 .next-chapter p {
-  color: #909399;
+  color: var(--ds-text-tertiary);
 }
 
 .subtitle {
-  margin: 10px 0 0;
+  margin: var(--ds-space-2) 0 0;
 }
 
 .metrics-row,
 .dashboard-grid {
-  row-gap: 16px;
+  row-gap: var(--ds-space-4);
 }
 
 .metric-card,
 .dashboard-card {
+  position: relative;
   height: 100%;
-  border-radius: 14px;
+  border-radius: var(--ds-radius-lg);
+  overflow: hidden;
+}
+
+.metric-card::before,
+.dashboard-card::before {
+  content: '';
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 4px;
+  background: var(--ds-accent);
 }
 
 .metric-label {
-  color: #909399;
-  font-size: 13px;
+  color: var(--ds-text-tertiary);
+  font-size: var(--ds-text-sm);
 }
 
 .metric-value {
-  margin: 10px 0 8px;
+  margin: var(--ds-space-2) 0;
   font-size: 30px;
   font-weight: 700;
-  color: #303133;
+  color: var(--ds-text-primary);
 }
 
 .card-header,
@@ -259,7 +273,7 @@ function getStatusType(status: Chapter['status']): 'info' | 'warning' | 'success
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
+  gap: var(--ds-space-3);
 }
 
 .status-list,
@@ -267,19 +281,19 @@ function getStatusType(status: Chapter['status']): 'info' | 'warning' | 'success
 .recent-list {
   display: flex;
   flex-direction: column;
-  gap: 14px;
+  gap: var(--ds-space-3);
 }
 
 .status-item {
   display: grid;
   grid-template-columns: 56px 1fr 32px;
   align-items: center;
-  gap: 10px;
+  gap: var(--ds-space-3);
 }
 
 .next-chapter h3 {
-  margin: 12px 0 8px;
-  color: #303133;
+  margin: var(--ds-space-3) 0 var(--ds-space-2);
+  color: var(--ds-text-primary);
 }
 
 .quick-actions .el-button {
@@ -292,8 +306,8 @@ function getStatusType(status: Chapter['status']): 'info' | 'warning' | 'success
 }
 
 .recent-item {
-  padding: 12px 0;
-  border-bottom: 1px solid #ebeef5;
+  padding: var(--ds-space-3) 0;
+  border-bottom: 1px solid var(--ds-surface-border);
 }
 
 .recent-item:last-child {
@@ -302,12 +316,12 @@ function getStatusType(status: Chapter['status']): 'info' | 'warning' | 'success
 
 .recent-title {
   font-weight: 600;
-  color: #303133;
+  color: var(--ds-text-primary);
 }
 
 .recent-tags {
   display: flex;
-  gap: 8px;
+  gap: var(--ds-space-2);
   flex-shrink: 0;
 }
 

@@ -2,13 +2,14 @@ import { defineStore } from 'pinia'
 import { ref, watch } from 'vue'
 import { usePluginStore } from './plugin'
 
+const DEFAULT_THEME_ID = 'builtin-classic-light-theme'
+
 export const useThemeStore = defineStore('theme', () => {
   const pluginStore = usePluginStore()
-  const activeThemeId = ref(
-    typeof window !== 'undefined'
-      ? (window.localStorage.getItem('active-theme-id') || 'builtin-scifi-dark-theme')
-      : 'builtin-scifi-dark-theme'
-  )
+  const storedThemeId = typeof window !== 'undefined'
+    ? window.localStorage.getItem('active-theme-id')
+    : null
+  const activeThemeId = ref(storedThemeId || DEFAULT_THEME_ID)
 
   watch(activeThemeId, (newId) => {
     if (typeof window !== 'undefined') {
@@ -25,10 +26,11 @@ export const useThemeStore = defineStore('theme', () => {
     const theme = registries.theme.get(activeThemeId.value)
     if (!theme) return
 
-    // 1. Toggle dark class
     if (theme.mode === 'dark') {
       document.documentElement.classList.add('dark')
+      document.documentElement.classList.remove('light')
     } else {
+      document.documentElement.classList.add('light')
       document.documentElement.classList.remove('dark')
     }
 

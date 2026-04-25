@@ -88,6 +88,8 @@ export interface IndexStats {
 // 嵌入模型实现
 // ============================================================================
 
+const DEFAULT_LOCAL_EMBEDDING_MODEL = 'Xenova/bge-small-zh-v1.5';
+
 abstract class EmbeddingModel {
   protected config: EmbeddingConfig;
 
@@ -114,16 +116,14 @@ class LocalEmbeddingModel extends EmbeddingModel {
     try {
       const { pipeline, env } = await import('@xenova/transformers');
 
-      env.allowLocalModels = false;
+      env.allowLocalModels = true;
       env.useBrowserCache = true;
-      env.allowRemoteModels = true;
-
-      env.remoteHost = globalThis.location?.origin ?? '';
-      env.remotePathTemplate = '/models/{model}/';
+      env.allowRemoteModels = false;
+      env.localModelPath = '/models/';
 
       this.pipeline = await pipeline(
         'feature-extraction',
-        this.config.model || '/dist/models/Xenova/bge-m3',
+        this.config.model || DEFAULT_LOCAL_EMBEDDING_MODEL,
         { quantized: true }
       );
 
@@ -880,8 +880,8 @@ export async function createVectorService(
 ): Promise<VectorService> {
   const fullConfig: EmbeddingConfig = {
     provider: config?.provider ?? 'local',
-    model: config?.model ?? '/dist/models/Xenova/bge-m3',
-    dimension: config?.dimension ?? 1024,
+    model: config?.model ?? DEFAULT_LOCAL_EMBEDDING_MODEL,
+    dimension: config?.dimension ?? 512,
     apiKey: config?.apiKey,
     baseUrl: config?.baseUrl,
     batchSize: config?.batchSize ?? 8,

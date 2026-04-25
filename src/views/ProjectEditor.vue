@@ -1,190 +1,230 @@
 <template>
-  <div class="project-editor">
-    <el-container>
-      <!-- 左侧导航 -->
-      <transition name="el-zoom-in-left">
-        <el-aside v-show="!isZenMode" width="250px" class="sidebar">
-          <div class="project-info">
-            <div style="display: flex; justify-content: space-between; align-items: center;">
-              <h2>{{ project?.title }}</h2>
-              <el-button @click="isZenMode = true" text circle title="沉浸专注模式">
-                <el-icon><Fold /></el-icon>
-              </el-button>
-            </div>
-            <div class="stats">
-              <div class="stat-item">
-                <span class="label">字数</span>
-                <span class="value">{{ formatNumber(project?.currentWords || 0) }}</span>
-              </div>
-            <div class="stat-item">
-              <span class="label">目标</span>
-              <span class="value">{{ formatNumber(project?.targetWords || 0) }}</span>
-            </div>
-          </div>
-        </div>
-
-        <el-menu
-          :default-active="activeMenu"
-          @select="handleMenuSelect"
-          class="sidebar-menu"
+  <div
+    class="project-editor editor-layout"
+    :class="{
+      'sidebar-collapsed': isSidebarCollapsed,
+      'zen-mode': isZenMode,
+      'has-right-sidebar': rightPanels.length > 0 && !isZenMode,
+    }"
+  >
+    <aside v-show="!isZenMode" class="editor-sidebar glass-panel">
+      <div class="sidebar-brand">
+        <button
+          class="brand-icon"
+          type="button"
+          :title="isSidebarCollapsed ? '展开侧边栏' : '折叠侧边栏'"
+          :aria-label="isSidebarCollapsed ? '展开侧边栏' : '折叠侧边栏'"
+          @click="isSidebarCollapsed = !isSidebarCollapsed"
         >
-          <!-- 内置菜单项 -->
-          <el-menu-item index="dashboard">
-            <el-icon><DataBoard /></el-icon>
-            <span>写作仪表盘</span>
-          </el-menu-item>
+          ✦
+        </button>
+        <span v-show="!isSidebarCollapsed" class="brand-title" :title="project?.title">
+          {{ project?.title }}
+        </span>
+        <button v-show="!isSidebarCollapsed" class="icon-btn" type="button" title="沉浸专注模式" @click="isZenMode = true">
+          <el-icon><Fold /></el-icon>
+        </button>
+      </div>
 
-          <el-menu-item index="sandbox">
-            <el-icon><DataBoard /></el-icon>
-            <span>多维设定沙盘</span>
-          </el-menu-item>
-
-          <el-menu-item index="chapters">
-            <el-icon><Reading /></el-icon>
-            <span>章节</span>
-          </el-menu-item>
-          <el-menu-item index="summary">
-            <el-icon><DocumentCopy /></el-icon>
-            <span>摘要管理</span>
-          </el-menu-item>
-          <el-menu-item index="quality">
-            <el-icon><DataAnalysis /></el-icon>
-            <span>质量报告</span>
-          </el-menu-item>
-          <el-menu-item index="token-usage">
-            <el-icon><TrendCharts /></el-icon>
-            <span>Token 用量</span>
-          </el-menu-item>
-          <el-menu-item index="agents">
-            <el-icon><Grid /></el-icon>
-            <span>Agent 控制台</span>
-          </el-menu-item>
-          <el-menu-item v-if="isDev" index="__dev_panel__">
-            <el-icon><Tools /></el-icon>
-            <span>开发者面板</span>
-            <el-tag v-if="isMockEnabled" size="small" type="danger" style="margin-left: 8px;">MOCK</el-tag>
-          </el-menu-item>
-          <el-menu-item index="config">
-            <el-icon><Setting /></el-icon>
-            <span>配置</span>
-          </el-menu-item>
-
-          <!-- 插件菜单项 -->
-          <el-divider v-if="pluginMenuItems.length > 0" />
-          <el-menu-item
-            v-for="item in pluginMenuItems"
-            :key="item.id"
-            :index="item.id"
-          >
-            <el-icon>
-              <component :is="item.icon" v-if="item.icon" />
-            </el-icon>
-            <span>{{ item.label }}</span>
-          </el-menu-item>
-        </el-menu>
-
-        <!-- 插件左侧边栏面板 -->
-        <template v-if="leftPanels.length > 0">
-          <el-divider />
-          <div class="plugin-panels">
-            <component
-              v-for="panel in leftPanels"
-              :key="panel.id"
-              :is="panel.component"
-            />
-          </div>
-        </template>
-
-        <div class="sidebar-footer">
-          <div v-if="isSaving" class="save-status saving">保存中...</div>
-          <div v-else-if="isDirty" class="save-status dirty">未保存</div>
-          <el-button @click="showShortcutsDialog = true" text title="快捷键">
-            快捷键
-          </el-button>
-          <el-button @click="toggleTheme" text :title="isDark ? '切换到明亮模式' : '切换到暗色模式'">
-            <el-icon><Sunny v-if="isDark" /><Moon v-else /></el-icon>
-          </el-button>
-          <el-button @click="goBack" text>
-            <el-icon><ArrowLeft /></el-icon>
-            返回项目列表
-          </el-button>
+      <div v-show="!isSidebarCollapsed" class="sidebar-stats">
+        <div class="stat">
+          <span class="stat-value">{{ formatNumber(project?.currentWords || 0) }}</span>
+          <span class="stat-label">字数</span>
         </div>
-      </el-aside>
-      </transition>
+        <div class="stat">
+          <span class="stat-value">{{ formatNumber(project?.targetWords || 0) }}</span>
+          <span class="stat-label">目标</span>
+        </div>
+      </div>
 
-      <!-- 主内容区 -->
-      <el-main class="main-content" :class="{ 'is-zen': isZenMode }">
-        <el-button 
-          v-if="isZenMode" 
-          class="zen-exit-btn" 
-          type="primary"
-          circle
-          size="large"
-          @click="isZenMode = false"
-          title="退出沉浸模式"
+      <nav class="sidebar-nav" aria-label="项目工作区导航">
+        <button
+          class="nav-item"
+          :class="{ active: activeMenu === 'dashboard' }"
+          type="button"
+          title="写作仪表盘"
+          @click="handleMenuSelect('dashboard')"
         >
-          <el-icon><Expand /></el-icon>
-        </el-button>
+          <el-icon class="nav-icon"><DataBoard /></el-icon>
+          <span v-show="!isSidebarCollapsed" class="nav-label">写作仪表盘</span>
+        </button>
+        <button
+          class="nav-item"
+          :class="{ active: activeMenu === 'sandbox' }"
+          type="button"
+          title="多维设定沙盘"
+          @click="handleMenuSelect('sandbox')"
+        >
+          <el-icon class="nav-icon"><DataBoard /></el-icon>
+          <span v-show="!isSidebarCollapsed" class="nav-label">设定沙盘</span>
+        </button>
+        <button
+          class="nav-item"
+          :class="{ active: activeMenu === 'chapters' }"
+          type="button"
+          title="章节"
+          @click="handleMenuSelect('chapters')"
+        >
+          <el-icon class="nav-icon"><Reading /></el-icon>
+          <span v-show="!isSidebarCollapsed" class="nav-label">章节</span>
+        </button>
+        <button
+          class="nav-item"
+          :class="{ active: activeMenu === 'summary' }"
+          type="button"
+          title="摘要管理"
+          @click="handleMenuSelect('summary')"
+        >
+          <el-icon class="nav-icon"><DocumentCopy /></el-icon>
+          <span v-show="!isSidebarCollapsed" class="nav-label">摘要管理</span>
+        </button>
+        <button
+          class="nav-item"
+          :class="{ active: activeMenu === 'quality' }"
+          type="button"
+          title="质量报告"
+          @click="handleMenuSelect('quality')"
+        >
+          <el-icon class="nav-icon"><DataAnalysis /></el-icon>
+          <span v-show="!isSidebarCollapsed" class="nav-label">质量报告</span>
+        </button>
+        <button
+          class="nav-item"
+          :class="{ active: activeMenu === 'token-usage' }"
+          type="button"
+          title="Token 用量"
+          @click="handleMenuSelect('token-usage')"
+        >
+          <el-icon class="nav-icon"><TrendCharts /></el-icon>
+          <span v-show="!isSidebarCollapsed" class="nav-label">Token 用量</span>
+        </button>
+        <button
+          class="nav-item"
+          :class="{ active: activeMenu === 'agents' }"
+          type="button"
+          title="Agent 控制台"
+          @click="handleMenuSelect('agents')"
+        >
+          <el-icon class="nav-icon"><Grid /></el-icon>
+          <span v-show="!isSidebarCollapsed" class="nav-label">Agent 控制台</span>
+        </button>
+        <button
+          v-if="isDev"
+          class="nav-item"
+          :class="{ active: activeMenu === '__dev_panel__' }"
+          type="button"
+          title="开发者面板"
+          @click="handleMenuSelect('__dev_panel__')"
+        >
+          <el-icon class="nav-icon"><Tools /></el-icon>
+          <span v-show="!isSidebarCollapsed" class="nav-label">开发者面板</span>
+          <el-tag v-if="isMockEnabled && !isSidebarCollapsed" size="small" type="danger">MOCK</el-tag>
+        </button>
+        <button
+          class="nav-item"
+          :class="{ active: activeMenu === 'config' }"
+          type="button"
+          title="配置"
+          @click="handleMenuSelect('config')"
+        >
+          <el-icon class="nav-icon"><Setting /></el-icon>
+          <span v-show="!isSidebarCollapsed" class="nav-label">配置</span>
+        </button>
 
-        <div v-if="projectStore.loading" class="loading-container">
-          <el-icon class="is-loading" :size="40"><Loading /></el-icon>
-          <p>加载项目中...</p>
-        </div>
-        <template v-else-if="project && project.id">
-          <!-- 内置组件 -->
-          <WritingDashboard
-            v-if="activeMenu === 'dashboard'"
-            @open-chapters="handleDashboardAction"
-            @create-chapter="handleDashboardAction"
-            @continue-writing="handleDashboardAction"
-            @batch-generate="handleDashboardAction"
-          />
-          <SandboxLayout v-else-if="activeMenu === 'sandbox'" />
-          <Chapters v-else-if="activeMenu === 'chapters'" />
-          <SummaryManager v-else-if="activeMenu === 'summary'" />
-          <QualityReport v-else-if="activeMenu === 'quality'" />
-          <TokenUsagePanel v-else-if="activeMenu === 'token-usage'" />
-          <AgentConsole v-else-if="activeMenu === 'agents'" />
-          <ProjectConfig v-else-if="activeMenu === 'config'" />
+        <div v-if="pluginMenuItems.length > 0" class="nav-divider"></div>
+        <button
+          v-for="item in pluginMenuItems"
+          :key="item.id"
+          class="nav-item"
+          type="button"
+          :title="item.label"
+          @click="handleMenuSelect(item.id)"
+        >
+          <el-icon class="nav-icon">
+            <component :is="item.icon" v-if="item.icon" />
+            <Grid v-else />
+          </el-icon>
+          <span v-show="!isSidebarCollapsed" class="nav-label">{{ item.label }}</span>
+        </button>
+      </nav>
 
-          <!-- 插件组件可以在这里渲染 -->
-          <DeveloperPanel v-else-if="activeMenu === '__dev_panel__'" />
-
-          <template v-else>
-            <!-- 如果当前选中的是插件菜单项，这里可以渲染对应的内容 -->
-          </template>
-        </template>
-        <div v-else class="error-container">
-          <el-empty description="项目加载失败">
-            <p style="color: #909399; margin: 10px 0;">错误信息: {{ projectStore.error || '项目数据为空' }}</p>
-            <p style="color: #909399; margin: 10px 0;">项目ID: {{ route.params.id }}</p>
-            <p style="color: #909399; margin: 10px 0;">项目状态: {{ project ? '存在但无ID' : '不存在' }}</p>
-            <el-button type="primary" @click="goBack">返回项目列表</el-button>
-          </el-empty>
-        </div>
-      </el-main>
-
-      <!-- 插件右侧边栏面板 -->
-      <el-aside
-        v-if="rightPanels.length > 0"
-        width="300px"
-        class="right-sidebar"
-      >
+      <div v-if="leftPanels.length > 0 && !isSidebarCollapsed" class="plugin-panels">
         <component
-          v-for="panel in rightPanels"
+          v-for="panel in leftPanels"
           :key="panel.id"
           :is="panel.component"
         />
-      </el-aside>
-    </el-container>
+      </div>
 
-    <!-- AI助手 -->
+      <div class="sidebar-footer">
+        <div v-show="!isSidebarCollapsed" class="save-status-wrap">
+          <span v-if="isSaving" class="save-status saving">保存中</span>
+          <span v-else-if="isDirty" class="save-status dirty">未保存</span>
+        </div>
+        <button class="footer-btn" type="button" title="快捷键" @click="showShortcutsDialog = true">⌨</button>
+        <button class="footer-btn" type="button" :title="isDark ? '切换到明亮模式' : '切换到暗色模式'" @click="toggleTheme">
+          <el-icon><Sunny v-if="isDark" /><Moon v-else /></el-icon>
+        </button>
+        <button class="footer-btn" type="button" title="返回项目列表" @click="goBack">
+          <el-icon><ArrowLeft /></el-icon>
+        </button>
+      </div>
+    </aside>
+
+    <main class="editor-main" :class="{ 'is-zen': isZenMode }">
+      <el-button
+        v-if="isZenMode"
+        class="zen-exit-btn"
+        type="primary"
+        circle
+        size="large"
+        @click="isZenMode = false"
+        title="退出沉浸模式"
+      >
+        <el-icon><Expand /></el-icon>
+      </el-button>
+
+      <div v-if="projectStore.loading" class="loading-container glass-panel">
+        <el-icon class="is-loading" :size="40"><Loading /></el-icon>
+        <p>加载项目中...</p>
+      </div>
+      <section v-else-if="project && project.id" class="workspace-surface">
+        <WritingDashboard
+          v-if="activeMenu === 'dashboard'"
+          @open-chapters="handleDashboardAction"
+          @create-chapter="handleDashboardAction"
+          @continue-writing="handleDashboardAction"
+          @batch-generate="handleDashboardAction"
+        />
+        <SandboxLayout v-else-if="activeMenu === 'sandbox'" />
+        <Chapters v-else-if="activeMenu === 'chapters'" />
+        <SummaryManager v-else-if="activeMenu === 'summary'" />
+        <QualityReport v-else-if="activeMenu === 'quality'" />
+        <TokenUsagePanel v-else-if="activeMenu === 'token-usage'" />
+        <AgentConsole v-else-if="activeMenu === 'agents'" />
+        <ProjectConfig v-else-if="activeMenu === 'config'" />
+        <DeveloperPanel v-else-if="activeMenu === '__dev_panel__'" />
+      </section>
+      <div v-else class="error-container glass-panel">
+        <el-empty description="项目加载失败">
+          <p>错误信息: {{ projectStore.error || '项目数据为空' }}</p>
+          <p>项目ID: {{ route.params.id }}</p>
+          <p>项目状态: {{ project ? '存在但无ID' : '不存在' }}</p>
+          <el-button type="primary" @click="goBack">返回项目列表</el-button>
+        </el-empty>
+      </div>
+    </main>
+
+    <aside v-if="rightPanels.length > 0 && !isZenMode" class="editor-right-sidebar glass-panel">
+      <component
+        v-for="panel in rightPanels"
+        :key="panel.id"
+        :is="panel.component"
+      />
+    </aside>
+
     <AIAssistant />
-
-    <!-- 全局搜索 -->
     <SearchDialog />
-
-    <!-- 快捷键说明 -->
     <KeyboardShortcutsDialog
       v-model="showShortcutsDialog"
       :shortcuts="shortcuts"
@@ -240,6 +280,7 @@ const activeMenu = ref('dashboard')
 const isDev = import.meta.env.DEV
 const isMockEnabled = ref(false)
 const isZenMode = ref(false)
+const isSidebarCollapsed = ref(false)
 const showShortcutsDialog = ref(false)
 
 const project = computed(() => projectStore.currentProject)
@@ -408,86 +449,250 @@ function formatNumber(num?: number | null) {
 .project-editor {
   height: 100vh;
   overflow: hidden;
+  color: var(--ds-text-primary);
 }
 
-.el-container {
-  height: 100%;
+.editor-layout {
+  display: grid;
+  grid-template-columns: var(--ds-sidebar-width) minmax(0, 1fr);
+  background:
+    radial-gradient(circle at top left, color-mix(in srgb, var(--ds-accent) 12%, transparent), transparent 34%),
+    var(--ds-bg-primary);
+  transition: grid-template-columns var(--ds-transition-slow);
 }
 
-.sidebar {
-  background: white;
-  border-right: 1px solid #e4e7ed;
+.editor-layout.has-right-sidebar {
+  grid-template-columns: var(--ds-sidebar-width) minmax(0, 1fr) 300px;
+}
+
+.editor-layout.sidebar-collapsed {
+  grid-template-columns: var(--ds-sidebar-collapsed-width) minmax(0, 1fr);
+}
+
+.editor-layout.sidebar-collapsed.has-right-sidebar {
+  grid-template-columns: var(--ds-sidebar-collapsed-width) minmax(0, 1fr) 300px;
+}
+
+.editor-layout.zen-mode {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.editor-sidebar {
   display: flex;
   flex-direction: column;
+  min-width: 0;
+  margin: var(--ds-space-3) 0 var(--ds-space-3) var(--ds-space-3);
+  border-radius: var(--ds-radius-lg);
+  overflow: hidden;
+  padding: var(--ds-space-3);
 }
 
-.project-info {
-  padding: 20px;
-  border-bottom: 1px solid #e4e7ed;
-}
-
-.project-info h2 {
-  margin: 0 0 15px 0;
-  font-size: 18px;
-  color: #303133;
-}
-
-.stats {
+.sidebar-brand {
   display: flex;
-  gap: 20px;
+  align-items: center;
+  gap: var(--ds-space-3);
+  padding: var(--ds-space-2);
+  margin-bottom: var(--ds-space-4);
 }
 
-.stat-item {
-  display: flex;
-  flex-direction: column;
-  gap: 5px;
-}
-
-.stat-item .label {
-  font-size: 12px;
-  color: #909399;
-}
-
-.stat-item .value {
-  font-size: 16px;
-  font-weight: 600;
-  color: #409eff;
-}
-
-.sidebar-menu {
+.brand-icon,
+.icon-btn,
+.footer-btn {
   border: none;
+  cursor: pointer;
+  transition: all var(--ds-transition-fast);
+}
+
+.brand-icon {
+  width: 36px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--ds-accent-subtle);
+  color: var(--ds-accent-text);
+  border-radius: var(--ds-radius-sm);
+  font-size: 18px;
+  flex-shrink: 0;
+}
+
+.brand-icon:hover {
+  background: var(--ds-accent);
+  color: white;
+}
+
+.brand-title {
+  min-width: 0;
   flex: 1;
+  font-weight: 600;
+  font-size: var(--ds-text-sm);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.icon-btn,
+.footer-btn {
+  width: 34px;
+  height: 34px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  color: var(--ds-text-secondary);
+  border-radius: var(--ds-radius-sm);
+}
+
+.icon-btn:hover,
+.footer-btn:hover {
+  background: var(--ds-bg-hover);
+  color: var(--ds-text-primary);
+}
+
+.sidebar-stats {
+  display: flex;
+  gap: var(--ds-space-4);
+  padding: var(--ds-space-3) var(--ds-space-4);
+  margin-bottom: var(--ds-space-4);
+  background: var(--ds-bg-hover);
+  border-radius: var(--ds-radius-sm);
+}
+
+.stat-value {
+  display: block;
+  font-weight: 600;
+  font-size: var(--ds-text-md);
+}
+
+.stat-label {
+  font-size: var(--ds-text-xs);
+  color: var(--ds-text-tertiary);
+}
+
+.sidebar-nav {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+.nav-item {
+  display: flex;
+  align-items: center;
+  gap: var(--ds-space-3);
+  width: 100%;
+  min-height: 38px;
+  padding: var(--ds-space-2) var(--ds-space-3);
+  border: none;
+  border-radius: var(--ds-radius-sm);
+  background: transparent;
+  color: var(--ds-text-secondary);
+  cursor: pointer;
+  font-size: var(--ds-text-sm);
+  text-align: left;
+  white-space: nowrap;
+  transition: all var(--ds-transition-fast);
+}
+
+.nav-item:hover {
+  background: var(--ds-bg-hover);
+  color: var(--ds-text-primary);
+}
+
+.nav-item.active {
+  background: var(--ds-accent-subtle);
+  color: var(--ds-accent-text);
+  font-weight: 500;
+}
+
+.nav-icon {
+  flex-shrink: 0;
+  width: 24px;
+  justify-content: center;
+  font-size: 16px;
+}
+
+.nav-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.nav-divider {
+  height: 1px;
+  margin: var(--ds-space-3) var(--ds-space-2);
+  background: var(--ds-surface-border);
+}
+
+.plugin-panels {
+  margin-top: var(--ds-space-3);
+  padding-top: var(--ds-space-3);
+  border-top: 1px solid var(--ds-surface-border);
+  overflow-y: auto;
+  max-height: 240px;
 }
 
 .sidebar-footer {
-  padding: 10px;
-  border-top: 1px solid #e4e7ed;
   display: flex;
   align-items: center;
-  gap: 8px;
+  justify-content: center;
+  gap: var(--ds-space-1);
+  padding-top: var(--ds-space-3);
+  border-top: 1px solid var(--ds-surface-border);
+  margin-top: var(--ds-space-3);
+}
+
+.save-status-wrap {
+  flex: 1;
+  min-width: 0;
 }
 
 .save-status {
-  font-size: 12px;
-  padding: 2px 8px;
-  border-radius: 4px;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--ds-space-1);
+  font-size: var(--ds-text-xs);
+  padding: 2px var(--ds-space-2);
+  border-radius: var(--ds-radius-full);
+}
+
+.save-status::before {
+  content: '';
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
 }
 
 .save-status.saving {
-  color: #409eff;
-  background: #ecf5ff;
+  color: var(--ds-info);
+  background: color-mix(in srgb, var(--ds-info) 14%, transparent);
+}
+
+.save-status.saving::before {
+  background: var(--ds-info);
+  animation: pulse 1.2s infinite;
 }
 
 .save-status.dirty {
-  color: #e6a23c;
-  background: #fdf6ec;
+  color: var(--ds-warning);
+  background: color-mix(in srgb, var(--ds-warning) 14%, transparent);
 }
 
-.main-content {
-  background: #f5f7fa;
-  padding: 20px;
+.save-status.dirty::before {
+  background: var(--ds-warning);
+}
+
+.editor-main {
+  min-width: 0;
   overflow-y: auto;
+  padding: var(--ds-space-6);
   position: relative;
+}
+
+.workspace-surface {
+  min-height: 100%;
 }
 
 .loading-container,
@@ -496,46 +701,77 @@ function formatNumber(num?: number | null) {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  height: 100%;
-  min-height: 400px;
+  min-height: 420px;
+  padding: var(--ds-space-8);
+  color: var(--ds-text-secondary);
 }
 
-.loading-container p {
-  margin-top: 20px;
-  font-size: 16px;
-  color: #909399;
+.loading-container p,
+.error-container p {
+  margin: var(--ds-space-2) 0;
+  color: var(--ds-text-secondary);
 }
 
-.right-sidebar {
-  background: white;
-  border-left: 1px solid #e4e7ed;
+.editor-right-sidebar {
+  min-width: 0;
+  margin: var(--ds-space-3) var(--ds-space-3) var(--ds-space-3) 0;
+  border-radius: var(--ds-radius-lg);
   overflow-y: auto;
+  padding: var(--ds-space-3);
 }
 
-.plugin-panels {
-  padding: 10px;
-}
-
-.el-divider {
-  margin: 10px 0;
-}
-
-.main-content.is-zen {
+.editor-main.is-zen {
   padding: 0;
-  transition: all 0.3s ease;
+  transition: all var(--ds-transition-slow);
+}
+
+.editor-main.is-zen .workspace-surface {
+  height: 100%;
 }
 
 .zen-exit-btn {
   position: absolute;
-  top: 20px;
-  left: 20px;
+  top: var(--ds-space-5);
+  left: var(--ds-space-5);
   z-index: 999;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-  opacity: 0.3;
-  transition: opacity 0.3s;
+  box-shadow: var(--ds-shadow-lg);
+  opacity: 0.35;
+  transition: opacity var(--ds-transition-normal);
 }
 
 .zen-exit-btn:hover {
   opacity: 1;
+}
+
+.sidebar-collapsed .editor-sidebar {
+  align-items: center;
+}
+
+.sidebar-collapsed .sidebar-brand,
+.sidebar-collapsed .sidebar-footer {
+  width: 100%;
+  padding-left: 0;
+  padding-right: 0;
+}
+
+.sidebar-collapsed .nav-item {
+  justify-content: center;
+  padding-left: 0;
+  padding-right: 0;
+}
+
+@media (max-width: 900px) {
+  .editor-layout,
+  .editor-layout.has-right-sidebar {
+    grid-template-columns: var(--ds-sidebar-collapsed-width) minmax(0, 1fr);
+  }
+
+  .editor-right-sidebar {
+    display: none;
+  }
+
+  .editor-main {
+    padding: var(--ds-space-4);
+  }
 }
 </style>
