@@ -64,6 +64,18 @@ function cloneProviders(providers: unknown): ModelProvider[] {
   return JSON.parse(JSON.stringify(providers)) as ModelProvider[]
 }
 
+function getConfiguredModelIds(providers: ModelProvider[]): Set<string> {
+  const ids = new Set<string>()
+  for (const provider of providers) {
+    if (!provider.isEnabled || !Array.isArray(provider.models)) continue
+    for (const model of provider.models) {
+      const id = model.isEnabled && typeof model.id === 'string' ? model.id.trim() : ''
+      if (id) ids.add(id)
+    }
+  }
+  return ids
+}
+
 function normalizeSystemPrompts(input: unknown): SystemPrompts {
   if (!input || typeof input !== 'object') {
     return { ...DEFAULT_SYSTEM_PROMPTS }
@@ -135,7 +147,11 @@ function normalizePriority(value: unknown, fallback: number): number {
   return Math.min(99, Math.max(1, Math.trunc(value)))
 }
 
-function normalizeAgentConfigs(input: unknown, fallback: AgentConfig[] = DEFAULT_AGENT_CONFIGS): AgentConfig[] {
+function normalizeAgentConfigs(
+  input: unknown,
+  fallback: AgentConfig[] = DEFAULT_AGENT_CONFIGS,
+  configuredModelIds: Set<string> = new Set()
+): AgentConfig[] {
   const byRole = new Map<AgentRole, AgentConfig>()
 
   for (const config of fallback) {
@@ -148,11 +164,16 @@ function normalizeAgentConfigs(input: unknown, fallback: AgentConfig[] = DEFAULT
       const config = rawConfig as Partial<AgentConfig>
       if (!config.role || !byRole.has(config.role)) continue
       const existing = byRole.get(config.role)!
+      const normalizedModel = ACTIVE_AGENT_ROLES.includes(config.role) && typeof config.model === 'string'
+        ? config.model.trim()
+        : undefined
+      const model = normalizedModel && configuredModelIds.has(normalizedModel) ? normalizedModel : undefined
       byRole.set(config.role, {
         ...existing,
         enabled: ACTIVE_AGENT_ROLES.includes(config.role) && typeof config.enabled === 'boolean' ? config.enabled : existing.enabled,
         phase: isAgentPhase(config.phase) ? config.phase : existing.phase,
         priority: normalizePriority(config.priority, existing.priority),
+        ...(model ? { model } : {}),
         batchOnly: config.role === 'reader' && typeof config.batchOnly === 'boolean' ? config.batchOnly : existing.batchOnly,
       })
     }
@@ -191,9 +212,12 @@ export function normalizeProjectConfig(
     ? normalizeStyleProfile(raw.styleProfile, normalizeStyleProfile(base.styleProfile) ?? DEFAULT_STYLE_PROFILE)
     : normalizeStyleProfile(base.styleProfile)
 
+  const normalizedProviders = cloneProviders(raw.providers ?? base.providers)
+  const configuredModelIds = getConfiguredModelIds(normalizedProviders)
+
   return {
     preset: raw.preset ?? base.preset,
-    providers: cloneProviders(raw.providers ?? base.providers),
+    providers: normalizedProviders,
     plannerModel: raw.plannerModel ?? base.plannerModel,
     writerModel: raw.writerModel ?? base.writerModel,
     sentinelModel: raw.sentinelModel ?? base.sentinelModel,
@@ -207,7 +231,7 @@ export function normalizeProjectConfig(
     maxCostPerChapter: raw.maxCostPerChapter ?? base.maxCostPerChapter,
     enableAISuggestions: raw.enableAISuggestions ?? base.enableAISuggestions,
     enableAutoReview: raw.enableAutoReview ?? base.enableAutoReview,
-    agentConfigs: normalizeAgentConfigs(raw.agentConfigs, normalizeAgentConfigs(base.agentConfigs)),
+    agentConfigs: normalizeAgentConfigs(raw.agentConfigs, normalizeAgentConfigs(base.agentConfigs, DEFAULT_AGENT_CONFIGS, configuredModelIds), configuredModelIds),
     enableLogicValidator: raw.enableLogicValidator ?? base.enableLogicValidator,
     enableZeroTouchExtraction: raw.enableZeroTouchExtraction ?? base.enableZeroTouchExtraction,
     enableVectorRetrieval: raw.enableVectorRetrieval ?? base.enableVectorRetrieval,

@@ -450,6 +450,22 @@
               <el-input-number v-model="row.priority" :min="1" :max="99" size="small" />
             </template>
           </el-table-column>
+          <el-table-column label="模型覆盖" min-width="180">
+            <template #default="{ row }">
+              <el-select
+                v-if="isActiveAgentRole(row.role)"
+                v-model="row.model"
+                clearable
+                filterable
+                placeholder="跟随默认模型"
+              >
+                <el-option-group v-for="provider in configForm.providers" :key="provider.id" :label="provider.name">
+                  <el-option v-for="model in provider.models" :key="model.id" :label="model.name" :value="model.id" />
+                </el-option-group>
+              </el-select>
+              <span v-else class="form-tip">—</span>
+            </template>
+          </el-table-column>
           <el-table-column label="仅批量" width="100">
             <template #default="{ row }">
               <el-switch v-if="row.role === 'reader'" v-model="row.batchOnly" />

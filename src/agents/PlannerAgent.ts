@@ -151,8 +151,13 @@ ${outlineJson}
 
       const response = await aiStore.chat(
         [{ role: 'user', content: prompt }],
-        { type: 'outline', complexity: 'medium', priority: 'quality' },
-        { maxTokens: 1500, ...(config.model ? { model: config.model } : {}) }
+        {
+          type: 'outline',
+          complexity: 'medium',
+          priority: 'quality',
+          ...(config.model?.trim() ? { preferredModel: config.model.trim() } : {})
+        },
+        { maxTokens: 1500 }
       )
       const parsed = safeParseAIJson<PlannerRevision>(response.content)
       return {
@@ -217,8 +222,13 @@ ${outlineJson}
 
       const response = await aiStore.chat(
         [{ role: 'user', content: prompt }],
-        { type: 'outline', complexity: 'medium', priority: 'quality' },
-        { maxTokens: 1800, ...(config.model ? { model: config.model } : {}) }
+        {
+          type: 'outline',
+          complexity: 'medium',
+          priority: 'quality',
+          ...(config.model?.trim() ? { preferredModel: config.model.trim() } : {})
+        },
+        { maxTokens: 1800 }
       )
       const refinedOutline = normalizePlannerRefinement(response.content, outline)
       return refinedOutline

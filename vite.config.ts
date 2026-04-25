@@ -2,6 +2,26 @@ import { defineConfig } from 'vitest/config'
 import vue from '@vitejs/plugin-vue'
 import { resolve } from 'path'
 
+const devServerHost = process.env.VITE_DEV_SERVER_HOST ?? '127.0.0.1'
+const devAllowedHosts = (process.env.VITE_DEV_ALLOWED_HOSTS ?? '')
+  .split(',')
+  .map(host => host.trim())
+  .filter(Boolean)
+
+function getCustomProxyTarget(): string | undefined {
+  const rawTarget = process.env.VITE_CUSTOM_PROXY_TARGET?.trim()
+  if (!rawTarget) return undefined
+
+  const target = new URL(rawTarget)
+  if (target.protocol !== 'https:') {
+    throw new Error('VITE_CUSTOM_PROXY_TARGET must use https://')
+  }
+
+  return target.origin
+}
+
+const customProxyTarget = getCustomProxyTarget()
+
 export default defineConfig({
   plugins: [vue()],
   resolve: {
@@ -10,18 +30,13 @@ export default defineConfig({
     }
   },
   server: {
-    host: '0.0.0.0',
+    host: devServerHost,
     port: 3000,
     open: false,
     watch: {
       ignored: ['**/*.db', '**/*.db-journal', '**/*.db-wal', '**/ai_novel_workshop.db*']
     },
-    allowedHosts: [
-      '.ai-yuanjing.com',
-      '.anthropic.com',
-      '.openai.com',
-      '.ggchan.dev'
-    ],
+    allowedHosts: devAllowedHosts,
     proxy: {
       // Claude API代理
       '/api/claude': {
@@ -38,35 +53,16 @@ export default defineConfig({
         changeOrigin: true,
         rewrite: (path) => path.replace(/^\/api\/openai/, '')
       },
-      // 自定义API代理
-      '/api/custom': {
-        target: 'https://api.example.com', // 占位符，动态设置
-        changeOrigin: true,
-        secure: false,
-        configure: (proxy) => {
-          proxy.on('proxyReq', (proxyReq, req) => {
-            // 从请求体中读取实际的target URL
-            let body = ''
-            req.on('data', chunk => {
-              body += chunk.toString()
-            })
-            req.on('end', () => {
-              try {
-                const data = JSON.parse(body)
-                if (data.url) {
-                  const url = new URL(data.url)
-                  // 动态设置目标
-                  proxyReq.host = url.host
-                  proxyReq.path = url.pathname + (url.search || '')
-                  proxyReq.setHeader('host', url.host)
-                }
-              } catch {
-                // ignore parse errors on proxy request body
-              }
-            })
-          })
+      ...(customProxyTarget
+        ? {
+          '/api/custom': {
+            target: customProxyTarget,
+            changeOrigin: true,
+            secure: true,
+            rewrite: (path: string) => path.replace(/^\/api\/custom/, '')
+          }
         }
-      }
+        : {})
     }
   },
   build: {

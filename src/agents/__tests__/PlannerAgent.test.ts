@@ -1,6 +1,19 @@
-import { describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { ChapterOutline } from '@/types'
-import { normalizePlannerRefinement } from '../PlannerAgent'
+
+const { chatMock, checkInitializedMock } = vi.hoisted(() => ({
+  chatMock: vi.fn(),
+  checkInitializedMock: vi.fn(),
+}))
+
+vi.mock('@/stores/ai', () => ({
+  useAIStore: () => ({
+    chat: chatMock,
+    checkInitialized: checkInitializedMock,
+  }),
+}))
+
+import { PlannerAgent, normalizePlannerRefinement } from '../PlannerAgent'
 
 const baseOutline: ChapterOutline = {
   chapterId: 'outline-1',
@@ -15,6 +28,12 @@ const baseOutline: ChapterOutline = {
 }
 
 describe('PlannerAgent refinement normalization', () => {
+  beforeEach(() => {
+    chatMock.mockReset()
+    checkInitializedMock.mockReset()
+    checkInitializedMock.mockReturnValue(true)
+  })
+
   it('accepts only safe bounded outline fields from AI output', () => {
     const result = normalizePlannerRefinement(
       JSON.stringify({
@@ -55,5 +74,20 @@ describe('PlannerAgent refinement normalization', () => {
 
   it('returns null when AI output contains no usable refinement fields', () => {
     expect(normalizePlannerRefinement('{"actions":[]}', baseOutline)).toBeNull()
+  })
+
+  it('passes planner model override as routing preference', async () => {
+    chatMock.mockResolvedValueOnce({ content: '{"title":"新标题"}' })
+
+    await new PlannerAgent().execute(
+      { phase: 'pre-generation', outline: baseOutline },
+      { role: 'planner', enabled: true, phase: 'pre-generation', priority: 1, model: 'custom-planner-model' }
+    )
+
+    expect(chatMock).toHaveBeenCalledWith(
+      expect.any(Array),
+      expect.objectContaining({ preferredModel: 'custom-planner-model' }),
+      { maxTokens: 1800 }
+    )
   })
 })

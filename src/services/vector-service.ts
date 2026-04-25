@@ -118,7 +118,7 @@ class LocalEmbeddingModel extends EmbeddingModel {
       env.useBrowserCache = true;
       env.allowRemoteModels = true;
 
-      env.remoteHost = window.location.origin;
+      env.remoteHost = globalThis.location?.origin ?? '';
       env.remotePathTemplate = '/models/{model}/';
 
       this.pipeline = await pipeline(

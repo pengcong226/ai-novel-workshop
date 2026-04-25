@@ -29,7 +29,7 @@ export const useAIStore = defineStore('ai', () => {
     const projectStore = useProjectStore()
     const config = projectStore.currentProject?.config || projectStore.globalConfig
 
-    let preferredModel = resolvePreferredModel(config, context?.type, configuredModel.value)
+    let preferredModel = context?.preferredModel ?? resolvePreferredModel(config, context?.type, configuredModel.value)
 
     if (!preferredModel && config?.providers) {
       const fallbackProvider = config.providers.find(provider =>

@@ -34,10 +34,13 @@
     "build": "vite build",
     "preview": "vite preview",
     "test": "vitest",
+    "test:run": "vitest --run",
     "lint": "eslint . --ext .vue,.js,.jsx,.cjs,.mjs,.ts,.tsx,.cts,.mts",
     "lint:fix": "eslint . --ext .vue,.js,.jsx,.cjs,.mjs,.ts,.tsx,.cts,.mts --fix",
     "type-check": "vue-tsc --noEmit",
-    "tauri": "tauri"
+    "tauri": "tauri",
+    "tauri:dev": "tauri dev",
+    "tauri:build": "tauri build"
   },
   "dependencies": {
     "@antv/g6": "^5.0.51",
@@ -63,6 +66,7 @@
     "gpt-tokenizer": "^3.4.0",
     "html2canvas": "^1.4.1",
     "idb": "^8.0.3",
+    "js-yaml": "^4.1.1",
     "jszip": "^3.10.1",
     "konva": "^10.2.3",
     "lodash-es": "^4.17.21",

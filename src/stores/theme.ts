@@ -6,16 +6,20 @@ export const useThemeStore = defineStore('theme', () => {
   const pluginStore = usePluginStore()
   const activeThemeId = ref(
     typeof window !== 'undefined'
-      ? (localStorage.getItem('active-theme-id') || 'builtin-scifi-dark-theme')
+      ? (window.localStorage.getItem('active-theme-id') || 'builtin-scifi-dark-theme')
       : 'builtin-scifi-dark-theme'
   )
 
   watch(activeThemeId, (newId) => {
-    localStorage.setItem('active-theme-id', newId)
+    if (typeof window !== 'undefined') {
+      window.localStorage.setItem('active-theme-id', newId)
+    }
     applyTheme()
   })
 
   function applyTheme() {
+    if (typeof document === 'undefined') return
+
     const registries = pluginStore.getRegistries()
     // Find the theme in the registry
     const theme = registries.theme.get(activeThemeId.value)

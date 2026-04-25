@@ -1,10 +1,10 @@
 import { BaseAgent } from './BaseAgent'
-import type { AgentContext, AgentRole, AgentResult } from './types'
+import type { AgentConfig, AgentContext, AgentRole, AgentResult } from './types'
 
 export class EditorAgent extends BaseAgent {
   readonly role: AgentRole = 'editor'
 
-  protected async run(context: AgentContext): Promise<Omit<AgentResult, 'role' | 'durationMs'>> {
+  protected async run(context: AgentContext, config: AgentConfig): Promise<Omit<AgentResult, 'role' | 'durationMs'>> {
     if (!context.project || !context.chapter?.content) {
       return { status: 'success', message: '缺少编辑审校输入' }
     }
@@ -14,6 +14,7 @@ export class EditorAgent extends BaseAgent {
       profile: 'consistency',
       project: context.project,
       chapter: context.chapter,
+      model: config.model,
     })
 
     return {

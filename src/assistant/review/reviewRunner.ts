@@ -12,6 +12,7 @@ export interface RunReviewOptions {
   profile: ReviewProfile
   project: Project | null
   chapter: Pick<Chapter, 'id' | 'number' | 'title' | 'content'> | null
+  model?: string
 }
 
 export interface RunReviewResult {
@@ -29,7 +30,12 @@ export async function runReview(options: RunReviewOptions): Promise<RunReviewRes
     chapter: options.chapter,
   }
   const apiMessages = buildReviewPrompt(options.profile, promptContext, useSandboxStore()) as ChatMessage[]
-  const response = await aiStore.chat(apiMessages, { type: 'check', complexity: 'high', priority: 'balanced' })
+  const response = await aiStore.chat(apiMessages, {
+    type: 'check',
+    complexity: 'high',
+    priority: 'balanced',
+    ...(options.model ? { preferredModel: options.model } : {})
+  })
   const rawContent = response.content
   const paragraphs = splitReviewParagraphs(options.chapter?.content ?? '')
   const suggestions = parseReviewResponse(rawContent, { paragraphs })

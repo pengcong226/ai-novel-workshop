@@ -1,10 +1,10 @@
 import { BaseAgent } from './BaseAgent'
-import type { AgentContext, AgentRole, AgentResult, ReaderFeedback } from './types'
+import type { AgentConfig, AgentContext, AgentRole, AgentResult, ReaderFeedback } from './types'
 
 export class ReaderAgent extends BaseAgent {
   readonly role: AgentRole = 'reader'
 
-  protected async run(context: AgentContext): Promise<Omit<AgentResult<ReaderFeedback[]>, 'role' | 'durationMs'>> {
+  protected async run(context: AgentContext, config: AgentConfig): Promise<Omit<AgentResult<ReaderFeedback[]>, 'role' | 'durationMs'>> {
     if (!context.project || !context.chapter?.content) {
       return { status: 'success', message: '缺少读者反馈输入', data: [] }
     }
@@ -14,6 +14,7 @@ export class ReaderAgent extends BaseAgent {
       profile: 'quality',
       project: context.project,
       chapter: context.chapter,
+      model: config.model,
     })
 
     const feedback = result.suggestions.map(suggestion => ({
