@@ -4,7 +4,7 @@
 
 一个支持100万字以上长篇小说的智能生成系统,通过**Entity & StateEvent 状态记忆系统**确保长篇创作的连贯性和一致性。
 
-**最新架构升级 (v5.0)**: 采用 **Tauri + SQLite 桌面端混合架构**,突破浏览器存储限制,支持更大数据量和更高性能。
+**最新架构升级 (v5.0)**: 采用 **Tauri + SQLite 桌面端混合架构**，同时保留浏览器 IndexedDB 备用运行模式；前端已统一为暗色优先的 Notion/Linear 风格工作台与全局 Design System。
 
 ## 核心特性
 
@@ -23,8 +23,8 @@
 - ✨ **Pipeline/Middleware 上下文引擎** - 200行上帝函数解耦，每一层记忆块动态管理自己的 Token 预算，Unicode 安全切分拦截 400 报错
 - ✨ **MCP 标准协议支持** - 提供标准工具接口，允许 Roo Code / Clause 外部 AI 助手接管小说管线
 - ✨ **结构化记忆输出 (Tool Calling)** - JSON Schema `strict: true` 强约束，消灭易碎正则正则表达式，状态事件更新成功率 99.9%
-- ✨ **双轨沉浸式前端 (Immersive UI)** - Notion-like 极简左白板，配合右侧“毛玻璃防抖呼吸”上下文抽取矩阵
-- ✨ **小白与极客双模态调参台** - 将复杂的 System Prompt、Temperature 藏在极客模式背后，为“吟游诗人”还原极简的字数/风格倾向滑块
+- ✨ **现代 Design System 工作台** - 暗色优先的 Notion/Linear 风格项目首页与 CSS Grid 写作工作区，统一 `--ds-*` 设计令牌、玻璃态面板、折叠侧边栏和 Element Plus 变量桥接
+- ✨ **编译期运行时边界** - 通过 Vite 注入 `__APP_IS_TAURI__`，配合 `isWebRuntime()` 区分 Tauri IPC 与浏览器 IndexedDB，避免信任可伪造的浏览器全局变量
 - ✨ **多视图沙盒 (Multi-View Sandbox)** - 统一Entity/StateEvent层，通过懒加载 Tauri IPC (`load_entities`/`load_state_events`) 大幅提升百万字上下文承载力
 - ✨ **主题插件系统 (Theme Plugin)** - 动态注入全局主题样式 (Sci-Fi Dark Mode, Classic Light等)
 - ✨ **动态好感度可视化 (Dynamic Affinity Text)** - 在关系图谱中引入颜色代码表示角色间态度 (`attitude`)，受事件 `RELATION_UPDATE` 动态更新
@@ -61,13 +61,14 @@
 - **框架**: Vue 3.4 + TypeScript + Vite 5
 - **状态管理**: Pinia
 - **UI组件**: Element Plus
+- **视觉系统**: `src/assets/styles/design-system.css` 全局设计令牌 + `html.dark` / `html.light` 主题类
 - **可视化**: AntV G6 (关系图), ECharts (统计), vis-timeline (时间线)
 - **编辑器**: Vue Konva (地图)
 
 ### 后端
 - **桌面端**: Tauri 2 + Rust
 - **数据库**: SQLite (桌面端), IndexedDB (浏览器端)
-- **存储适配**: 自动环境检测
+- **运行时检测**: Vite 编译期 `__APP_IS_TAURI__` + `isWebRuntime()`，Tauri IPC 不可用时自动回落浏览器模式
 
 ### AI集成
 - **支持模型**: OpenAI, Anthropic, GLM, 通义千问, 本地模型
@@ -89,6 +90,9 @@ ai-novel-workshop/
 │   └── optimization-analysis.md    # 性能优化分析
 │
 ├── src/                            # 前端源代码
+│   ├── assets/                     # 静态资源与全局 Design System
+│   │   └── styles/design-system.css # --ds-* 令牌、Element Plus 变量桥接、暗/亮主题覆盖
+│   │
 │   ├── components/                 # Vue组件 (60+)
 │   │   ├── Sandbox/                # 多视图沙盒组件
 │   │   │   ├── SandboxLayout.vue   # 沙盒主布局
@@ -237,11 +241,14 @@ if (outlineRemaining < 5) {
 
 **环境自适应路由**:
 ```typescript
-const isTauri = '__TAURI_INTERNALS__' in window;
-const storage = isTauri
-  ? new TauriStorage()    // SQLite后端
-  : new IndexedDBStorage(); // 浏览器后端
+import { isWebRuntime } from '@/utils/anthropic-guard'
+
+const storage = isWebRuntime()
+  ? new IndexedDBStorage() // 浏览器端
+  : new TauriStorage()     // Tauri + SQLite 后端
 ```
+
+运行时边界由 Vite 在构建期注入 `__APP_IS_TAURI__`，Web 构建始终按浏览器模式处理；Tauri 构建还会确认 `window.__TAURI_INTERNALS__.invoke` 可用，避免用可伪造的浏览器全局变量绕过安全策略。
 
 **SQLite优势**:
 - 独立表结构 (projects, chapters分离)

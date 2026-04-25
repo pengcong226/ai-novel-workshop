@@ -24,10 +24,11 @@ ai-novel-workshop/
 ├── public/
 │   └── favicon.ico
 ├── src/
-│   ├── assets/              # 静态资源
+│   ├── assets/              # 静态资源与全局视觉系统
 │   │   ├── styles/          # 全局样式
+│   │   │   └── design-system.css # --ds-* 设计令牌、Element Plus 变量桥接、暗/亮主题覆盖
 │   │   └── icons/
-│   ├── components/          # Vue组件 (40+)
+│   ├── components/          # Vue组件 (60+)
 │   │   ├── config/          # AI配置相关组件
 │   │   │   ├── ModelSelector.vue
 │   │   │   ├── ProviderManager.vue
@@ -123,31 +124,25 @@ ai-novel-workshop/
 
 ## 3. 架构理念：沉浸式工作台 (Immersive Layout)
 
-V5架构彻底放弃了经典的中台Dashboard界面，转向真正的全栈生产力（类似 Notion / Ulysses 混合）：
+V5 前端已经收敛为暗色优先的现代创作工作台，视觉语言参考 Notion/Linear：项目首页使用 Hero + 项目卡片瀑布流，项目工作区使用 CSS Grid、玻璃态侧边栏、可折叠导航和插件侧栏。
+
+全局视觉基底集中在 `src/assets/styles/design-system.css`：
+- `--ds-*` 设计令牌统一背景、文字、间距、圆角、阴影、玻璃态和侧边栏宽度。
+- Element Plus 变量映射到 Design System，避免各组件重复硬编码主题色。
+- `html.dark` / `html.light` 作为根主题类，由 `stores/theme.ts` 在主题切换时同步维护。
+- 字体采用本地/系统 fallback，不依赖外链字体，保证桌面端与离线场景稳定。
 
 ```
 ┌────────────────────────────────────────────────────────────────────┐
-│                          AppHeader (极简状态栏)                     │
-│  [Logo]         [当前项目标题]          [后台调度进度] [设置] [返回] │
-├──────────────┬──────────────────────────┬─────────────────────────┤
-│              │                          │                         │
-│   资源视图区  │        核心书写区        │       情报矩阵区          │
-│   (左侧折叠)  │        (中央白板)        │       (右侧抽屉)          │
-│              │                          │                         │
-│  ┌─────────┐ │  ┌────────────────────┐  │  ┌───────────────────┐  │
-│  │ 项目配置 │ │  │    编辑工具栏      │  │  │  GlassContextPanel│  │
-│  │ 大纲视图 │ │  ├────────────────────┤  │  │  毛玻璃上下文雷达  │  │
-│  │ 实体管理 │ │  │                    │  │  ├───────────────────┤  │
-│  │ 关系图谱 │ │  │                    │  │  │  AIAssistant      │  │
-│  │ 状态事件 │ │  │    Chapters.vue    │  │  │  (审查日志与对话)  │  │
-│  │ 质量报告 │ │  │    (虚拟长列表)    │  │  ├───────────────────┤  │
-│  │ (切换式) │ │  │                    │  │  │  AI建议 / 检阅    │  │
-│  │         │ │  │                    │  │  │                   │  │
-│  └─────────┘ │  └────────────────────┘  │  └───────────────────┘  │
-│              │                          │                         │
-│   侧边栏自适应│      自适应宽度 + 聚焦   │     侧边栏抽屉式折叠      │
-└──────────────┴──────────────────────────┴─────────────────────────┘
+│                       ProjectEditor CSS Grid Shell                  │
+├──────────────┬──────────────────────────────────────┬──────────────┤
+│  玻璃侧边栏   │              主创作面板               │ 插件/情报侧栏 │
+│  可折叠导航   │ Dashboard / Chapters / Sandbox / ... │ 动态组件注入 │
+│  项目统计     │ 章节、沙盒、统计、配置等面板切换       │ 玻璃态容器   │
+└──────────────┴──────────────────────────────────────┴──────────────┘
 ```
+
+Zen Mode 会隐藏侧边栏并让主内容占满；普通折叠只收起文字标签，保留图标导航和可访问的 `aria-label`。
 
 ## 4. 核心状态流转 (Pinia 状态切片)
 
@@ -209,7 +204,7 @@ interface TaskState {
   activeTasks: Record<string, Task>;
   queue: Task[];
   // 日志观测台
-  auditLogs: AuditEntry[]; 
+  auditLogs: AuditEntry[];
 }
 ```
 
@@ -229,17 +224,22 @@ interface AIState {
 
 ## 5. UI 高频组件与性能设计
 
-### 5.1 Chapters.vue (无限长列表渲染)
+### 5.1 设计系统与主题边界
+
+`design-system.css` 是所有页面视觉的单一入口：ProjectList、ProjectEditor、Chapters、ChapterEditorDialog、AIAssistant、WritingDashboard、AgentConsole、TokenUsagePanel 都通过 `--ds-*` 令牌共享表面层级、强调色、阴影和动画。主题插件只负责注入变量和 mode；组件不再直接依赖某个内置主题的硬编码颜色。
+
+### 5.2 Chapters.vue (无限长列表渲染)
 
 使用了 `@tanstack/vue-virtual` 彻底解决了百万字时的 DOM 卡顿：
 - 渲染机制：虚拟长列表，只渲染当前视口上下各5章内容。
 - 回调：与 `GlobalTaskObserver` 绑定，异步侦听单个章节的 `isGenerating` 状态。
+- 视觉：章节卡片使用 Design System surface，状态竖线区分 draft/completed/generating，编辑器对话框保持纯文本持久化路径。
 
-### 5.2 抽屉系统 (GlassContextPanel.vue)
+### 5.3 抽屉系统 (GlassContextPanel.vue / AIAssistant.vue)
 
 V5 的交互创新。任何对长篇文本的操作（如一键查阅实体详情、翻阅大纲），都通过 `<el-drawer>` 的形式覆盖在右侧，使用 `backdrop-filter: blur(12px)` 实现毛玻璃效果，不打断用户当下的创作流。
 
-### 5.3 异步防抖保存
+### 5.4 异步防抖保存
 
 所有输入框（如 Markdown 编辑、表格更改）均通过 `lodash/debounce` 打包并在 Vue `onUnmounted` 生命周期主动挂起回收，彻底避免后台存盘时的脏写和内存泄漏。
 

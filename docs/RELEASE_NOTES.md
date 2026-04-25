@@ -1,5 +1,23 @@
 # AI小说工坊 发布说明
 
+## [v5.1.0] - 2026-04-26
+
+### UI / UX
+- **全局 Design System**: 新增 `src/assets/styles/design-system.css`，统一 `--ds-*` 设计令牌、Element Plus 变量桥接、玻璃态 surface、微动画和滚动条样式。
+- **现代项目首页**: ProjectList 更新为 Notion/Linear 风格 Hero、项目统计、渐变项目卡片和更清晰的空状态入口。
+- **CSS Grid 写作工作区**: ProjectEditor 更新为可折叠玻璃侧边栏、插件侧栏、Zen Mode 和更一致的主面板布局。
+- **编辑与助手体验统一**: Chapters、ChapterEditorDialog、AIAssistant、WritingDashboard、AgentConsole、TokenUsagePanel 统一使用 Design System surface、状态竖线、强调色和暗色优先视觉。
+
+### Runtime / Security
+- **浏览器/Tauri 边界加固**: Vite 注入 `__APP_IS_TAURI__`，`isWebRuntime()` 不再信任可伪造的浏览器全局变量；Web 构建继续阻止浏览器直连 Anthropic 官方接口。
+- **浏览器模式烟测修复**: 修复 Sandbox 加载误走 Tauri `invoke`、G6 `graph.data` API 兼容、侧边栏折叠控件可访问性和章节菜单切换回归。
+
+### Verification
+- `npm run type-check` 通过。
+- `npm run lint -- --quiet` 通过。
+- `npm test -- --run` 通过：50 个测试文件、267 个测试。
+- `npm run build` 通过，保留既有第三方 eval、动态/静态 import overlap 和 chunk size 警告。
+
 ## [v5.0.0] - 2026-04-12
 
 ### Major Architecture Changes
