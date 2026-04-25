@@ -70,15 +70,25 @@ export default defineConfig({
     // 优化代码分割
     rollupOptions: {
       output: {
-        manualChunks: {
-          // 将大型库分离到单独的chunk
-          'element-plus': ['element-plus'],
-          'echarts': ['echarts', 'vue-echarts'],
-          'g6': ['@antv/g6'],
-          'xlsx': ['xlsx'],
-          'transformers': ['@xenova/transformers'],
-          // 将vue生态相关库打包在一起
-          'vue-vendor': ['vue', 'vue-router', 'pinia'],
+        manualChunks(id: string) {
+          const normalizedId = id.split('\\').join('/')
+          if (normalizedId.includes('/node_modules/element-plus/')) return 'element-plus'
+          if (
+            normalizedId.includes('/node_modules/@tiptap/') ||
+            normalizedId.includes('/node_modules/prosemirror-')
+          ) return 'tiptap'
+          if (
+            normalizedId.includes('/node_modules/echarts/') ||
+            normalizedId.includes('/node_modules/vue-echarts/')
+          ) return 'echarts'
+          if (normalizedId.includes('/node_modules/@antv/g6/')) return 'g6'
+          if (normalizedId.includes('/node_modules/xlsx/')) return 'xlsx'
+          if (normalizedId.includes('/node_modules/@xenova/transformers/')) return 'transformers'
+          if (
+            normalizedId.includes('/node_modules/vue/') ||
+            normalizedId.includes('/node_modules/vue-router/') ||
+            normalizedId.includes('/node_modules/pinia/')
+          ) return 'vue-vendor'
         }
       }
     },

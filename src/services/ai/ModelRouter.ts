@@ -94,6 +94,7 @@ const TASK_TIER_MAP: Record<TaskType, ModelTier> = {
   check: 'checking',
   state_extraction: 'checking',   // 档案员 — 用便宜模型即可
   memory_update: 'checking',      // 表格管理员 — 用便宜模型即可
+  assistant: 'planning',
 };
 
 /**

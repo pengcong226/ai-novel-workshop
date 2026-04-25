@@ -5,6 +5,7 @@ import type { AIServiceConfig, BudgetConfig, ChatMessage, ChatRequest, TaskConte
 import { getAIMockEnabled } from '@/utils/devFlags'
 import { getLogger } from '@/utils/logger'
 import { useProjectStore } from './project'
+import { useTokenUsageStore } from './tokenUsage'
 import { pluginManager } from '@/plugins/manager'
 
 export const useAIStore = defineStore('ai', () => {
@@ -134,6 +135,16 @@ export const useAIStore = defineStore('ai', () => {
 
     callback({ type: 'done', response })
     return response
+  }
+
+  function recordTokenUsage(response: ChatResponse, context: TaskContext | undefined, source: 'chat' | 'chatStream' | 'mockChat' | 'mockStream') {
+    const projectStore = useProjectStore()
+    useTokenUsageStore().recordFromChatResponse({
+      projectId: projectStore.currentProject?.id,
+      source,
+      context,
+      response,
+    })
   }
 
   /**
@@ -308,7 +319,9 @@ export const useAIStore = defineStore('ai', () => {
   ): Promise<ChatResponse> {
     if (import.meta.env.DEV && getAIMockEnabled()) {
       logger.warn('AI Mock 模式已启用，chat 返回模拟响应', { type: context?.type })
-      return createMockChatResponse(messages, context)
+      const response = createMockChatResponse(messages, context)
+      recordTokenUsage(response, context, 'mockChat')
+      return response
     }
 
     if (!aiService.value || !isInitialized.value) {
@@ -320,7 +333,9 @@ export const useAIStore = defineStore('ai', () => {
     }
 
     const requestContext = buildRequestContext(context, 'ai-store')
-    return await aiService.value.chat(messages, requestContext, options)
+    const response = await aiService.value.chat(messages, requestContext, options)
+    recordTokenUsage(response, requestContext, 'chat')
+    return response
   }
 
   /**
@@ -334,7 +349,9 @@ export const useAIStore = defineStore('ai', () => {
   ) {
     if (import.meta.env.DEV && getAIMockEnabled()) {
       logger.warn('AI Mock 模式已启用，chatStream 返回模拟流', { type: context?.type })
-      return await emitMockStream(messages, callback, context)
+      const response = await emitMockStream(messages, callback, context)
+      recordTokenUsage(response, context, 'mockStream')
+      return response
     }
 
     if (!aiService.value || !isInitialized.value) {
@@ -346,7 +363,9 @@ export const useAIStore = defineStore('ai', () => {
     }
 
     const requestContext = buildRequestContext(context, 'ai-store-stream')
-    return await aiService.value.chatStream(messages, callback, requestContext, options)
+    const response = await aiService.value.chatStream(messages, callback, requestContext, options)
+    recordTokenUsage(response, requestContext, 'chatStream')
+    return response
   }
 
   /**

@@ -16,7 +16,7 @@
           <el-input v-model="chapterForm.title" placeholder="无尽航程的标题..." class="immersive-title-input" />
         </div>
         <div class="header-right">
-          <span class="immersive-status" :style="{ color: saveStatusColor }">{{ saveStatusText }}</span>
+          <span class="immersive-status" :style="{ color: saveStatusView.color }">{{ saveStatusView.text }}</span>
           <el-button @click="saveCheckpoint" v-if="editingChapter" text>打点</el-button>
           <el-button @click="showVersionPanel = true" v-if="editingChapter" text>历史</el-button>
           <el-button type="primary" @click="saveChapter" :loading="saving" round>保存</el-button>
@@ -188,6 +188,7 @@
 
   <ChapterVersionPanel
     v-model="showVersionPanel"
+    :project-id="project?.id || ''"
     :chapter-id="editingChapter?.id || ''"
     @restore="handleVersionRestore"
   />
@@ -203,18 +204,19 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
+import { computed, onUnmounted, ref, watch } from 'vue'
 import { ElMessage } from 'element-plus'
 import { ArrowLeft, MagicStick, Search } from '@element-plus/icons-vue'
 import { v4 as uuidv4 } from 'uuid'
 import type { Editor } from '@tiptap/vue-3'
-import type { Chapter, Checkpoint } from '@/types'
+import type { Chapter } from '@/types'
 import type { ChatMessage } from '@/types/ai'
 import GlassContextPanel from './GlassContextPanel.vue'
 import ChapterVersionPanel from './ChapterVersionPanel.vue'
 import { AIRewriteConfirm, FindReplacePanel, NovelEditor, ReviewSidePanel } from './editor'
 import type { AnnotationItem } from './editor'
 import { useContextRadar } from '@/composables/useContextRadar'
+import { useKeyboardShortcuts } from '@/composables/useKeyboardShortcuts'
 import { useProjectStore } from '@/stores/project'
 import { useSuggestionsStore } from '@/stores/suggestions'
 import { executeParagraphAI, isParagraphAction } from '@/services/paragraph-ai'
@@ -262,7 +264,18 @@ const emit = defineEmits<{
   saved: [chapter: Chapter]
 }>()
 
+type SaveStatus = 'idle' | 'pending' | 'saving' | 'saved' | 'error'
+
+const SAVE_STATUS_VIEW = {
+  idle: { text: '未保存', color: '#909399' },
+  pending: { text: '待自动保存', color: '#e6a23c' },
+  saving: { text: '保存中...', color: '#409eff' },
+  saved: { text: '已自动保存', color: '#67c23a' },
+  error: { text: '保存失败', color: '#f56c6c' },
+} satisfies Record<SaveStatus, { text: string; color: string }>
+
 const logger = getLogger('chapter-editor-dialog')
+const { registerShortcuts } = useKeyboardShortcuts()
 const projectStore = useProjectStore()
 const suggestionsStore = useSuggestionsStore()
 const project = computed(() => projectStore.currentProject)
@@ -291,9 +304,10 @@ const aiRewriteModified = ref('')
 const aiRewriteAction = ref('')
 const aiRewriteSelectionRange = ref({ from: 0, to: 0, editorFrom: 0, editorTo: 0 })
 const isParagraphAIProcessing = ref(false)
-const saveStatus = ref<'idle' | 'saving' | 'saved' | 'error'>('idle')
+const saveStatus = ref<SaveStatus>('idle')
 const showVersionPanel = ref(false)
 const showQualityDialog = ref(false)
+const isQualityChecking = ref(false)
 const currentQualityReport = ref<QualityReport | null>(null)
 const qualityReportTab = ref('dimensions')
 let autoSaveTimer: ReturnType<typeof setTimeout> | null = null
@@ -325,31 +339,66 @@ const currentAnnotations = computed<AnnotationItem[]>(() =>
     }))
 )
 
-const saveStatusText = computed(() => {
-  switch (saveStatus.value) {
-    case 'saving':
-      return '保存中...'
-    case 'saved':
-      return '已自动保存'
-    case 'error':
-      return '保存失败'
-    default:
-      return '未保存'
-  }
-})
+const isNestedBlockingDialogOpen = computed(() =>
+  showFindReplace.value || showAIRewriteConfirm.value || showVersionPanel.value || showQualityDialog.value
+)
 
-const saveStatusColor = computed(() => {
-  switch (saveStatus.value) {
-    case 'saving':
-      return '#409eff'
-    case 'saved':
-      return '#67c23a'
-    case 'error':
-      return '#f56c6c'
-    default:
-      return '#909399'
-  }
-})
+function canUseEditorShortcut(): boolean {
+  return visible.value && !isNestedBlockingDialogOpen.value
+}
+
+registerShortcuts([
+  {
+    id: 'chapter-editor.save',
+    label: '保存章节',
+    keys: ['mod', 's'],
+    scope: 'chapter-editor',
+    allowInInputs: true,
+    when: canUseEditorShortcut,
+    disabled: () => saving.value || generating.value,
+    handler: () => saveChapter(),
+  },
+  {
+    id: 'chapter-editor.find',
+    label: '查找替换',
+    keys: ['mod', 'f'],
+    scope: 'chapter-editor',
+    allowInInputs: true,
+    when: canUseEditorShortcut,
+    handler: openFindReplace,
+  },
+  {
+    id: 'chapter-editor.find-alt',
+    label: '查找替换',
+    keys: ['mod', 'h'],
+    scope: 'chapter-editor',
+    allowInInputs: true,
+    when: canUseEditorShortcut,
+    handler: openFindReplace,
+  },
+  {
+    id: 'chapter-editor.review',
+    label: '运行审校',
+    keys: ['mod', 'shift', 'r'],
+    scope: 'chapter-editor',
+    allowInInputs: true,
+    when: canUseEditorShortcut,
+    disabled: () => reviewingChapter.value,
+    handler: () => runReviewAndShowPanel(),
+  },
+  {
+    id: 'chapter-editor.quality',
+    label: '质量检查',
+    keys: ['mod', 'shift', 'q'],
+    scope: 'chapter-editor',
+    allowInInputs: true,
+    when: canUseEditorShortcut,
+    disabled: () => isQualityChecking.value || generating.value || saving.value,
+    handler: () => checkQuality(),
+  },
+])
+
+const saveStatusView = computed(() => SAVE_STATUS_VIEW[saveStatus.value])
 
 function createEmptyChapter(): Chapter {
   return {
@@ -462,8 +511,9 @@ function scheduleAutoSave() {
   }
 
   clearAutoSaveTimer()
-  saveStatus.value = 'saving'
+  saveStatus.value = 'pending'
   autoSaveTimer = setTimeout(async () => {
+    saveStatus.value = 'saving'
     try {
       await persistChapterDraftSilently()
       saveStatus.value = 'saved'
@@ -474,21 +524,8 @@ function scheduleAutoSave() {
   }, 3000)
 }
 
-function handleEditorKeydown(event: KeyboardEvent) {
-  if (!visible.value) return
-
-  if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 's') {
-    event.preventDefault()
-    void saveChapter()
-  }
-  if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'f') {
-    event.preventDefault()
-    showFindReplace.value = true
-  }
-  if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'h') {
-    event.preventDefault()
-    showFindReplace.value = true
-  }
+function openFindReplace() {
+  showFindReplace.value = true
 }
 
 async function handleParagraphAI(payload: { command: string; selectedText: string; from: number; to: number; editorFrom: number; editorTo: number }) {
@@ -570,6 +607,7 @@ async function regenerateAIRewrite() {
 }
 
 async function saveChapter() {
+  if (saving.value) return
   if (!chapterForm.value.title.trim()) {
     ElMessage.warning('请输入章节标题')
     return
@@ -581,6 +619,7 @@ async function saveChapter() {
   try {
     if (!project.value) return
 
+    const projectId = project.value.id
     const chapterData = structuredClone(chapterForm.value)
     chapterData.wordCount = chapterData.content?.length || 0
 
@@ -595,12 +634,12 @@ async function saveChapter() {
     visible.value = false
     emit('saved', chapterData)
 
-    createSnapshot(chapterData, project.value.id, 'auto').catch(error =>
-      logger.warn('快照保存失败', error)
-    )
-    pruneSnapshots(chapterData.id, 20).catch(error =>
-      logger.warn('快照清理失败', error)
-    )
+    void createSnapshot(chapterData, projectId, 'auto')
+      .then(() => pruneSnapshots(chapterData.id, projectId, 20))
+      .catch(error => {
+        logger.warn('快照保存或清理失败', error)
+        ElMessage.warning('章节已保存，但历史版本保存失败')
+      })
 
     resetForm()
 
@@ -625,6 +664,7 @@ async function saveChapter() {
 function handleVersionRestore(content: string, title: string) {
   chapterForm.value.content = content
   chapterForm.value.title = title
+  scheduleAutoSave()
 }
 
 function buildGenerationOptions(advancedSettings?: {
@@ -891,6 +931,7 @@ function dismissReviewSuggestion(suggestionId: string) {
 }
 
 async function checkQuality() {
+  if (isQualityChecking.value || showQualityDialog.value) return
   if (!chapterForm.value.content || chapterForm.value.content.trim().length === 0) {
     ElMessage.warning('请先生成章节内容')
     return
@@ -902,6 +943,7 @@ async function checkQuality() {
   }
 
   try {
+    isQualityChecking.value = true
     ElMessage.info('正在进行质量检查...')
 
     const { createQualityChecker } = await import('@/utils/qualityChecker')
@@ -961,6 +1003,8 @@ async function checkQuality() {
   } catch (error) {
     logger.error('质量检查失败', error)
     ElMessage.error('质量检查失败：' + getErrorMessage(error))
+  } finally {
+    isQualityChecking.value = false
   }
 }
 
@@ -969,19 +1013,17 @@ function showQualityReportDialog(report: QualityReport) {
   showQualityDialog.value = true
 }
 
-function saveCheckpoint() {
-  if (!editingChapter.value) return
+async function saveCheckpoint() {
+  if (!project.value || (!chapterForm.value.title.trim() && !chapterForm.value.content.trim())) return
 
-  const checkpoint: Checkpoint = {
-    id: uuidv4(),
-    timestamp: new Date(),
-    content: chapterForm.value.content,
-    description: '手动保存'
+  try {
+    await createSnapshot(chapterForm.value, project.value.id, 'manual')
+    await pruneSnapshots(chapterForm.value.id, project.value.id, 20)
+    ElMessage.success('手动版本已保存')
+  } catch (error) {
+    logger.error('手动版本保存失败', error)
+    ElMessage.error('手动版本保存失败：' + getErrorMessage(error))
   }
-
-  chapterForm.value.checkpoints.push(checkpoint)
-  scheduleAutoSave()
-  ElMessage.success('检查点已保存')
 }
 
 function getTotalIssues(report: QualityReport) {
@@ -1032,14 +1074,7 @@ watch(
   }
 )
 
-onMounted(() => {
-  window.addEventListener('keydown', handleEditorKeydown)
-})
-
-onUnmounted(() => {
-  window.removeEventListener('keydown', handleEditorKeydown)
-  clearAutoSaveTimer()
-})
+onUnmounted(clearAutoSaveTimer)
 </script>
 
 <style scoped>

@@ -105,11 +105,15 @@ function mergeWorldbookEntries(
   }
 }
 
-function renameWorldbookEntry(entry: WorldbookEntry, suffix: number): WorldbookEntry {
+function getNextWorldbookUid(entries: WorldbookEntry[]): number {
+  return Math.max(0, ...entries.map(entry => Number.isFinite(entry.uid) ? entry.uid : 0)) + 1
+}
+
+function renameWorldbookEntry(entry: WorldbookEntry, uid: number, suffix: number): WorldbookEntry {
   const label = `副本 ${suffix}`
   return {
     ...entry,
-    uid: Date.now() + suffix,
+    uid,
     name: entry.name ? `${entry.name} (${label})` : entry.name,
     title: entry.title ? `${entry.title} (${label})` : entry.title,
     comment: entry.comment ? `${entry.comment} (${label})` : label
@@ -126,6 +130,7 @@ function resolveMergedEntries(
 
   const resolved: WorldbookEntry[] = []
   const seen = new Map<string, number>()
+  let nextUid = getNextWorldbookUid(entries)
 
   for (const entry of entries) {
     const signature = getDuplicateSignature(entry)
@@ -154,7 +159,7 @@ function resolveMergedEntries(
       continue
     }
 
-    const renamed = renameWorldbookEntry(entry, stats?.duplicates || resolved.length + 1)
+    const renamed = renameWorldbookEntry(entry, nextUid++, stats?.duplicates || resolved.length + 1)
     resolved.push(renamed)
     seen.set(getDuplicateSignature(renamed), resolved.length - 1)
   }

@@ -30,13 +30,6 @@ export function useAutoSave() {
     }
   }
 
-  function onSaveShortcut(e: KeyboardEvent) {
-    if ((e.ctrlKey || e.metaKey) && e.key === 's') {
-      e.preventDefault()
-      void save()
-    }
-  }
-
   function onBeforeUnload(e: BeforeUnloadEvent) {
     if (isDirty.value) {
       e.preventDefault()
@@ -44,12 +37,10 @@ export function useAutoSave() {
   }
 
   onMounted(() => {
-    window.addEventListener('keydown', onSaveShortcut)
     window.addEventListener('beforeunload', onBeforeUnload)
   })
 
   onUnmounted(() => {
-    window.removeEventListener('keydown', onSaveShortcut)
     window.removeEventListener('beforeunload', onBeforeUnload)
   })
 

@@ -106,7 +106,8 @@ export type TaskType =
   | 'chapter'              // 章节生成
   | 'check'                // 一致性检查（哨兵模型）
   | 'state_extraction'     // 状态提取（档案员）
-  | 'memory_update';       // 记忆表更新（表格管理员）
+  | 'memory_update'         // 记忆表更新（表格管理员）
+  | 'assistant';            // 通用助手对话
 
 /**
  * 任务复杂度

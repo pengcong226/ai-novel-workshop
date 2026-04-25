@@ -20,7 +20,7 @@
           :class="message.role === 'user' ? 'msg-user' : 'msg-ai'"
         >
           <div class="msg-meta">{{ message.role === 'user' ? '你' : 'Automaton' }}</div>
-          <div class="msg-content" v-html="renderMarkdown(message.content)"></div>
+          <div class="msg-content" v-html="message.renderedContent"></div>
           <div v-if="message.action" class="action-card">
             <div class="action-body">
               <div class="action-title">检测到可执行动作：{{ message.action.action }}</div>
@@ -87,6 +87,7 @@ interface AutomatonMessage {
   id: string
   role: 'user' | 'assistant'
   content: string
+  renderedContent: string
   action?: ActionEnvelope
 }
 
@@ -117,6 +118,7 @@ const messages = ref<AutomatonMessage[]>([])
 const MAX_USER_MESSAGE_LENGTH = 4000
 const MAX_ASSISTANT_MESSAGE_LENGTH = 8000
 const MAX_CONTEXT_MESSAGE_LENGTH = 2000
+const MAX_RETAINED_MESSAGES = 40
 
 const quickCommands: QuickCommand[] = [
   { text: '总结当前状态', prompt: '请总结当前章节的沙盘状态、主要人物变化和世界观约束。' },
@@ -129,7 +131,15 @@ function createMessage(role: AutomatonMessage['role'], content: string, action?:
     id: crypto.randomUUID(),
     role,
     content,
+    renderedContent: renderMarkdown(content),
     ...(action ? { action } : {}),
+  }
+}
+
+function pushMessage(message: AutomatonMessage) {
+  messages.value.push(message)
+  if (messages.value.length > MAX_RETAINED_MESSAGES) {
+    messages.value.splice(0, messages.value.length - MAX_RETAINED_MESSAGES)
   }
 }
 
@@ -270,12 +280,12 @@ async function sendMessage() {
     return
   }
 
-  messages.value.push(createMessage('user', text))
+  pushMessage(createMessage('user', text))
   userInput.value = ''
   await scrollToBottom()
 
   if (!aiStore.checkInitialized()) {
-    messages.value.push(createMessage('assistant', '请先在项目配置中添加并启用 AI 模型提供商。'))
+    pushMessage(createMessage('assistant', '请先在项目配置中添加并启用 AI 模型提供商。'))
     await scrollToBottom()
     return
   }
@@ -295,10 +305,10 @@ async function sendMessage() {
       content = content.replace(rawMatch, '').trim() || (action ? '我准备好了一个可执行动作，请确认后执行。' : '模型返回了不受支持的动作，已阻止执行。')
     }
 
-    messages.value.push(createMessage('assistant', content, action ?? undefined))
+    pushMessage(createMessage('assistant', content, action ?? undefined))
   } catch (error) {
     logger.error('Automaton 对话失败', error)
-    messages.value.push(createMessage('assistant', '处理失败：' + getErrorMessage(error)))
+    pushMessage(createMessage('assistant', '处理失败：' + getErrorMessage(error)))
   } finally {
     isTyping.value = false
     await scrollToBottom()
@@ -319,7 +329,7 @@ async function executeAction(message: AutomatonMessage) {
 
     const success = await executeAssistantAction(action)
     if (success) {
-      messages.value.push(createMessage('assistant', `动作 **${action.action}** 已执行。`))
+      pushMessage(createMessage('assistant', `动作 **${action.action}** 已执行。`))
       message.action = undefined
       ElMessage.success('动作已执行')
     } else {

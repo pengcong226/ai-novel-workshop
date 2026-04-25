@@ -16,6 +16,7 @@ import { sanitizeForPrompt, validateInput } from './inputSanitizer'
 import { getVectorService, type VectorService } from '@/services/vector-service'
 import { ContextPipeline, type ContextPayload, estimateTokens, truncateToTokens } from './context/pipeline'
 import { getLogger } from '@/utils/logger'
+import { formatEntityLocation } from '@/utils/entityHelpers'
 
 const logger = getLogger('contextBuilder')
 import {
@@ -169,7 +170,8 @@ export function inferCurrentScene(recentChapters: Chapter[]): string {
       const locations = [...new Set(
         charactersWithLocation.map((e: Entity) => {
           const loc = activeState[e.id]?.location
-          return typeof loc === 'string' ? loc : ''
+          if (!loc) return ''
+          return formatEntityLocation(loc)
         }).filter(Boolean)
       )]
       if (locations.length > 0) return locations.join('、')
@@ -222,7 +224,7 @@ export function inferCharacterStates(recentChapters: Chapter[]): string {
         const parts = [entity.name]
         if (resolved.properties.status) parts.push(resolved.properties.status)
         if (resolved.location) {
-          const locStr = typeof resolved.location === 'string' ? resolved.location : `(${resolved.location.x}, ${resolved.location.y})`
+          const locStr = formatEntityLocation(resolved.location)
           parts.push(`在${locStr}`)
         }
         return parts.join('/')

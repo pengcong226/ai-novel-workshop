@@ -29,6 +29,7 @@ import { FailoverManager } from './ai/FailoverManager';
 import { ProviderRegistry } from '@/plugins/registries/provider-registry';
 import { getLogger } from '@/utils/logger';
 import { enforceSecureAnthropicAccess } from '@/utils/anthropic-guard';
+import { isBrowserOnline } from '@/composables/useOnlineStatus';
 import { readSSEStream, openAIContentExtractor, claudeContentExtractor } from '@/utils/sse-stream';
 
 // ============================================================================
@@ -168,6 +169,12 @@ export class AIServiceError extends Error {
   ) {
     super(message);
     this.name = 'AIServiceError';
+  }
+}
+
+function assertOnlineForAIRequest(provider: AIProvider): void {
+  if (provider !== 'local' && !isBrowserOnline()) {
+    throw new AIServiceError('OFFLINE', '当前处于离线状态，无法调用 AI 服务。', provider)
   }
 }
 
@@ -1118,6 +1125,7 @@ export class AIService {
     const { result } = await this.failoverManager.executeWithFailover(
       taskContext,
       async (model) => {
+        assertOnlineForAIRequest(model.provider);
         // 构建请求
         const request: ChatRequest = {
           messages,
@@ -1213,6 +1221,7 @@ export class AIService {
     const { result } = await this.failoverManager.executeWithFailover(
       taskContext,
       async (model) => {
+        assertOnlineForAIRequest(model.provider);
         // 构建请求
         const request: ChatRequest = {
           messages,

@@ -8,6 +8,8 @@ import { useStorage } from './storage'
 import { useSandboxStore } from './sandbox'
 import { migrateV1ToV5Full } from '@/utils/v1ToV5Migration'
 import { getDefaultProjectConfig, normalizeProjectConfig } from '@/utils/project-config-normalizer'
+import { reorderChaptersByIds } from '@/utils/chapterReorder'
+import { createProjectBackup, parseProjectBackupJson, reassignProjectBackupIds } from '@/utils/projectBackup'
 
 export const useProjectStore = defineStore('project', () => {
   // 状态
@@ -182,53 +184,12 @@ export const useProjectStore = defineStore('project', () => {
   // 防抖保存定时器
   let saveDebounceTimer: ReturnType<typeof setTimeout> | null = null
   const SAVE_DEBOUNCE_DELAY = 1000 // 1秒防抖
-  const LARGE_EXPORT_THRESHOLD_BYTES = 5 * 1024 * 1024
-
   let beforeUnloadHandler: ((event: BeforeUnloadEvent) => void) | null = null
 
   type ProjectLineRecord =
     | { type: 'meta'; version: 1; data: Omit<Project, 'chapters'> }
     | { type: 'chapter'; data: Project['chapters'][number] }
     | { type: 'end'; count: number }
-
-  function estimateProjectSizeRough(project: Project): number {
-    const base = 2048 + (project.title?.length || 0) + (project.description?.length || 0)
-    const chapterSize = (project.chapters || []).reduce((sum, ch) => {
-      return sum + (ch.content?.length || 0) + (ch.summary?.length || 0) + 1024
-    }, 0)
-
-    return base + chapterSize
-  }
-
-  function buildLineExportBlob(project: Project): Blob {
-    const projectMeta = { ...project } as any as Omit<Project, 'chapters'>
-    delete (projectMeta as Partial<Project>).chapters
-
-    const lines: string[] = []
-    const metaRecord: ProjectLineRecord = {
-      type: 'meta',
-      version: 1,
-      data: projectMeta as Omit<Project, 'chapters'>
-    }
-
-    lines.push(`${JSON.stringify(metaRecord)}\n`)
-
-    for (const chapter of project.chapters || []) {
-      const chapterRecord: ProjectLineRecord = {
-        type: 'chapter',
-        data: chapter
-      }
-      lines.push(`${JSON.stringify(chapterRecord)}\n`)
-    }
-
-    const endRecord: ProjectLineRecord = {
-      type: 'end',
-      count: (project.chapters || []).length
-    }
-    lines.push(`${JSON.stringify(endRecord)}\n`)
-
-    return new Blob(lines, { type: 'application/x-ndjson' })
-  }
 
   function isLikelyLineProjectFile(file: File): boolean {
     const name = file.name.toLowerCase()
@@ -426,12 +387,16 @@ export const useProjectStore = defineStore('project', () => {
     error.value = null
     try {
       logger.info('开始独立保存章节', { chapterId: chapter.id, title: chapter.title })
-      
+      const currentChapterMeta = currentProject.value.chapters.find((c: any) => c.id === chapter.id)
+      const chapterToSave = currentChapterMeta?.number
+        ? { ...chapter, projectId: currentProject.value.id, number: currentChapterMeta.number }
+        : { ...chapter, projectId: currentProject.value.id }
+
       // 1. 直通底层存储，保存完整带有 content 的章节数据
-      await storage.saveChapter(chapter, currentProject.value.id)
-      
+      await storage.saveChapter(chapterToSave, currentProject.value.id)
+
       // 2. 剥离 content 以维护前端状态机的轻量化（防OOM）
-      const shallowChapter = { ...chapter }
+      const shallowChapter = { ...chapterToSave }
       delete shallowChapter.content
       
       const index = currentProject.value.chapters.findIndex((c: any) => c.id === chapter.id)
@@ -470,6 +435,33 @@ export const useProjectStore = defineStore('project', () => {
     }
   }
 
+  async function reorderChapters(orderedIds: string[]) {
+    if (!currentProject.value) return
+
+    const previousProject = currentProject.value
+    const reorderedChapters = reorderChaptersByIds(previousProject.chapters, orderedIds)
+    if (reorderedChapters === previousProject.chapters) return
+
+    const nextProject = {
+      ...previousProject,
+      chapters: reorderedChapters,
+    }
+
+    loading.value = true
+    error.value = null
+    try {
+      currentProject.value = nextProject
+      await storage.reorderChapters(nextProject.id, orderedIds)
+    } catch (e) {
+      currentProject.value = previousProject
+      logger.error('章节排序保存失败', e)
+      error.value = e instanceof Error ? e.message : '章节排序保存失败'
+      throw e
+    } finally {
+      loading.value = false
+    }
+  }
+
   // ===========================================
 
   // 删除项目
@@ -496,23 +488,22 @@ export const useProjectStore = defineStore('project', () => {
 
   // 导出项目
   async function exportProject(projectId: string) {
-    const project = await storage.loadProject(projectId)
+    const project = await storage.loadFullProject(projectId)
     if (!project) throw new Error('项目不存在')
 
-    const estimatedSize = estimateProjectSizeRough(project)
-    const useLineExport = estimatedSize >= LARGE_EXPORT_THRESHOLD_BYTES
+    const sandboxStore = useSandboxStore()
+    await sandboxStore.loadData(projectId)
+    if (!sandboxStore.isLoaded || sandboxStore.loadedProjectId !== projectId) {
+      throw new Error('项目沙盒数据加载失败')
+    }
 
-    const blob = useLineExport
-      ? buildLineExportBlob(project)
-      : new Blob([JSON.stringify(project, null, 2)], { type: 'application/json' })
-
+    const backup = createProjectBackup(project, sandboxStore.entities, sandboxStore.stateEvents)
+    const blob = new Blob([JSON.stringify(backup, null, 2)], { type: 'application/json' })
     const url = URL.createObjectURL(blob)
 
     const a = document.createElement('a')
     a.href = url
-    a.download = useLineExport
-      ? `${project.title}.anprojl`
-      : `${project.title}.anproj`
+    a.download = `${project.title}-backup.anproj`
     a.click()
 
     URL.revokeObjectURL(url)
@@ -520,19 +511,65 @@ export const useProjectStore = defineStore('project', () => {
 
   // 导入项目
   async function importProject(file: File): Promise<Project> {
+    if (isLikelyLineProjectFile(file)) {
+      const project = await importProjectFromLineStream(file)
+      project.id = uuidv4()
+      project.createdAt = new Date()
+      project.updatedAt = new Date()
+
+      await storage.saveProject(project)
+      projects.value = [...projects.value, project]
+      await storage.saveProjects(projects.value)
+
+      return project
+    }
+
+    const text = await file.text()
+    const parsedBackup = parseProjectBackupJson(text)
+
+    if (parsedBackup.backup) {
+      const nextProjectId = uuidv4()
+      const reassignedBackup = reassignProjectBackupIds(parsedBackup.backup, nextProjectId)
+      const restoredProject: Project = {
+        ...reassignedBackup.project,
+        id: nextProjectId,
+        title: `${reassignedBackup.project.title}（恢复）`,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      }
+
+      const sandboxStore = useSandboxStore()
+      const previousProjects = projects.value
+      try {
+        await storage.saveProject(restoredProject)
+        await sandboxStore.replaceProjectData(
+          nextProjectId,
+          reassignedBackup.sandbox.entities,
+          reassignedBackup.sandbox.stateEvents
+        )
+
+        projects.value = [...projects.value, restoredProject]
+        await storage.saveProjects(projects.value)
+      } catch (restoreError) {
+        projects.value = previousProjects
+        try {
+          await storage.deleteProject(nextProjectId)
+          await sandboxStore.replaceProjectData(nextProjectId, [], [])
+        } catch (rollbackError) {
+          logger.error('恢复项目回滚失败', rollbackError)
+        }
+        throw restoreError
+      }
+
+      return restoredProject
+    }
+
     let project: Project
 
-    if (isLikelyLineProjectFile(file)) {
-      project = await importProjectFromLineStream(file)
-    } else {
-      const text = await file.text()
-
-      try {
-        project = JSON.parse(text) as Project
-      } catch {
-        // 兼容：如果扩展名不正确但内容是分行格式，做一次流式兜底
-        project = await importProjectFromLineStream(file)
-      }
+    try {
+      project = JSON.parse(text) as Project
+    } catch {
+      throw new Error(parsedBackup.errors.join('；') || '导入文件格式无效')
     }
 
     // 生成新ID避免冲突
@@ -576,6 +613,7 @@ export const useProjectStore = defineStore('project', () => {
     loadChapter,
     saveChapter,
     deleteChapter,
+    reorderChapters,
 
     // 清理
     cleanup

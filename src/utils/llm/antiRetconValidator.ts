@@ -3,6 +3,7 @@ import type { Project, ChapterOutline } from '@/types'
 import type { ChatMessage } from '@/types/ai'
 import { safeParseAIJson } from '../safeParseAIJson'
 import { sanitizeForPrompt } from '@/utils/inputSanitizer'
+import { formatEntityLocation } from '@/utils/entityHelpers'
 import { useSandboxStore } from '@/stores/sandbox'
 import { getLogger } from '@/utils/logger'
 
@@ -57,9 +58,7 @@ export async function validateChapterLogic(
       if (entity.systemPrompt) parts.push(`身份:${entity.systemPrompt.substring(0, 40)}`)
       if (resolved?.vitalStatus) parts.push(`状态:${resolved.vitalStatus}`)
       if (resolved?.location) {
-        const locationStr = typeof resolved.location === 'object'
-          ? `(${resolved.location.x}, ${resolved.location.y})`
-          : String(resolved.location)
+        const locationStr = formatEntityLocation(resolved.location)
         parts.push(`位置:${locationStr}`)
       }
       if (resolved?.properties?.['faction']) parts.push(`阵营:${resolved.properties['faction']}`)

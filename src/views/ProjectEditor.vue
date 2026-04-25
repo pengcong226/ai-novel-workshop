@@ -29,6 +29,11 @@
           class="sidebar-menu"
         >
           <!-- 内置菜单项 -->
+          <el-menu-item index="dashboard">
+            <el-icon><DataBoard /></el-icon>
+            <span>写作仪表盘</span>
+          </el-menu-item>
+
           <el-menu-item index="sandbox">
             <el-icon><DataBoard /></el-icon>
             <span>多维设定沙盘</span>
@@ -45,6 +50,10 @@
           <el-menu-item index="quality">
             <el-icon><DataAnalysis /></el-icon>
             <span>质量报告</span>
+          </el-menu-item>
+          <el-menu-item index="token-usage">
+            <el-icon><TrendCharts /></el-icon>
+            <span>Token 用量</span>
           </el-menu-item>
           <el-menu-item index="agents">
             <el-icon><Grid /></el-icon>
@@ -89,6 +98,9 @@
         <div class="sidebar-footer">
           <div v-if="isSaving" class="save-status saving">保存中...</div>
           <div v-else-if="isDirty" class="save-status dirty">未保存</div>
+          <el-button @click="showShortcutsDialog = true" text title="快捷键">
+            快捷键
+          </el-button>
           <el-button @click="toggleTheme" text :title="isDark ? '切换到明亮模式' : '切换到暗色模式'">
             <el-icon><Sunny v-if="isDark" /><Moon v-else /></el-icon>
           </el-button>
@@ -120,10 +132,18 @@
         </div>
         <template v-else-if="project && project.id">
           <!-- 内置组件 -->
-          <SandboxLayout v-if="activeMenu === 'sandbox'" />
+          <WritingDashboard
+            v-if="activeMenu === 'dashboard'"
+            @open-chapters="handleDashboardAction"
+            @create-chapter="handleDashboardAction"
+            @continue-writing="handleDashboardAction"
+            @batch-generate="handleDashboardAction"
+          />
+          <SandboxLayout v-else-if="activeMenu === 'sandbox'" />
           <Chapters v-else-if="activeMenu === 'chapters'" />
           <SummaryManager v-else-if="activeMenu === 'summary'" />
           <QualityReport v-else-if="activeMenu === 'quality'" />
+          <TokenUsagePanel v-else-if="activeMenu === 'token-usage'" />
           <AgentConsole v-else-if="activeMenu === 'agents'" />
           <ProjectConfig v-else-if="activeMenu === 'config'" />
 
@@ -163,59 +183,149 @@
 
     <!-- 全局搜索 -->
     <SearchDialog />
+
+    <!-- 快捷键说明 -->
+    <KeyboardShortcutsDialog
+      v-model="showShortcutsDialog"
+      :shortcuts="shortcuts"
+    />
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted, computed, defineAsyncComponent } from 'vue'
+import { ref, onMounted, computed, defineAsyncComponent } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useProjectStore } from '@/stores/project'
 import { usePluginStore } from '@/stores/plugin'
 import { useAutoSave } from '@/composables/useAutoSave'
 import { useGlobalSearch } from '@/composables/useGlobalSearch'
 import { useThemeStore } from '@/stores/theme'
-import { Reading, Setting, ArrowLeft, Loading, DataAnalysis, DocumentCopy, Tools, Fold, Expand, DataBoard, Sunny, Moon, Grid } from '@element-plus/icons-vue'
+import { useTokenUsageStore } from '@/stores/tokenUsage'
+import { Reading, Setting, ArrowLeft, Loading, DataAnalysis, DocumentCopy, Tools, Fold, Expand, DataBoard, Sunny, Moon, Grid, TrendCharts } from '@element-plus/icons-vue'
 import { getAIMockEnabled } from '@/utils/devFlags'
 import { getLogger } from '@/utils/logger'
 const logger = getLogger('views:ProjectEditor')
 
 // 懒加载组件 - 按需加载，优化首屏性能
+const WritingDashboard = defineAsyncComponent(() => import('@/components/WritingDashboard.vue'))
 const SandboxLayout = defineAsyncComponent(() => import('@/components/Sandbox/SandboxLayout.vue'))
 const Chapters = defineAsyncComponent(() => import('@/components/Chapters.vue'))
 const ProjectConfig = defineAsyncComponent(() => import('@/components/ProjectConfig.vue'))
 const QualityReport = defineAsyncComponent(() => import('@/components/QualityReport.vue'))
+const TokenUsagePanel = defineAsyncComponent(() => import('@/components/TokenUsagePanel.vue'))
 const AIAssistant = defineAsyncComponent(() => import('@/components/AIAssistant.vue'))
 const SummaryManager = defineAsyncComponent(() => import('@/components/SummaryManager.vue'))
 const DeveloperPanel = defineAsyncComponent(() => import('@/components/DeveloperPanel.vue'))
 const AgentConsole = defineAsyncComponent(() => import('@/components/AgentConsole.vue'))
-const SearchDialog = defineAsyncComponent(() => import('@/components/SearchDialog.vue'))
+import SearchDialog from '@/components/SearchDialog.vue'
+import KeyboardShortcutsDialog from '@/components/KeyboardShortcutsDialog.vue'
+import { useKeyboardShortcuts } from '@/composables/useKeyboardShortcuts'
 
 const route = useRoute()
 const router = useRouter()
 const projectStore = useProjectStore()
 const pluginStore = usePluginStore()
-const { isDirty, isSaving } = useAutoSave()
+const { isDirty, isSaving, save } = useAutoSave()
 const themeStore = useThemeStore()
+const tokenUsageStore = useTokenUsageStore()
 const globalSearch = useGlobalSearch()
+const { shortcuts, registerShortcuts } = useKeyboardShortcuts()
 const isDark = computed(() => themeStore.activeThemeId === 'builtin-scifi-dark-theme')
 
 function toggleTheme() {
   themeStore.activeThemeId = isDark.value ? 'builtin-classic-light-theme' : 'builtin-scifi-dark-theme'
 }
 
-function onSearchShortcut(e: KeyboardEvent) {
-  if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
-    e.preventDefault()
-    globalSearch.open()
-  }
-}
-
-const activeMenu = ref('sandbox')
+const activeMenu = ref('dashboard')
 const isDev = import.meta.env.DEV
 const isMockEnabled = ref(false)
 const isZenMode = ref(false)
+const showShortcutsDialog = ref(false)
 
 const project = computed(() => projectStore.currentProject)
+
+registerShortcuts([
+  {
+    id: 'workspace.save',
+    label: '保存项目',
+    keys: ['mod', 's'],
+    scope: 'workspace',
+    allowInInputs: true,
+    disabled: () => isSaving.value,
+    handler: () => save(),
+  },
+  {
+    id: 'workspace.search',
+    label: '打开全局搜索',
+    keys: ['mod', 'k'],
+    scope: 'workspace',
+    handler: () => globalSearch.open(),
+  },
+  {
+    id: 'workspace.shortcuts',
+    label: '查看快捷键',
+    keys: ['mod', '/'],
+    scope: 'workspace',
+    allowInInputs: true,
+    handler: () => { showShortcutsDialog.value = true },
+  },
+  {
+    id: 'workspace.toggle-zen',
+    label: '切换沉浸模式',
+    keys: ['mod', 'shift', 'z'],
+    scope: 'workspace',
+    handler: () => { isZenMode.value = !isZenMode.value },
+  },
+  {
+    id: 'workspace.open-dashboard',
+    label: '切换到写作仪表盘',
+    keys: ['alt', '1'],
+    scope: 'workspace',
+    handler: () => handleMenuSelect('dashboard'),
+  },
+  {
+    id: 'workspace.open-sandbox',
+    label: '切换到设定沙盘',
+    keys: ['alt', '2'],
+    scope: 'workspace',
+    handler: () => handleMenuSelect('sandbox'),
+  },
+  {
+    id: 'workspace.open-chapters',
+    label: '切换到章节',
+    keys: ['alt', '3'],
+    scope: 'workspace',
+    handler: () => handleMenuSelect('chapters'),
+  },
+  {
+    id: 'workspace.open-summary',
+    label: '切换到摘要管理',
+    keys: ['alt', '4'],
+    scope: 'workspace',
+    handler: () => handleMenuSelect('summary'),
+  },
+  {
+    id: 'workspace.open-quality',
+    label: '切换到质量报告',
+    keys: ['alt', '5'],
+    scope: 'workspace',
+    handler: () => handleMenuSelect('quality'),
+  },
+  {
+    id: 'workspace.open-token-usage',
+    label: '切换到 Token 用量',
+    keys: ['alt', '6'],
+    scope: 'workspace',
+    handler: () => handleMenuSelect('token-usage'),
+  },
+  {
+    id: 'workspace.open-config',
+    label: '切换到配置',
+    keys: ['alt', '7'],
+    scope: 'workspace',
+    handler: () => handleMenuSelect('config'),
+  },
+])
 
 // 获取插件提供的菜单项
 const pluginMenuItems = computed(() => {
@@ -252,16 +362,11 @@ const rightPanels = computed(() => {
 onMounted(async () => {
   const projectId = route.params.id as string
   await projectStore.openProject(projectId)
+  tokenUsageStore.loadProjectUsage(projectId)
 
   // 加载已安装插件
   await pluginStore.loadInstalledPlugins()
   isMockEnabled.value = getAIMockEnabled()
-
-  window.addEventListener('keydown', onSearchShortcut)
-})
-
-onUnmounted(() => {
-  window.removeEventListener('keydown', onSearchShortcut)
 })
 
 function handleMenuSelect(index: string) {
@@ -280,6 +385,10 @@ function handleMenuSelect(index: string) {
     // 内置菜单项
     activeMenu.value = index
   }
+}
+
+function handleDashboardAction() {
+  activeMenu.value = 'chapters'
 }
 
 function goBack() {

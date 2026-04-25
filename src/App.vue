@@ -1,8 +1,13 @@
 <template>
   <div class="app-container">
+    <div v-if="onlineStatus.isOffline.value" class="offline-banner" role="status">
+      当前处于离线状态，AI 生成与同步功能可能不可用。
+    </div>
+
     <!-- 全局错误提示 -->
     <el-config-provider :locale="zhCn">
       <router-view />
+      <OnboardingDialog />
     </el-config-provider>
 
     <!-- 全局任务观察器 -->
@@ -31,11 +36,28 @@ import zhCn from 'element-plus/es/locale/lang/zh-cn'
 import { setupGlobalErrorHandler, errorHandler, ErrorSeverity, type AppError } from '@/utils/errorHandler'
 import GlobalTaskObserver from '@/components/GlobalTaskObserver.vue'
 import GlobalMutator from '@/components/GlobalMutator.vue'
+import OnboardingDialog from '@/components/OnboardingDialog.vue'
+import { useKeyboardShortcuts } from '@/composables/useKeyboardShortcuts'
+import { useOnboarding } from '@/composables/useOnboarding'
+import { useOnlineStatus } from '@/composables/useOnlineStatus'
 import { getLogger } from '@/utils/logger'
 const logger = getLogger('src:App')
 
 const currentError = ref<AppError | null>(null)
 const globalMutatorRef = ref<InstanceType<typeof GlobalMutator> | null>(null)
+const { registerShortcuts } = useKeyboardShortcuts()
+const onboarding = useOnboarding()
+const onlineStatus = useOnlineStatus()
+
+registerShortcuts([
+  {
+    id: 'global.open-mutator',
+    label: '打开全局替换器',
+    keys: ['ctrl', 'shift', 'h'],
+    scope: 'global',
+    handler: () => globalMutatorRef.value?.open(),
+  },
+])
 
 const errorTitle = computed(() => {
   if (!currentError.value) return ''
@@ -113,28 +135,19 @@ function handleError(error: AppError) {
 }
 
 
-
-const handleGlobalKeyDown = (e: KeyboardEvent) => {
-  if (e.ctrlKey && e.shiftKey && (e.key === 'H' || e.key === 'h')) {
-    e.preventDefault()
-    globalMutatorRef.value?.open()
-  }
-}
+let unsubscribeErrorHandler: (() => void) | undefined
 
 onMounted(async () => {
   // 设置全局错误处理器
   setupGlobalErrorHandler()
+  onboarding.initialize()
 
   // 注册错误监听器
-  const unsubscribe = errorHandler.onError(handleError)
+  unsubscribeErrorHandler = errorHandler.onError(handleError)
+})
 
-  // 注册全局快捷键
-  document.addEventListener('keydown', handleGlobalKeyDown)
-
-  onUnmounted(() => {
-    unsubscribe()
-    document.removeEventListener('keydown', handleGlobalKeyDown)
-  })
+onUnmounted(() => {
+  unsubscribeErrorHandler?.()
 })
 </script>
 
@@ -158,6 +171,21 @@ body {
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   background-color: #f5f7fa;
+}
+
+/* 离线状态提示 */
+.offline-banner {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 10000;
+  padding: 8px 16px;
+  background: #fdf6ec;
+  color: #b88230;
+  border-bottom: 1px solid #faecd8;
+  text-align: center;
+  font-size: 14px;
 }
 
 /* 全局错误样式 */

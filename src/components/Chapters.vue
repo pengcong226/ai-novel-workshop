@@ -67,9 +67,23 @@
               <el-card
                 v-if="chapter"
                 class="chapter-card"
+                :class="{ 'is-dragging': draggingChapterId === chapter.id, 'is-drag-over': dragOverChapterId === chapter.id }"
+                @dragover.prevent="handleChapterDragOver(chapter.id, $event)"
+                @drop="handleChapterDrop(chapter.id)"
               >
                 <div class="chapter-header">
                   <div class="chapter-info">
+                    <button
+                      class="drag-handle"
+                      type="button"
+                      draggable="true"
+                      title="拖拽排序"
+                      aria-label="拖拽排序"
+                      @dragstart="handleChapterDragStart(chapter.id, $event)"
+                      @dragend="handleChapterDragEnd"
+                    >
+                      ⋮⋮
+                    </button>
                     <span class="chapter-number">第{{ chapter.number }}章</span>
                     <span class="chapter-title">{{ chapter.title }}</span>
                     <el-tag :type="getStatusType(chapter.status)" size="small">
@@ -89,11 +103,14 @@
 
                 <div class="chapter-content">
                   <div class="content-preview">
-                    {{ chapter.summaryData?.summary || chapter.summary || getContentPreview(chapter.content) || '由于防爆栈机制已启动，正文以惰性加载，请点击编辑查看。' }}
+                    {{ buildReadingPreview(chapter) }}
                   </div>
                 </div>
 
                 <div class="chapter-actions">
+                  <el-button size="small" @click="previewChapter(chapter)">
+                    预览
+                  </el-button>
                   <el-button type="primary" size="small" @click="editChapter(chapter)">
                     编辑
                   </el-button>
@@ -151,6 +168,23 @@
       @update:model-value="handleEditorVisibility"
       @saved="onChapterSaved"
     />
+
+    <el-dialog
+      v-model="showPreviewDialog"
+      :title="previewDialogTitle"
+      width="80%"
+      top="4vh"
+      class="reading-preview-dialog"
+      destroy-on-close
+    >
+      <div v-loading="previewLoading" class="reading-preview-container">
+        <ChapterReadingPreview v-if="previewingChapter" :chapter="previewingChapter" />
+      </div>
+      <template #footer>
+        <el-button @click="closePreviewDialog">关闭</el-button>
+        <el-button v-if="previewingChapter" type="primary" @click="editPreviewingChapter">编辑此章</el-button>
+      </template>
+    </el-dialog>
 
     <el-dialog
       v-model="showCheckpointsDialog"
@@ -301,7 +335,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
+import { computed, defineAsyncComponent, ref, watch } from 'vue'
 import { useVirtualizer } from '@tanstack/vue-virtual'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { ArrowDown, CircleCheck, Download, InfoFilled, MagicStick, Plus } from '@element-plus/icons-vue'
@@ -312,11 +346,13 @@ import { generationScheduler } from '@/services/generation-scheduler'
 import { useChapterExport } from '@/composables/useChapterExport'
 import { useRewriteContinuation } from '@/composables/useRewriteContinuation'
 import { getLogger } from '@/utils/logger'
-import ExportSettings from './ExportSettings.vue'
-import ChapterEditorDialog from './ChapterEditorDialog.vue'
-import ContinuationPanel from './RewriteContinuation/ContinuationPanel.vue'
-import RewritePanel from './RewriteContinuation/RewritePanel.vue'
-import StateDiffViewer from './RewriteContinuation/StateDiffViewer.vue'
+import { buildReadingPreview, truncateReadingPreviewText } from '@/utils/readingPreview'
+const ExportSettings = defineAsyncComponent(() => import('./ExportSettings.vue'))
+const ChapterEditorDialog = defineAsyncComponent(() => import('./ChapterEditorDialog.vue'))
+const ChapterReadingPreview = defineAsyncComponent(() => import('./ChapterReadingPreview.vue'))
+const ContinuationPanel = defineAsyncComponent(() => import('./RewriteContinuation/ContinuationPanel.vue'))
+const RewritePanel = defineAsyncComponent(() => import('./RewriteContinuation/RewritePanel.vue'))
+const StateDiffViewer = defineAsyncComponent(() => import('./RewriteContinuation/StateDiffViewer.vue'))
 
 const logger = getLogger('chapters')
 const projectStore = useProjectStore()
@@ -340,6 +376,14 @@ const pluginToolbarButtons = computed(() => {
 const showEditDialog = ref(false)
 const editingChapter = ref<Chapter | null>(null)
 const preserveEditorContent = ref(false)
+const showPreviewDialog = ref(false)
+const previewingChapter = ref<Chapter | null>(null)
+const previewLoading = ref(false)
+let previewRequestId = 0
+const previewDialogTitle = computed(() => {
+  if (!previewingChapter.value) return '阅读预览'
+  return `阅读预览：第${previewingChapter.value.number}章 ${previewingChapter.value.title || '未命名章节'}`
+})
 const showCheckpointsDialog = ref(false)
 const selectedChapter = ref<Chapter | null>(null)
 const showBatchDialog = ref(false)
@@ -369,6 +413,8 @@ const {
 const validating = ref(false)
 const showValidationDialog = ref(false)
 const validationIssues = ref<string[]>([])
+const draggingChapterId = ref<string | null>(null)
+const dragOverChapterId = ref<string | null>(null)
 
 function getChapterToolbarContent(chapter: Chapter): string {
   return chapter.summaryData?.summary || chapter.summary || ''
@@ -452,11 +498,98 @@ function editChapter(chapter: Chapter) {
   showEditDialog.value = true
 }
 
+async function previewChapter(chapter: Chapter) {
+  const requestId = ++previewRequestId
+  showPreviewDialog.value = true
+  previewingChapter.value = chapter
+  previewLoading.value = true
+
+  try {
+    const fullChapter = await projectStore.loadChapter(chapter.id)
+    if (requestId === previewRequestId) {
+      previewingChapter.value = fullChapter ? { ...chapter, ...fullChapter } : chapter
+    }
+  } catch (error) {
+    if (requestId === previewRequestId) {
+      logger.warn('加载章节预览正文失败', { chapterId: chapter.id, error })
+      ElMessage.warning('章节正文加载失败，正在显示摘要预览')
+    }
+  } finally {
+    if (requestId === previewRequestId) {
+      previewLoading.value = false
+    }
+  }
+}
+
+function closePreviewDialog() {
+  previewRequestId++
+  previewLoading.value = false
+  previewingChapter.value = null
+  showPreviewDialog.value = false
+}
+
+function editPreviewingChapter() {
+  if (!previewingChapter.value) return
+  const chapter = previewingChapter.value
+  closePreviewDialog()
+  preserveEditorContent.value = Boolean(chapter.content)
+  editingChapter.value = chapter
+  showEditDialog.value = true
+}
+
 function handleEditorVisibility(value: boolean) {
   showEditDialog.value = value
   if (!value) {
     preserveEditorContent.value = false
     editingChapter.value = null
+  }
+}
+
+function handleChapterDragStart(chapterId: string, event: DragEvent) {
+  draggingChapterId.value = chapterId
+  event.dataTransfer?.setData('text/plain', chapterId)
+  if (event.dataTransfer) {
+    event.dataTransfer.effectAllowed = 'move'
+  }
+}
+
+function handleChapterDragOver(chapterId: string, event?: DragEvent) {
+  if (!draggingChapterId.value || draggingChapterId.value === chapterId) {
+    dragOverChapterId.value = null
+    return
+  }
+
+  if (event?.dataTransfer) {
+    event.dataTransfer.dropEffect = 'move'
+  }
+  dragOverChapterId.value = chapterId
+}
+
+function handleChapterDragEnd() {
+  draggingChapterId.value = null
+  dragOverChapterId.value = null
+}
+
+async function handleChapterDrop(targetChapterId: string) {
+  const sourceChapterId = draggingChapterId.value
+  handleChapterDragEnd()
+  if (!sourceChapterId || sourceChapterId === targetChapterId) return
+
+  const orderedIds = chapters.value.map(chapter => chapter.id)
+  const sourceIndex = orderedIds.indexOf(sourceChapterId)
+  const targetIndex = orderedIds.indexOf(targetChapterId)
+  if (sourceIndex === -1 || targetIndex === -1) return
+
+  orderedIds.splice(sourceIndex, 1)
+  const insertionIndex = sourceIndex < targetIndex ? targetIndex : targetIndex + 1
+  orderedIds.splice(insertionIndex, 0, sourceChapterId)
+
+  try {
+    await projectStore.reorderChapters(orderedIds)
+    ElMessage.success('章节排序已保存')
+  } catch (error) {
+    logger.error('章节排序失败', error)
+    ElMessage.error('章节排序失败：' + (error instanceof Error ? error.message : String(error)))
   }
 }
 
@@ -583,9 +716,7 @@ function getStatusText(status: string) {
 }
 
 function getContentPreview(content: string, maxLength: number = 100) {
-  if (!content) return '暂无内容'
-  if (content.length <= maxLength) return content
-  return content.substring(0, maxLength) + '...'
+  return truncateReadingPreviewText(content, maxLength, '暂无内容')
 }
 
 function formatDate(date: Date | string) {
@@ -638,6 +769,15 @@ function formatDate(date: Date | string) {
 
 .chapter-card {
   margin-bottom: 0;
+  transition: opacity 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.chapter-card.is-dragging {
+  opacity: 0.55;
+}
+
+.chapter-card.is-drag-over {
+  box-shadow: 0 0 0 2px #409eff inset;
 }
 
 .chapter-header {
@@ -651,6 +791,27 @@ function formatDate(date: Date | string) {
   display: flex;
   align-items: center;
   gap: 15px;
+}
+
+.drag-handle {
+  width: 28px;
+  height: 28px;
+  border: 1px solid #dcdfe6;
+  border-radius: 6px;
+  background: #fff;
+  color: #909399;
+  cursor: grab;
+  font-size: 16px;
+  line-height: 1;
+}
+
+.drag-handle:active {
+  cursor: grabbing;
+}
+
+.drag-handle:hover {
+  color: #409eff;
+  border-color: #409eff;
 }
 
 .chapter-number {
@@ -694,6 +855,16 @@ function formatDate(date: Date | string) {
   border-radius: 4px;
   font-size: 14px;
   color: #409eff;
+}
+
+.reading-preview-container {
+  min-height: 360px;
+  max-height: 70vh;
+  overflow-y: auto;
+}
+
+:deep(.reading-preview-dialog .el-dialog__body) {
+  padding: 12px 20px 0;
 }
 
 .checkpoints-list {

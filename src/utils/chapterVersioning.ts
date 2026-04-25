@@ -1,40 +1,11 @@
-import { openDB, type IDBPDatabase } from 'idb'
 import type { Chapter } from '@/types'
+import type { ChapterSnapshot } from '@/types/chapter-version'
+import { useStorage } from '@/stores/storage'
 import { getLogger } from '@/utils/logger'
 
+export type { ChapterSnapshot } from '@/types/chapter-version'
+
 const logger = getLogger('utils:chapterVersioning')
-
-export interface ChapterSnapshot {
-  id: string
-  chapterId: string
-  projectId: string
-  title: string
-  content: string
-  wordCount: number
-  createdAt: number
-  source: 'auto' | 'manual'
-}
-
-const DB_NAME = 'ai-novel-workshop-versions'
-const DB_VERSION = 1
-const STORE_NAME = 'chapter-snapshots'
-
-let dbPromise: Promise<IDBPDatabase> | null = null
-
-function getDB(): Promise<IDBPDatabase> {
-  if (!dbPromise) {
-    dbPromise = openDB(DB_NAME, DB_VERSION, {
-      upgrade(db) {
-        if (!db.objectStoreNames.contains(STORE_NAME)) {
-          const store = db.createObjectStore(STORE_NAME, { keyPath: 'id' })
-          store.createIndex('chapterId', 'chapterId')
-          store.createIndex('projectId', 'projectId')
-        }
-      }
-    })
-  }
-  return dbPromise
-}
 
 export async function createSnapshot(
   chapter: Chapter,
@@ -52,39 +23,41 @@ export async function createSnapshot(
     source
   }
 
-  const db = await getDB()
-  await db.add(STORE_NAME, snapshot)
+  const storage = useStorage()
+  await storage.saveChapterSnapshot(snapshot)
   logger.info('快照已保存', { chapterId: chapter.id, source })
   return snapshot
 }
 
-export async function listSnapshots(chapterId: string): Promise<ChapterSnapshot[]> {
-  const db = await getDB()
-  const all = await db.getAllFromIndex(STORE_NAME, 'chapterId', chapterId)
-  return all.sort((a, b) => b.createdAt - a.createdAt)
+export async function listSnapshots(chapterId: string, projectId: string): Promise<ChapterSnapshot[]> {
+  const storage = useStorage()
+  const snapshots = await storage.listChapterSnapshots(chapterId, projectId)
+  return snapshots.sort((a, b) => b.createdAt - a.createdAt)
 }
 
-export async function getSnapshot(id: string): Promise<ChapterSnapshot | undefined> {
-  const db = await getDB()
-  return db.get(STORE_NAME, id)
+export async function getSnapshot(
+  id: string,
+  projectId: string,
+  chapterId: string
+): Promise<ChapterSnapshot | undefined> {
+  const storage = useStorage()
+  return storage.getChapterSnapshot(id, projectId, chapterId)
 }
 
-export async function deleteSnapshot(id: string): Promise<void> {
-  const db = await getDB()
-  await db.delete(STORE_NAME, id)
+export async function deleteSnapshot(id: string, projectId: string, chapterId: string): Promise<void> {
+  const storage = useStorage()
+  await storage.deleteChapterSnapshot(id, projectId, chapterId)
 }
 
-export async function pruneSnapshots(chapterId: string, keepCount: number = 20): Promise<number> {
-  const snapshots = await listSnapshots(chapterId)
-  if (snapshots.length <= keepCount) return 0
-
-  const toDelete = snapshots.slice(keepCount)
-  const db = await getDB()
-  const tx = db.transaction(STORE_NAME, 'readwrite')
-  for (const s of toDelete) {
-    tx.store.delete(s.id)
+export async function pruneSnapshots(
+  chapterId: string,
+  projectId: string,
+  keepCount: number = 20
+): Promise<number> {
+  const storage = useStorage()
+  const deletedCount = await storage.pruneChapterSnapshots(chapterId, projectId, keepCount)
+  if (deletedCount > 0) {
+    logger.info(`已清理 ${deletedCount} 个旧快照`, { chapterId })
   }
-  await tx.done
-  logger.info(`已清理 ${toDelete.length} 个旧快照`, { chapterId })
-  return toDelete.length
+  return deletedCount
 }

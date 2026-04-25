@@ -2,16 +2,46 @@ import { defineStore } from 'pinia'
 import { ref } from 'vue'
 import { getLogger } from '@/utils/logger'
 import { isWebRuntime } from '@/utils/anthropic-guard'
+import type { ChapterSnapshot } from '@/types/chapter-version'
 
 const logger = getLogger('storage')
 
 // 使用IndexedDB存储大数据，LocalStorage存储元数据
 const DB_NAME = 'AI_Novel_Workshop'
-const DB_VERSION = 2 // 升级数据库版本以支持章节分离存储
+const DB_VERSION = 3 // 升级数据库版本以支持章节快照存储
 const PROJECTS_STORE = 'projects'
 const CHAPTERS_STORE = 'chapters'
+const CHAPTER_SNAPSHOTS_STORE = 'chapter-snapshots'
 
 const isTauri = !isWebRuntime();
+const MAX_ID_LENGTH = 256
+const MAX_SNAPSHOT_BYTES = 2 * 1024 * 1024
+const MAX_SNAPSHOTS_TO_KEEP = 1_000
+
+function isValidId(value: unknown): value is string {
+  return typeof value === 'string' && value.length > 0 && value.length <= MAX_ID_LENGTH
+}
+
+function assertValidChapterSnapshot(snapshot: ChapterSnapshot): void {
+  if (!isValidId(snapshot.id) || !isValidId(snapshot.projectId) || !isValidId(snapshot.chapterId)) {
+    throw new Error('章节快照标识无效')
+  }
+  if (typeof snapshot.title !== 'string' || typeof snapshot.content !== 'string') {
+    throw new Error('章节快照内容无效')
+  }
+  if (!Number.isFinite(snapshot.wordCount) || snapshot.wordCount < 0) {
+    throw new Error('章节快照字数无效')
+  }
+  if (!Number.isFinite(snapshot.createdAt)) {
+    throw new Error('章节快照时间无效')
+  }
+  if (snapshot.source !== 'auto' && snapshot.source !== 'manual') {
+    throw new Error('章节快照来源无效')
+  }
+  if (JSON.stringify(snapshot).length > MAX_SNAPSHOT_BYTES) {
+    throw new Error('章节快照过大')
+  }
+}
 
 class IndexedDBStorage {
   private db: IDBDatabase | null = null
@@ -31,8 +61,10 @@ class IndexedDBStorage {
         logger.info('数据库连接成功')
 
         // 检查对象存储是否存在
-        if (!this.db.objectStoreNames.contains(PROJECTS_STORE)) {
-          logger.error('projects 对象存储不存在，需要重建数据库')
+        const missingRequiredStore = [PROJECTS_STORE, CHAPTERS_STORE, CHAPTER_SNAPSHOTS_STORE]
+          .some(storeName => !this.db!.objectStoreNames.contains(storeName))
+        if (missingRequiredStore) {
+          logger.error('IndexedDB 对象存储不完整，需要重建数据库')
           this.db.close()
           // 删除旧数据库并重建
           indexedDB.deleteDatabase(DB_NAME)
@@ -77,6 +109,13 @@ class IndexedDBStorage {
       const chaptersStore = db.createObjectStore(CHAPTERS_STORE, { keyPath: 'id' })
       chaptersStore.createIndex('projectId', 'projectId', { unique: false })
       chaptersStore.createIndex('number', 'number', { unique: false })
+    }
+    // 章节快照存储
+    if (!db.objectStoreNames.contains(CHAPTER_SNAPSHOTS_STORE)) {
+      logger.info('创建 chapter-snapshots 对象存储')
+      const snapshotsStore = db.createObjectStore(CHAPTER_SNAPSHOTS_STORE, { keyPath: 'id' })
+      snapshotsStore.createIndex('chapterId', 'chapterId', { unique: false })
+      snapshotsStore.createIndex('projectId', 'projectId', { unique: false })
     }
   }
 
@@ -137,12 +176,27 @@ class IndexedDBStorage {
 
       // 批量保存章节
       const chaptersStore = transaction.objectStore(CHAPTERS_STORE)
-      for (const chapter of chapters) {
-        chaptersStore.put(chapter)
+      const writeNextChapter = (index: number) => {
+        if (index >= chapters.length) return
+
+        const chapter = { ...chapters[index], projectId: projectData.id }
+        const getRequest = chaptersStore.get(chapter.id)
+        getRequest.onsuccess = () => {
+          const existingChapter = getRequest.result
+          if (existingChapter && existingChapter.projectId !== projectData.id) {
+            transaction.abort()
+            return
+          }
+          chaptersStore.put(chapter)
+          writeNextChapter(index + 1)
+        }
+        getRequest.onerror = () => reject(getRequest.error)
       }
+      writeNextChapter(0)
 
       transaction.oncomplete = () => resolve()
       transaction.onerror = () => reject(transaction.error)
+      transaction.onabort = () => reject(transaction.error || new Error('章节 ID 已被其他项目使用'))
     })
   }
 
@@ -205,6 +259,46 @@ class IndexedDBStorage {
     })
   }
 
+  async reorderChapters(projectId: string, orderedIds: string[]) {
+    if (!this.db) await this.init()
+
+    return new Promise<void>((resolve, reject) => {
+      const transaction = this.db!.transaction([CHAPTERS_STORE], 'readwrite')
+      const store = transaction.objectStore(CHAPTERS_STORE)
+      const index = store.index('projectId')
+      const request = index.getAll(IDBKeyRange.only(projectId))
+
+      request.onsuccess = () => {
+        const chapters = request.result || []
+        const chapterById = new Map(chapters.map(chapter => [chapter.id, chapter]))
+        if (chapterById.size !== chapters.length || orderedIds.length !== chapters.length) {
+          transaction.abort()
+          reject(new Error('章节排序数据不完整'))
+          return
+        }
+
+        const seenIds = new Set<string>()
+        for (const [index, chapterId] of orderedIds.entries()) {
+          const chapter = chapterById.get(chapterId)
+          if (!chapter || seenIds.has(chapterId)) {
+            transaction.abort()
+            reject(new Error('章节排序数据不完整'))
+            return
+          }
+          seenIds.add(chapterId)
+          store.put({ ...chapter, number: index + 1 })
+        }
+      }
+
+      request.onerror = () => reject(request.error)
+      transaction.oncomplete = () => resolve()
+      transaction.onerror = () => reject(transaction.error)
+      transaction.onabort = () => {
+        if (transaction.error) reject(transaction.error)
+      }
+    })
+  }
+
   // 分页加载章节
   async loadChaptersPaginated(
     projectId: string,
@@ -247,28 +341,186 @@ class IndexedDBStorage {
   // 保存单个章节（增量更新）
   async saveChapter(chapter: any) {
     if (!this.db) await this.init()
+    if (!isValidId(chapter?.id) || !isValidId(chapter?.projectId)) {
+      throw new Error('章节标识无效')
+    }
 
     return new Promise<void>((resolve, reject) => {
       const transaction = this.db!.transaction([CHAPTERS_STORE], 'readwrite')
       const store = transaction.objectStore(CHAPTERS_STORE)
-      const request = store.put(chapter)
+      const getRequest = store.get(chapter.id)
 
-      request.onsuccess = () => resolve()
-      request.onerror = () => reject(request.error)
+      getRequest.onsuccess = () => {
+        const existingChapter = getRequest.result
+        if (existingChapter && existingChapter.projectId !== chapter.projectId) {
+          transaction.abort()
+          return
+        }
+        const chapterToSave = existingChapter?.number
+          ? { ...chapter, projectId: chapter.projectId, number: existingChapter.number }
+          : { ...chapter, projectId: chapter.projectId }
+        store.put(chapterToSave)
+      }
+      getRequest.onerror = () => reject(getRequest.error)
+      transaction.oncomplete = () => resolve()
+      transaction.onerror = () => reject(transaction.error)
+      transaction.onabort = () => reject(transaction.error || new Error('章节保存已取消'))
     })
   }
 
   // 删除单个章节
-  async deleteChapter(chapterId: string) {
+  async deleteChapter(chapterId: string, projectId: string) {
     if (!this.db) await this.init()
 
     return new Promise<void>((resolve, reject) => {
-      const transaction = this.db!.transaction([CHAPTERS_STORE], 'readwrite')
-      const store = transaction.objectStore(CHAPTERS_STORE)
-      const request = store.delete(chapterId)
+      const transaction = this.db!.transaction([CHAPTERS_STORE, CHAPTER_SNAPSHOTS_STORE], 'readwrite')
+      const chaptersStore = transaction.objectStore(CHAPTERS_STORE)
+      const snapshotsStore = transaction.objectStore(CHAPTER_SNAPSHOTS_STORE)
+      const chapterRequest = chaptersStore.get(chapterId)
 
-      request.onsuccess = () => resolve()
+      chapterRequest.onsuccess = () => {
+        const chapter = chapterRequest.result
+        if (!chapter || chapter.projectId !== projectId) {
+          transaction.abort()
+          return
+        }
+
+        chaptersStore.delete(chapterId)
+
+        const index = snapshotsStore.index('chapterId')
+        const snapshotsRequest = index.openCursor(IDBKeyRange.only(chapterId))
+        snapshotsRequest.onsuccess = (event) => {
+          const cursor = (event.target as IDBRequest).result
+          if (cursor) {
+            const snapshot = cursor.value as ChapterSnapshot
+            if (snapshot.projectId === projectId) {
+              cursor.delete()
+            }
+            cursor.continue()
+          }
+        }
+        snapshotsRequest.onerror = () => reject(snapshotsRequest.error)
+      }
+      chapterRequest.onerror = () => reject(chapterRequest.error)
+
+      transaction.oncomplete = () => resolve()
+      transaction.onerror = () => reject(transaction.error)
+      transaction.onabort = () => reject(transaction.error || new Error('章节不存在或不属于当前项目'))
+    })
+  }
+
+  async saveChapterSnapshot(snapshot: ChapterSnapshot) {
+    assertValidChapterSnapshot(snapshot)
+    if (!this.db) await this.init()
+
+    return new Promise<void>((resolve, reject) => {
+      const transaction = this.db!.transaction([CHAPTERS_STORE, CHAPTER_SNAPSHOTS_STORE], 'readwrite')
+      const chaptersStore = transaction.objectStore(CHAPTERS_STORE)
+      const snapshotsStore = transaction.objectStore(CHAPTER_SNAPSHOTS_STORE)
+      const snapshotRequest = snapshotsStore.get(snapshot.id)
+
+      snapshotRequest.onsuccess = () => {
+        const existingSnapshot = snapshotRequest.result as ChapterSnapshot | undefined
+        if (existingSnapshot && (existingSnapshot.projectId !== snapshot.projectId || existingSnapshot.chapterId !== snapshot.chapterId)) {
+          transaction.abort()
+          return
+        }
+
+        const chapterRequest = chaptersStore.get(snapshot.chapterId)
+        chapterRequest.onsuccess = () => {
+          const chapter = chapterRequest.result
+          if (!chapter || chapter.projectId !== snapshot.projectId) {
+            transaction.abort()
+            return
+          }
+          snapshotsStore.put(snapshot)
+        }
+        chapterRequest.onerror = () => reject(chapterRequest.error)
+      }
+      snapshotRequest.onerror = () => reject(snapshotRequest.error)
+      transaction.oncomplete = () => resolve()
+      transaction.onerror = () => reject(transaction.error)
+      transaction.onabort = () => reject(transaction.error || new Error('章节不存在或不属于当前项目'))
+    })
+  }
+
+  async listChapterSnapshots(chapterId: string, projectId: string) {
+    if (!this.db) await this.init()
+
+    return new Promise<ChapterSnapshot[]>((resolve, reject) => {
+      const transaction = this.db!.transaction([CHAPTER_SNAPSHOTS_STORE], 'readonly')
+      const store = transaction.objectStore(CHAPTER_SNAPSHOTS_STORE)
+      const index = store.index('chapterId')
+      const request = index.getAll(IDBKeyRange.only(chapterId))
+
+      request.onsuccess = () => resolve((request.result || []).filter(snapshot => snapshot.projectId === projectId))
       request.onerror = () => reject(request.error)
+    })
+  }
+
+  async getChapterSnapshot(id: string, projectId: string, chapterId: string) {
+    if (!this.db) await this.init()
+
+    return new Promise<ChapterSnapshot | undefined>((resolve, reject) => {
+      const transaction = this.db!.transaction([CHAPTER_SNAPSHOTS_STORE], 'readonly')
+      const store = transaction.objectStore(CHAPTER_SNAPSHOTS_STORE)
+      const request = store.get(id)
+
+      request.onsuccess = () => {
+        const snapshot = request.result as ChapterSnapshot | undefined
+        if (!snapshot || snapshot.projectId !== projectId || snapshot.chapterId !== chapterId) {
+          resolve(undefined)
+          return
+        }
+        resolve(snapshot)
+      }
+      request.onerror = () => reject(request.error)
+    })
+  }
+
+  async deleteChapterSnapshot(id: string, projectId: string, chapterId: string) {
+    if (!this.db) await this.init()
+
+    return new Promise<void>((resolve, reject) => {
+      const transaction = this.db!.transaction([CHAPTER_SNAPSHOTS_STORE], 'readwrite')
+      const store = transaction.objectStore(CHAPTER_SNAPSHOTS_STORE)
+      const getRequest = store.get(id)
+
+      getRequest.onsuccess = () => {
+        const snapshot = getRequest.result as ChapterSnapshot | undefined
+        if (!snapshot || snapshot.projectId !== projectId || snapshot.chapterId !== chapterId) {
+          return
+        }
+        store.delete(id)
+      }
+      getRequest.onerror = () => reject(getRequest.error)
+      transaction.oncomplete = () => resolve()
+      transaction.onerror = () => reject(transaction.error)
+      transaction.onabort = () => reject(transaction.error || new Error('章节快照删除已取消'))
+    })
+  }
+
+  async pruneChapterSnapshots(chapterId: string, projectId: string, keepCount: number) {
+    if (!Number.isInteger(keepCount) || keepCount < 0 || keepCount > MAX_SNAPSHOTS_TO_KEEP) {
+      throw new Error('章节快照保留数量无效')
+    }
+
+    const snapshots = await this.listChapterSnapshots(chapterId, projectId)
+    const sorted = snapshots.sort((a, b) => b.createdAt - a.createdAt)
+    const toDelete = sorted.slice(keepCount)
+    if (toDelete.length === 0) return 0
+
+    if (!this.db) await this.init()
+    return new Promise<number>((resolve, reject) => {
+      const transaction = this.db!.transaction([CHAPTER_SNAPSHOTS_STORE], 'readwrite')
+      const store = transaction.objectStore(CHAPTER_SNAPSHOTS_STORE)
+      for (const snapshot of toDelete) {
+        store.delete(snapshot.id)
+      }
+
+      transaction.oncomplete = () => resolve(toDelete.length)
+      transaction.onerror = () => reject(transaction.error)
+      transaction.onabort = () => reject(transaction.error || new Error('章节快照清理已取消'))
     })
   }
 
@@ -277,7 +529,7 @@ class IndexedDBStorage {
     if (!this.db) await this.init()
 
     return new Promise<void>((resolve, reject) => {
-      const transaction = this.db!.transaction([PROJECTS_STORE, CHAPTERS_STORE], 'readwrite')
+      const transaction = this.db!.transaction([PROJECTS_STORE, CHAPTERS_STORE, CHAPTER_SNAPSHOTS_STORE], 'readwrite')
 
       // 删除项目
       const projectStore = transaction.objectStore(PROJECTS_STORE)
@@ -289,6 +541,19 @@ class IndexedDBStorage {
       const chaptersRequest = index.openCursor(IDBKeyRange.only(projectId))
 
       chaptersRequest.onsuccess = (event) => {
+        const cursor = (event.target as IDBRequest).result
+        if (cursor) {
+          cursor.delete()
+          cursor.continue()
+        }
+      }
+
+      // 删除相关章节快照
+      const snapshotsStore = transaction.objectStore(CHAPTER_SNAPSHOTS_STORE)
+      const snapshotsIndex = snapshotsStore.index('projectId')
+      const snapshotsRequest = snapshotsIndex.openCursor(IDBKeyRange.only(projectId))
+
+      snapshotsRequest.onsuccess = (event) => {
         const cursor = (event.target as IDBRequest).result
         if (cursor) {
           cursor.delete()
@@ -428,8 +693,13 @@ class TauriStorage {
     }
   }
 
+  async reorderChapters(projectId: string, orderedIds: string[]) {
+    const { invoke } = await import('@tauri-apps/api/core')
+    await invoke('reorder_chapters', { projectId, orderedIds })
+  }
+
   async deleteChapter(chapterId: string, projectId?: string) {
-    // Note: If projectId isn't explicitly passed, we would need to look it up, 
+    // Note: If projectId isn't explicitly passed, we would need to look it up,
     // but going forward we will ensure it's provided.
     if (!projectId) {
          throw new Error("删除章节必须提供 projectId");
@@ -454,6 +724,48 @@ class TauriStorage {
       logger.error('删除项目失败:', e);
       throw new Error(`桌面端删除项目失败：${e instanceof Error ? e.message : String(e)}`);
     }
+  }
+
+  async saveChapterSnapshot(snapshot: ChapterSnapshot) {
+    const { invoke } = await import('@tauri-apps/api/core')
+    await invoke('save_chapter_snapshot', {
+      snapshotId: snapshot.id,
+      projectId: snapshot.projectId,
+      chapterId: snapshot.chapterId,
+      data: JSON.stringify(snapshot),
+      createdAt: snapshot.createdAt,
+    })
+  }
+
+  async listChapterSnapshots(chapterId: string, projectId: string) {
+    const { invoke } = await import('@tauri-apps/api/core')
+    const data: string = await invoke('list_chapter_snapshots', { chapterId, projectId })
+    try {
+      return JSON.parse(data) as ChapterSnapshot[]
+    } catch (error) {
+      throw new Error(`章节快照列表解析失败：${error instanceof Error ? error.message : String(error)}`)
+    }
+  }
+
+  async getChapterSnapshot(id: string, projectId: string, chapterId: string) {
+    const { invoke } = await import('@tauri-apps/api/core')
+    const data: string | null = await invoke('get_chapter_snapshot', { snapshotId: id, projectId, chapterId })
+    if (!data) return undefined
+    try {
+      return JSON.parse(data) as ChapterSnapshot
+    } catch (error) {
+      throw new Error(`章节快照解析失败：${error instanceof Error ? error.message : String(error)}`)
+    }
+  }
+
+  async deleteChapterSnapshot(id: string, projectId: string, chapterId: string) {
+    const { invoke } = await import('@tauri-apps/api/core')
+    await invoke('delete_chapter_snapshot', { snapshotId: id, projectId, chapterId })
+  }
+
+  async pruneChapterSnapshots(chapterId: string, projectId: string, keepCount: number) {
+    const { invoke } = await import('@tauri-apps/api/core')
+    return await invoke<number>('prune_chapter_snapshots', { chapterId, projectId, keepCount })
   }
 }
 
@@ -480,6 +792,25 @@ export const useStorage = defineStore('storage', () => {
 
   async function loadProject(projectId: string) {
     await init()
+    return await storage.loadProject(projectId)
+  }
+
+  async function loadFullProject(projectId: string) {
+    await init()
+    if (storage instanceof TauriStorage) {
+      const project = await storage.loadProject(projectId)
+      if (!project) return null
+
+      const chapters = await Promise.all(
+        (project.chapters || []).map(async (chapter: any) => {
+          const fullChapter = await storage.loadChapter(projectId, chapter.id)
+          return fullChapter || chapter
+        })
+      )
+
+      return { ...project, chapters }
+    }
+
     return await storage.loadProject(projectId)
   }
 
@@ -525,8 +856,10 @@ export const useStorage = defineStore('storage', () => {
   }
 
   async function saveChapter(chapter: any, projectId?: string) {
+    await init()
     if (storage instanceof IndexedDBStorage) {
-      return await storage.saveChapter(chapter)
+      if (!projectId) throw new Error('保存章节需要 projectId')
+      return await storage.saveChapter({ ...chapter, projectId })
     }
 
     if (storage instanceof TauriStorage) {
@@ -536,9 +869,15 @@ export const useStorage = defineStore('storage', () => {
     throw new Error('当前存储后端不支持章节级保存')
   }
 
+  async function reorderChapters(projectId: string, orderedIds: string[]) {
+    await init()
+    return await storage.reorderChapters(projectId, orderedIds)
+  }
+
   async function deleteChapter(chapterId: string, projectId?: string) {
     if (storage instanceof IndexedDBStorage) {
-      return await storage.deleteChapter(chapterId)
+      if (!projectId) throw new Error('删除章节需要 projectId')
+      return await storage.deleteChapter(chapterId, projectId)
     }
 
     if (storage instanceof TauriStorage) {
@@ -548,17 +887,49 @@ export const useStorage = defineStore('storage', () => {
     throw new Error('当前存储后端不支持章节级删除')
   }
 
+  async function saveChapterSnapshot(snapshot: ChapterSnapshot) {
+    await init()
+    return await storage.saveChapterSnapshot(snapshot)
+  }
+
+  async function listChapterSnapshots(chapterId: string, projectId: string) {
+    await init()
+    return await storage.listChapterSnapshots(chapterId, projectId)
+  }
+
+  async function getChapterSnapshot(id: string, projectId: string, chapterId: string) {
+    await init()
+    return await storage.getChapterSnapshot(id, projectId, chapterId)
+  }
+
+  async function deleteChapterSnapshot(id: string, projectId: string, chapterId: string) {
+    await init()
+    return await storage.deleteChapterSnapshot(id, projectId, chapterId)
+  }
+
+  async function pruneChapterSnapshots(chapterId: string, projectId: string, keepCount: number) {
+    await init()
+    return await storage.pruneChapterSnapshots(chapterId, projectId, keepCount)
+  }
+
   return {
     isInitialized,
     loadProjects,
     saveProjects,
     loadProject,
+    loadFullProject,
     saveProject,
     deleteProject,
     loadChapters,
     loadChapter,
     loadChaptersPaginated,
     saveChapter,
-    deleteChapter
+    reorderChapters,
+    deleteChapter,
+    saveChapterSnapshot,
+    listChapterSnapshots,
+    getChapterSnapshot,
+    deleteChapterSnapshot,
+    pruneChapterSnapshots
   }
 })

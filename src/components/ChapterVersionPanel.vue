@@ -21,6 +21,11 @@
         <div class="version-meta">
           {{ snap.wordCount }} 字 · {{ snap.title }}
         </div>
+        <div class="version-actions">
+          <el-button size="small" text type="danger" @click.stop="handleDelete(snap.id)">
+            删除
+          </el-button>
+        </div>
       </div>
     </div>
 
@@ -40,10 +45,13 @@
 <script setup lang="ts">
 import { ref, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { listSnapshots, getSnapshot, type ChapterSnapshot } from '@/utils/chapterVersioning'
+import { listSnapshots, getSnapshot, deleteSnapshot, type ChapterSnapshot } from '@/utils/chapterVersioning'
 import { formatShortDateTime } from '@/utils/formatDate'
+import { getLogger } from '@/utils/logger'
+import { getErrorMessage } from '@/utils/getErrorMessage'
 
 const props = defineProps<{
+  projectId: string
   chapterId: string
 }>()
 
@@ -51,20 +59,39 @@ const emit = defineEmits<{
   (e: 'restore', content: string, title: string): void
 }>()
 
+const logger = getLogger('chapter-version-panel')
+
 const visible = defineModel<boolean>({ default: false })
 const loading = ref(false)
 const snapshots = ref<ChapterSnapshot[]>([])
 const selectedId = ref<string | null>(null)
 
-watch(visible, async (v) => {
-  if (v && props.chapterId) {
-    loading.value = true
+async function loadSnapshots() {
+  if (!props.chapterId || !props.projectId) {
+    snapshots.value = []
     selectedId.value = null
-    try {
-      snapshots.value = await listSnapshots(props.chapterId)
-    } finally {
-      loading.value = false
-    }
+    return
+  }
+  loading.value = true
+  selectedId.value = null
+  try {
+    snapshots.value = await listSnapshots(props.chapterId, props.projectId)
+  } finally {
+    loading.value = false
+  }
+}
+
+watch(visible, async (v) => {
+  if (v) {
+    await loadSnapshots()
+  }
+})
+
+watch(() => [props.projectId, props.chapterId], async () => {
+  snapshots.value = []
+  selectedId.value = null
+  if (visible.value) {
+    await loadSnapshots()
   }
 })
 
@@ -74,7 +101,7 @@ async function selectSnapshot(_snap: ChapterSnapshot) {
 
 async function handleRestore() {
   if (!selectedId.value) return
-  const snap = await getSnapshot(selectedId.value)
+  const snap = await getSnapshot(selectedId.value, props.projectId, props.chapterId)
   if (!snap) return
 
   try {
@@ -88,6 +115,26 @@ async function handleRestore() {
     ElMessage.success('已恢复到选定版本')
   } catch {
     // cancelled
+  }
+}
+
+async function handleDelete(snapshotId: string) {
+  try {
+    await ElMessageBox.confirm('确定删除这个历史版本？此操作不可撤销。', '删除确认', { type: 'warning' })
+  } catch {
+    return
+  }
+
+  try {
+    await deleteSnapshot(snapshotId, props.projectId, props.chapterId)
+    if (selectedId.value === snapshotId) {
+      selectedId.value = null
+    }
+    await loadSnapshots()
+    ElMessage.success('历史版本已删除')
+  } catch (error) {
+    logger.error('删除章节历史版本失败', error)
+    ElMessage.error('删除失败：' + getErrorMessage(error))
   }
 }
 
@@ -132,6 +179,12 @@ async function handleRestore() {
 .version-meta {
   font-size: 12px;
   color: var(--el-text-color-secondary);
+}
+
+.version-actions {
+  margin-top: 6px;
+  display: flex;
+  justify-content: flex-end;
 }
 
 .empty-state {

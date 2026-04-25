@@ -140,6 +140,7 @@ export const useSandboxStore = defineStore('sandbox', () => {
   const pendingStateEvents = ref<StateEvent[]>([]);
   const isLoading = ref(false);
   const isLoaded = ref(false);
+  const loadedProjectId = ref<string | null>(null);
   const currentChapter = ref<number>(1);
   const draftEntities = ref<Entity[]>([]);
   const draftRelations = ref<{ sourceId: string; relation: EntityRelation }[]>([]);
@@ -169,12 +170,14 @@ export const useSandboxStore = defineStore('sandbox', () => {
           entities.value = [];
           stateEvents.value = [];
           isLoaded.value = false;
+          loadedProjectId.value = null;
           return;
         }
 
         entities.value = parsedEntities;
         stateEvents.value = sortStateEventsByChapter(parsedStateEvents);
         isLoaded.value = true;
+        loadedProjectId.value = projectId;
         return;
       }
 
@@ -211,6 +214,7 @@ export const useSandboxStore = defineStore('sandbox', () => {
       entities.value = [];
       stateEvents.value = [];
       isLoaded.value = false;
+      loadedProjectId.value = null;
     } finally {
       isLoading.value = false;
     }
@@ -630,6 +634,55 @@ export const useSandboxStore = defineStore('sandbox', () => {
     throw new Error(`Failed to delete entities: ${failureSummary}`);
   }
 
+  async function replaceProjectData(projectId: string, nextEntities: Entity[], nextEvents: StateEvent[]) {
+    const scopedEntities = nextEntities.map(entity => ({ ...entity, projectId }));
+    const scopedEvents = sortStateEventsByChapter(nextEvents.map(event => ({ ...event, projectId })));
+
+    if (isWebRuntime()) {
+      const previousEntities = localStorage.getItem(webSandboxKey(projectId, 'entities'));
+      const previousEvents = localStorage.getItem(webSandboxKey(projectId, 'state-events'));
+      try {
+        saveWebSandboxEntities(projectId, scopedEntities);
+        saveWebSandboxStateEvents(projectId, scopedEvents);
+      } catch (error) {
+        if (previousEntities === null) {
+          localStorage.removeItem(webSandboxKey(projectId, 'entities'));
+        } else {
+          localStorage.setItem(webSandboxKey(projectId, 'entities'), previousEntities);
+        }
+        if (previousEvents === null) {
+          localStorage.removeItem(webSandboxKey(projectId, 'state-events'));
+        } else {
+          localStorage.setItem(webSandboxKey(projectId, 'state-events'), previousEvents);
+        }
+        throw error;
+      }
+      entities.value = scopedEntities;
+      stateEvents.value = scopedEvents;
+      pendingStateEvents.value = [];
+      isLoaded.value = true;
+      loadedProjectId.value = projectId;
+      return;
+    }
+
+    const { invoke } = await import('@tauri-apps/api/core');
+    try {
+      await invoke('replace_sandbox_data', {
+        projectId,
+        entitiesJson: JSON.stringify(scopedEntities),
+        eventsJson: JSON.stringify(scopedEvents)
+      });
+      entities.value = scopedEntities;
+      stateEvents.value = scopedEvents;
+      pendingStateEvents.value = [];
+      isLoaded.value = true;
+      loadedProjectId.value = projectId;
+    } catch (e) {
+      logger.error('Failed to replace sandbox data:', e);
+      throw e;
+    }
+  }
+
   function getStateSnapshotAt(chapterNumber: number): EntityStateSnapshot[] {
     return captureSnapshot(entities.value, stateEvents.value, chapterNumber);
   }
@@ -641,10 +694,11 @@ export const useSandboxStore = defineStore('sandbox', () => {
   return {
     entities, stateEvents, pendingStateEvents, currentChapter, activeEntitiesState, stateEventIndexes,
     activeEntities, characterEntities, loreEntities, locationEntities, factionEntities, entitiesByType,
-    isLoading, isLoaded, loadData,
+    isLoading, isLoaded, loadedProjectId, loadData,
     draftEntities, draftRelations, isWizardMode, clearDrafts, addDraftEntity, addDraftRelation, commitDrafts,
     addEntity, updateEntity, deleteEntity, addStateEvent, deleteStateEvent,
     batchAddEntities, batchAddStateEvents,
+    replaceProjectData,
     deleteStateEventsByChapterRange, deleteEntitiesByIds, getStateSnapshotAt, buildNameToIdMap
   };
 });
