@@ -6,6 +6,8 @@ import type { EntityStateSnapshot } from '../types/rewrite-continuation';
 import { captureSnapshot, replayReducer } from '@/utils/stateDiff';
 import { buildNameToIdMapFromEntities } from '@/utils/entityHelpers';
 import { getLogger } from '@/utils/logger';
+import { isWebRuntime } from '@/utils/anthropic-guard';
+import { buildStateEventIndexes, sortStateEventsByChapter } from '@/utils/stateEventIndexes';
 
 const logger = getLogger('sandbox:store');
 
@@ -110,6 +112,28 @@ export interface ResolvedEntity extends Entity {
   abilities: AbilityRecord[];
 }
 
+const WEB_SANDBOX_PREFIX = 'ai-novel-workshop:sandbox'
+
+function webSandboxKey(projectId: string, kind: 'entities' | 'state-events'): string {
+  return `${WEB_SANDBOX_PREFIX}:${projectId}:${kind}`
+}
+
+function loadWebSandboxEntities(projectId: string): Entity[] | null {
+  return parseEntityArray(localStorage.getItem(webSandboxKey(projectId, 'entities')) ?? '[]', projectId)
+}
+
+function loadWebSandboxStateEvents(projectId: string): StateEvent[] | null {
+  return parseStateEventArray(localStorage.getItem(webSandboxKey(projectId, 'state-events')) ?? '[]', projectId)
+}
+
+function saveWebSandboxEntities(projectId: string, nextEntities: Entity[]): void {
+  localStorage.setItem(webSandboxKey(projectId, 'entities'), JSON.stringify(nextEntities))
+}
+
+function saveWebSandboxStateEvents(projectId: string, nextEvents: StateEvent[]): void {
+  localStorage.setItem(webSandboxKey(projectId, 'state-events'), JSON.stringify(nextEvents))
+}
+
 export const useSandboxStore = defineStore('sandbox', () => {
   const entities = ref<Entity[]>([]);
   const stateEvents = ref<StateEvent[]>([]);
@@ -121,11 +145,39 @@ export const useSandboxStore = defineStore('sandbox', () => {
   const draftRelations = ref<{ sourceId: string; relation: EntityRelation }[]>([]);
   const isWizardMode = ref(false);
 
+  // Pre-filtered entity views by type (non-archived)
+  const activeEntities = computed(() => entities.value.filter(e => !e.isArchived));
+  const characterEntities = computed(() => activeEntities.value.filter(e => e.type === 'CHARACTER'));
+  const loreEntities = computed(() => activeEntities.value.filter(e => e.type === 'LORE'));
+  const locationEntities = computed(() => activeEntities.value.filter(e => e.type === 'LOCATION'));
+  const factionEntities = computed(() => activeEntities.value.filter(e => e.type === 'FACTION'));
+
+  function entitiesByType(type: Entity['type']): Entity[] {
+    return activeEntities.value.filter(e => e.type === type);
+  }
+
   async function loadData(projectId: string) {
     if (!projectId) return;
 
     isLoading.value = true;
     try {
+      if (isWebRuntime()) {
+        const parsedEntities = loadWebSandboxEntities(projectId);
+        const parsedStateEvents = loadWebSandboxStateEvents(projectId);
+
+        if (!parsedEntities || !parsedStateEvents) {
+          entities.value = [];
+          stateEvents.value = [];
+          isLoaded.value = false;
+          return;
+        }
+
+        entities.value = parsedEntities;
+        stateEvents.value = sortStateEventsByChapter(parsedStateEvents);
+        isLoaded.value = true;
+        return;
+      }
+
       const { invoke } = await import('@tauri-apps/api/core');
 
       const [entitiesJson, eventsJson] = await Promise.all([
@@ -152,7 +204,7 @@ export const useSandboxStore = defineStore('sandbox', () => {
       }
 
       entities.value = parsedEntities;
-      stateEvents.value = parsedStateEvents;
+      stateEvents.value = sortStateEventsByChapter(parsedStateEvents);
       isLoaded.value = true;
     } catch (e) {
       logger.error('Failed to load sandbox data:', e);
@@ -165,6 +217,15 @@ export const useSandboxStore = defineStore('sandbox', () => {
   }
 
   async function addEntity(entity: Entity) {
+    if (isWebRuntime()) {
+      const merged = new Map(entities.value.map(existing => [existing.id, existing]));
+      merged.set(entity.id, entity);
+      const nextEntities = [...merged.values()];
+      saveWebSandboxEntities(entity.projectId, nextEntities);
+      entities.value = nextEntities;
+      return;
+    }
+
     const { invoke } = await import('@tauri-apps/api/core');
     try {
       await invoke('save_entity', {
@@ -184,6 +245,16 @@ export const useSandboxStore = defineStore('sandbox', () => {
 
     const updated = { ...entities.value[index], ...updates };
 
+    if (isWebRuntime()) {
+      saveWebSandboxEntities(updated.projectId, [
+        ...entities.value.slice(0, index),
+        updated,
+        ...entities.value.slice(index + 1),
+      ]);
+      entities.value[index] = updated;
+      return;
+    }
+
     const { invoke } = await import('@tauri-apps/api/core');
     try {
       await invoke('save_entity', {
@@ -198,6 +269,15 @@ export const useSandboxStore = defineStore('sandbox', () => {
   }
 
   async function addStateEvent(event: StateEvent) {
+    if (isWebRuntime()) {
+      const merged = new Map(stateEvents.value.map(existing => [existing.id, existing]));
+      merged.set(event.id, event);
+      const nextEvents = sortStateEventsByChapter([...merged.values()]);
+      saveWebSandboxStateEvents(event.projectId, nextEvents);
+      stateEvents.value = nextEvents;
+      return;
+    }
+
     const { invoke } = await import('@tauri-apps/api/core');
     try {
       await invoke('save_state_event', {
@@ -205,7 +285,7 @@ export const useSandboxStore = defineStore('sandbox', () => {
         eventJson: JSON.stringify(event)
       });
       stateEvents.value.push(event);
-      stateEvents.value.sort((a, b) => a.chapterNumber - b.chapterNumber);
+      stateEvents.value = sortStateEventsByChapter(stateEvents.value);
     } catch (e) {
       logger.error('Failed to add state event:', e);
       throw e;
@@ -214,6 +294,16 @@ export const useSandboxStore = defineStore('sandbox', () => {
   async function deleteEntity(id: string) {
     const entity = entities.value.find(e => e.id === id);
     if (!entity) return;
+
+    if (isWebRuntime()) {
+      const nextEntities = entities.value.filter(e => e.id !== id);
+      const nextEvents = stateEvents.value.filter(e => e.entityId !== id);
+      saveWebSandboxEntities(entity.projectId, nextEntities);
+      saveWebSandboxStateEvents(entity.projectId, nextEvents);
+      entities.value = nextEntities;
+      stateEvents.value = nextEvents;
+      return;
+    }
 
     const { invoke } = await import('@tauri-apps/api/core');
     try {
@@ -232,6 +322,13 @@ export const useSandboxStore = defineStore('sandbox', () => {
   async function deleteStateEvent(id: string) {
     const event = stateEvents.value.find(e => e.id === id);
     if (!event) return;
+
+    if (isWebRuntime()) {
+      const nextEvents = stateEvents.value.filter(e => e.id !== id);
+      saveWebSandboxStateEvents(event.projectId, nextEvents);
+      stateEvents.value = nextEvents;
+      return;
+    }
 
     const { invoke } = await import('@tauri-apps/api/core');
     try {
@@ -271,6 +368,8 @@ export const useSandboxStore = defineStore('sandbox', () => {
     return result;
   });
 
+  const stateEventIndexes = computed(() => buildStateEventIndexes(stateEvents.value));
+
   function clearDrafts() {
     draftEntities.value = [];
     draftRelations.value = [];
@@ -285,14 +384,34 @@ export const useSandboxStore = defineStore('sandbox', () => {
   }
 
   async function commitDrafts() {
-    const { invoke } = await import('@tauri-apps/api/core');
-
     const projectId = draftEntities.value[0]?.projectId || entities.value[0]?.projectId || '';
 
     if (!projectId) {
       logger.warn("No project ID found to commit drafts");
       return;
     }
+
+    if (isWebRuntime()) {
+      const relationEvents = draftRelations.value.map(draftRel => ({
+        id: uuidv4(),
+        projectId,
+        chapterNumber: 0,
+        entityId: draftRel.sourceId,
+        eventType: 'RELATION_ADD' as const,
+        payload: {
+          targetId: draftRel.relation.targetId,
+          relationType: draftRel.relation.type,
+          attitude: draftRel.relation.attitude
+        },
+        source: 'MANUAL' as const
+      }));
+      await batchAddEntities(draftEntities.value);
+      await batchAddStateEvents(relationEvents);
+      clearDrafts();
+      return;
+    }
+
+    const { invoke } = await import('@tauri-apps/api/core');
 
     try {
       // Save draft entities
@@ -340,6 +459,19 @@ export const useSandboxStore = defineStore('sandbox', () => {
   async function batchAddEntities(newEntities: Entity[]) {
     if (newEntities.length === 0) return;
 
+    if (isWebRuntime()) {
+      const projectId = newEntities[0].projectId;
+      if (!projectId) throw new Error('batchAddEntities: entities must have a projectId');
+      const merged = new Map(entities.value.map(entity => [entity.id, entity]));
+      for (const entity of newEntities) {
+        merged.set(entity.id, entity);
+      }
+      const nextEntities = [...merged.values()];
+      saveWebSandboxEntities(projectId, nextEntities);
+      entities.value = nextEntities;
+      return;
+    }
+
     const { invoke } = await import('@tauri-apps/api/core');
     const projectId = newEntities[0].projectId;
     if (!projectId) throw new Error('batchAddEntities: entities must have a projectId');
@@ -363,6 +495,19 @@ export const useSandboxStore = defineStore('sandbox', () => {
   async function batchAddStateEvents(events: StateEvent[]) {
     if (events.length === 0) return;
 
+    if (isWebRuntime()) {
+      const projectId = events[0].projectId;
+      if (!projectId) throw new Error('batchAddStateEvents: events must have a projectId');
+      const merged = new Map(stateEvents.value.map(event => [event.id, event]));
+      for (const event of events) {
+        merged.set(event.id, event);
+      }
+      const nextEvents = sortStateEventsByChapter([...merged.values()]);
+      saveWebSandboxStateEvents(projectId, nextEvents);
+      stateEvents.value = nextEvents;
+      return;
+    }
+
     const { invoke } = await import('@tauri-apps/api/core');
     const projectId = events[0].projectId;
     if (!projectId) throw new Error('batchAddStateEvents: events must have a projectId');
@@ -376,7 +521,7 @@ export const useSandboxStore = defineStore('sandbox', () => {
       for (const event of events) {
         merged.set(event.id, event);
       }
-      stateEvents.value = [...merged.values()];
+      stateEvents.value = sortStateEventsByChapter([...merged.values()]);
     } catch (e) {
       logger.error('Failed to batch add state events:', e);
       throw e;
@@ -384,9 +529,19 @@ export const useSandboxStore = defineStore('sandbox', () => {
   }
 
   async function deleteStateEventsByChapterRange(startChapter: number, endChapter: number) {
-    const { invoke } = await import('@tauri-apps/api/core');
     const projectId = stateEvents.value[0]?.projectId || entities.value[0]?.projectId;
     if (!projectId) throw new Error('deleteStateEventsByChapterRange: no project loaded');
+
+    if (isWebRuntime()) {
+      const nextEvents = stateEvents.value.filter(
+        e => e.chapterNumber < startChapter || e.chapterNumber > endChapter
+      );
+      saveWebSandboxStateEvents(projectId, nextEvents);
+      stateEvents.value = nextEvents;
+      return;
+    }
+
+    const { invoke } = await import('@tauri-apps/api/core');
 
     try {
       await invoke('delete_state_events_by_range', { projectId, startChapter, endChapter });
@@ -402,7 +557,6 @@ export const useSandboxStore = defineStore('sandbox', () => {
   async function deleteEntitiesByIds(ids: string[]) {
     if (ids.length === 0) return;
 
-    const { invoke } = await import('@tauri-apps/api/core');
     const uniqueIds = [...new Set(ids)];
     const existingIdSet = new Set(entities.value.map(e => e.id));
     const idsToDelete = uniqueIds.filter(id => existingIdSet.has(id));
@@ -416,6 +570,17 @@ export const useSandboxStore = defineStore('sandbox', () => {
 
     if (!projectId) throw new Error('deleteEntitiesByIds: no project loaded');
 
+    if (isWebRuntime()) {
+      const nextEntities = entities.value.filter(e => !idSet.has(e.id));
+      const nextEvents = stateEvents.value.filter(e => !idSet.has(e.entityId));
+      saveWebSandboxEntities(projectId, nextEntities);
+      saveWebSandboxStateEvents(projectId, nextEvents);
+      entities.value = nextEntities;
+      stateEvents.value = nextEvents;
+      return;
+    }
+
+    const { invoke } = await import('@tauri-apps/api/core');
     const results = await Promise.allSettled(
       idsToDelete.map(id => invoke('delete_entity', { projectId, entityId: id }))
     );
@@ -474,7 +639,8 @@ export const useSandboxStore = defineStore('sandbox', () => {
   }
 
   return {
-    entities, stateEvents, pendingStateEvents, currentChapter, activeEntitiesState,
+    entities, stateEvents, pendingStateEvents, currentChapter, activeEntitiesState, stateEventIndexes,
+    activeEntities, characterEntities, loreEntities, locationEntities, factionEntities, entitiesByType,
     isLoading, isLoaded, loadData,
     draftEntities, draftRelations, isWizardMode, clearDrafts, addDraftEntity, addDraftRelation, commitDrafts,
     addEntity, updateEntity, deleteEntity, addStateEvent, deleteStateEvent,

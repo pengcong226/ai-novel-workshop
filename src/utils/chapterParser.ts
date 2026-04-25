@@ -106,7 +106,7 @@ const CHAPTER_PATTERNS: ChapterPattern[] = [
   // ── 纯数字编号（最宽泛，放最后）──
   {
     name: '数字编号',
-    pattern: /^\d+[\.\、\s].+$/gm,
+    pattern: /^\d+[.、\s].+$/gm,
     titleExtractor: (match) => match[0].trim()
   }
 ]

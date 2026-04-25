@@ -6,6 +6,9 @@ import type { LLMProviderConfig, LLMOutline, AnalysisProgress } from './types'
 import { callLLMWithValidation } from './llmCaller'
 import { outlineSchema } from './schemas'
 import { getOutlineGenerationPrompt } from './prompts/outlinePrompts'
+import { getLogger } from '@/utils/logger'
+
+const logger = getLogger('llm:outlineGenerator')
 import type { Project } from '@/types'
 import { v4 as uuidv4 } from 'uuid'
 import { sanitizeForPrompt } from '@/utils/inputSanitizer'
@@ -19,7 +22,7 @@ export async function generateOutlineWithLLM(
   config: LLMProviderConfig,
   onProgress?: (progress: AnalysisProgress) => void
 ): Promise<LLMOutline> {
-  console.log('[大纲生成] 开始')
+  logger.info('开始')
 
   onProgress?.({
     stage: 'outline',
@@ -35,7 +38,7 @@ export async function generateOutlineWithLLM(
     { maxRetries: 2 }
   )) as any
 
-  console.log('[大纲生成] 生成完成')
+  logger.info('生成完成')
 
   onProgress?.({
     stage: 'outline',
@@ -69,7 +72,7 @@ export async function extendOutlineWithLLM(
     name: worldEntity.name,
     eraTime: worldResolved?.properties?.['eraTime'] || '',
     techLevel: worldResolved?.properties?.['techLevel'] || '',
-    factions: sandboxStore.entities.filter(e => e.type === 'FACTION').map(f => ({ name: f.name })),
+    factions: sandboxStore.factionEntities.map(f => ({ name: f.name })),
   } : undefined
   const existingOutline = project.outline
 
@@ -139,7 +142,7 @@ ${safeRecentOutlinesText}
   const messages = [{ role: 'user' as const, content: prompt }]
   const aiContext = { type: 'outline' as const, complexity: 'high' as const, priority: 'quality' as const }
 
-  console.log(`[大纲续写] 开始生成第 ${startChapter} 到 ${startChapter + count - 1} 章大纲...`)
+  logger.info(`开始生成第 ${startChapter} 到 ${startChapter + count - 1} 章大纲...`)
 
   const maxTokens = project.config?.advancedSettings?.maxTokens || 4000
   const response = await aiStore.chat(messages, aiContext, { maxTokens })
@@ -164,8 +167,10 @@ ${safeRecentOutlinesText}
     return newChapters.map((c: any) => ({
       chapterId: uuidv4(),
       title: c.title || '',
-      scenes: c.scenes?.map((s: any) =>
-        typeof s === 'string' ? { id: uuidv4(), description: s, location: '', characters: [] } : { id: uuidv4(), ...s }
+      scenes: c.scenes?.map((s: any, index: number) =>
+        typeof s === 'string'
+          ? { id: uuidv4(), description: s, location: '', characters: [], order: index }
+          : { id: uuidv4(), ...s, order: typeof s.order === 'number' ? s.order : index }
       ) || [],
       characters: c.characters || [],
       location: c.location || '',
@@ -178,7 +183,7 @@ ${safeRecentOutlinesText}
       generationPrompt: '' // 占位
     }))
   } catch (error) {
-    console.error('解析续写大纲失败:', error, jsonStr)
+    logger.error('解析续写大纲失败:', error, jsonStr)
     throw new Error('解析续写大纲失败')
   }
 }

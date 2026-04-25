@@ -158,7 +158,7 @@ function analyzeConsistency(
   for (const character of characters) {
     const variants = new Set<string>()
     // 简单检查：查找人物名称的常见变体
-    const nameParts = character.name.split(/[·•·\-]/)
+    const nameParts = character.name.split(/[·•·-]/)
     if (nameParts.length > 1) {
       nameParts.forEach(part => variants.add(part.trim()))
     }

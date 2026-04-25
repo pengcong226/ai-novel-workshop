@@ -35,7 +35,7 @@ import type {
   SerializedDeepImportSession
 } from '@/types/deep-import'
 import { serializeSession as serialize, deserializeSession as deserialize } from '@/types/deep-import'
-import { isEncryptedApiKey, decryptApiKeyV2, writeEncryptedLocalStorage } from '@/utils/crypto'
+import { readEncryptedLocalStorage, writeEncryptedLocalStorage } from '@/utils/crypto'
 import { buildNameToIdMapFromEntities } from '@/utils/entityHelpers'
 
 const logger = getLogger('novel:extractor')
@@ -832,6 +832,10 @@ export class NovelExtractor {
   abort(): void {
     this.isAborted = true
     this.isPaused = false
+    if (this.cacheTimer) {
+      clearTimeout(this.cacheTimer)
+      this.cacheTimer = null
+    }
     if (this.resolvePause) {
       this.resolvePause()
       this.resolvePause = null
@@ -1097,14 +1101,13 @@ export class NovelExtractor {
   }
 
   private static async parseCachedSession(key: string): Promise<DeepImportSession | null> {
-    const raw = localStorage.getItem(key)
-    if (!raw) return null
+    const serialized = await readEncryptedLocalStorage<SerializedDeepImportSession>(key)
+    if (!serialized) {
+      localStorage.removeItem(key)
+      return null
+    }
 
     try {
-      const payload = isEncryptedApiKey(raw)
-        ? await decryptApiKeyV2(raw)
-        : raw
-      const serialized: SerializedDeepImportSession = JSON.parse(payload)
       return deserialize(serialized)
     } catch {
       localStorage.removeItem(key)

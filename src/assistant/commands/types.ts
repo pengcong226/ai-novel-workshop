@@ -1,3 +1,8 @@
+export interface AssistantCommandContext {
+  source?: string
+  metadata?: Record<string, unknown>
+}
+
 export interface CommandParam {
   name: string;
   description: string;
@@ -8,7 +13,7 @@ export interface AssistantCommand {
   name: string; // e.g., "review", "help"
   description: string;
   params?: CommandParam[];
-  execute: (args: string[], context?: any) => Promise<string | void>;
+  execute: (args: string[], context?: AssistantCommandContext) => Promise<string | void>;
 }
 
 export interface ParsedCommand {

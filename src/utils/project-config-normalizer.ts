@@ -1,5 +1,13 @@
-import type { AdvancedSettings, ModelProvider, ProjectConfig, SystemPrompts, VectorServiceConfig } from '@/types'
+import type { AdvancedSettings, ModelProvider, ProjectConfig, StyleProfile, SystemPrompts, VectorServiceConfig } from '@/types'
 import { DEFAULT_SYSTEM_PROMPTS } from './systemPrompts'
+import { getStylePreset, mergeStyleProfile } from '@/data/stylePresets'
+import {
+  ACTIVE_AGENT_ROLES,
+  DEFAULT_AGENT_CONFIGS,
+  isAgentPhase,
+  type AgentConfig,
+  type AgentRole
+} from '@/agents/types'
 
 interface LegacyProjectConfigShape extends Partial<ProjectConfig> {
   advanced?: Partial<AdvancedSettings>
@@ -26,6 +34,8 @@ const DEFAULT_VECTOR_CONFIG: VectorServiceConfig = {
   vectorWeight: 0.7
 }
 
+const DEFAULT_STYLE_PROFILE = getStylePreset()
+
 const DEFAULT_PROJECT_CONFIG: ProjectConfig = {
   preset: 'standard',
   providers: [],
@@ -40,6 +50,8 @@ const DEFAULT_PROJECT_CONFIG: ProjectConfig = {
   qualityThreshold: 7,
   maxCostPerChapter: 0.15,
   enableAISuggestions: true,
+  enableAutoReview: false,
+  agentConfigs: DEFAULT_AGENT_CONFIGS.map(config => ({ ...config })),
   enableLogicValidator: true,
   enableZeroTouchExtraction: true,
   enableVectorRetrieval: true,
@@ -113,6 +125,42 @@ function normalizeVectorConfig(
   }
 }
 
+function normalizeStyleProfile(styleProfile: unknown, fallback: StyleProfile = DEFAULT_STYLE_PROFILE): StyleProfile | undefined {
+  if (!styleProfile || typeof styleProfile !== 'object') return undefined
+  return mergeStyleProfile(styleProfile as Partial<StyleProfile>, fallback)
+}
+
+function normalizePriority(value: unknown, fallback: number): number {
+  if (typeof value !== 'number' || !Number.isFinite(value)) return fallback
+  return Math.min(99, Math.max(1, Math.trunc(value)))
+}
+
+function normalizeAgentConfigs(input: unknown, fallback: AgentConfig[] = DEFAULT_AGENT_CONFIGS): AgentConfig[] {
+  const byRole = new Map<AgentRole, AgentConfig>()
+
+  for (const config of fallback) {
+    byRole.set(config.role, { ...config })
+  }
+
+  if (Array.isArray(input)) {
+    for (const rawConfig of input) {
+      if (!rawConfig || typeof rawConfig !== 'object') continue
+      const config = rawConfig as Partial<AgentConfig>
+      if (!config.role || !byRole.has(config.role)) continue
+      const existing = byRole.get(config.role)!
+      byRole.set(config.role, {
+        ...existing,
+        enabled: ACTIVE_AGENT_ROLES.includes(config.role) && typeof config.enabled === 'boolean' ? config.enabled : existing.enabled,
+        phase: isAgentPhase(config.phase) ? config.phase : existing.phase,
+        priority: normalizePriority(config.priority, existing.priority),
+        batchOnly: config.role === 'reader' && typeof config.batchOnly === 'boolean' ? config.batchOnly : existing.batchOnly,
+      })
+    }
+  }
+
+  return DEFAULT_AGENT_CONFIGS.map(config => byRole.get(config.role) ?? { ...config })
+}
+
 export function getDefaultProjectConfig(overrides: Partial<ProjectConfig> = {}): ProjectConfig {
   return normalizeProjectConfig(overrides)
 }
@@ -139,6 +187,10 @@ export function normalizeProjectConfig(
     normalizeVectorConfig(base.vectorConfig, DEFAULT_VECTOR_CONFIG)
   )
 
+  const normalizedStyleProfile = raw.styleProfile !== undefined
+    ? normalizeStyleProfile(raw.styleProfile, normalizeStyleProfile(base.styleProfile) ?? DEFAULT_STYLE_PROFILE)
+    : normalizeStyleProfile(base.styleProfile)
+
   return {
     preset: raw.preset ?? base.preset,
     providers: cloneProviders(raw.providers ?? base.providers),
@@ -147,12 +199,15 @@ export function normalizeProjectConfig(
     sentinelModel: raw.sentinelModel ?? base.sentinelModel,
     extractorModel: raw.extractorModel ?? base.extractorModel,
     systemPrompts: normalizeSystemPrompts(raw.systemPrompts ?? base.systemPrompts),
+    styleProfile: normalizedStyleProfile,
     planningDepth: raw.planningDepth ?? base.planningDepth,
     writingDepth: raw.writingDepth ?? base.writingDepth,
     enableQualityCheck: raw.enableQualityCheck ?? base.enableQualityCheck,
     qualityThreshold: raw.qualityThreshold ?? base.qualityThreshold,
     maxCostPerChapter: raw.maxCostPerChapter ?? base.maxCostPerChapter,
     enableAISuggestions: raw.enableAISuggestions ?? base.enableAISuggestions,
+    enableAutoReview: raw.enableAutoReview ?? base.enableAutoReview,
+    agentConfigs: normalizeAgentConfigs(raw.agentConfigs, normalizeAgentConfigs(base.agentConfigs)),
     enableLogicValidator: raw.enableLogicValidator ?? base.enableLogicValidator,
     enableZeroTouchExtraction: raw.enableZeroTouchExtraction ?? base.enableZeroTouchExtraction,
     enableVectorRetrieval: raw.enableVectorRetrieval ?? base.enableVectorRetrieval,

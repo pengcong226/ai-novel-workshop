@@ -4,6 +4,8 @@
  */
 
 import type { Character } from '@/types'
+import { getLogger } from '@/utils/logger'
+const logger = getLogger('utils:characterExtractor')
 
 export interface ExtractedCharacter {
   name: string
@@ -27,113 +29,6 @@ export interface CharacterExtractionResult {
 }
 
 /**
- * 从文本中提取人物名称（基于规则）
- */
-function extractCharacterNames(text: string): Map<string, number> {
-  const namePattern = /[\u4e00-\u9fa5]{2,4}/g
-  const names = new Map<string, number>()
-
-  // 提取所有可能的中文名字
-  const matches = text.match(namePattern) || []
-
-  // 过滤常见非名字词汇 - 大幅扩展
-  const stopWords = new Set([
-    // 代词
-    '这个', '那个', '他的', '她的', '我的', '你的', '我们的', '他们的',
-    '什么', '怎么', '为什么', '哪里', '那里', '这里', '怎样',
-    '自己', '别人', '大家', '其他人', '对方', '彼此', '各位',
-
-    // 连词
-    '然后', '接着', '于是', '但是', '可是', '不过', '而且',
-    '虽然', '因为', '所以', '如果', '即使', '无论', '不管',
-
-    // 数量词
-    '一个', '两个', '一些', '许多', '很多', '所有', '全部',
-    '这种', '那种', '这些', '那些', '每个', '各个', '某个',
-
-    // 常用动词
-    '起来', '下来', '出来', '进去', '回来', '过来', '过去',
-    '看到', '听到', '想到', '找到', '得到', '受到', '遭到',
-    '开始', '最后', '终于', '突然', '渐渐', '慢慢', '依然',
-    '已经', '正在', '将要', '应该', '可能', '必须', '需要',
-    '发现', '发生', '出现', '消失', '继续', '停止', '完成',
-
-    // 时间词
-    '时候', '时间', '今天', '明天', '昨天', '现在', '以后',
-    '之前', '之后', '同时', '当时', '那时', '这时', '这时',
-    '一下', '一会儿', '一下子', '顿时', '立刻', '马上',
-
-    // 地点词
-    '地方', '这里', '那里', '哪里', '前面', '后面', '里面',
-    '外面', '上面', '下面', '旁边', '附近', '远处', '近处',
-
-    // 形容词/副词
-    '很多', '很大', '很小', '很高', '很低', '很快', '很慢',
-    '非常', '特别', '十分', '相当', '比较', '稍微', '有点',
-
-    // 常见名词
-    '东西', '事情', '情况', '问题', '原因', '结果', '办法',
-    '样子', '方面', '部分', '过程', '目的', '意义', '感觉',
-    '人影', '身影', '声音', '气息', '气息', '脸色', '眼神',
-
-    // 常见词组
-    '的时候', '上的', '下的', '中的', '里的', '外的', '内的',
-    '的话', '有的', '没有', '不是', '就是', '还是', '也是',
-    '的话', '似的', '一样', '一般', '来说', '起来', '下去',
-    '不得', '不了', '不住', '不到', '不开', '不出', '不起',
-
-    // 修炼相关（容易误识别）
-    '境界', '修炼', '突破', '提升', '实力', '力量', '能力',
-    '丹田', '经脉', '灵气', '元气', '真气', '法力', '神识',
-
-    // 其他常见词
-    '并非', '何况', '况且', '不然', '否则', '尽管', '即便',
-    '竟然', '居然', '果然', '当然', '果然', '竟然', '实在',
-    '简直', '几乎', '将近', '大约', '左右', '上下', '以内'
-  ])
-
-  // 统计词频
-  for (const match of matches) {
-    if (!stopWords.has(match) && match.length >= 2 && match.length <= 4) {
-      names.set(match, (names.get(match) || 0) + 1)
-    }
-  }
-
-  return names
-}
-
-/**
- * 推断人物角色
- */
-function inferRole(occurrences: number, totalWords: number, _context?: string): ExtractedCharacter['role'] {
-  const frequency = occurrences / totalWords
-
-  if (frequency > 0.01) {
-    return 'protagonist'
-  } else if (frequency > 0.005) {
-    return 'supporting'
-  } else if (frequency > 0.001) {
-    return 'antagonist'
-  } else {
-    return 'minor'
-  }
-}
-
-/**
- * 查找人物首次出现位置
- */
-function findFirstAppearance(text: string, name: string): string {
-  const index = text.indexOf(name)
-  if (index === -1) return ''
-
-  // 获取首次出现位置前后100个字符作为上下文
-  const start = Math.max(0, index - 50)
-  const end = Math.min(text.length, index + name.length + 50)
-
-  return text.slice(start, end)
-}
-
-/**
  * 使用AI提取人物信息 (改进版：真正调用大模型)
  */
 export async function extractCharactersWithAI(
@@ -149,7 +44,7 @@ export async function extractCharactersWithAI(
     
     // 如果没有配置 AI，则直接返回空，绝不使用劣质正则
     if (!aiStore.checkInitialized()) {
-      console.warn('AI未初始化，拒绝使用正则提取垃圾数据')
+      logger.warn('AI未初始化，拒绝使用正则提取垃圾数据')
       return { characters: [], totalOccurrences: 0, processingTime: Date.now() - startTime }
     }
     
@@ -212,39 +107,13 @@ ${truncatedText}
     }
     
   } catch (error) {
-    console.error('真正的 AI 人物提取失败，已经停止使用正则降级，直接返回空', error)
+    logger.error('真正的 AI 人物提取失败，已经停止使用正则降级，直接返回空', error)
     // 放弃使用糟糕的正则降级，直接返回空数组，避免脏数据污染设定库
     return {
       characters: [],
       totalOccurrences: 0,
       processingTime: Date.now() - startTime
     }
-  }
-}
-
-function fallbackRegexExtraction(text: string, onProgress: any, startTime: number): CharacterExtractionResult {
-  // 原有的正则提取逻辑作为降级方案
-  const nameCandidates = extractCharacterNames(text)
-  const filteredNames = new Map([...nameCandidates].filter(([_, count]) => count >= 3))
-  const totalWords = text.replace(/\s+/g, '').length
-  const characters: ExtractedCharacter[] = []
-
-  let processed = 0
-  for (const [name, occurrences] of filteredNames) {
-    const role = inferRole(occurrences, totalWords)
-    const firstAppearance = findFirstAppearance(text, name)
-
-    characters.push({
-      name, aliases: [], description: '', firstAppearance, role, confidence: 0.5, occurrences
-    })
-    processed++
-    if (onProgress) onProgress((processed / filteredNames.size) * 100)
-  }
-  characters.sort((a, b) => b.occurrences - a.occurrences)
-  return {
-    characters: characters.slice(0, 50),
-    totalOccurrences: characters.reduce((sum, c) => sum + c.occurrences, 0),
-    processingTime: Date.now() - startTime
   }
 }
 
@@ -388,7 +257,7 @@ ${truncatedText}`
       events: Array.isArray(parsed.events) ? parsed.events : []
     }
   } catch (err) {
-    console.error('全量实体提取失败:', err)
+    logger.error('全量实体提取失败:', err)
     return { characters: [], worldbook: [], events: [] }
   }
 }

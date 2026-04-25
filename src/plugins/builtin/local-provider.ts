@@ -4,6 +4,8 @@
  * 提供本地模型支持(通过兼容OpenAI API的本地服务)
  */
 
+import { getLogger } from '@/utils/logger'
+
 import type {
   AIProviderContribution,
   ProviderConfig,
@@ -12,6 +14,8 @@ import type {
   ChatResponse,
   CostEstimate
 } from '../types'
+
+const logger = getLogger('plugins:builtin:local-provider')
 
 type ModelConfig = any
 type CostBreakdown = CostEstimate
@@ -88,7 +92,7 @@ class LocalProvider implements ProviderInstance {
         finishReason: data.choices[0].finish_reason || 'stop'
       }
     } catch (error) {
-      console.error('Local provider chat error:', error)
+      logger.error('Local provider chat error:', error)
       throw error
     }
   }
@@ -165,7 +169,7 @@ class LocalProvider implements ProviderInstance {
 
       return response.ok
     } catch (error) {
-      console.error('Local provider config validation error:', error)
+      logger.error('Local provider config validation error:', error)
       return false
     }
   }
@@ -199,7 +203,7 @@ class LocalProvider implements ProviderInstance {
         }
       }
     } catch (error) {
-      console.warn('Failed to fetch local models:', error)
+      logger.warn('Failed to fetch local models:', error)
     }
 
     // 返回默认模型

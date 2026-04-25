@@ -69,7 +69,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, onUnmounted } from 'vue'
 import { useProjectStore } from '@/stores/project'
 import { useSandboxStore } from '@/stores/sandbox'
 import { ElMessage } from 'element-plus'
@@ -83,6 +83,14 @@ const projectStore = useProjectStore()
 const sandboxStore = useSandboxStore()
 
 const isGenerating = ref(false)
+const generationTimers = new Set<ReturnType<typeof setTimeout>>()
+
+onUnmounted(() => {
+  for (const timer of generationTimers) {
+    clearTimeout(timer)
+  }
+  generationTimers.clear()
+})
 
 // Source of truth: project's outline chapters
 const chapters = computed(() => projectStore.currentProject?.outline?.chapters || [])
@@ -96,6 +104,14 @@ const activeNodeId = computed(() => {
   const firstPlanned = chapters.value.find(ch => ch.status === 'planned' || ch.status === 'writing')
   return firstPlanned ? firstPlanned.chapterId : null
 })
+
+const chapterNumberById = computed(() => {
+  return new Map(chapters.value.map((chapter, index) => [chapter.chapterId, index + 1]))
+})
+
+function getChapterNumber(chapter: ChapterOutline): number | null {
+  return chapterNumberById.value.get(chapter.chapterId) ?? null
+}
 
 function isActiveNode(chapter: ChapterOutline) {
   return chapter.chapterId === activeNodeId.value
@@ -151,11 +167,12 @@ async function simulateBatchPlanning() {
     // We would normally call extendOutlineWithLLM here
     ElMessage.info('触发批量大纲推演...')
     // Simulating API call
-    setTimeout(() => {
+    const timer = setTimeout(() => {
+      generationTimers.delete(timer)
       const newOutline: ChapterOutline = {
         chapterId: Math.random().toString(),
         title: `第${currentLength + 1}章：未命名`,
-        scenes: [{ id: '1', description: 'AI预测的后续情节...', characters: [], location: '' }],
+        scenes: [{ id: '1', description: 'AI预测的后续情节...', characters: [], location: '', order: 0 }],
         characters: [],
         location: '',
         goals: [],
@@ -168,6 +185,7 @@ async function simulateBatchPlanning() {
       isGenerating.value = false
       ElMessage.success('大纲推演完成')
     }, 1500)
+    generationTimers.add(timer)
   } catch (e) {
     logger.error('批量大纲推演失败:', e)
     isGenerating.value = false
@@ -175,34 +193,43 @@ async function simulateBatchPlanning() {
 }
 
 async function executeChapter(chapter: ChapterOutline) {
+  if (!projectStore.currentProject) return
+
   isGenerating.value = true
-  try {
-    ElMessage.info(`正在生成并同步 ${chapter.title}...`)
-    // Mocking execution for UI purposes. In real life, trigger generationScheduler
-    setTimeout(() => {
+  ElMessage.info(`正在生成并同步 ${chapter.title}...`)
+
+  const timer = setTimeout(async () => {
+    generationTimers.delete(timer)
+    try {
+      const chapterNumber = getChapterNumber(chapter)
+      if (!chapterNumber) {
+        ElMessage.error('无法定位章节序号')
+        return
+      }
+
       chapter.status = 'completed'
-      // Simulate state event push
-      sandboxStore.stateEvents.push({
+      await sandboxStore.addStateEvent({
         id: Math.random().toString(),
         projectId: projectStore.currentProject!.id,
-        chapterNumber: chapters.value.indexOf(chapter) + 1,
+        chapterNumber,
         entityId: 'mock-entity-1',
         eventType: 'PROPERTY_UPDATE',
         payload: { key: 'status', value: '同步完成' },
         source: 'AI_EXTRACTED'
       })
-      projectStore.saveCurrentProject()
-      sandboxStore.currentChapter = chapters.value.indexOf(chapter) + 1
-      isGenerating.value = false
+      await projectStore.saveCurrentProject()
+      sandboxStore.currentChapter = chapterNumber
       ElMessage.success('正文生成与状态同步完成！')
-    }, 2000)
-  } catch (e) {
-    logger.error('章节执行失败:', e)
-    isGenerating.value = false
-  }
+    } catch (e) {
+      logger.error('章节执行失败:', e)
+    } finally {
+      isGenerating.value = false
+    }
+  }, 2000)
+  generationTimers.add(timer)
 }
 
-function writeManually(chapter: ChapterOutline) {
+function writeManually(_chapter: ChapterOutline) {
   ElMessage.info('切换到手动章节编辑器')
 }
 
@@ -215,18 +242,18 @@ function hasExtractedStates(chapter: ChapterOutline) {
   return isCompletedNode(chapter) && Math.random() > 0.5
 }
 
-function getExtractedStates(chapter: ChapterOutline) {
+function getExtractedStates(_chapter: ChapterOutline) {
   return [
     { entityName: '系统', description: '状态同步:', value: '完成' }
   ]
 }
 
-function hasPredictedStates(chapter: ChapterOutline) {
+function hasPredictedStates(_chapter: ChapterOutline) {
   // Only show randomly on pending nodes
   return Math.random() > 0.5
 }
 
-function getPredictedStates(chapter: ChapterOutline) {
+function getPredictedStates(_chapter: ChapterOutline) {
   return "可能产生物品或状态变更"
 }
 </script>

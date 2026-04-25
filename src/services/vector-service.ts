@@ -506,8 +506,8 @@ export class VectorService {
     // 收集已知实体名 (用于给切片打 entityNames 标签)
     const { useSandboxStore } = await import('@/stores/sandbox')
     const sandboxStore = useSandboxStore()
-    const characterNames = sandboxStore.entities.filter(e => e.type === 'CHARACTER' && !e.isArchived).map(e => e.name)
-    const locationNames = sandboxStore.entities.filter(e => e.type === 'LOCATION' && !e.isArchived).map(e => e.name)
+    const characterNames = sandboxStore.characterEntities.map(e => e.name)
+    const locationNames = sandboxStore.locationEntities.map(e => e.name)
 
     const allDocs: VectorDocument[] = [];
 

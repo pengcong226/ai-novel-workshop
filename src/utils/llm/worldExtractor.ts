@@ -6,6 +6,9 @@ import type { LLMProviderConfig, AnalysisMode, LLMWorldSetting, AnalysisProgress
 import { callLLMWithValidation } from './llmCaller'
 import { worldSettingSchema } from './schemas'
 import { selectRepresentativeChapters } from './textChunker'
+import { getLogger } from '@/utils/logger'
+
+const logger = getLogger('llm:worldExtractor')
 import { getWorldExtractionPrompt } from './prompts/worldPrompts'
 
 /**
@@ -19,7 +22,7 @@ export async function extractWorldWithLLM(
   quickModeSampling: QuickModeSampling,
   onProgress?: (progress: AnalysisProgress) => void
 ): Promise<LLMWorldSetting> {
-  console.log('[世界观提取] 开始，模式:', mode)
+  logger.info('开始，模式:', mode)
 
   onProgress?.({
     stage: 'world',
@@ -42,7 +45,7 @@ export async function extractWorldWithLLM(
     chaptersToAnalyze = chapters
   }
 
-  console.log('[世界观提取] 分析章节数:', chaptersToAnalyze.length)
+  logger.info('分析章节数:', chaptersToAnalyze.length)
 
   // 合并章节内容
   const textToAnalyze = chaptersToAnalyze
@@ -56,7 +59,7 @@ export async function extractWorldWithLLM(
     { maxRetries: 2 }
   )) as any
 
-  console.log('[世界观提取] 提取完成:', worldSetting.worldType)
+  logger.info('提取完成:', worldSetting.worldType)
 
   onProgress?.({
     stage: 'world',

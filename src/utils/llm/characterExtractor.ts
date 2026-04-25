@@ -6,6 +6,9 @@ import type { LLMProviderConfig, AnalysisMode, LLMCharacter, LLMRelationship, An
 import { callLLMWithValidation } from './llmCaller'
 import { characterListSchema, relationshipListSchema } from './schemas'
 import { getCharacterExtractionPrompt, getRelationshipExtractionPrompt } from './prompts/characterPrompts'
+import { getLogger } from '@/utils/logger'
+
+const logger = getLogger('llm:characterExtractor')
 
 /**
  * 提取人物
@@ -18,7 +21,7 @@ export async function extractCharactersWithLLM(
   quickModeSampling: QuickModeSampling,
   onProgress?: (progress: AnalysisProgress) => void
 ): Promise<{ characters: LLMCharacter[]; relationships: LLMRelationship[] }> {
-  console.log('[人物识别] 开始，模式:', mode)
+  logger.info('开始，模式:', mode)
 
   // 第一轮：识别主要人物
   onProgress?.({
@@ -43,7 +46,7 @@ export async function extractCharactersWithLLM(
     chaptersToAnalyze = chapters
   }
 
-  console.log('[人物识别] 分析章节数:', chaptersToAnalyze.length)
+  logger.info('分析章节数:', chaptersToAnalyze.length)
 
   // 合并章节内容
   const textToAnalyze = chaptersToAnalyze
@@ -57,7 +60,7 @@ export async function extractCharactersWithLLM(
     { maxRetries: 2 }
   )) as any
 
-  console.log('[人物识别] 识别到人物数:', characters.length)
+  logger.info('识别到人物数:', characters.length)
 
   // 第二轮：提取人物关系
   onProgress?.({
@@ -74,7 +77,7 @@ export async function extractCharactersWithLLM(
     { maxRetries: 2 }
   )) as any
 
-  console.log('[人物识别] 提取到关系数:', relationships.length)
+  logger.info('提取到关系数:', relationships.length)
 
   onProgress?.({
     stage: 'characters',

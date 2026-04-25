@@ -17,6 +17,8 @@ import type {
   ConflictDetectionResult,
   ConflictType} from '@/types/conflicts'
 import { v4 as uuidv4 } from 'uuid'
+import { getLogger } from '@/utils/logger'
+const logger = getLogger('utils:conflictDetector')
 
 /**
  * 默认配置
@@ -67,40 +69,40 @@ export class ConflictDetector {
     const startTime = Date.now()
     this.conflicts = []
 
-    console.log('[冲突检测] 开始检测...')
+    logger.info('[冲突检测] 开始检测...')
 
     // 1. 人物设定冲突检测
     if (this.config.enableCharacterConflicts) {
-      console.log('[冲突检测] 检测人物设定冲突...')
+      logger.info('[冲突检测] 检测人物设定冲突...')
       await this.detectCharacterConflicts()
     }
 
     // 2. 时间线冲突检测
     if (this.config.enableTimelineConflicts) {
-      console.log('[冲突检测] 检测时间线冲突...')
+      logger.info('[冲突检测] 检测时间线冲突...')
       await this.detectTimelineConflicts()
     }
 
     // 3. 世界观冲突检测
     if (this.config.enableWorldConflicts) {
-      console.log('[冲突检测] 检测世界观冲突...')
+      logger.info('[冲突检测] 检测世界观冲突...')
       await this.detectWorldConflicts()
     }
 
     // 4. 情节逻辑检测
     if (this.config.enablePlotLogicConflicts) {
-      console.log('[冲突检测] 检测情节逻辑...')
+      logger.info('[冲突检测] 检测情节逻辑...')
       await this.detectPlotLogicConflicts()
     }
 
     // 5. 伏笔检测
     if (this.config.enableForeshadowingConflicts) {
-      console.log('[冲突检测] 检测伏笔...')
+      logger.info('[冲突检测] 检测伏笔...')
       await this.detectForeshadowingConflicts()
     }
 
     const duration = Date.now() - startTime
-    console.log(`[冲突检测] 检测完成，耗时 ${duration}ms，发现 ${this.conflicts.length} 个冲突`)
+    logger.info(`[冲突检测] 检测完成，耗时 ${duration}ms，发现 ${this.conflicts.length} 个冲突`)
 
     // 生成统计信息
     const statistics = this.generateStatistics()

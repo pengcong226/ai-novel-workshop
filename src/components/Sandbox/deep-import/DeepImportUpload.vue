@@ -98,7 +98,6 @@ const emit = defineEmits<{
     chapters: ParsedChapter[]
     mode: 'full' | 'smart_sampling'
     sourceText: string
-    selectedPatternName: string
     detectedPatternName: string | null
   }): void
 }>()
@@ -185,7 +184,6 @@ function handleNext() {
       chapters: parsedChapters,
       mode: extractionMode.value,
       sourceText: sourceText.value,
-      selectedPatternName: selectedPatternName.value,
       detectedPatternName: parseResult.value?.detectedPattern?.name || null,
     })
   }

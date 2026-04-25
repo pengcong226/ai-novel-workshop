@@ -4,6 +4,8 @@
  * 提供OpenAI GPT系列模型支持
  */
 
+import { getLogger } from '@/utils/logger'
+
 import type {
   AIProviderContribution,
   ProviderConfig,
@@ -12,6 +14,8 @@ import type {
   ChatResponse,
   CostEstimate
 } from '../types'
+
+const logger = getLogger('plugins:builtin:openai-provider')
 
 type ModelConfig = any
 type CostBreakdown = CostEstimate
@@ -107,7 +111,7 @@ class OpenAIProvider implements ProviderInstance {
         finishReason: data.choices[0].finish_reason
       }
     } catch (error) {
-      console.error('OpenAI chat error:', error)
+      logger.error('OpenAI chat error:', error)
       throw error
     }
   }
@@ -183,7 +187,7 @@ class OpenAIProvider implements ProviderInstance {
 
       return response.ok
     } catch (error) {
-      console.error('OpenAI config validation error:', error)
+      logger.error('OpenAI config validation error:', error)
       return false
     }
   }

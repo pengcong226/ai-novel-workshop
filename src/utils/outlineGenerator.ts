@@ -296,7 +296,8 @@ export async function generateOutline(
         id: uuidv4(),
         description: generateChapterSummary(chapter.content),
         characters: [],
-        location: extractScenes(chapter.content)[0] || ''
+        location: extractScenes(chapter.content)[0] || '',
+        order: 0
       }],
       goals: extractGoals(chapter.content),
       conflicts: extractConflicts(chapter.content),

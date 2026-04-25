@@ -13,6 +13,8 @@ import type { Chapter } from '@/types'
 import { useAIStore } from '@/stores/ai'
 import { SUMMARY_SYSTEM_PROMPT } from './systemPrompts'
 import { safeParseAIJson } from './safeParseAIJson'
+import { getLogger } from '@/utils/logger'
+const logger = getLogger('utils:summarizer')
 
 /**
  * 摘要层级
@@ -279,19 +281,19 @@ export async function generateChapterSummary(
     }
 
     if (!validateSummaryContent(result.summary, chapter, targetLength)) {
-      console.warn(`第${chapter.number}章摘要未通过压缩校验，使用降级摘要`)
+      logger.warn(`第${chapter.number}章摘要未通过压缩校验，使用降级摘要`)
       return buildFallbackSummary(chapter, targetLength, detail)
     }
 
     const quality = checkSummaryQuality(result)
     if (!quality.isValid) {
-      console.warn(`第${chapter.number}章摘要质量较低，使用降级摘要`, quality.issues)
+      logger.warn(`第${chapter.number}章摘要质量较低，使用降级摘要`, quality.issues)
       return buildFallbackSummary(chapter, targetLength, detail)
     }
 
     return result
   } catch (error) {
-    console.error('生成摘要失败，使用降级摘要:', error)
+    logger.error('生成摘要失败，使用降级摘要:', error)
     return buildFallbackSummary(chapter, targetLength, detail)
   }
 }
@@ -375,8 +377,8 @@ function parseSummaryResponse(
       resolutions: data.resolutions || []
     }
   } catch (error) {
-    console.error('解析摘要响应失败:', error)
-    console.log('原始响应:', response)
+    logger.error('解析摘要响应失败:', error)
+    logger.info('原始响应:', response)
 
     // 如果解析失败，返回一个基本摘要
     return {
@@ -511,7 +513,7 @@ export async function batchGenerateSummaries(
         await new Promise(resolve => setTimeout(resolve, 500))
       }
     } catch (error) {
-      console.error(`生成第${chapter.number}章摘要失败:`, error)
+      logger.error(`生成第${chapter.number}章摘要失败:`, error)
       // 继续处理下一章
     }
   }
@@ -568,7 +570,7 @@ export async function mergeToVolumeSummary(
       updatedAt: new Date()
     }
   } catch (error) {
-    console.error('生成卷摘要失败:', error)
+    logger.error('生成卷摘要失败:', error)
     throw error
   }
 }

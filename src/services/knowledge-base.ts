@@ -71,8 +71,6 @@ export class KnowledgeBaseManager {
     knowledgeBase?: KnowledgeBase
   }> {
     const {
-      overwrite = false,
-      merge = false,
       validate = true,
       autoCategorize = true,
       extractTags = true,

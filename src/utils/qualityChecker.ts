@@ -5,6 +5,8 @@
 
 import type { Chapter, Outline } from '@/types'
 import type { ResolvedEntity } from '@/stores/sandbox'
+import { getLogger } from '@/utils/logger'
+const logger = getLogger('utils:qualityChecker')
 
 /**
  * 质量维度
@@ -834,7 +836,7 @@ export class QualityChecker {
         suggestions: [...new Set(mergedSuggestions)]
       }
     } catch (error) {
-      console.warn('[QualityChecker] LLM评估失败，回退到规则评估:', error)
+      logger.warn('[QualityChecker] LLM评估失败，回退到规则评估:', error)
       return baseDimension
     }
   }

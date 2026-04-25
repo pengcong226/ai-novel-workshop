@@ -89,20 +89,20 @@ const selectedColumn = ref<number>(-1)
 const chartContainer = ref<HTMLElement>()
 const chartReady = ref(false)
 
-interface Statistics {
-  totalRows: number
-  uniqueValues: number
-  emptyValues: number
-  mostCommon: string
-  mostCommonCount: number
+interface ChartAnalysis {
+  data: [string, number][]
+  statistics: {
+    totalRows: number
+    uniqueValues: number
+    emptyValues: number
+    mostCommon: string
+    mostCommonCount: number
+  } | null
 }
 
-const statistics = ref<Statistics | null>(null)
-
-// 计算图表数据
-const chartData = computed(() => {
+const chartAnalysis = computed<ChartAnalysis>(() => {
   if (selectedColumn.value < 0 || !props.data.length) {
-    return []
+    return { data: [], statistics: null }
   }
 
   const colIndex = selectedColumn.value
@@ -118,17 +118,22 @@ const chartData = computed(() => {
     .sort((a, b) => b[1] - a[1])
     .slice(0, 20)
 
-  // 更新统计信息
-  statistics.value = {
-    totalRows: props.data.length,
-    uniqueValues: valueCounts.size,
-    emptyValues: valueCounts.get('(空)') || 0,
-    mostCommon: sorted[0]?.[0] || '-',
-    mostCommonCount: sorted[0]?.[1] || 0
+  return {
+    data: sorted,
+    statistics: {
+      totalRows: props.data.length,
+      uniqueValues: valueCounts.size,
+      emptyValues: valueCounts.get('(空)') || 0,
+      mostCommon: sorted[0]?.[0] || '-',
+      mostCommonCount: sorted[0]?.[1] || 0
+    }
   }
-
-  return sorted
 })
+
+const statistics = computed(() => chartAnalysis.value.statistics)
+
+// 计算图表数据
+const chartData = computed(() => chartAnalysis.value.data)
 
 // 图表配置
 const chartOption = computed(() => {

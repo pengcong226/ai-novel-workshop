@@ -110,7 +110,7 @@
                   </el-dropdown-menu>
                 </template>
               </el-dropdown>
-              <el-button size="small" @click="regenerateChapter(chapter)">
+              <el-button size="small" @click="regenerateChapter">
                 重新生成
               </el-button>
               <el-button size="small" @click="viewCheckpoints(chapter)">
@@ -165,6 +165,7 @@
           <div class="header-right">
              <span class="immersive-status" :style="{ color: saveStatusColor }">{{ saveStatusText }}</span>
              <el-button @click="saveCheckpoint" v-if="editingChapter" text>打点</el-button>
+             <el-button @click="showVersionPanel = true" v-if="editingChapter" text>历史</el-button>
              <el-button type="primary" @click="saveChapter" :loading="saving" round>保存</el-button>
           </div>
         </div>
@@ -182,25 +183,54 @@
             <el-checkbox v-model="autoUpdateSettings" size="small" style="margin: 0 10px;">后台静默提词</el-checkbox>
             <el-button @click="optimizeContent" text size="small">打磨文笔</el-button>
             <el-button @click="checkQuality" text size="small">防吃书预警</el-button>
-            <span class="word-count">{{ chapterForm.content.length }} 墨</span>
+            <el-button @click="runReviewAndShowPanel" :loading="reviewingChapter" text size="small">
+              审校
+              <el-badge :value="unresolvedReviewCount" :hidden="unresolvedReviewCount === 0" />
+            </el-button>
+            <el-button @click="showFindReplace = !showFindReplace" text size="small">
+              <el-icon><Search /></el-icon> 查找替换
+            </el-button>
+            <span class="word-count">{{ editorWordCount }} 墨</span>
           </div>
-          
-          <el-input
-            v-model="chapterForm.content"
-            type="textarea"
-            :rows="30"
-            placeholder="此刻，命运的齿轮开始转动..."
-            @keydown="handleEditorKeydown"
-            class="immersive-textarea"
-          />
+
+          <div style="position: relative; flex: 1; display: flex; flex-direction: column;">
+            <NovelEditor
+              ref="novelEditorRef"
+              v-model="chapterForm.content"
+              placeholder="此刻，命运的齿轮开始转动..."
+              :autofocus="true"
+              :annotations="currentAnnotations"
+              @word-count-change="editorWordCount = $event"
+              @ai-action="handleParagraphAI"
+            />
+
+            <FindReplacePanel
+              v-if="novelEditorInstance"
+              v-model:visible="showFindReplace"
+              :editor="novelEditorInstance"
+              :show-replace="true"
+            />
+          </div>
         </div>
 
         <!-- 右侧毛玻璃悬浮关联面板 (Glassmorphism Context) -->
         <GlassContextPanel
+          v-if="!showReviewPanel"
           v-model:activeTab="editActiveTab"
           v-model:chapterForm="chapterForm"
           :characters="activeContextCharacters"
           :worldbook="activeContextWorldbook"
+        />
+
+        <ReviewSidePanel
+          v-else
+          :visible="showReviewPanel"
+          :project-id="project?.id"
+          :chapter-id="chapterForm.id"
+          :chapter-number="chapterForm.number"
+          @navigate-to="navigateToReviewParagraph"
+          @apply-fix="applyReviewFix"
+          @dismiss="dismissReviewSuggestion"
         />
 
       </div>
@@ -462,6 +492,21 @@
         <el-button @click="showValidationDialog = false">关闭</el-button>
       </template>
     </el-dialog>
+
+    <ChapterVersionPanel
+      v-model="showVersionPanel"
+      :chapter-id="editingChapter?.id || ''"
+      @restore="handleVersionRestore"
+    />
+
+    <AIRewriteConfirm
+      v-model:visible="showAIRewriteConfirm"
+      :original-text="aiRewriteOriginal"
+      :modified-text="aiRewriteModified"
+      :action="aiRewriteAction"
+      @accept="acceptAIRewrite"
+      @regenerate="regenerateAIRewrite"
+    />
   </div>
 </template>
 
@@ -472,18 +517,29 @@ import GlassContextPanel from './GlassContextPanel.vue'
 import { useContextRadar } from '@/composables/useContextRadar'
 import { useProjectStore } from '@/stores/project'
 import { usePluginStore } from '@/stores/plugin'
+import { useSuggestionsStore } from '@/stores/suggestions'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Plus, MagicStick, Download, ArrowDown, CircleCheck, ArrowLeft } from '@element-plus/icons-vue'
+import { Plus, MagicStick, Download, ArrowDown, CircleCheck, ArrowLeft, Search } from '@element-plus/icons-vue'
 import { v4 as uuidv4 } from 'uuid'
 import type { Chapter, Checkpoint } from '@/types'
 import type { ChatMessage } from '@/types/ai'
 import ExportSettings from './ExportSettings.vue'
+import ChapterVersionPanel from './ChapterVersionPanel.vue'
+import { NovelEditor, FindReplacePanel, AIRewriteConfirm, ReviewSidePanel } from './editor'
+import type { AnnotationItem } from './editor'
+import { executeParagraphAI, isParagraphAction } from '@/services/paragraph-ai'
+import type { Editor } from '@tiptap/vue-3'
 import { useChapterExport } from '@/composables/useChapterExport'
+import { createSnapshot, pruneSnapshots } from '@/utils/chapterVersioning'
 import { getLogger } from '@/utils/logger'
+import { escapeXml } from '@/utils/escapeXml'
+import { runReview } from '@/assistant/review/reviewRunner'
+import { getErrorMessage } from '@/utils/getErrorMessage'
 
 const logger = getLogger('chapters')
 const projectStore = useProjectStore()
 const pluginStore = usePluginStore()
+const suggestionsStore = useSuggestionsStore()
 const project = computed(() => projectStore.currentProject)
 const chapters = computed(() => project.value?.chapters || [])
 
@@ -503,11 +559,31 @@ const pluginToolbarButtons = computed(() => {
 
 const showEditDialog = ref(false)
 const editingChapter = ref<Chapter | null>(null)
+const showVersionPanel = ref(false)
 const saving = ref(false)
 const generating = ref(false)
 const generationStatus = ref('')
 const autoUpdateSettings = ref(true)
 const editActiveTab = ref('basic')
+const editorWordCount = ref(0)
+const showFindReplace = ref(false)
+const showReviewPanel = ref(false)
+const reviewingChapter = ref(false)
+type NovelEditorExpose = {
+  getEditor: () => Editor | null
+  scrollToParagraph: (paragraphIndex: number) => boolean
+  applySuggestedFix: (payload: { originalSnippet: string; fixContent: string; paragraphIndex?: number }) => boolean
+}
+const novelEditorRef = ref<NovelEditorExpose | null>(null)
+const novelEditorInstance = computed(() => novelEditorRef.value?.getEditor() || null)
+
+// AI rewrite confirm state
+const showAIRewriteConfirm = ref(false)
+const aiRewriteOriginal = ref('')
+const aiRewriteModified = ref('')
+const aiRewriteAction = ref('')
+const aiRewriteSelectionRange = ref({ from: 0, to: 0, editorFrom: 0, editorTo: 0 })
+const isParagraphAIProcessing = ref(false)
 const saveStatus = ref<'idle' | 'saving' | 'saved' | 'error'>('idle')
 let autoSaveTimer: ReturnType<typeof setTimeout> | null = null
 
@@ -550,6 +626,27 @@ const chapterForm = ref<Chapter>({
 
 const chapterContentProxy = computed(() => chapterForm.value.content)
 const { activeContextCharacters, activeContextWorldbook } = useContextRadar(project, chapterContentProxy, showEditDialog)
+
+const currentReviewSuggestions = computed(() =>
+  suggestionsStore.getSuggestionsByChapter(chapterForm.value.number, {
+    projectId: project.value?.id,
+    chapterId: chapterForm.value.id,
+  }).filter(suggestion => suggestion.status !== 'adopted' && suggestion.status !== 'ignored')
+)
+
+const unresolvedReviewCount = computed(() => currentReviewSuggestions.value.length)
+
+const currentAnnotations = computed<AnnotationItem[]>(() =>
+  currentReviewSuggestions.value
+    .filter(suggestion => suggestion.location.paragraphIndex !== undefined && suggestion.location.textSnippet)
+    .map(suggestion => ({
+      id: suggestion.id,
+      paragraphIndex: suggestion.location.paragraphIndex!,
+      textSnippet: suggestion.location.textSnippet!,
+      severity: suggestion.priority,
+      message: `${suggestion.title}: ${suggestion.message}`,
+    }))
+)
 
 const showCheckpointsDialog = ref(false)
 const selectedChapter = ref<Chapter | null>(null)
@@ -735,6 +832,92 @@ function handleEditorKeydown(event: KeyboardEvent) {
     event.preventDefault()
     saveChapter()
   }
+  if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'f') {
+    event.preventDefault()
+    showFindReplace.value = true
+  }
+  if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'h') {
+    event.preventDefault()
+    showFindReplace.value = true
+  }
+}
+
+async function handleParagraphAI(payload: { command: string; selectedText: string; from: number; to: number; editorFrom: number; editorTo: number }) {
+  const { command, selectedText, from, to, editorFrom, editorTo } = payload
+  if (!selectedText.trim()) return
+
+  aiRewriteOriginal.value = selectedText
+  aiRewriteAction.value = command
+  aiRewriteSelectionRange.value = { from, to, editorFrom, editorTo }
+
+  const [action, styleTarget] = command.split(':') as [string, string | undefined]
+  if (!isParagraphAction(action)) {
+    ElMessage.warning('不支持的 AI 操作')
+    return
+  }
+
+  try {
+    isParagraphAIProcessing.value = true
+    ElMessage.info('AI 正在处理...')
+    const result = await executeParagraphAI({
+      action,
+      text: selectedText,
+      styleTarget,
+      context: {
+        chapterTitle: chapterForm.value.title,
+        chapterNumber: chapterForm.value.number,
+        beforeText: chapterForm.value.content.slice(0, from).slice(-500),
+        afterText: chapterForm.value.content.slice(to, to + 500),
+      }
+    })
+    aiRewriteModified.value = result.result
+    showAIRewriteConfirm.value = true
+  } catch (error) {
+    logger.error('AI 段落操作失败', error)
+    ElMessage.error('AI 操作失败：' + getErrorMessage(error))
+  } finally {
+    isParagraphAIProcessing.value = false
+  }
+}
+
+function editorTextToHTML(text: string): string {
+  return escapeXml(text).replace(/\n/g, '<br>')
+}
+
+function acceptAIRewrite() {
+  const editor = novelEditorInstance.value
+  const { from, to, editorFrom, editorTo } = aiRewriteSelectionRange.value
+  if (editor) {
+    const currentText = editor.state.doc.textBetween(editorFrom, editorTo, '\n\n')
+    if (currentText !== aiRewriteOriginal.value) {
+      ElMessage.warning('原文已变化，请重新选择后再执行 AI 操作')
+      showAIRewriteConfirm.value = false
+      return
+    }
+    editor.chain().focus().insertContentAt({ from: editorFrom, to: editorTo }, editorTextToHTML(aiRewriteModified.value)).run()
+  } else {
+    const content = chapterForm.value.content
+    if (content.slice(from, to) !== aiRewriteOriginal.value) {
+      ElMessage.warning('原文已变化，请重新选择后再执行 AI 操作')
+      showAIRewriteConfirm.value = false
+      return
+    }
+    chapterForm.value.content = content.slice(0, from) + aiRewriteModified.value + content.slice(to)
+  }
+  showAIRewriteConfirm.value = false
+  scheduleAutoSave()
+}
+
+async function regenerateAIRewrite() {
+  showAIRewriteConfirm.value = false
+  await handleParagraphAI({
+    command: aiRewriteAction.value,
+    selectedText: aiRewriteOriginal.value,
+    from: aiRewriteSelectionRange.value.from,
+    to: aiRewriteSelectionRange.value.to,
+    editorFrom: aiRewriteSelectionRange.value.editorFrom,
+    editorTo: aiRewriteSelectionRange.value.editorTo,
+  })
 }
 
 watch(
@@ -842,6 +1025,16 @@ async function saveChapter() {
     ElMessage.success('保存成功')
     saveStatus.value = 'saved'
     showEditDialog.value = false
+
+    if (project.value) {
+      createSnapshot(chapterData, project.value.id, 'auto').catch(e =>
+        logger.warn('快照保存失败', e)
+      )
+      pruneSnapshots(chapterData.id, 20).catch(e =>
+        logger.warn('快照清理失败', e)
+      )
+    }
+
     resetForm()
 
     // 后台运行设定提取
@@ -859,6 +1052,13 @@ async function saveChapter() {
     ElMessage.error(`保存失败：${error instanceof Error ? error.message : String(error)}`)
   } finally {
     saving.value = false
+  }
+}
+
+function handleVersionRestore(content: string, title: string) {
+  if (chapterForm.value) {
+    chapterForm.value.content = content
+    chapterForm.value.title = title
   }
 }
 
@@ -1087,6 +1287,70 @@ function optimizeContent() {
   ElMessage.info('内容优化功能开发中...')
 }
 
+async function runReviewAndShowPanel() {
+  if (!project.value) {
+    ElMessage.warning('项目未加载')
+    return
+  }
+  if (!chapterForm.value.content.trim()) {
+    ElMessage.warning('请先填写章节内容')
+    return
+  }
+
+  try {
+    reviewingChapter.value = true
+    showReviewPanel.value = true
+    const result = await runReview({
+      profile: 'consistency',
+      project: project.value,
+      chapter: {
+        id: chapterForm.value.id,
+        number: chapterForm.value.number,
+        title: chapterForm.value.title,
+        content: chapterForm.value.content,
+      },
+    })
+
+    if (result.suggestionsAdded > 0) {
+      ElMessage.success(`审校完成，生成 ${result.suggestionsAdded} 条建议`)
+    } else {
+      ElMessage.success('审校完成，未发现明显问题')
+    }
+  } catch (error) {
+    logger.error('审校失败', error)
+    ElMessage.error('审校失败：' + getErrorMessage(error))
+  } finally {
+    reviewingChapter.value = false
+  }
+}
+
+function navigateToReviewParagraph(paragraphIndex: number) {
+  if (!novelEditorRef.value?.scrollToParagraph(paragraphIndex)) {
+    ElMessage.warning('无法定位到对应段落')
+  }
+}
+
+function applyReviewFix(payload: { suggestionId: string; paragraphIndex?: number; originalSnippet: string; fixContent: string }) {
+  const applied = novelEditorRef.value?.applySuggestedFix({
+    paragraphIndex: payload.paragraphIndex,
+    originalSnippet: payload.originalSnippet,
+    fixContent: payload.fixContent,
+  })
+
+  if (!applied) {
+    ElMessage.warning('无法定位到原文片段，可能内容已被修改')
+    return
+  }
+
+  suggestionsStore.markAsAdopted(payload.suggestionId)
+  scheduleAutoSave()
+  ElMessage.success('修复已采纳')
+}
+
+function dismissReviewSuggestion(suggestionId: string) {
+  suggestionsStore.markAsIgnored(suggestionId)
+}
+
 async function checkQuality() {
   if (!chapterForm.value.content || chapterForm.value.content.trim().length === 0) {
     ElMessage.warning('请先生成章节内容')
@@ -1268,7 +1532,7 @@ async function executeBatchGeneration() {
   }
 }
 
-function regenerateChapter(_chapter: Chapter) {
+function regenerateChapter() {
   ElMessage.info('重新生成功能开发中...')
 }
 
@@ -1629,24 +1893,6 @@ html.dark .immersive-header {
   font-size: 13px;
   color: var(--el-text-color-secondary);
   font-family: monospace;
-}
-
-:deep(.immersive-textarea .el-textarea__inner) {
-  box-shadow: none !important;
-  background: transparent !important;
-  font-size: 18px;
-  line-height: 2;
-  font-family: 'Songti SC', 'Noto Serif SC', STSong, serif;
-  color: var(--el-text-color-primary);
-  padding: 20px 0;
-  resize: none;
-  height: 100%;
-}
-html.dark :deep(.immersive-textarea .el-textarea__inner) {
-  color: #e0e0e0;
-}
-:deep(.immersive-textarea .el-textarea__inner:focus) {
-  box-shadow: none !important;
 }
 
 .immersive-insight-panel {

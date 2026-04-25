@@ -289,6 +289,9 @@ import { ChatDotRound, MoreFilled } from '@element-plus/icons-vue'
 import * as echarts from 'echarts/core'
 import DOMPurify from 'dompurify'
 import type { Suggestion, SuggestionStatus, SuggestionAction } from '@/types/suggestions'
+import { IMPORTANCE_AI_LABELS } from '@/utils/eventTypeLabels'
+import { getLogger } from '@/utils/logger'
+const logger = getLogger('components:AIAssistant')
 
 const projectStore = useProjectStore()
 const suggestionsStore = useSuggestionsStore()
@@ -589,17 +592,16 @@ async function processCommand(command: string) {
         systemPrompt += `\n[世界观]
 世界名称：${worldEntity.name}
 时代：${worldResolved?.properties['eraTime'] || '未知'}，科技：${worldResolved?.properties['eraTechLevel'] || '未知'}
-势力：${sandboxStore.entities.filter(e => e.type === 'FACTION' && !e.isArchived).map(f => f.name).join('、')}
-规则：${sandboxStore.entities.filter(e => e.type === 'LORE' && e.category === 'world-rule').slice(0, 3).map(r => r.name).join('、')}`
+势力：${sandboxStore.factionEntities.map(f => f.name).join('、')}
+规则：${sandboxStore.loreEntities.filter(r => r.category === 'world-rule').slice(0, 3).map(r => r.name).join('、')}`
       }
 
-      const characterEntities = sandboxStore.entities.filter(e => e.type === 'CHARACTER' && !e.isArchived).slice(0, 5)
+      const characterEntities = sandboxStore.characterEntities.slice(0, 5)
       if (characterEntities.length > 0) {
-        const importanceLabel: Record<string, string> = { critical: '主角', major: '重要角色', minor: '配角', background: '背景角色' }
         systemPrompt += `\n\n[核心人物]`
         characterEntities.forEach(entity => {
           const resolved = sandboxStore.activeEntitiesState[entity.id]
-          const label = importanceLabel[entity.importance] || '角色'
+          const label = IMPORTANCE_AI_LABELS[entity.importance] || '角色'
           const appearance = resolved?.properties['appearance'] || ''
           const background = entity.systemPrompt || ''
           systemPrompt += `\n- ${entity.name} (${label}): ${appearance} ${background}`
@@ -672,7 +674,7 @@ ${project.outline.mainPlot?.name || '主线'}: ${project.outline.mainPlot?.descr
     addAssistantMessage(rawContent, actions.length > 0 ? actions : undefined)
 
   } catch (error) {
-    console.error('[AI助手] 失败:', error)
+    logger.error('[AI助手] 失败:', error)
     addAssistantMessage('抱歉，处理时出现了错误：' + (error as Error).message)
   } finally {
     isTyping.value = false

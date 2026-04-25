@@ -5,6 +5,9 @@ const path = require('path');
 const app = express();
 app.use(express.json());
 
+const ENABLE_SQL_DEBUG = process.env.ENABLE_SQL_DEBUG === 'true';
+const DEBUG_SQL_TOKEN = process.env.DEBUG_SQL_TOKEN || '';
+
 // 尝试连接 SQLite 数据库
 let db;
 try {
@@ -17,7 +20,7 @@ try {
 }
 
 // 获取系统状态接口
-app.get('/api/status', (req, res) => {
+app.get('/api/status', (_req, res) => {
     res.json({
         success: true,
         data: {
@@ -28,7 +31,7 @@ app.get('/api/status', (req, res) => {
 });
 
 // 获取所有项目元数据
-app.get('/api/projects', (req, res) => {
+app.get('/api/projects', (_req, res) => {
     if (!db) return res.status(500).json({ success: false, error: 'Database not connected' });
     try {
         const rows = db.prepare('SELECT * FROM projects_meta').all();
@@ -159,11 +162,17 @@ app.put('/api/meta', (req, res) => {
 
 // 执行原生 SQL（高级调试入口）
 app.post('/api/sql', (req, res) => {
+    if (!ENABLE_SQL_DEBUG) {
+        return res.status(404).json({ success: false, error: 'SQL debug endpoint disabled' });
+    }
+    if (!DEBUG_SQL_TOKEN || req.headers['x-debug-token'] !== DEBUG_SQL_TOKEN) {
+        return res.status(403).json({ success: false, error: 'Forbidden' });
+    }
     if (!db) return res.status(500).json({ success: false, error: 'Database not connected' });
     try {
         const query = req.body.query;
         if (!query) return res.status(400).json({ success: false, error: 'Query is required' });
-        
+
         // 允许各种操作，不再局限于 SELECT
         let result;
         if (query.trim().toUpperCase().startsWith('SELECT')) {
@@ -179,7 +188,7 @@ app.post('/api/sql', (req, res) => {
 });
 
 const PORT = 3030;
-app.listen(PORT, () => {
+app.listen(PORT, '127.0.0.1', () => {
     console.log(`===============================================`);
     console.log(`🤖 AI 专属调试接口 (Debug API) 已启动`);
     console.log(`📡 监听端口: http://localhost:${PORT}`);

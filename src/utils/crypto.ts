@@ -1,5 +1,7 @@
 import type { ModelProvider, ProjectConfig } from '@/types'
 import { isWebRuntime } from '@/utils/anthropic-guard'
+import { getLogger } from '@/utils/logger'
+const logger = getLogger('utils:crypto')
 
 const ENCRYPTION_PREFIX = 'enc:v1:'
 const ENCRYPTION_PREFIX_V2 = 'enc:v2:'
@@ -95,7 +97,7 @@ export function decryptApiKey(encrypted: string): string {
     const decrypted = xorBytes(encryptedBytes, getEnvironmentSeed())
     return new TextDecoder().decode(decrypted)
   } catch (error) {
-    console.warn('[crypto] API Key 解密失败，将返回空字符串', error)
+    logger.warn('[crypto] API Key 解密失败，将返回空字符串', error)
     return ''
   }
 }
@@ -138,7 +140,7 @@ export async function decryptApiKeyV2(encrypted: string): Promise<string> {
     )
     return new TextDecoder().decode(decrypted)
   } catch (error) {
-    console.warn('[crypto] API Key AES-GCM 解密失败', error)
+    logger.warn('[crypto] API Key AES-GCM 解密失败', error)
     return ''
   }
 }
@@ -187,8 +189,8 @@ export function redactSensitiveText(text: string, secrets: Array<string | undefi
   }
 
   sanitized = sanitized
-    .replace(/(Bearer\s+)([A-Za-z0-9._\-]+)/gi, (_, prefix: string, token: string) => `${prefix}${maskSecret(token)}`)
-    .replace(/(x-api-key['":=\s]+)([A-Za-z0-9._\-]+)/gi, (_, prefix: string, token: string) => `${prefix}${maskSecret(token)}`)
+    .replace(/(Bearer\s+)([A-Za-z0-9._-]+)/gi, (_, prefix: string, token: string) => `${prefix}${maskSecret(token)}`)
+    .replace(/(x-api-key['":=\s]+)([A-Za-z0-9._-]+)/gi, (_, prefix: string, token: string) => `${prefix}${maskSecret(token)}`)
 
   return sanitized
 }

@@ -5,18 +5,12 @@
 
 import type { Chapter } from '@/types'
 import type { ResolvedEntity } from '@/stores/sandbox'
+import { RELATION_TYPE_CONFIG } from '@/utils/eventTypeLabels'
 
 /**
- * 关系类型配置
+ * 关系类型配置 — delegates to shared RELATION_TYPE_CONFIG
  */
-export const RELATIONSHIP_TYPES = {
-  family: { label: '家人', color: '#67C23A', strength: 5 },
-  friend: { label: '朋友', color: '#409EFF', strength: 4 },
-  enemy: { label: '敌人', color: '#F56C6C', strength: 5 },
-  lover: { label: '恋人', color: '#E6A23C', strength: 5 },
-  rival: { label: '对手', color: '#909399', strength: 3 },
-  other: { label: '其他', color: '#C0C4CC', strength: 2 }
-} as const
+export const RELATIONSHIP_TYPES = RELATION_TYPE_CONFIG
 
 /**
  * G6 图数据节点

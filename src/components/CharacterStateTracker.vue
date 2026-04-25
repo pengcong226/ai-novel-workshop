@@ -154,9 +154,12 @@
               />
             </el-select>
             <el-select v-model="historyFilter.type" placeholder="筛选类型" clearable style="width: 120px;">
-              <el-option label="位置变更" value="location" />
-              <el-option label="状态变更" value="status" />
-              <el-option label="势力变更" value="faction" />
+              <el-option
+                v-for="option in HISTORY_CATEGORY_OPTIONS"
+                :key="option.value"
+                :label="option.label"
+                :value="option.value"
+              />
             </el-select>
           </div>
         </div>
@@ -243,13 +246,13 @@
 
         <div class="state-history-section">
           <h4>变更历史</h4>
-          <el-timeline v-if="selectedEntityRaw && getEntityEvents(selectedEntityRaw.id).length">
+          <el-timeline v-if="selectedEntityRaw && selectedEntityEvents.length">
             <el-timeline-item
-              v-for="(event, index) in getEntityEvents(selectedEntityRaw!.id).reverse()"
+              v-for="(event, index) in selectedEntityEventsReversed"
               :key="index"
               :timestamp="`第 ${event.chapterNumber} 章`"
               placement="top"
-              :type="getHistoryType(event.eventType === 'LOCATION_MOVE' ? 'location' : event.eventType === 'VITAL_STATUS_CHANGE' || event.eventType === 'PROPERTY_UPDATE' ? 'status' : event.eventType.startsWith('RELATION') ? 'faction' : 'status')"
+              :type="STATE_EVENT_TYPE_TIMELINE_TYPE[event.eventType]"
             >
               <el-card shadow="hover">
                 <div>{{ event.eventType }}: {{ event.payload.key || '' }} {{ event.payload.value || event.payload.status || '' }}</div>
@@ -271,14 +274,20 @@ import { useSandboxStore, type ResolvedEntity } from '@/stores/sandbox'
 import { ElMessage } from 'element-plus'
 import { Refresh, Location, Flag, Document, Right } from '@element-plus/icons-vue'
 import type { Entity, EntityImportance, StateEvent } from '@/types/sandbox'
+import {
+  HISTORY_CATEGORY_LABELS,
+  HISTORY_CATEGORY_TAG_TYPE,
+  STATE_EVENT_TYPE_TIMELINE_TYPE,
+  IMPORTANCE_TAG_CONFIG,
+  type HistoryCategory,
+  type ElementTagType
+} from '@/utils/eventTypeLabels'
 
 const projectStore = useProjectStore()
 const sandboxStore = useSandboxStore()
 
 const project = computed(() => projectStore.currentProject)
-const characterEntities = computed(() =>
-  sandboxStore.entities.filter(e => e.type === 'CHARACTER' && !e.isArchived)
-)
+const characterEntities = computed(() => sandboxStore.characterEntities)
 
 // 对话框
 const showDetailDialog = ref(false)
@@ -291,25 +300,28 @@ const historyFilter = ref({
   type: ''
 })
 
-// 标签配置 — V5 EntityImportance
-const IMPORTANCE_LABELS: Record<EntityImportance, string> = {
-  critical: '核心人物',
-  major: '重要人物',
-  minor: '次要人物',
-  background: '背景人物'
-}
+const HISTORY_CATEGORY_OPTIONS: Array<{ value: HistoryCategory; label: string }> = (
+  Object.entries(HISTORY_CATEGORY_LABELS) as Array<[HistoryCategory, string]>
+).map(([value, label]) => ({ value, label }))
 
 // 辅助：获取实体的 ResolvedEntity
 function getResolved(entityId: string): ResolvedEntity | undefined {
   return sandboxStore.activeEntitiesState[entityId]
 }
 
+const stateEventIndexes = sandboxStore.stateEventIndexes
+
 // 辅助：获取实体的状态事件
 function getEntityEvents(entityId: string): StateEvent[] {
-  return sandboxStore.stateEvents
-    .filter(e => e.entityId === entityId)
-    .sort((a, b) => a.chapterNumber - b.chapterNumber)
+  return stateEventIndexes.eventsByEntity.get(entityId) || []
 }
+
+const selectedEntityEvents = computed<StateEvent[]>(() => {
+  if (!selectedEntityRaw.value) return []
+  return getEntityEvents(selectedEntityRaw.value.id)
+})
+
+const selectedEntityEventsReversed = computed<StateEvent[]>(() => [...selectedEntityEvents.value].reverse())
 
 // 有状态的人物 — entities that have state events or resolved state
 const charactersWithState = computed(() => {
@@ -387,7 +399,7 @@ const allHistory = computed(() => {
   const history: Array<{
     characterId: string
     characterName: string
-    type: 'location' | 'status' | 'faction'
+    type: HistoryCategory
     oldValue: string
     newValue: string
     timestamp: Date
@@ -496,7 +508,7 @@ function getTagType(importance?: EntityImportance): string {
 
 function getTagLabel(importance?: EntityImportance): string {
   if (!importance) return '未知'
-  return IMPORTANCE_LABELS[importance] || importance
+  return IMPORTANCE_TAG_CONFIG[importance]?.label || importance
 }
 
 function getStatusType(status?: string): string {
@@ -509,22 +521,12 @@ function getStatusType(status?: string): string {
   return 'info'
 }
 
-function getHistoryType(type: string): 'primary' | 'success' | 'warning' | 'danger' | 'info' {
-  const types: Record<string, 'primary' | 'success' | 'warning' | 'danger' | 'info'> = {
-    location: 'primary',
-    status: 'warning',
-    faction: 'success'
-  }
-  return types[type] || 'info'
+function getHistoryType(type: HistoryCategory): ElementTagType {
+  return HISTORY_CATEGORY_TAG_TYPE[type] || 'info'
 }
 
-function getHistoryTypeLabel(type: string): string {
-  const labels: Record<string, string> = {
-    location: '位置变更',
-    status: '状态变更',
-    faction: '势力变更'
-  }
-  return labels[type] || type
+function getHistoryTypeLabel(type: HistoryCategory): string {
+  return HISTORY_CATEGORY_LABELS[type] || type
 }
 
 function formatTime(timestamp?: Date | string | number): string {

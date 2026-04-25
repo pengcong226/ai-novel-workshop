@@ -11,6 +11,18 @@ export interface SanitizeOptions {
 }
 
 const DEFAULT_MAX_LENGTH = 500
+export function stripControlChars(input: string): string {
+  return replaceControlChars(input, '')
+}
+
+function replaceControlChars(input: string, replacement: string): string {
+  return Array.from(input)
+    .map(char => {
+      const code = char.charCodeAt(0)
+      return code === 9 || code === 10 || code === 13 || (code >= 32 && code !== 127) ? char : replacement
+    })
+    .join('')
+}
 
 const SUSPICIOUS_PATTERNS: Array<{ pattern: RegExp; message: string }> = [
   { pattern: /忽略(?:上面|之前|上述|以上)?(?:所有)?(?:指令|要求|规则)/gi, message: '检测到疑似绕过系统指令的中文注入语句' },
@@ -24,8 +36,7 @@ const SUSPICIOUS_PATTERNS: Array<{ pattern: RegExp; message: string }> = [
 ]
 
 function normalizeWhitespace(input: string, preserveLineBreaks: boolean): string {
-  const cleaned = input
-    .replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/g, ' ')
+  const cleaned = replaceControlChars(input, ' ')
     .replace(/\r\n/g, '\n')
     .replace(/\r/g, '\n')
 
@@ -39,14 +50,6 @@ function normalizeWhitespace(input: string, preserveLineBreaks: boolean): string
   }
 
   return cleaned.replace(/\s+/g, ' ').trim()
-}
-
-function escapePromptControlChars(input: string): string {
-  return input
-    .replace(/</g, '＜')
-    .replace(/>/g, '＞')
-    .replace(/\{/g, '｛')
-    .replace(/\}/g, '｝')
 }
 
 export function validateInput(input: string): InputValidationResult {

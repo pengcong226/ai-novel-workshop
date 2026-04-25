@@ -6,6 +6,9 @@ import type { LLMProviderConfig, AnalysisMode, LLMChapter, ChapterPattern, Analy
 import { callLLMWithValidation } from './llmCaller'
 import { chapterListSchema, chapterPatternSchema } from './schemas'
 import { sampleText } from './textChunker'
+import { getLogger } from '@/utils/logger'
+
+const logger = getLogger('llm:chapterDetector')
 import { getChapterPatternPrompt, getChapterListPrompt } from './prompts/chapterPrompts'
 
 /**
@@ -18,7 +21,7 @@ export async function detectChaptersWithLLM(
   quickModeSampling: QuickModeSampling,
   onProgress?: (progress: AnalysisProgress) => void
 ): Promise<{ chapters: LLMChapter[]; pattern: ChapterPattern }> {
-  console.log('[章节检测] 开始，模式:', mode)
+  logger.info('开始，模式:', mode)
 
   // 计算文本统计信息
   const totalChars = text.length
@@ -46,7 +49,7 @@ export async function detectChaptersWithLLM(
   )
 
   const pattern: ChapterPattern = patternResult as any
-  console.log('[章节检测] 识别到模式:', pattern.pattern, '置信度:', pattern.confidence)
+  logger.info('识别到模式:', pattern.pattern, '置信度:', pattern.confidence)
 
   // 等待1秒，避免QPS限制
   await new Promise(resolve => setTimeout(resolve, 1000))
@@ -72,7 +75,7 @@ export async function detectChaptersWithLLM(
     { maxRetries: 2 }
   )) as any
 
-  console.log('[章节检测] 提取到章节数:', chapters.length)
+  logger.info('提取到章节数:', chapters.length)
 
   // 更新进度，显示实际章节数
   onProgress?.({
@@ -86,11 +89,11 @@ export async function detectChaptersWithLLM(
   const issues = validateChapters(chapters, text)
 
   if (issues.length > 0) {
-    console.log('[章节检测] 发现问题:', issues.length, '个')
-    console.log('[章节检测] 问题列表:', issues)
-    console.log('[章节检测] ⚠️ 导入时跳过验证，可在项目编辑器中手动验证和修正')
+    logger.info('发现问题:', issues.length, '个')
+    logger.info('问题列表:', issues)
+    logger.info('⚠️ 导入时跳过验证，可在项目编辑器中手动验证和修正')
   } else {
-    console.log('[章节检测] ✅ 章节验证通过，无需修正')
+    logger.info('✅ 章节验证通过，无需修正')
   }
 
   // 填充章节内容
@@ -100,7 +103,7 @@ export async function detectChaptersWithLLM(
     wordCount: countWords(text.slice(ch.startPosition, ch.endPosition))
   }))
 
-  console.log('[章节检测] 完成，最终章节数:', chapters.length)
+  logger.info('完成，最终章节数:', chapters.length)
 
   onProgress?.({
     stage: 'chapters',

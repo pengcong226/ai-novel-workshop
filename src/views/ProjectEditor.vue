@@ -46,6 +46,10 @@
             <el-icon><DataAnalysis /></el-icon>
             <span>质量报告</span>
           </el-menu-item>
+          <el-menu-item index="agents">
+            <el-icon><Grid /></el-icon>
+            <span>Agent 控制台</span>
+          </el-menu-item>
           <el-menu-item v-if="isDev" index="__dev_panel__">
             <el-icon><Tools /></el-icon>
             <span>开发者面板</span>
@@ -83,6 +87,11 @@
         </template>
 
         <div class="sidebar-footer">
+          <div v-if="isSaving" class="save-status saving">保存中...</div>
+          <div v-else-if="isDirty" class="save-status dirty">未保存</div>
+          <el-button @click="toggleTheme" text :title="isDark ? '切换到明亮模式' : '切换到暗色模式'">
+            <el-icon><Sunny v-if="isDark" /><Moon v-else /></el-icon>
+          </el-button>
           <el-button @click="goBack" text>
             <el-icon><ArrowLeft /></el-icon>
             返回项目列表
@@ -115,6 +124,7 @@
           <Chapters v-else-if="activeMenu === 'chapters'" />
           <SummaryManager v-else-if="activeMenu === 'summary'" />
           <QualityReport v-else-if="activeMenu === 'quality'" />
+          <AgentConsole v-else-if="activeMenu === 'agents'" />
           <ProjectConfig v-else-if="activeMenu === 'config'" />
 
           <!-- 插件组件可以在这里渲染 -->
@@ -150,16 +160,24 @@
 
     <!-- AI助手 -->
     <AIAssistant />
+
+    <!-- 全局搜索 -->
+    <SearchDialog />
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, computed, defineAsyncComponent } from 'vue'
+import { ref, onMounted, onUnmounted, computed, defineAsyncComponent } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useProjectStore } from '@/stores/project'
 import { usePluginStore } from '@/stores/plugin'
-import { Reading, Setting, ArrowLeft, Loading, DataAnalysis, DocumentCopy, Tools, Fold, Expand, DataBoard } from '@element-plus/icons-vue'
+import { useAutoSave } from '@/composables/useAutoSave'
+import { useGlobalSearch } from '@/composables/useGlobalSearch'
+import { useThemeStore } from '@/stores/theme'
+import { Reading, Setting, ArrowLeft, Loading, DataAnalysis, DocumentCopy, Tools, Fold, Expand, DataBoard, Sunny, Moon, Grid } from '@element-plus/icons-vue'
 import { getAIMockEnabled } from '@/utils/devFlags'
+import { getLogger } from '@/utils/logger'
+const logger = getLogger('views:ProjectEditor')
 
 // 懒加载组件 - 按需加载，优化首屏性能
 const SandboxLayout = defineAsyncComponent(() => import('@/components/Sandbox/SandboxLayout.vue'))
@@ -169,11 +187,28 @@ const QualityReport = defineAsyncComponent(() => import('@/components/QualityRep
 const AIAssistant = defineAsyncComponent(() => import('@/components/AIAssistant.vue'))
 const SummaryManager = defineAsyncComponent(() => import('@/components/SummaryManager.vue'))
 const DeveloperPanel = defineAsyncComponent(() => import('@/components/DeveloperPanel.vue'))
+const AgentConsole = defineAsyncComponent(() => import('@/components/AgentConsole.vue'))
+const SearchDialog = defineAsyncComponent(() => import('@/components/SearchDialog.vue'))
 
 const route = useRoute()
 const router = useRouter()
 const projectStore = useProjectStore()
 const pluginStore = usePluginStore()
+const { isDirty, isSaving } = useAutoSave()
+const themeStore = useThemeStore()
+const globalSearch = useGlobalSearch()
+const isDark = computed(() => themeStore.activeThemeId === 'builtin-scifi-dark-theme')
+
+function toggleTheme() {
+  themeStore.activeThemeId = isDark.value ? 'builtin-classic-light-theme' : 'builtin-scifi-dark-theme'
+}
+
+function onSearchShortcut(e: KeyboardEvent) {
+  if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
+    e.preventDefault()
+    globalSearch.open()
+  }
+}
 
 const activeMenu = ref('sandbox')
 const isDev = import.meta.env.DEV
@@ -191,7 +226,7 @@ const pluginMenuItems = computed(() => {
       try {
         return item.when()
       } catch (error) {
-        console.error(`菜单项 ${item.id} 的 when 条件执行失败:`, error)
+        logger.error(`菜单项 ${item.id} 的 when 条件执行失败:`, error)
         return false
       }
     }
@@ -221,6 +256,12 @@ onMounted(async () => {
   // 加载已安装插件
   await pluginStore.loadInstalledPlugins()
   isMockEnabled.value = getAIMockEnabled()
+
+  window.addEventListener('keydown', onSearchShortcut)
+})
+
+onUnmounted(() => {
+  window.removeEventListener('keydown', onSearchShortcut)
 })
 
 function handleMenuSelect(index: string) {
@@ -312,6 +353,25 @@ function formatNumber(num?: number | null) {
 .sidebar-footer {
   padding: 10px;
   border-top: 1px solid #e4e7ed;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.save-status {
+  font-size: 12px;
+  padding: 2px 8px;
+  border-radius: 4px;
+}
+
+.save-status.saving {
+  color: #409eff;
+  background: #ecf5ff;
+}
+
+.save-status.dirty {
+  color: #e6a23c;
+  background: #fdf6ec;
 }
 
 .main-content {

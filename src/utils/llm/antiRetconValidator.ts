@@ -4,6 +4,9 @@ import type { ChatMessage } from '@/types/ai'
 import { safeParseAIJson } from '../safeParseAIJson'
 import { sanitizeForPrompt } from '@/utils/inputSanitizer'
 import { useSandboxStore } from '@/stores/sandbox'
+import { getLogger } from '@/utils/logger'
+
+const logger = getLogger('llm:antiRetcon')
 
 export interface RetconViolation {
   category: string;       // ConStory-Bench 编码，如 "A3", "D1", "E2"
@@ -167,7 +170,7 @@ ${safeContentForReview}
 
     return { passed: true }
   } catch (err) {
-    console.warn('[防吃书哨兵] 检测解析失败，为防止死锁，默认放行。', err)
+    logger.warn('检测解析失败，为防止死锁，默认放行。', err)
     return { passed: true }
   }
 }

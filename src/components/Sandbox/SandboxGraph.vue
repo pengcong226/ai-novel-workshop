@@ -327,11 +327,11 @@ watch([nodes, edges], () => {
 
 function renderGraph() {
   if (!graph) return
-  ;(graph as any).data({
+  graph.setData({
     nodes: nodes.value,
     edges: edges.value
   })
-  graph.render()
+  void graph.render()
 }
 
 onBeforeUnmount(() => {

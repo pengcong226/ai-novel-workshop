@@ -73,7 +73,8 @@ function removeAlias(entity: ExtractedEntityCandidate, alias: string) {
 }
 
 function removeEntity(index: number) {
-  props.entities.splice(index, 1)
+  const entities = props.entities
+  entities.splice(index, 1)
 }
 </script>
 

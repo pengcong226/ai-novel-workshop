@@ -26,7 +26,11 @@ import {
 import {
   aiExtractCharacters,
   convertAICharactersToExtracted,
-  type AIAnalysisConfig} from './aiAnalyzer'
+  type AIAnalysisConfig
+} from './aiAnalyzer'
+import { getLogger } from '@/utils/logger'
+
+const logger = getLogger('utils:novelImporter')
 
 export interface ImportOptions {
   title: string
@@ -78,7 +82,7 @@ function getStoredAIConfig(): AIAnalysisConfig | null {
       }
     }
   } catch (error) {
-    console.error('读取AI配置失败:', error)
+    logger.error('读取AI配置失败:', error)
   }
   return null
 }
@@ -224,9 +228,9 @@ export async function importNovel(
             strength: r.strength
           })) || [])
 
-        console.log('[AI分析] 人物识别成功:', characters.length, '人')
+        logger.info('[AI分析] 人物识别成功:', characters.length, '人')
       } catch (error) {
-        console.error('[AI分析] 失败，降级到程序识别:', error)
+        logger.error('[AI分析] 失败，降级到程序识别:', error)
         ElMessage.warning({
           message: 'AI分析失败，已降级到程序识别。可配置AI密钥获得更准确结果',
           duration: 5000
@@ -481,7 +485,6 @@ export async function importMultipleFiles(
 
   // 多文件合并
   const allChapters: ParsedChapter[] = []
-  let totalWords = 0
   let chapterNumber = 1
 
   for (let i = 0; i < files.length; i++) {
@@ -494,7 +497,6 @@ export async function importMultipleFiles(
         ...chapter,
         number: chapterNumber++
       })
-      totalWords += chapter.wordCount
     }
 
     onProgress?.({

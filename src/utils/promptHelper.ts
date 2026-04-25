@@ -5,6 +5,8 @@
 import type { ProjectConfig } from '../types'
 import { DEFAULT_SYSTEM_PROMPTS } from './systemPrompts'
 import { sanitizeForPrompt, validateInput } from './inputSanitizer'
+import { getLogger } from '@/utils/logger'
+const logger = getLogger('utils:promptHelper')
 
 export type ModelType = 'planning' | 'writing' | 'checking' | 'assistant' | 'memory' | 'planner' | 'writer' | 'sentinel' | 'extractor'
 
@@ -93,7 +95,7 @@ export function buildSystemPrompt(
     Object.entries(variables).map(([key, value]) => {
       const validation = validateInput(value || '')
       if (!validation.valid) {
-        console.warn(`[PromptHelper] 变量 ${key} 检测到可疑输入:`, validation.warnings)
+        logger.warn(`[PromptHelper] 变量 ${key} 检测到可疑输入:`, validation.warnings)
       }
 
       return [

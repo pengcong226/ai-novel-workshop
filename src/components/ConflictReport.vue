@@ -416,6 +416,8 @@ import { ElMessage } from 'element-plus'
 import { Setting, Search, Download, Document, Warning } from '@element-plus/icons-vue'
 import type { ConflictType, ConflictSeverity, ConflictReport, ConflictDetectionConfig, ConflictDetectionResult } from '@/types/conflicts'
 import { ConflictDetector, DEFAULT_CONFIG, exportConflictsAsMarkdown, exportConflictsAsJSON } from '@/utils/conflictDetector'
+import { getLogger } from '@/utils/logger'
+const logger = getLogger('components:ConflictReport')
 
 const projectStore = useProjectStore()
 const sandboxStore = useSandboxStore()
@@ -477,7 +479,7 @@ async function runDetection() {
 
     ElMessage.success(`检测完成！发现 ${result.value.statistics.total} 个冲突`)
   } catch (error) {
-    console.error('冲突检测失败:', error)
+    logger.error('冲突检测失败:', error)
     ElMessage.error('冲突检测失败：' + (error as Error).message)
   } finally {
     detecting.value = false
@@ -490,7 +492,7 @@ function loadConfig() {
     try {
       config.value = { ...DEFAULT_CONFIG, ...JSON.parse(savedConfig) }
     } catch (error) {
-      console.error('加载配置失败:', error)
+      logger.error('加载配置失败:', error)
     }
   }
 }

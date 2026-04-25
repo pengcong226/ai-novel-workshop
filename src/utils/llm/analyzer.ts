@@ -13,6 +13,9 @@ import {
   QuickModeSampling,
   DEFAULT_QUICK_MODE_SAMPLING
 } from './types'
+import { getLogger } from '@/utils/logger'
+
+const logger = getLogger('llm:analyzer')
 import { cacheManager } from './cacheManager'
 import { detectChaptersWithLLM } from './chapterDetector'
 import { extractCharactersWithLLM } from './characterExtractor'
@@ -29,7 +32,7 @@ export async function analyzeNovelWithLLM(
   quickModeSampling: QuickModeSampling = DEFAULT_QUICK_MODE_SAMPLING,
   onProgress?: (progress: AnalysisProgress) => void
 ): Promise<LLMAnalysisResult> {
-  console.log('[LLM分析] 开始分析，模式:', mode)
+  logger.info('开始分析，模式:', mode)
   const startTime = Date.now()
 
   // 检查缓存
@@ -37,7 +40,7 @@ export async function analyzeNovelWithLLM(
   const lastStage = await cacheManager.getLastStage(text)
 
   if (lastStage && lastStage !== 'complete') {
-    console.log('[LLM分析] 检测到未完成的分析，最后阶段:', lastStage)
+    logger.info('检测到未完成的分析，最后阶段:', lastStage)
     // 可以实现断点续传逻辑
   }
 
@@ -171,12 +174,12 @@ export async function analyzeNovelWithLLM(
       message: '分析完成'
     })
 
-    console.log('[LLM分析] 分析完成，耗时:', stats.analysisTime, 'ms')
+    logger.info('分析完成，耗时:', stats.analysisTime, 'ms')
 
     return result
 
   } catch (error) {
-    console.error('[LLM分析] 分析失败:', error)
+    logger.error('分析失败:', error)
 
     const errorResult: LLMAnalysisResult = {
       mode,

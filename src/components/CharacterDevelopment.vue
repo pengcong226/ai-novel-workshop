@@ -199,13 +199,12 @@
 
         <el-form-item label="事件类型" required>
           <el-select v-model="nodeForm.eventType" placeholder="选择事件类型">
-            <el-option label="属性变化" value="PROPERTY_UPDATE" />
-            <el-option label="生命事件" value="VITAL_STATUS_CHANGE" />
-            <el-option label="能力变化" value="ABILITY_CHANGE" />
-            <el-option label="关系建立" value="RELATION_ADD" />
-            <el-option label="关系解除" value="RELATION_REMOVE" />
-            <el-option label="关系更新" value="RELATION_UPDATE" />
-            <el-option label="位置迁移" value="LOCATION_MOVE" />
+            <el-option
+              v-for="option in EVENT_TYPE_OPTIONS"
+              :key="option.value"
+              :label="option.label"
+              :value="option.value"
+            />
           </el-select>
         </el-form-item>
 
@@ -226,58 +225,49 @@
           </el-form-item>
         </template>
 
-        <!-- ABILITY_CHANGE fields -->
         <template v-if="nodeForm.eventType === 'ABILITY_CHANGE'">
           <el-form-item label="能力名称" required>
             <el-input v-model="nodeForm.payload.abilityName" placeholder="能力名称" />
           </el-form-item>
           <el-form-item label="能力状态" required>
             <el-select v-model="nodeForm.payload.abilityStatus" placeholder="选择状态">
-              <el-option label="获得" value="active" />
-              <el-option label="封印" value="sealed" />
-              <el-option label="失去" value="lost" />
+              <el-option
+                v-for="option in ABILITY_STATUS_OPTIONS"
+                :key="option.value"
+                :label="option.label"
+                :value="option.value"
+              />
+            </el-select>
+          </el-form-item>
+        </template>
+
+        <template v-if="RELATION_EVENT_TYPES.includes(nodeForm.eventType)">
+          <el-form-item label="目标人物" required>
+            <el-select v-model="nodeForm.payload.targetId" placeholder="选择人物" filterable>
+              <el-option
+                v-for="entity in otherEntities"
+                :key="entity.id"
+                :label="entity.name"
+                :value="entity.id"
+              />
             </el-select>
           </el-form-item>
         </template>
 
         <!-- RELATION_ADD / RELATION_UPDATE fields -->
         <template v-if="nodeForm.eventType === 'RELATION_ADD' || nodeForm.eventType === 'RELATION_UPDATE'">
-          <el-form-item label="目标人物" required>
-            <el-select v-model="nodeForm.payload.targetId" placeholder="选择人物" filterable>
-              <el-option
-                v-for="entity in otherEntities"
-                :key="entity.id"
-                :label="entity.name"
-                :value="entity.id"
-              />
-            </el-select>
-          </el-form-item>
           <el-form-item label="关系类型" required>
             <el-select v-model="nodeForm.payload.relationType" placeholder="关系类型">
-              <el-option label="家人" value="family" />
-              <el-option label="朋友" value="friend" />
-              <el-option label="敌人" value="enemy" />
-              <el-option label="恋人" value="lover" />
-              <el-option label="对手" value="rival" />
-              <el-option label="其他" value="other" />
+              <el-option
+                v-for="option in RELATION_TYPE_OPTIONS"
+                :key="option.value"
+                :label="option.label"
+                :value="option.value"
+              />
             </el-select>
           </el-form-item>
           <el-form-item v-if="nodeForm.eventType === 'RELATION_UPDATE'" label="态度">
             <el-input v-model="nodeForm.payload.attitude" placeholder="态度描述" />
-          </el-form-item>
-        </template>
-
-        <!-- RELATION_REMOVE fields -->
-        <template v-if="nodeForm.eventType === 'RELATION_REMOVE'">
-          <el-form-item label="目标人物" required>
-            <el-select v-model="nodeForm.payload.targetId" placeholder="选择人物" filterable>
-              <el-option
-                v-for="entity in otherEntities"
-                :key="entity.id"
-                :label="entity.name"
-                :value="entity.id"
-              />
-            </el-select>
           </el-form-item>
         </template>
 
@@ -309,6 +299,24 @@ import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus } from '@element-plus/icons-vue'
 import { v4 as uuidv4 } from 'uuid'
+import { getLogger } from '@/utils/logger'
+import {
+  STATE_EVENT_TYPE_LABELS,
+  RELATION_EVENT_TYPES,
+  STATE_CATEGORY_EVENT_TYPES,
+  ABILITY_STATUS_TAG_TYPE,
+  ABILITY_STATUS_LABELS,
+  ABILITY_STATUS_OPTIONS,
+  RELATION_TYPE_TAG_TYPE,
+  RELATION_TYPE_LABELS,
+  RELATION_TYPE_OPTIONS,
+  IMPORTANCE_LABELS,
+  IMPORTANCE_TAG_TYPE,
+  type AbilityStatus,
+  type RelationType
+} from '@/utils/eventTypeLabels'
+
+const logger = getLogger('components:CharacterDevelopment')
 
 const sandboxStore = useSandboxStore()
 const projectStore = useProjectStore()
@@ -318,14 +326,16 @@ const project = computed(() => projectStore.currentProject)
 const chapters = computed(() => project.value?.chapters || [])
 
 // Only CHARACTER type entities
-const characterEntities = computed<Entity[]>(() =>
-  sandboxStore.entities.filter(e => e.type === 'CHARACTER' && !e.isArchived)
-)
+const characterEntities = sandboxStore.characterEntities
 
 const selectedEntityId = ref<string>('')
 const showEditDialog = ref(false)
 const editingEventId = ref<string | null>(null)
 const saving = ref(false)
+
+const EVENT_TYPE_OPTIONS: Array<{ value: StateEventType; label: string }> = (
+  Object.entries(STATE_EVENT_TYPE_LABELS) as Array<[StateEventType, string]>
+).map(([value, label]) => ({ value, label }))
 
 // Resolved entity for the selected character
 const selectedEntity = computed<ResolvedEntity | null>(() => {
@@ -333,12 +343,12 @@ const selectedEntity = computed<ResolvedEntity | null>(() => {
   return sandboxStore.activeEntitiesState[selectedEntityId.value] || null
 })
 
+const stateEventIndexes = sandboxStore.stateEventIndexes
+
 // State events for the selected entity, sorted by chapter
 const entityStateEvents = computed<StateEvent[]>(() => {
   if (!selectedEntityId.value) return []
-  return [...sandboxStore.stateEvents]
-    .filter(e => e.entityId === selectedEntityId.value)
-    .sort((a, b) => a.chapterNumber - b.chapterNumber)
+  return stateEventIndexes.eventsByEntity.get(selectedEntityId.value) || []
 })
 
 // Unique chapters the entity appears in
@@ -347,19 +357,18 @@ const uniqueChapterCount = computed<number>(() => {
   return chapterSet.size
 })
 
-// Character entities decorated with event counts for the selector
 const characterEntitiesWithEvents = computed<Array<Entity & { eventCount: number }>>(() =>
-  characterEntities.value
+  characterEntities
     .map(e => ({
       ...e,
-      eventCount: sandboxStore.stateEvents.filter(se => se.entityId === e.id).length
+      eventCount: stateEventIndexes.countsByEntity.get(e.id) || 0
     }))
     .sort((a, b) => b.eventCount - a.eventCount)
 )
 
 // Other CHARACTER entities (for relation dropdowns)
 const otherEntities = computed<Entity[]>(() =>
-  characterEntities.value.filter(e => e.id !== selectedEntityId.value)
+  characterEntities.filter(e => e.id !== selectedEntityId.value)
 )
 
 const maxChapter = computed<number>(() =>
@@ -371,33 +380,20 @@ const eventsByType = computed(() => {
   const events = entityStateEvents.value
   return {
     ability: events.filter(e => e.eventType === 'ABILITY_CHANGE').length,
-    relationship: events.filter(e =>
-      e.eventType === 'RELATION_ADD' || e.eventType === 'RELATION_REMOVE' || e.eventType === 'RELATION_UPDATE'
-    ).length,
-    state: events.filter(e =>
-      e.eventType === 'VITAL_STATUS_CHANGE' || e.eventType === 'LOCATION_MOVE' || e.eventType === 'PROPERTY_UPDATE'
-    ).length
+    relationship: events.filter(e => RELATION_EVENT_TYPES.includes(e.eventType)).length,
+    state: events.filter(e => STATE_CATEGORY_EVENT_TYPES.includes(e.eventType)).length
   }
 })
 
 // --- Display helpers ---
 
-const IMPORTANCE_CONFIG: Record<EntityImportance, { label: string; type: string }> = {
-  critical: { label: '关键人物', type: 'danger' },
-  major: { label: '主要人物', type: 'primary' },
-  minor: { label: '次要人物', type: 'success' },
-  background: { label: '背景人物', type: 'info' }
-}
-
 function getImportanceType(importance: EntityImportance): string {
-  return IMPORTANCE_CONFIG[importance]?.type || 'info'
+  return IMPORTANCE_TAG_TYPE[importance] || 'info'
 }
 
 function getImportanceLabel(importance: EntityImportance): string {
-  return IMPORTANCE_CONFIG[importance]?.label || importance
+  return IMPORTANCE_LABELS[importance] || importance
 }
-
-import { STATE_EVENT_TYPE_LABELS } from '@/utils/eventTypeLabels'
 
 function getEventTitle(evt: StateEvent): string {
   return STATE_EVENT_TYPE_LABELS[evt.eventType] || evt.eventType
@@ -410,7 +406,7 @@ function getEventDescription(evt: StateEvent): string {
     case 'VITAL_STATUS_CHANGE':
       return `生命状态变更为：${evt.payload.status ?? ''}`
     case 'ABILITY_CHANGE':
-      return `能力「${evt.payload.abilityName ?? ''}」${evt.payload.abilityStatus === 'active' ? '获得' : evt.payload.abilityStatus === 'sealed' ? '封印' : '失去'}`
+      return `能力「${evt.payload.abilityName ?? ''}」${getAbilityStatusLabel(evt.payload.abilityStatus)}`
     case 'RELATION_ADD':
       return `与 ${getEntityName(evt.payload.targetId || '')} 建立了 ${getRelationLabel(evt.payload.relationType || '')} 关系`
     case 'RELATION_REMOVE':
@@ -425,7 +421,7 @@ function getEventDescription(evt: StateEvent): string {
 }
 
 function isRelationEvent(evt: StateEvent): boolean {
-  return evt.eventType === 'RELATION_ADD' || evt.eventType === 'RELATION_REMOVE' || evt.eventType === 'RELATION_UPDATE'
+  return RELATION_EVENT_TYPES.includes(evt.eventType)
 }
 
 function formatCoordinates(coords: { x: number; y: number } | undefined): string {
@@ -439,45 +435,19 @@ function getEntityName(id: string): string {
 }
 
 function getAbilityStatusType(status: string | undefined): string {
-  const types: Record<string, string> = {
-    active: 'success',
-    sealed: 'warning',
-    lost: 'danger'
-  }
-  return types[status || ''] || 'info'
+  return ABILITY_STATUS_TAG_TYPE[status as AbilityStatus] || 'info'
 }
 
 function getAbilityStatusLabel(status: string | undefined): string {
-  const labels: Record<string, string> = {
-    active: '获得',
-    sealed: '封印',
-    lost: '失去'
-  }
-  return labels[status || ''] || '变化'
+  return ABILITY_STATUS_LABELS[status as AbilityStatus] || '变化'
 }
 
 function getRelationType(type: string): string {
-  const types: Record<string, string> = {
-    family: 'success',
-    friend: 'primary',
-    enemy: 'danger',
-    lover: 'warning',
-    rival: 'info',
-    other: ''
-  }
-  return types[type] || ''
+  return RELATION_TYPE_TAG_TYPE[type as RelationType] || ''
 }
 
 function getRelationLabel(type: string): string {
-  const labels: Record<string, string> = {
-    family: '家人',
-    friend: '朋友',
-    enemy: '敌人',
-    lover: '恋人',
-    rival: '对手',
-    other: '其他'
-  }
-  return labels[type] || type
+  return RELATION_TYPE_LABELS[type as RelationType] || type
 }
 
 function getTimelineType(index: number): 'primary' | 'success' | 'warning' | 'danger' | 'info' {
@@ -652,7 +622,7 @@ async function saveNode() {
     ElMessage.success('保存成功')
     showEditDialog.value = false
   } catch (error) {
-    console.error('保存失败:', error)
+    logger.error('保存失败:', error)
     ElMessage.error('保存失败')
   } finally {
     saving.value = false

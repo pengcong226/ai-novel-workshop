@@ -101,6 +101,7 @@ import { useSandboxStore } from '@/stores/sandbox'
 import { ElMessage } from 'element-plus'
 import { Search, Edit, Aim, WarnTriangleFilled } from '@element-plus/icons-vue'
 import { v4 as uuidv4 } from 'uuid'
+import { buildEntityTextUpdates, replaceAppearanceText, replaceChapterText } from '@/utils/global-mutator'
 
 const projectStore = useProjectStore()
 const sandboxStore = useSandboxStore()
@@ -167,7 +168,7 @@ const scan = async () => {
   })
 
   // 2. 扫描人物卡 (V5: from sandbox CHARACTER entities)
-  const charEntities = sandboxStore.entities.filter(e => e.type === 'CHARACTER' && !e.isArchived)
+  const charEntities = sandboxStore.characterEntities
   const resolvedState = sandboxStore.activeEntitiesState
   charEntities.forEach(entity => {
     matches.characters += countOccurrences(entity.name)
@@ -180,8 +181,9 @@ const scan = async () => {
   })
 
   // 3. 扫描世界书 (V5: from sandbox LORE entities)
-  const loreEntities = sandboxStore.entities.filter(e => e.type === 'LORE' && !e.isArchived)
+  const loreEntities = sandboxStore.loreEntities
   loreEntities.forEach(entity => {
+    matches.worldbook += countOccurrences(entity.name)
     matches.worldbook += countOccurrences(entity.systemPrompt)
     entity.aliases.forEach(a => { matches.worldbook += countOccurrences(a) })
   })
@@ -202,28 +204,18 @@ const executeReplace = async () => {
     // 执行真正的核弹级替换
     const p = project.value
 
-    p.chapters.forEach(c => {
-      if (c.title) c.title = c.title.replace(srcRegex, target)
-      if (c.content) c.content = c.content.replace(srcRegex, target)
-      if (c.summaryData?.summary) c.summaryData.summary = c.summaryData.summary.replace(srcRegex, target)
-      if (c.summary) c.summary = c.summary.replace(srcRegex, target)
+    p.chapters.forEach(chapter => {
+      replaceChapterText(chapter, srcRegex, target)
     })
 
     // V5: Replace in sandbox CHARACTER entities
-    const charEntities = sandboxStore.entities.filter(e => e.type === 'CHARACTER' && !e.isArchived)
+    const charEntities = sandboxStore.characterEntities
     const resolvedState = sandboxStore.activeEntitiesState
     for (const entity of charEntities) {
-      const updates: Record<string, any> = {}
-      const newName = entity.name.replace(srcRegex, target)
-      if (newName !== entity.name) updates.name = newName
-      const newPrompt = entity.systemPrompt.replace(srcRegex, target)
-      if (newPrompt !== entity.systemPrompt) updates.systemPrompt = newPrompt
-      const newAliases = entity.aliases.map(a => a.replace(srcRegex, target))
-      if (JSON.stringify(newAliases) !== JSON.stringify(entity.aliases)) updates.aliases = newAliases
-      // Also update appearance via StateEvent if it matches
+      const updates = buildEntityTextUpdates(entity, srcRegex, target)
       const resolved = resolvedState[entity.id]
-      if (resolved?.properties?.['appearance']?.match(srcRegex)) {
-        const newAppearance = resolved.properties['appearance'].replace(srcRegex, target)
+      const newAppearance = replaceAppearanceText(resolved?.properties?.['appearance'], srcRegex, target)
+      if (newAppearance) {
         await sandboxStore.addStateEvent({
           id: uuidv4(),
           projectId: entity.projectId,
@@ -240,15 +232,9 @@ const executeReplace = async () => {
     }
 
     // V5: Replace in sandbox LORE entities
-    const loreEntities = sandboxStore.entities.filter(e => e.type === 'LORE' && !e.isArchived)
+    const loreEntities = sandboxStore.loreEntities
     for (const entity of loreEntities) {
-      const updates: Record<string, any> = {}
-      const newName = entity.name.replace(srcRegex, target)
-      if (newName !== entity.name) updates.name = newName
-      const newPrompt = entity.systemPrompt.replace(srcRegex, target)
-      if (newPrompt !== entity.systemPrompt) updates.systemPrompt = newPrompt
-      const newAliases = entity.aliases.map(a => a.replace(srcRegex, target))
-      if (JSON.stringify(newAliases) !== JSON.stringify(entity.aliases)) updates.aliases = newAliases
+      const updates = buildEntityTextUpdates(entity, srcRegex, target)
       if (Object.keys(updates).length > 0) {
         await sandboxStore.updateEntity(entity.id, updates)
       }
@@ -259,8 +245,9 @@ const executeReplace = async () => {
     
     ElMessage.success(`核弹执行完毕！全域成功替换 ${affectedCount.value} 处设定词。`)
     visible.value = false
-  } catch (err: any) {
-    ElMessage.error(`替换遭遇异常阻力: ${err.message}`)
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : '未知错误'
+    ElMessage.error(`替换遭遇异常阻力: ${message}`)
   } finally {
     replacing.value = false
   }

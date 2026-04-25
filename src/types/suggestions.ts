@@ -22,6 +22,7 @@ export type SuggestionCategory =
   | 'consistency'      // 一致性建议
   | 'quality'          // 质量建议
   | 'optimization'     // 优化建议
+  | 'style'            // 风格建议
   | 'problem'          // 问题建议
   | 'reminder'         // 提醒建议
 
@@ -29,8 +30,12 @@ export type SuggestionCategory =
  * 建议位置信息
  */
 export interface SuggestionLocation {
+  /** 相关项目ID */
+  projectId?: string
   /** 相关章节号 */
   chapter?: number
+  /** 相关章节ID */
+  chapterId?: string
   /** 相关字段 */
   field?: string
   /** 人物ID */
@@ -39,6 +44,12 @@ export interface SuggestionLocation {
   locationId?: string
   /** 其他标识 */
   targetId?: string
+  /** 问题所在段落索引（从 0 开始） */
+  paragraphIndex?: number
+  /** 问题文本片段 */
+  textSnippet?: string
+  /** AI 建议的修复文本 */
+  suggestedFix?: string
 }
 
 /**
@@ -46,13 +57,17 @@ export interface SuggestionLocation {
  */
 export interface SuggestionAction {
   /** 动作类型 */
-  type: 'navigate' | 'auto_fix' | 'view_detail' | 'dismiss' | 'generate'
+  type: 'navigate' | 'auto_fix' | 'view_detail' | 'dismiss' | 'generate' | 'apply_fix'
   /** 动作标签 */
   label: string
   /** 自动修复命令（可选） */
   autoFixCommand?: string
   /** 导航目标（可选） */
   navigateTarget?: string
+  /** 修复文本（apply_fix 类型使用） */
+  fixContent?: string
+  /** 原文片段（apply_fix 类型使用） */
+  originalSnippet?: string
 }
 
 /**
@@ -163,8 +178,12 @@ export interface SuggestionFilter {
   category?: SuggestionCategory | SuggestionCategory[]
   /** 按优先级过滤 */
   priority?: SuggestionPriority | SuggestionPriority[]
+  /** 按项目过滤 */
+  projectId?: string
   /** 按章节过滤 */
   chapter?: number
+  /** 按章节ID过滤 */
+  chapterId?: string
   /** 搜索关键词 */
   keyword?: string
   /** 时间范围 */

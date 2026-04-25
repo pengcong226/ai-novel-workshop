@@ -3,6 +3,10 @@
  * 提供统一的错误捕获、日志记录和用户提示
  */
 
+import { getLogger } from '@/utils/logger'
+
+const logger = getLogger('utils:errorHandler')
+
 export enum ErrorSeverity {
   LOW = 'low',           // 轻微错误，不影响使用
   MEDIUM = 'medium',     // 中等错误，部分功能受影响
@@ -158,7 +162,7 @@ class ErrorHandler {
         storedErrors.push(error)
         localStorage.setItem('app_errors', JSON.stringify(storedErrors.slice(-50)))
       } catch (e) {
-        console.error('无法保存错误日志:', e)
+        logger.error('无法保存错误日志:', e)
       }
     }
   }
@@ -171,7 +175,7 @@ class ErrorHandler {
       try {
         callback(error)
       } catch (e) {
-        console.error('错误监听器执行失败:', e)
+        logger.error('错误监听器执行失败:', e)
       }
     })
   }
@@ -188,7 +192,7 @@ class ErrorHandler {
     }
 
     const emoji = severityEmoji[appError.severity]
-    console.error(`${emoji} [${appError.category.toUpperCase()}] ${appError.message}`, {
+    logger.error(`${emoji} [${appError.category.toUpperCase()}] ${appError.message}`, {
       id: appError.id,
       timestamp: appError.timestamp.toISOString(),
       context: appError.context,
@@ -196,7 +200,7 @@ class ErrorHandler {
     })
 
     if (typeof originalError === 'object' && originalError.stack) {
-      console.error(originalError.stack)
+      logger.error(originalError.stack)
     }
   }
 }
@@ -229,7 +233,7 @@ export function setupGlobalErrorHandler() {
     })
   })
 
-  console.log('✅ 全局错误处理器已初始化')
+  logger.info('✅ 全局错误处理器已初始化')
 }
 
 /**

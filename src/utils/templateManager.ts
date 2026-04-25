@@ -3,6 +3,9 @@ import type { NovelTemplate, Project, Outline, ChapterOutline, PlotTemplate } fr
 import type { Entity } from '@/types/sandbox'
 import { useSandboxStore } from '@/stores/sandbox'
 import { getBuiltInTemplates } from './builtInTemplates'
+import { createStyleProfileFromTemplate } from '@/data/stylePresets'
+import { getLogger } from '@/utils/logger'
+const logger = getLogger('utils:templateManager')
 
 /**
  * 模板管理器
@@ -43,7 +46,7 @@ export class TemplateManager {
         })
       }
     } catch (error) {
-      console.error('Failed to load user templates:', error)
+      logger.error('Failed to load user templates:', error)
     }
   }
 
@@ -57,7 +60,7 @@ export class TemplateManager {
       )
       localStorage.setItem(this.storageKey, JSON.stringify(userTemplates))
     } catch (error) {
-      console.error('Failed to save user templates:', error)
+      logger.error('Failed to save user templates:', error)
     }
   }
 
@@ -107,7 +110,7 @@ export class TemplateManager {
       : { name: '' }
 
     // Build characterTemplates from sandbox CHARACTER entities
-    const charEntities = sandboxStore.entities.filter(e => e.type === 'CHARACTER' && !e.isArchived)
+    const charEntities = sandboxStore.characterEntities
     const resolvedState = sandboxStore.activeEntitiesState
     const characterTemplates = charEntities.map((entity, index) => {
       const resolved = resolvedState[entity.id]
@@ -336,6 +339,7 @@ export class TemplateManager {
         sentinelModel: template.configTemplate?.sentinelModel || '',
         extractorModel: template.configTemplate?.extractorModel || '',
         systemPrompts: template.configTemplate?.systemPrompts,
+        styleProfile: template.configTemplate?.styleProfile ?? createStyleProfileFromTemplate(template.styleTemplate),
         planningDepth: template.configTemplate?.planningDepth || 'medium',
         writingDepth: template.configTemplate?.writingDepth || 'standard',
         enableQualityCheck: template.configTemplate?.enableQualityCheck ?? true,
@@ -430,7 +434,7 @@ export class TemplateManager {
       this.saveTemplate(template)
       return true
     } catch (error) {
-      console.error('Failed to import template:', error)
+      logger.error('Failed to import template:', error)
       return false
     }
   }

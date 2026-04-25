@@ -246,7 +246,7 @@ export class PluginManager {
     }
 
     // 验证版本号格式 (semver)
-    const semverRegex = /^\d+\.\d+\.\d+(-[\w\d\-\.]+)?$/
+    const semverRegex = /^\d+\.\d+\.\d+(-[\w\d.-]+)?$/
     if (!semverRegex.test(manifest.version)) {
       throw new Error(`插件版本号格式不正确: ${manifest.version}`)
     }

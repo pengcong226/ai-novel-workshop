@@ -5,6 +5,7 @@
  */
 
 import type { ProcessorContribution, ProcessorContext, PluginManifest } from '../types'
+import { stripControlChars } from '@/utils/inputSanitizer'
 
 /**
  * 文本清洗处理器
@@ -50,7 +51,7 @@ const textCleanerProcessor: ProcessorContribution = {
     cleanedText = cleanedText.replace(/\n{3,}/g, '\n\n')
 
     // 5. 移除特殊字符（保留中文标点）
-    cleanedText = cleanedText.replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, '')
+    cleanedText = stripControlChars(cleanedText)
 
     // 6. 统一全角/半角标点（可选，根据配置）
     if (context.config?.normalizePunctuation) {

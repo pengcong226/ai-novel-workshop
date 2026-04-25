@@ -33,7 +33,7 @@ export interface PluginLoadResult {
  * 插件验证规则
  */
 const MANIFEST_REQUIRED_FIELDS = ['id', 'name', 'version', 'author', 'description']
-const MANIFEST_VERSION_PATTERN = /^\d+\.\d+\.\d+(-[\w\d\-\.]+)?$/
+const MANIFEST_VERSION_PATTERN = /^\d+\.\d+\.\d+(-[\w\d.-]+)?$/
 
 /**
  * 插件加载器类

@@ -487,7 +487,7 @@ PromptEngineer
 
 | 功能 | 技术选型 | 说明 |
 |------|---------|------|
-| 调试探针 | **Express + better-sqlite3** | 本地微服务 (`debug-server.js`) |
+| 调试探针 | **Express + better-sqlite3** | 本地微服务 (`playground/debug-server.cjs`) |
 | API客户端 | **async-openai / fetch** | 支持OpenAI兼容API |
 | Embedding | **text-embedding-3-small** | 性价比高，效果好 |
 | 规划模型 | Claude Opus 4 / GPT-4 | 高智商模型 |

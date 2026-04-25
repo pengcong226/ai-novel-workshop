@@ -31,10 +31,14 @@ Thumbs.db
 *.log
 npm-debug.log*
 
-# Test files
+# Test data
 test.json
-exclude.txt
-config_test.txt
+100章极限测试作品.json
+playground/*.db
+
+# Build logs
+ts_err.log
+type-check.log
 
 # Embedded git repos
 st-memory-enhancement/

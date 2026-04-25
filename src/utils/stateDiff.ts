@@ -9,6 +9,7 @@
  */
 
 import type { Entity, StateEvent, EntityRelation } from '@/types/sandbox'
+import { areStateEventsSortedByChapter, sortStateEventsByChapter } from '@/utils/stateEventIndexes'
 import type {
   EntityStateSnapshot,
   StateDiffItem,
@@ -31,15 +32,6 @@ interface ReducedEntity {
   location: string | null
   vitalStatus: string
   abilities: Array<{ name: string; status: string; acquiredChapter: number }>
-}
-
-function isSortedByChapter(events: StateEvent[]): boolean {
-  for (let i = 1; i < events.length; i++) {
-    if (events[i - 1].chapterNumber > events[i].chapterNumber) {
-      return false
-    }
-  }
-  return true
 }
 
 /**
@@ -71,9 +63,9 @@ export function replayReducer(
   }
 
   // Apply events in order
-  const relevantEvents = isSortedByChapter(stateEvents)
+  const relevantEvents = areStateEventsSortedByChapter(stateEvents)
     ? stateEvents
-    : [...stateEvents].sort((a, b) => a.chapterNumber - b.chapterNumber)
+    : sortStateEventsByChapter(stateEvents)
 
   for (const event of relevantEvents) {
     if (event.chapterNumber > chapterNumber) {

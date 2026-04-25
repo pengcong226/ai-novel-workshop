@@ -5,6 +5,8 @@
 
 import type { Project, Chapter, Outline} from '@/types'
 import { useSandboxStore } from '@/stores/sandbox'
+import { getLogger } from '@/utils/logger'
+const logger = getLogger('utils:timelineExtractor')
 
 /**
  * 时间线事件类型
@@ -465,7 +467,7 @@ ${text.substring(0, 5000)}
       className: 'event-extracted'
     }))
   } catch (error) {
-    console.error('AI提取事件失败，回退为关键词提取', error)
+    logger.error('AI提取事件失败，回退为关键词提取', error)
     return extractEventsFromText(text, chapterNumber)
   }
 }
@@ -520,7 +522,7 @@ export async function exportTimelineAsImage(timelineElement: HTMLElement): Promi
       }, 'image/png')
     })
   } catch (error) {
-    console.error('导出时间线图片失败:', error)
+    logger.error('导出时间线图片失败:', error)
     return null
   }
 }

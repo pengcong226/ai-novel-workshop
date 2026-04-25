@@ -1,9 +1,16 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const invokeMock = vi.fn()
+const { invokeMock, isWebRuntimeMock } = vi.hoisted(() => ({
+  invokeMock: vi.fn(),
+  isWebRuntimeMock: vi.fn(() => false),
+}))
 
 vi.mock('@tauri-apps/api/core', () => ({
   invoke: invokeMock,
+}))
+
+vi.mock('@/utils/anthropic-guard', () => ({
+  isWebRuntime: isWebRuntimeMock,
 }))
 
 vi.mock('@/utils/logger', () => ({
@@ -18,6 +25,21 @@ vi.mock('@/utils/logger', () => ({
 import { createPinia, setActivePinia } from 'pinia'
 import { useSandboxStore } from '@/stores/sandbox'
 import type { Entity, StateEvent } from '@/types/sandbox'
+
+const localStorageMock = vi.hoisted(() => {
+  const store = new Map<string, string>()
+  return {
+    clear: vi.fn(() => store.clear()),
+    getItem: vi.fn((key: string) => store.get(key) ?? null),
+    setItem: vi.fn((key: string, value: string) => store.set(key, value)),
+    removeItem: vi.fn((key: string) => store.delete(key)),
+  }
+})
+
+Object.defineProperty(globalThis, 'localStorage', {
+  value: localStorageMock,
+  configurable: true,
+})
 
 function buildEntity(overrides: Partial<Entity> = {}): Entity {
   return {
@@ -52,6 +74,56 @@ describe('sandbox.loadData validation', () => {
   beforeEach(() => {
     setActivePinia(createPinia())
     invokeMock.mockReset()
+    isWebRuntimeMock.mockReturnValue(false)
+    localStorage.clear()
+  })
+
+  it('does not call Tauri IPC in browser runtime', async () => {
+    isWebRuntimeMock.mockReturnValue(true)
+    const store = useSandboxStore()
+    store.entities = [buildEntity({ id: 'existing-entity' })]
+    store.stateEvents = [buildStateEvent({ id: 'existing-event' })]
+
+    await store.loadData('project-1')
+
+    expect(invokeMock).not.toHaveBeenCalled()
+    expect(store.isLoaded).toBe(true)
+    expect(store.entities).toHaveLength(0)
+    expect(store.stateEvents).toHaveLength(0)
+  })
+
+  it('persists browser runtime batch writes without Tauri IPC', async () => {
+    isWebRuntimeMock.mockReturnValue(true)
+    const store = useSandboxStore()
+
+    await store.loadData('project-1')
+    await store.batchAddEntities([buildEntity()])
+    await store.batchAddStateEvents([buildStateEvent()])
+
+    expect(invokeMock).not.toHaveBeenCalled()
+    expect(store.entities).toHaveLength(1)
+    expect(store.stateEvents).toHaveLength(1)
+
+    setActivePinia(createPinia())
+    const reloadedStore = useSandboxStore()
+    await reloadedStore.loadData('project-1')
+
+    expect(reloadedStore.isLoaded).toBe(true)
+    expect(reloadedStore.entities[0]?.id).toBe('entity-1')
+    expect(reloadedStore.stateEvents[0]?.id).toBe('event-1')
+  })
+  it('does not mutate memory when browser persistence fails', async () => {
+    isWebRuntimeMock.mockReturnValue(true)
+    const store = useSandboxStore()
+    const existing = buildEntity({ id: 'existing-entity' })
+    store.entities = [existing]
+    localStorageMock.setItem.mockImplementationOnce(() => {
+      throw new Error('quota exceeded')
+    })
+
+    await expect(store.batchAddEntities([buildEntity({ id: 'new-entity' })])).rejects.toThrow('quota exceeded')
+
+    expect(store.entities).toEqual([existing])
   })
 
   it('sets isLoaded=true when entities and stateEvents are both valid', async () => {

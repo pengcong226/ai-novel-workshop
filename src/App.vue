@@ -31,6 +31,8 @@ import zhCn from 'element-plus/es/locale/lang/zh-cn'
 import { setupGlobalErrorHandler, errorHandler, ErrorSeverity, type AppError } from '@/utils/errorHandler'
 import GlobalTaskObserver from '@/components/GlobalTaskObserver.vue'
 import GlobalMutator from '@/components/GlobalMutator.vue'
+import { getLogger } from '@/utils/logger'
+const logger = getLogger('src:App')
 
 const currentError = ref<AppError | null>(null)
 const globalMutatorRef = ref<InstanceType<typeof GlobalMutator> | null>(null)
@@ -97,14 +99,14 @@ function handleError(error: AppError) {
   // 严重错误显示更详细的信息
   if (error.severity === ErrorSeverity.HIGH || error.severity === ErrorSeverity.CRITICAL) {
     console.group('🔴 应用错误详情')
-    console.error('错误ID:', error.id)
-    console.error('错误类别:', error.category)
-    console.error('错误消息:', error.message)
+    logger.error('错误ID:', error.id)
+    logger.error('错误类别:', error.category)
+    logger.error('错误消息:', error.message)
     if (error.context) {
-      console.error('错误上下文:', error.context)
+      logger.error('错误上下文:', error.context)
     }
     if (error.stack) {
-      console.error('错误堆栈:', error.stack)
+      logger.error('错误堆栈:', error.stack)
     }
     console.groupEnd()
   }

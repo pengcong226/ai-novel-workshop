@@ -218,7 +218,7 @@ export class RegexScriptManager {
     }
 
     if (!includeExtensions) {
-      scripts = scripts.map(({ extensions, ...script }) => script) as RegexScript[]
+      scripts = scripts.map(({ extensions: _extensions, ...script }) => script) as RegexScript[]
     }
 
     const data = scripts.length === 1 ? scripts[0] : scripts

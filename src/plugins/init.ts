@@ -8,8 +8,8 @@ import { openAIProviderContribution, manifest as openAIManifest } from './builti
 import { anthropicProviderContribution, manifest as anthropicManifest } from './builtin/anthropic-provider'
 import { localProviderContribution, manifest as localManifest } from './builtin/local-provider'
 import { createCharacterActionContribution, manifest as assistantActionsManifest } from './builtin/assistant-actions'
-// import { scifiDarkThemePlugin } from './builtin/scifi-dark-theme'
-// import { classicLightThemePlugin } from './builtin/classic-light-theme'
+import { manifest as scifiDarkManifest, activate as activateScifiDark } from './builtin/scifi-dark-theme'
+import { manifest as classicLightManifest, activate as activateClassicLight } from './builtin/classic-light-theme'
 import { pluginManager } from './manager'
 import { getLogger } from '@/utils/logger'
 import type { PluginContext, PluginManifest } from './types'
@@ -82,26 +82,22 @@ export async function initializeBuiltinPlugins(): Promise<void> {
     await pluginManager.activatePlugin(assistantActionsManifest.id)
 
     // 安装 Sci-Fi Dark Theme
-    /*
-    await pluginManager.installPlugin(scifiDarkThemePlugin.meta as any as PluginManifest, async () => ({
+    await pluginManager.installPlugin(scifiDarkManifest as any as PluginManifest, async () => ({
       activate: async (context: PluginContext) => {
-        scifiDarkThemePlugin.activate!(context)
-        logger.info('内置插件已激活', { plugin: scifiDarkThemePlugin.meta.name, id: scifiDarkThemePlugin.meta.id })
+        activateScifiDark(context)
+        logger.info('内置插件已激活', { plugin: scifiDarkManifest.name, id: scifiDarkManifest.id })
       }
     }))
-
-    await pluginManager.activatePlugin(scifiDarkThemePlugin.meta.id)
+    await pluginManager.activatePlugin(scifiDarkManifest.id)
 
     // 安装 Classic Light Theme
-    await pluginManager.installPlugin(classicLightThemePlugin.meta as any as PluginManifest, async () => ({
+    await pluginManager.installPlugin(classicLightManifest as any as PluginManifest, async () => ({
       activate: async (context: PluginContext) => {
-        classicLightThemePlugin.activate!(context)
-        logger.info('内置插件已激活', { plugin: classicLightThemePlugin.meta.name, id: classicLightThemePlugin.meta.id })
+        activateClassicLight(context)
+        logger.info('内置插件已激活', { plugin: classicLightManifest.name, id: classicLightManifest.id })
       }
     }))
-
-    await pluginManager.activatePlugin(classicLightThemePlugin.meta.id)
-    */
+    await pluginManager.activatePlugin(classicLightManifest.id)
 
     logger.info('内置插件初始化完成')
   } catch (error) {

@@ -12,9 +12,15 @@ import { extendOutlineWithLLM } from '@/utils/llm/outlineGenerator'
 import { extractEntitiesWithAI, analyzeRelationships } from '@/utils/characterExtractor'
 import { mergeSystemPrompts } from '@/utils/systemPrompts'
 import { normalizeProjectConfig } from '@/utils/project-config-normalizer'
+import { syncCompletedChapter } from '@/services/outline-sync'
 import type { ChatMessage } from '@/types/ai'
 import { useAuditLog } from '@/composables/useAuditLog'
 import { getLogger } from '@/utils/logger'
+import { AgentOrchestrator } from '@/agents/AgentOrchestrator'
+import { PlannerAgent } from '@/agents/PlannerAgent'
+import { EditorAgent } from '@/agents/EditorAgent'
+import { ReaderAgent } from '@/agents/ReaderAgent'
+import type { AgentConfig } from '@/agents/types'
 
 const logger = getLogger('generation:scheduler')
 
@@ -71,9 +77,30 @@ function buildGenerationOptions(advancedSettings?: {
 export class GenerationScheduler {
   
   private isBatchCancelled = false
+  private generationRunId = 0
+  private agentQueue: Promise<void> = Promise.resolve()
 
   public cancelBatchGeneration() {
     this.isBatchCancelled = true
+    this.generationRunId += 1
+  }
+
+  private enqueuePostGenerationAgents(chapter: Chapter, configs: AgentConfig[], runId: number): void {
+    const chapterSnapshot = { ...chapter }
+
+    this.agentQueue = this.agentQueue
+      .catch(() => undefined)
+      .then(async () => {
+        if (this.isBatchCancelled || runId !== this.generationRunId) return
+
+        const projectStore = useProjectStore()
+        const project = projectStore.currentProject
+        const normalizedConfig = normalizeProjectConfig(project?.config)
+        if (!project || !normalizedConfig.enableAutoReview) return
+
+        await this.runPostGenerationAgents(chapterSnapshot, normalizedConfig.agentConfigs ?? configs)
+      })
+      .catch(error => logger.warn('Agent 后处理失败:', error))
   }
 
   public async runExtractionInBackground(chapter: Chapter) {
@@ -96,6 +123,56 @@ export class GenerationScheduler {
       logger.error('设定提取失败:', err)
       taskManager.failTask(task.id, err instanceof Error ? err.message : String(err))
     }
+  }
+
+  private async runPreGenerationAgents(chapter: Chapter, configs: AgentConfig[]): Promise<void> {
+    const plannerConfigs = configs.filter(config => config.role === 'planner' && config.enabled && config.phase === 'pre-generation')
+    if (plannerConfigs.length === 0) return
+
+    const projectStore = useProjectStore()
+    const project = projectStore.currentProject
+    if (!project) return
+
+    const orchestrator = new AgentOrchestrator({
+      agents: [new PlannerAgent()],
+      configs: plannerConfigs,
+      logger,
+      onTrace: event => logger.debug('[Agent]', event),
+    })
+
+    const result = await orchestrator.runPhase('pre-generation', {
+      phase: 'pre-generation',
+      project,
+      chapter,
+      outline: chapter.outline,
+    })
+
+    for (const agentResult of result.results) {
+      if (agentResult.role !== 'planner' || agentResult.status !== 'success') continue
+      const refinedOutline = agentResult.data as Partial<ChapterOutline> | undefined
+      if (!refinedOutline || typeof refinedOutline !== 'object') continue
+      Object.assign(chapter.outline, refinedOutline)
+      chapter.title = chapter.outline.title || chapter.title
+    }
+  }
+
+  private async runPostGenerationAgents(chapter: Chapter, configs: AgentConfig[]): Promise<void> {
+    const projectStore = useProjectStore()
+    const project = projectStore.currentProject
+    if (!project) return
+
+    const orchestrator = new AgentOrchestrator({
+      agents: [new EditorAgent(), new ReaderAgent()],
+      configs: configs.filter(config => config.role === 'editor' || config.role === 'reader'),
+      logger,
+      onTrace: event => logger.debug('[Agent]', event),
+    })
+
+    await orchestrator.runPhase('post-generation', {
+      phase: 'post-generation',
+      project,
+      chapter,
+    })
   }
 
   private async updateProjectSettings(chapter: Chapter) {
@@ -370,14 +447,15 @@ ${chapter.content.substring(0, 8000)}
       throw new Error('系统未初始化或项目未加载')
     }
 
+    this.generationRunId += 1
+    const generationRunId = this.generationRunId
     this.isBatchCancelled = false
 
     // Pre-resolve dynamic imports used inside the loop to avoid repeated module loading
-    const [{ validateChapterLogic }, { usePluginStore }, { createQualityChecker }, { builtinCommandRegistry }, { RewriteContinuationService }, { EXTRACT_PLOT_EVENTS_SCHEMA, PLOT_EXTRACTION_SYSTEM }, { safeParseAIJson }] = await Promise.all([
+    const [{ validateChapterLogic }, { usePluginStore }, { createQualityChecker }, { RewriteContinuationService }, { EXTRACT_PLOT_EVENTS_SCHEMA, PLOT_EXTRACTION_SYSTEM }, { safeParseAIJson }] = await Promise.all([
       import('@/utils/llm/antiRetconValidator'),
       import('@/stores/plugin'),
       import('@/utils/qualityChecker'),
-      import('@/assistant/commands/builtinCommands'),
       import('@/services/rewrite-continuation'),
       import('@/services/deep-import-schemas'),
       import('@/utils/safeParseAIJson')
@@ -517,6 +595,8 @@ ${chapter.content.substring(0, 8000)}
           checkpoints: [],
           aiSuggestions: []
         }
+
+        await this.runPreGenerationAgents(chapterData, normalizedProjectConfig.agentConfigs ?? [])
 
         // 构建上下文
         taskManager.updateTask(batchTask.id, { description: `正在编织第 ${chapterNumber} 章记忆矩阵...` })
@@ -703,22 +783,26 @@ ${chapter.content.substring(0, 8000)}
           }
         }
 
+        const outlineSyncResults = syncCompletedChapter(currentProject, chapterData)
+        if (outlineSyncResults.length > 0 && options.autoSave) {
+          await projectStore.saveCurrentProject()
+        }
+
         // Update currentChapter so next chapter's context sees latest state
         sandboxStore.currentChapter = chapterNumber
 
-        // V4 Adaptation: 自动使用新的 Review 工作流产生交互建议
-        if (currentProject.config?.enableQualityCheck) {
-          try {
-            taskManager.updateTask(batchTask.id, { description: `正在生成多角色审校建议（第 ${chapterNumber} 章）...` })
-            await builtinCommandRegistry.executeCommand('review', ['consistency'])
-          } catch(e) {
-            logger.warn('自动审校产生建议失败:', e)
-          }
+        const hasHighImpact = hasHighImpactContent(chapterData.content)
+
+        if (normalizedProjectConfig.enableAutoReview) {
+          this.enqueuePostGenerationAgents(
+            chapterData,
+            normalizedProjectConfig.agentConfigs ?? [],
+            generationRunId
+          )
         }
 
         if (options.autoUpdateSettings) {
           // V4-P1-⑥: 语义边界切片触发 - 仅在高影响事件时进行完整状态提取
-          const hasHighImpact = hasHighImpactContent(chapterData.content)
 
           if (hasHighImpact || chapterNumber % 5 === 0) {
             // V4-D2: 同步等待状态提取完成，确保第 N+1 章能看到第 N 章的状态变更

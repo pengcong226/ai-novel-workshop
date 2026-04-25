@@ -251,6 +251,8 @@ import { templateManager } from '@/utils/templateManager'
 import { useSandboxStore } from '@/stores/sandbox'
 const TemplateLibrary = defineAsyncComponent(() => import('@/components/TemplateLibrary.vue'))
 import type { NovelTemplate } from '@/types'
+import { getLogger } from '@/utils/logger'
+const logger = getLogger('views:ProjectList')
 
 const router = useRouter()
 const projectStore = useProjectStore()
@@ -323,7 +325,7 @@ const handleCreate = async () => {
         // 跳转到项目详情页
         router.push(`/project/${project.id}`)
       } catch (error) {
-        console.error('创建项目失败:', error)
+        logger.error('创建项目失败:', error)
         ElMessage.error('创建失败，请稍后重试')
       } finally {
         creating.value = false
@@ -351,7 +353,7 @@ const handleImport = async (file: any) => {
     await projectStore.loadProjects()
   } catch (error) {
     ElMessage.closeAll()
-    console.error('导入失败:', error)
+    logger.error('导入失败:', error)
     ElMessage.error(`导入失败: ${(error as Error).message}`)
   }
 }
@@ -397,7 +399,7 @@ const deleteProject = (projectId: string) => {
       await projectStore.deleteProject(projectId)
       ElMessage.success('项目已删除')
     } catch (error) {
-      console.error('删除项目失败:', error)
+      logger.error('删除项目失败:', error)
       ElMessage.error('删除失败')
     }
   }).catch(() => {})
@@ -474,7 +476,7 @@ async function createFromTemplate() {
     // 打开项目
     router.push(`/project/${project.id}`)
   } catch (error) {
-    console.error('[ProjectList] 从模板创建失败:', error)
+    logger.error('[ProjectList] 从模板创建失败:', error)
     ElMessage.error('创建失败: ' + (error as Error).message)
   } finally {
     creatingFromTemplate.value = false

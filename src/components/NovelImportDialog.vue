@@ -546,13 +546,6 @@ const importing = ref(false)
 const previewTab = ref('info')
 const detectedPattern = ref<string>('')
 
-interface ImportResultData {
-  project: Partial<Project> & { stats?: ImportStatsData; author?: string; worldSetting?: unknown }
-  stats?: ImportStatsData
-  qualityMetrics?: QualityMetricsData
-  [key: string]: unknown
-}
-
 interface QualityMetricsData {
   overallScore: number
   dimensions: Record<string, number>

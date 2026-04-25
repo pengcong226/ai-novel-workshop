@@ -176,13 +176,14 @@ import { useRouter } from 'vue-router'
 import { Search } from '@element-plus/icons-vue'
 import * as echarts from 'echarts/core'
 import type { Entity, EntityImportance } from '@/types/sandbox'
+import { IMPORTANCE_TAG_CONFIG, IMPORTANCE_EL_TAG_TYPE } from '@/utils/eventTypeLabels'
 
 const projectStore = useProjectStore()
 const sandboxStore = useSandboxStore()
 const router = useRouter()
 
 const project = computed(() => projectStore.currentProject)
-const characters = computed(() => sandboxStore.entities.filter(e => e.type === 'CHARACTER' && !e.isArchived))
+const characters = computed(() => sandboxStore.characterEntities)
 const chapters = computed(() => project.value?.chapters || [])
 const outline = computed(() => project.value?.outline)
 
@@ -202,17 +203,11 @@ const selectedCharactersForTrend = ref<string[]>([])
 const trendRange = ref(20)
 const chapterSearch = ref('')
 
-// 标签配置 — V5 EntityImportance
-const TAG_CONFIG: Record<EntityImportance, { label: string; color: string }> = {
-  critical: { label: '核心人物', color: '#409EFF' },
-  major: { label: '重要人物', color: '#67C23A' },
-  minor: { label: '次要人物', color: '#909399' },
-  background: { label: '背景人物', color: '#E6A23C' }
-}
+// 辅助：预计算状态事件索引
+const stateEventIndexes = sandboxStore.stateEventIndexes
 
-// 辅助：获取实体的状态事件数
 function entityEventCount(entityId: string): number {
-  return sandboxStore.stateEvents.filter(e => e.entityId === entityId).length
+  return stateEventIndexes.countsByEntity.get(entityId) || 0
 }
 
 // 统计数据
@@ -241,7 +236,7 @@ const topCharacters = computed(() => {
 const characterTags = computed(() => {
   const tagMap = new Map<EntityImportance, { count: number; characters: Entity[] }>()
 
-  Object.keys(TAG_CONFIG).forEach(tag => {
+  Object.keys(IMPORTANCE_TAG_CONFIG).forEach(tag => {
     tagMap.set(tag as EntityImportance, { count: 0, characters: [] })
   })
 
@@ -254,7 +249,7 @@ const characterTags = computed(() => {
     }
   })
 
-  return Object.entries(TAG_CONFIG).map(([type, config]) => ({
+  return Object.entries(IMPORTANCE_TAG_CONFIG).map(([type, config]) => ({
     type: type as EntityImportance,
     label: config.label,
     color: config.color,
@@ -269,8 +264,7 @@ const chapterAppearances = computed(() => {
 
   return chapters.value.map(chapter => {
     const outlineChapter = (outline.value?.chapters || []).find(c => c.chapterId === chapter.id)
-    const chapterEvents = sandboxStore.stateEvents.filter(e => e.chapterNumber === chapter.number)
-    const entityIdsInChapter = new Set(chapterEvents.map(e => e.entityId))
+    const entityIdsInChapter = stateEventIndexes.entityIdsByChapterNumber.get(chapter.number) || new Set<string>()
     const chapterCharacters = characters.value
       .filter(c => entityIdsInChapter.has(c.id))
       .map(c => ({
@@ -459,8 +453,7 @@ function updateLineChart() {
 
   // 构建系列数据
   const series = displayCharacters.map(char => {
-    const entityEvents = sandboxStore.stateEvents.filter(e => e.entityId === char.id)
-    const eventChapters = new Set(entityEvents.map(e => e.chapterNumber))
+    const eventChapters = stateEventIndexes.chapterNumbersByEntity.get(char.id) || new Set<number>()
     const data = chapters.value.slice(rangeStart).map(chapter => {
       return eventChapters.has(chapter.number) ? 1 : 0
     })
@@ -516,13 +509,7 @@ function updateLineChart() {
 // 获取标签类型 — V5 EntityImportance → el-tag type
 function getTagType(importance?: EntityImportance): string {
   if (!importance) return 'info'
-  const types: Record<EntityImportance, string> = {
-    critical: 'primary',
-    major: 'success',
-    minor: 'info',
-    background: 'warning'
-  }
-  return types[importance] || 'info'
+  return IMPORTANCE_EL_TAG_TYPE[importance] || 'info'
 }
 
 // 跳转到章节

@@ -226,6 +226,8 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import { Hide, Star, UploadFilled } from '@element-plus/icons-vue'
 import { createKnowledgeBaseManager } from '@/services/knowledge-base'
 import type { KnowledgeEntry, KnowledgeCategory } from '@/types/knowledge-base'
+import { getLogger } from '@/utils/logger'
+const logger = getLogger('components:KnowledgeBasePanel')
 
 const kbManager = createKnowledgeBaseManager()
 
@@ -341,7 +343,7 @@ async function executeImport() {
       }
 
       if (result.errors.length > 0) {
-        console.error('导入错误:', result.errors)
+        logger.error('导入错误:', result.errors)
       }
     }
 

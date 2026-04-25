@@ -125,14 +125,10 @@ export class ExporterRegistry {
       if (this.processorRegistry) {
         logger.info(`执行 pre-export 管道`)
         
-        let projectId = ''
         let projectObj = undefined
-        
+
         if (data.type === 'project') {
-          projectId = data.content?.id || ''
           projectObj = data.content
-        } else if (data.content?.projectId) {
-          projectId = data.content.projectId
         }
         
         processedData = (await this.processorRegistry.processPipeline(

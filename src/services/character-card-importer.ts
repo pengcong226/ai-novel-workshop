@@ -33,14 +33,6 @@ export class CharacterCardImporter {
     source: File | string | any,
     options: CharacterCardImportOptions = {}
   ): Promise<CharacterCardImportResult> {
-    const {
-      importWorldbook = true,
-      importRegexScripts = true,
-      importPrompts = true,
-      importAISettings = true,
-      importExtensions = true
-    } = options
-
     try {
       // 解析源数据
       let data: any

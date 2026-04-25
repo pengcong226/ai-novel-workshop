@@ -48,7 +48,13 @@
 
 <script setup lang="ts">
 import type { ExtractedStateEvent } from '@/types/deep-import'
-import { STATE_EVENT_TYPE_LABELS, STATE_EVENT_TYPE_TAG_TYPE, type ElementTagType } from '@/utils/eventTypeLabels'
+import type { StateEventType } from '@/types/sandbox'
+import {
+  STATE_EVENT_TYPE_LABELS,
+  STATE_EVENT_TYPE_TAG_TYPE,
+  STATE_EVENT_TYPE_TIMELINE_TYPE,
+  type ElementTagType
+} from '@/utils/eventTypeLabels'
 import EvidenceHighlight from './EvidenceHighlight.vue'
 
 defineProps<{
@@ -56,16 +62,16 @@ defineProps<{
   chapterNumber?: number
 }>()
 
-function eventTypeLabel(type: string): string {
-  return STATE_EVENT_TYPE_LABELS[type as keyof typeof STATE_EVENT_TYPE_LABELS] || type
+function eventTypeLabel(type: StateEventType): string {
+  return STATE_EVENT_TYPE_LABELS[type] || type
 }
 
-function eventTypeColor(type: string): ElementTagType {
-  return STATE_EVENT_TYPE_TAG_TYPE[type as keyof typeof STATE_EVENT_TYPE_TAG_TYPE] || ''
+function eventTypeTagType(type: StateEventType): ElementTagType {
+  return STATE_EVENT_TYPE_TAG_TYPE[type] || ''
 }
 
-function eventTypeTagType(type: string): ElementTagType {
-  return STATE_EVENT_TYPE_TAG_TYPE[type as keyof typeof STATE_EVENT_TYPE_TAG_TYPE] || ''
+function eventTypeColor(type: StateEventType): ElementTagType {
+  return STATE_EVENT_TYPE_TIMELINE_TYPE[type] || ''
 }
 </script>
 

@@ -34,6 +34,7 @@ export interface ContextPayload {
 
   builtSections: {
     systemPrompt: string;
+    styleProfile: string;
     authorsNote: string;
     worldInfo: string;
     characters: string;

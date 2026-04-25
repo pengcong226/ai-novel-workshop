@@ -6,6 +6,7 @@ describe('project-config-normalizer', () => {
     const normalized = normalizeProjectConfig({
       enableQualityCheck: false,
       enableVectorRetrieval: false,
+      enableAutoReview: false,
       advanced: {
         temperature: 0,
         topP: 0,
@@ -27,6 +28,7 @@ describe('project-config-normalizer', () => {
 
     expect(normalized.enableQualityCheck).toBe(false)
     expect(normalized.enableVectorRetrieval).toBe(false)
+    expect(normalized.enableAutoReview).toBe(false)
     expect(normalized.advancedSettings?.temperature).toBe(0)
     expect(normalized.advancedSettings?.topP).toBe(0)
     expect(normalized.advancedSettings?.targetWordCount).toBe(0)
@@ -67,14 +69,30 @@ describe('project-config-normalizer', () => {
     expect(normalized.advancedSettings?.stopSequences).toEqual(['new'])
   })
 
-  it('returns complete defaults from helper', () => {
+  it('returns complete defaults from helper without enabling optional style', () => {
     const defaults = getDefaultProjectConfig()
 
     expect(defaults.systemPrompts).toBeDefined()
     expect(defaults.vectorConfig?.topK).toBeDefined()
     expect(defaults.vectorConfig?.minScore).toBeDefined()
     expect(defaults.vectorConfig?.vectorWeight).toBeDefined()
+    expect(defaults.enableAutoReview).toBe(false)
+    expect(defaults.styleProfile).toBeUndefined()
     expect(defaults.advancedSettings?.maxContextTokens).toBeDefined()
     expect(defaults.advancedSettings?.targetWordCount).toBeDefined()
+  })
+
+  it('preserves partial style profile values while filling defaults', () => {
+    const normalized = normalizeProjectConfig({
+      styleProfile: {
+        name: '自定义风格',
+        avoidList: ['避免口水话']
+      } as unknown as NonNullable<Parameters<typeof normalizeProjectConfig>[0]>['styleProfile']
+    })
+
+    expect(normalized.styleProfile?.name).toBe('自定义风格')
+    expect(normalized.styleProfile?.avoidList).toEqual(['避免口水话'])
+    expect(normalized.styleProfile?.tone).toBeTruthy()
+    expect(normalized.styleProfile?.examplePhrases.length).toBeGreaterThan(0)
   })
 })

@@ -494,7 +494,7 @@ export const useCharacterCardStore = defineStore('characterCard', () => {
       }
 
       // Map LORE entities to CharacterBookEntry format
-      const loreEntities = sandboxStore.entities.filter(e => e.type === 'LORE' && !e.isArchived)
+      const loreEntities = sandboxStore.loreEntities
       worldbookEntries.value = loreEntities.map((lore, index) => ({
         uid: index,
         key: lore.aliases || [],

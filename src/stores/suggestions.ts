@@ -13,7 +13,8 @@ import type {
   SuggestionQueueConfig,
   SuggestionQueueItem,
   SuggestionTriggerEvent,
-  SuggestionRule} from '@/types/suggestions'
+  SuggestionRule,
+  SuggestionLocation} from '@/types/suggestions'
 
 const STORAGE_KEY = 'ai-novel-suggestions'
 const logger = getLogger('suggestions:store')
@@ -94,6 +95,7 @@ export const useSuggestionsStore = defineStore('suggestions', () => {
         consistency: 0,
         quality: 0,
         optimization: 0,
+        style: 0,
         problem: 0,
         reminder: 0
       },
@@ -274,18 +276,12 @@ export const useSuggestionsStore = defineStore('suggestions', () => {
     title: string
     message: string
     details?: string
-    location: {
-      chapter?: number
-      field?: string
-      characterId?: string
-      locationId?: string
-      targetId?: string
-    }
+    location: SuggestionLocation
     actions?: Suggestion['actions']
     metadata?: Record<string, unknown>
   }): Suggestion | null {
     // 检查相似建议
-    const similar = findSimilarSuggestion(params.message)
+    const similar = findSimilarSuggestion(params.message, params.location)
     if (similar) {
       // 合并到相似建议
       if (!similar.relatedSuggestions) {
@@ -328,13 +324,14 @@ export const useSuggestionsStore = defineStore('suggestions', () => {
   }
 
   // 查找相似建议
-  function findSimilarSuggestion(message: string): Suggestion | null {
+  function findSimilarSuggestion(message: string, location: SuggestionLocation): Suggestion | null {
     const words = message.toLowerCase().split(/\s+/)
     let bestMatch: Suggestion | null = null
     let bestScore = 0
 
     for (const s of suggestions.value) {
       if (s.status === 'ignored') continue
+      if (!isSameSuggestionScope(s.location, location)) continue
 
       const sWords = s.message.toLowerCase().split(/\s+/)
       const commonWords = words.filter(w => sWords.includes(w))
@@ -347,6 +344,15 @@ export const useSuggestionsStore = defineStore('suggestions', () => {
     }
 
     return bestMatch
+  }
+
+  function isSameSuggestionScope(left: SuggestionLocation, right: SuggestionLocation): boolean {
+    return left.projectId === right.projectId
+      && left.chapterId === right.chapterId
+      && left.chapter === right.chapter
+      && left.characterId === right.characterId
+      && left.locationId === right.locationId
+      && left.targetId === right.targetId
   }
 
   // 添加到队列
@@ -486,8 +492,18 @@ export const useSuggestionsStore = defineStore('suggestions', () => {
         if (!priorities.includes(s.priority)) return false
       }
 
+      // 项目过滤
+      if (filter.projectId !== undefined && s.location.projectId !== filter.projectId) {
+        return false
+      }
+
       // 章节过滤
       if (filter.chapter !== undefined && s.location.chapter !== filter.chapter) {
+        return false
+      }
+
+      // 章节ID过滤
+      if (filter.chapterId !== undefined && s.location.chapterId !== filter.chapterId) {
         return false
       }
 
@@ -662,8 +678,12 @@ export const useSuggestionsStore = defineStore('suggestions', () => {
   }
 
   // 获取指定章节的建议
-  function getSuggestionsByChapter(chapter: number): Suggestion[] {
-    return suggestions.value.filter(s => s.location.chapter === chapter)
+  function getSuggestionsByChapter(chapter: number, scope: { projectId?: string; chapterId?: string } = {}): Suggestion[] {
+    return suggestions.value.filter(s =>
+      s.location.chapter === chapter
+      && (scope.projectId === undefined || s.location.projectId === scope.projectId)
+      && (scope.chapterId === undefined || s.location.chapterId === scope.chapterId)
+    )
   }
 
   // 获取指定人物的建议

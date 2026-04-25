@@ -241,7 +241,7 @@ import { getLogger } from '@/utils/logger'
 
 const logger = getLogger('worldbook-import')
 
-const emit = defineEmits<{
+defineEmits<{
   imported: []
   cancel: []
 }>()

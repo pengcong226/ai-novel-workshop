@@ -4,6 +4,7 @@
  */
 
 import type { Chapter, Project } from '@/types'
+import { escapeXml as escapeHtml } from '@/utils/escapeXml'
 
 /**
  * PDF 导出选项
@@ -371,12 +372,6 @@ function generateChapterHtml(
 /**
  * HTML 转义
  */
-function escapeHtml(text: string): string {
-  const div = document.createElement('div')
-  div.textContent = text
-  return div.innerHTML
-}
-
 /**
  * 生成目录 HTML
  */

@@ -20,6 +20,7 @@ import { getLogger } from '@/utils/logger'
 const logger = getLogger('contextBuilder')
 import {
   SystemPromptMiddleware,
+  StyleMiddleware,
   AuthorsNoteMiddleware,
   StateConstraintsMiddleware,
   CharacterInfoMiddleware,
@@ -36,6 +37,7 @@ interface TokenBudget {
   TOTAL: number
   SYSTEM_PROMPT: number
   AUTHORS_NOTE: number
+  STYLE_PROFILE: number
   WORLD_INFO: number
   CHARACTERS: number
   VECTOR_CONTEXT: number
@@ -55,6 +57,7 @@ function createTokenBudget(modelContextWindow: number = 128000): TokenBudget {
     TOTAL: effectiveBudget,
     SYSTEM_PROMPT: Math.floor(effectiveBudget * 0.05),
     AUTHORS_NOTE: Math.floor(effectiveBudget * 0.03),
+    STYLE_PROFILE: Math.floor(effectiveBudget * 0.02),
     WORLD_INFO: Math.floor(effectiveBudget * 0.12),
     CHARACTERS: Math.floor(effectiveBudget * 0.10),
     VECTOR_CONTEXT: Math.floor(effectiveBudget * 0.15),
@@ -84,6 +87,7 @@ export interface ChapterSummary {
  */
 export interface BuildContext {
   systemPrompt: string
+  styleProfile: string
   authorsNote: string
   worldInfo: string
   characters: string
@@ -740,6 +744,7 @@ export async function buildChapterContext(
       remaining: budget.TOTAL,
       distribution: {
         'SYSTEM_PROMPT': budget.SYSTEM_PROMPT,
+        'STYLE_PROFILE': budget.STYLE_PROFILE,
         'AUTHORS_NOTE': budget.AUTHORS_NOTE,
         'WORLD_INFO': budget.WORLD_INFO,
         'CHARACTERS': budget.CHARACTERS,
@@ -756,6 +761,7 @@ export async function buildChapterContext(
     totalTokensUsed: 0,
     builtSections: {
       systemPrompt: '',
+      styleProfile: '',
       authorsNote: '',
       worldInfo: '',
       characters: '',
@@ -774,6 +780,7 @@ export async function buildChapterContext(
   // 构建并执行管道
   const pipeline = new ContextPipeline()
     .use(new SystemPromptMiddleware())
+    .use(new StyleMiddleware())
     .use(new AuthorsNoteMiddleware())
     .use(new WorldInfoMiddleware())
     .use(new CharacterInfoMiddleware())
@@ -824,6 +831,7 @@ export async function buildChapterContext(
 
     const calculateTotalTokens = () =>
       estimateTokens(payload.builtSections.systemPrompt) +
+      estimateTokens(payload.builtSections.styleProfile) +
       estimateTokens(payload.builtSections.authorsNote) +
       estimateTokens(payload.builtSections.worldInfo) +
       estimateTokens(payload.builtSections.characters) +
@@ -867,6 +875,7 @@ export async function buildChapterContext(
 
   return {
     systemPrompt: payload.builtSections.systemPrompt,
+    styleProfile: payload.builtSections.styleProfile,
     authorsNote: payload.builtSections.authorsNote,
     worldInfo: payload.builtSections.worldInfo,
     characters: payload.builtSections.characters,
@@ -900,6 +909,7 @@ export function contextToPromptPayload(context: BuildContext, chapterTitle: stri
   // === System Message: 头部 — 最高注意力区，放不可违反的约束 ===
   const systemParts: string[] = []
   systemParts.push(context.systemPrompt)
+  if (context.styleProfile) systemParts.push(context.styleProfile)
   if (context.authorsNote) systemParts.push(context.authorsNote)
 
   // V4-D4: 档案员前置约束注入 — 让写手在生成时就知道哪些状态不可违背

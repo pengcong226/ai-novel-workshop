@@ -8,7 +8,7 @@ import { ElMessage } from 'element-plus';
  */
 export const createCharacterActionContribution: AIActionHandlerContribution = {
   type: 'create_character',
-  handler: async (data: any, context: ActionContext) => {
+  handler: async (data: any, _context: ActionContext) => {
     const projectStore = useProjectStore();
     const sandboxStore = useSandboxStore();
     if (!projectStore.currentProject) {

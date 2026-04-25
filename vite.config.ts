@@ -1,4 +1,4 @@
-import { defineConfig } from 'vite'
+import { defineConfig } from 'vitest/config'
 import vue from '@vitejs/plugin-vue'
 import { resolve } from 'path'
 
@@ -43,11 +43,8 @@ export default defineConfig({
         target: 'https://api.example.com', // 占位符，动态设置
         changeOrigin: true,
         secure: false,
-        configure: (proxy, _options) => {
-          proxy.on('error', (err, _req, _res) => {
-            console.log('proxy error', err);
-          });
-          proxy.on('proxyReq', (proxyReq, req, _res) => {
+        configure: (proxy) => {
+          proxy.on('proxyReq', (proxyReq, req) => {
             // 从请求体中读取实际的target URL
             let body = ''
             req.on('data', chunk => {
@@ -63,8 +60,8 @@ export default defineConfig({
                   proxyReq.path = url.pathname + (url.search || '')
                   proxyReq.setHeader('host', url.host)
                 }
-              } catch (e) {
-                console.error('Failed to parse request body:', e)
+              } catch {
+                // ignore parse errors on proxy request body
               }
             })
           })
@@ -73,7 +70,6 @@ export default defineConfig({
     }
   },
   build: {
-    outDir: 'dist',
     sourcemap: true,
     // 优化代码分割
     rollupOptions: {
@@ -105,5 +101,16 @@ export default defineConfig({
       'element-plus/es/components/message-box/style/css'
     ],
     exclude: ['@xenova/transformers'] // transformers太大，排除预构建
+  },
+  test: {
+    exclude: [
+      '**/node_modules/**',
+      '**/dist/**',
+      '**/dist-ssr/**',
+      '**/.{idea,git,cache,output,temp}/**',
+      '**/{karma,rollup,webpack,vite,vitest,jest,ava,babel,nyc,cypress,tsup,build}.config.*',
+      '**/.claude/worktrees/**',
+      '**/.worktrees/**'
+    ]
   }
 })

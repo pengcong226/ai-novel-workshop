@@ -12,6 +12,9 @@ import {
   createContentHash,
   SUMMARY_GENERATION_VERSION
 } from './summarizer'
+import { getLogger } from '@/utils/logger'
+
+const logger = getLogger('summary:integration')
 
 /**
  * 在章节保存后触发摘要生成
@@ -59,7 +62,7 @@ export async function onChapterSaved(
   try {
     // 判断是否需要生成摘要
     if (chapter.wordCount < 100) {
-      console.log(`[摘要生成] 第${chapter.number}章字数不足，跳过摘要生成`)
+      logger.info(`第${chapter.number}章字数不足，跳过摘要生成`)
       return
     }
 
@@ -68,16 +71,16 @@ export async function onChapterSaved(
     const detail = determineSummaryDetail(chapter.number, maxChapter)
 
     if (detail === SummaryDetail.FULL) {
-      console.log(`[摘要生成] 第${chapter.number}章是最近3章，不需要生成摘要`)
+      logger.info(`第${chapter.number}章是最近3章，不需要生成摘要`)
       return
     }
 
     if (!shouldRefreshSummary(chapter, maxChapter)) {
-      console.log(`[摘要生成] 第${chapter.number}章摘要仍然有效，跳过`)
+      logger.info(`第${chapter.number}章摘要仍然有效，跳过`)
       return
     }
 
-    console.log(`[摘要生成] 开始为第${chapter.number}章生成摘要...`)
+    logger.info(`开始为第${chapter.number}章生成摘要...`)
 
     // 生成摘要
     const summaryData = await generateChapterSummary(chapter, {
@@ -87,9 +90,9 @@ export async function onChapterSaved(
     // 调用保存回调
     await onSave(chapter.id, summaryData)
 
-    console.log(`[摘要生成] 第${chapter.number}章摘要已保存`)
+    logger.info(`第${chapter.number}章摘要已保存`)
   } catch (error) {
-    console.error('[摘要生成] 失败:', error)
+    logger.error('失败:', error)
     // 不抛出错误，避免影响主流程
   }
 }
@@ -107,11 +110,11 @@ export async function generateMissingSummaries(
   const chaptersNeedingSummary = chapters.filter(ch => shouldRefreshSummary(ch, maxChapter))
 
   if (chaptersNeedingSummary.length === 0) {
-    console.log('[摘要生成] 没有需要生成摘要的章节')
+    logger.info('没有需要生成摘要的章节')
     return 0
   }
 
-  console.log(`[摘要生成] 需要为 ${chaptersNeedingSummary.length} 章生成摘要`)
+  logger.info(`需要为 ${chaptersNeedingSummary.length} 章生成摘要`)
 
   let successCount = 0
 
@@ -134,7 +137,7 @@ export async function generateMissingSummaries(
         await new Promise(resolve => setTimeout(resolve, 500))
       }
     } catch (error) {
-      console.error(`[摘要生成] 第${chapter.number}章生成失败:`, error)
+      logger.error(`第${chapter.number}章生成失败:`, error)
       // 继续处理下一章
     }
   }

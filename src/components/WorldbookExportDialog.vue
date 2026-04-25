@@ -103,6 +103,8 @@ import {
 } from '@/services/worldbook-exporter'
 import { createWorldbookPng, downloadPng } from '@/services/worldbook-png-writer'
 import type { WorldbookEntry } from '@/types/worldbook'
+import { getLogger } from '@/utils/logger'
+const logger = getLogger('components:WorldbookExportDialog')
 
 interface Props {
   selectedCount?: number
@@ -216,7 +218,7 @@ async function handleExport() {
   } catch (error) {
     const errorMsg = error instanceof Error ? error.message : String(error)
     ElMessage.error(`导出失败: ${errorMsg}`)
-    console.error('导出失败:', error)
+    logger.error('导出失败:', error)
   } finally {
     exporting.value = false
   }

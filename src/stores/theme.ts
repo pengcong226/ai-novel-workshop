@@ -6,8 +6,8 @@ export const useThemeStore = defineStore('theme', () => {
   const pluginStore = usePluginStore()
   const activeThemeId = ref(
     typeof window !== 'undefined'
-      ? (localStorage.getItem('active-theme-id') || 'builtin-scifi-dark')
-      : 'builtin-scifi-dark'
+      ? (localStorage.getItem('active-theme-id') || 'builtin-scifi-dark-theme')
+      : 'builtin-scifi-dark-theme'
   )
 
   watch(activeThemeId, (newId) => {

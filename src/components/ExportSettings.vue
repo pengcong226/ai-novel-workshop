@@ -155,6 +155,48 @@
           </el-form-item>
         </el-form>
       </el-tab-pane>
+
+      <el-tab-pane label="TXT" name="txt">
+        <el-form :model="txtSettings" label-width="120px">
+          <el-form-item label="包含标题:">
+            <el-switch v-model="txtSettings.includeTitle" />
+          </el-form-item>
+          <el-form-item label="章节编号:">
+            <el-switch v-model="txtSettings.includeChapterNumbers" />
+          </el-form-item>
+          <el-form-item label="行距:">
+            <el-select v-model="txtSettings.lineSpacing" style="width: 100%">
+              <el-option label="单倍" value="single" />
+              <el-option label="双倍" value="double" />
+            </el-select>
+          </el-form-item>
+        </el-form>
+      </el-tab-pane>
+
+      <el-tab-pane label="EPUB" name="epub">
+        <el-form :model="epubSettings" label-width="120px">
+          <el-form-item label="作者:">
+            <el-input v-model="epubSettings.author" placeholder="作者名" />
+          </el-form-item>
+          <el-form-item label="章节编号:">
+            <el-switch v-model="epubSettings.includeChapterNumbers" />
+          </el-form-item>
+        </el-form>
+      </el-tab-pane>
+
+      <el-tab-pane label="DOCX" name="docx">
+        <el-form :model="docxSettings" label-width="120px">
+          <el-form-item label="作者:">
+            <el-input v-model="docxSettings.author" placeholder="作者名" />
+          </el-form-item>
+          <el-form-item label="章节编号:">
+            <el-switch v-model="docxSettings.includeChapterNumbers" />
+          </el-form-item>
+          <el-form-item label="字号:">
+            <el-slider v-model="docxSettings.fontSize" :min="10" :max="18" :step="1" :marks="{ 10: '10', 12: '12', 14: '14', 18: '18' }" />
+          </el-form-item>
+        </el-form>
+      </el-tab-pane>
     </el-tabs>
 
     <template #footer>
@@ -175,12 +217,31 @@ import {
   DEFAULT_MD_OPTIONS,
   type MarkdownExportOptions
 } from '@/utils/markdownExporter'
+import { getLogger } from '@/utils/logger'
 import {
   exportChapterToPdf,
   exportAllChaptersToPdf,
   DEFAULT_PDF_OPTIONS,
   type PdfExportOptions
 } from '@/utils/pdfExporter'
+import {
+  exportChapterToTxt,
+  exportAllChaptersToTxt,
+  DEFAULT_TXT_OPTIONS,
+  type TxtExportOptions
+} from '@/utils/txtExporter'
+import {
+  exportAllChaptersToEpub,
+  DEFAULT_EPUB_OPTIONS,
+  type EpubExportOptions
+} from '@/utils/epubExporter'
+import {
+  exportAllChaptersToDocx,
+  DEFAULT_DOCX_OPTIONS,
+  type DocxExportOptions
+} from '@/utils/docxExporter'
+
+const logger = getLogger('components:ExportSettings')
 
 interface Props {
   modelValue: boolean
@@ -210,6 +271,16 @@ const pdfSettings = ref<PdfExportOptions>({
   ...DEFAULT_PDF_OPTIONS,
   title: props.project?.title || '未命名小说',
   author: 'AI小说工坊'
+})
+
+const txtSettings = ref<TxtExportOptions>({ ...DEFAULT_TXT_OPTIONS })
+const epubSettings = ref<EpubExportOptions>({
+  ...DEFAULT_EPUB_OPTIONS,
+  author: (props.project?.config as any)?.authorName || ''
+})
+const docxSettings = ref<DocxExportOptions>({
+  ...DEFAULT_DOCX_OPTIONS,
+  author: (props.project?.config as any)?.authorName || ''
 })
 
 // 字号标记
@@ -257,12 +328,11 @@ async function handleExport() {
           props.project.title,
           markdownSettings.value,
           (current, total) => {
-            console.log(`导出进度: ${current}/${total}`)
+            logger.info(`导出进度: ${current}/${total}`)
           }
         )
       }
-    } else {
-      // PDF
+    } else if (activeTab.value === 'pdf') {
       if (props.exportMode === 'single' && props.selectedChapter) {
         exportChapterToPdf(
           props.selectedChapter,
@@ -275,16 +345,26 @@ async function handleExport() {
           props.project,
           pdfSettings.value,
           (current, total) => {
-            console.log(`导出进度: ${current}/${total}`)
+            logger.info(`导出进度: ${current}/${total}`)
           }
         )
       }
+    } else if (activeTab.value === 'txt') {
+      if (props.exportMode === 'single' && props.selectedChapter) {
+        exportChapterToTxt(props.selectedChapter, props.project.title, txtSettings.value)
+      } else {
+        exportAllChaptersToTxt(props.chapters, props.project.title, txtSettings.value)
+      }
+    } else if (activeTab.value === 'epub') {
+      await exportAllChaptersToEpub(props.chapters, props.project.title, epubSettings.value)
+    } else if (activeTab.value === 'docx') {
+      await exportAllChaptersToDocx(props.chapters, props.project.title, docxSettings.value)
     }
 
     emit('exported')
     emit('update:modelValue', false)
   } catch (error) {
-    console.error('导出失败:', error)
+    logger.error('导出失败:', error)
   } finally {
     exporting.value = false
   }

@@ -4,6 +4,7 @@
  */
 
 import { saveAs } from 'file-saver'
+import { useSandboxStore } from '@/stores/sandbox'
 import type { Chapter, Project } from '@/types'
 
 /**
@@ -254,7 +255,6 @@ export function generateProjectOverviewMarkdown(project: Project): string {
   }
 
   // 世界观
-  const { useSandboxStore } = require('@/stores/sandbox')
   const sandboxStore = useSandboxStore()
   const worldEntity = sandboxStore.entities.find((e: { type: string }) => e.type === 'WORLD')
   const worldResolved = worldEntity ? sandboxStore.activeEntitiesState[worldEntity.id] : null

@@ -7,6 +7,8 @@ import DOMPurify from "dompurify"
 import type { QualityReport } from './qualityChecker'
 import html2canvas from 'html2canvas'
 import { saveAs } from 'file-saver'
+import { getLogger } from '@/utils/logger'
+const logger = getLogger('utils:reportExporter')
 
 /**
  * 导出质量报告为 PDF
@@ -47,7 +49,7 @@ export async function exportQualityReportAsPDF(
       }
     })
   } catch (error) {
-    console.error('导出 PDF 失败:', error)
+    logger.error('导出 PDF 失败:', error)
     throw new Error('导出 PDF 失败：' + (error as Error).message)
   }
 }

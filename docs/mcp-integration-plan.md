@@ -34,4 +34,4 @@
 - [ ] 提供 Agent 自动化创作的提示词模板（System Prompt for Agent）。
 
 ---
-**执行策略**：我们将切换到 Code 模式，采用 Node.js 编写该 MCP Server，因为它能与现有的 `debug-server.js` 共享同一套 SQLite 依赖，且对外部 TS/JS 生态最友好。
+**执行策略**：我们将切换到 Code 模式，采用 Node.js 编写该 MCP Server，因为它能与现有的 `playground/debug-server.cjs` 共享同一套 SQLite 依赖，且对外部 TS/JS 生态最友好。

@@ -174,7 +174,7 @@ ai-novel-workshop/
 │   ├── Cargo.toml                  # Rust依赖
 │   └── tauri.conf.json             # Tauri配置
 │
-├── server.js                       # Debug服务器
+├── playground/debug-server.cjs     # Debug服务器
 ├── package.json                    # 项目依赖
 ├── vite.config.ts                  # Vite配置
 └── tsconfig.json                   # TypeScript配置

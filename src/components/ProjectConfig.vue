@@ -73,6 +73,10 @@
         </el-form>
       </el-card>
 
+      <StyleProfilePanel
+        v-model:config="configForm"
+      />
+
       <!-- 系统提示词配置 -->
       <el-card class="config-card">
         <template #header>
@@ -395,6 +399,11 @@
             <el-switch v-model="configForm.enableAISuggestions" />
           </el-form-item>
 
+          <el-form-item label="生成后自动审校">
+            <el-switch v-model="configForm.enableAutoReview" />
+            <div class="form-tip">章节生成完成后在后台运行编辑/读者 Agent，并把结果加入审校批注；开启后会将章节正文及相关项目上下文发送给当前配置的 AI 提供商</div>
+          </el-form-item>
+
           <el-alert v-if="configForm.enableAISuggestions" type="info" :closable="false" show-icon>
             <template #title>
               AI会在章节生成后提供改进建议
@@ -402,6 +411,52 @@
             <div>包括情节建议、人物塑造、文笔优化等方面</div>
           </el-alert>
         </el-form>
+      </el-card>
+
+      <!-- AI Agent -->
+      <el-card class="config-card">
+        <template #header>
+          <div class="card-header">
+            <span>AI Agent</span>
+            <el-button text @click="resetAgentConfigs">恢复默认</el-button>
+          </div>
+        </template>
+
+        <el-alert type="info" :closable="false" show-icon style="margin-bottom: 16px;">
+          <template #title>多 Agent 协作写作</template>
+          <div>生成前可启用规划师细化大纲；生成后可按优先级执行编辑审校和读者反馈 Agent。</div>
+        </el-alert>
+
+        <el-table :data="configForm.agentConfigs" border>
+          <el-table-column label="角色" min-width="130">
+            <template #default="{ row }">
+              <span>{{ getAgentRoleLabel(row.role) }}</span>
+              <el-tag v-if="!isActiveAgentRole(row.role)" size="small" type="info" style="margin-left: 8px;">未接入</el-tag>
+            </template>
+          </el-table-column>
+          <el-table-column label="启用" width="90">
+            <template #default="{ row }">
+              <el-switch v-if="isActiveAgentRole(row.role)" v-model="row.enabled" />
+              <span v-else class="form-tip">—</span>
+            </template>
+          </el-table-column>
+          <el-table-column label="阶段" width="110">
+            <template #default="{ row }">
+              {{ getAgentPhaseLabel(row.phase) }}
+            </template>
+          </el-table-column>
+          <el-table-column label="优先级" width="120">
+            <template #default="{ row }">
+              <el-input-number v-model="row.priority" :min="1" :max="99" size="small" />
+            </template>
+          </el-table-column>
+          <el-table-column label="仅批量" width="100">
+            <template #default="{ row }">
+              <el-switch v-if="row.role === 'reader'" v-model="row.batchOnly" />
+              <span v-else class="form-tip">—</span>
+            </template>
+          </el-table-column>
+        </el-table>
       </el-card>
 
       <!-- 向量检索配置 -->
@@ -705,12 +760,21 @@
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { debounce } from 'lodash-es'
 import StorytellerPanel from './config/StorytellerPanel.vue'
+import StyleProfilePanel from './config/StyleProfilePanel.vue'
 import ProviderManager from './config/ProviderManager.vue'
 import { useProjectStore } from '@/stores/project'
 import { usePluginStore } from '@/stores/plugin'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Refresh, Grid, Setting, Download } from '@element-plus/icons-vue'
 import type { ProjectConfig, VectorServiceConfig } from '@/types'
+import {
+  AGENT_PHASE_LABELS,
+  AGENT_ROLE_LABELS,
+  DEFAULT_AGENT_CONFIGS,
+  isActiveAgentRole,
+  isAgentPhase,
+  isAgentRole
+} from '@/agents/types'
 import { DEFAULT_SYSTEM_PROMPTS, SYSTEM_PROMPT_VARIABLES } from '@/utils/systemPrompts'
 import { getVectorService, resetVectorService as clearVectorServiceCache } from '@/services/vector-service'
 import { getVectorDimensionByModel } from '@/utils/vector-dimension'
@@ -838,6 +902,18 @@ const systemPrompts = ref({
 })
 
 const promptVariables = SYSTEM_PROMPT_VARIABLES
+
+function getAgentRoleLabel(value: unknown): string {
+  return isAgentRole(value) ? AGENT_ROLE_LABELS[value] : '未知角色'
+}
+
+function getAgentPhaseLabel(value: unknown): string {
+  return isAgentPhase(value) ? AGENT_PHASE_LABELS[value] : '未知阶段'
+}
+
+function resetAgentConfigs() {
+  configForm.value.agentConfigs = DEFAULT_AGENT_CONFIGS.map(config => ({ ...config }))
+}
 
 const qualityMarks = {
   1: '很差',

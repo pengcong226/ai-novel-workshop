@@ -10,6 +10,9 @@ import { redactSensitiveText } from '@/utils/crypto'
 import type { AnySchema } from 'ajv'
 import { AIService } from '@/services/ai-service'
 import type { AIProvider, AIServiceConfig, ChatMessage, TaskContext } from '@/types/ai'
+import { getLogger } from '@/utils/logger'
+
+const logger = getLogger('llm:caller')
 
 export interface LLMCallOptions {
   maxRetries?: number
@@ -246,7 +249,7 @@ export async function callLLMWithValidation(
         maxRetries
       })
 
-      console.log(`[LLM验证] 第${attempt}次尝试，原始响应前200字符:`, result.content.substring(0, 200))
+      logger.info(`第${attempt}次尝试，原始响应前200字符:`, result.content.substring(0, 200))
 
       const validation = validateLLMOutput(result.content, schema, {
         // 仅在最后一次尝试时允许激进闭合修复
@@ -257,7 +260,7 @@ export async function callLLMWithValidation(
         return validation.data
       }
 
-      console.error(`[LLM验证] 第${attempt}次验证失败:`, redactSensitiveText(validation.error || '', [config.apiKey]))
+      logger.error(`第${attempt}次验证失败:`, redactSensitiveText(validation.error || '', [config.apiKey]))
 
       if (attempt < maxRetries) {
         const condensedError = (validation.error || '返回结果不符合目标JSON结构')
@@ -266,18 +269,18 @@ export async function callLLMWithValidation(
 
         currentPrompt = `${basePrompt}\n\n请修正上一次返回的JSON结果，并严格遵守目标结构。只返回合法JSON，不要添加注释、Markdown代码块或任何额外说明。\n关键错误：${condensedError}`
 
-        console.log(`[LLM验证] 使用精简纠错提示重试，错误摘要: ${condensedError}`)
+        logger.info(`使用精简纠错提示重试，错误摘要: ${condensedError}`)
         await sleep(1000 * attempt)
         continue
       }
     } catch (error) {
-      console.error(
-        `[LLM验证] 第${attempt}次调用失败:`,
+      logger.error(
+        `第${attempt}次调用失败:`,
         redactSensitiveText(error instanceof Error ? error.message : String(error), [config.apiKey])
       )
 
       if (attempt < maxRetries) {
-        console.log(`[LLM验证] 等待${1000 * attempt}ms后重试...`)
+        logger.info(`等待${1000 * attempt}ms后重试...`)
         await sleep(1000 * attempt)
         continue
       }

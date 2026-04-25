@@ -9,7 +9,7 @@ All commands are from `package.json`.
 - Install deps: `npm install`
 - Web dev server: `npm run dev`
 - Desktop app dev (Tauri): `npm run tauri dev`
-- Full debug mode (Express + Vite): `npm run dev:full`
+- Full debug mode (Express + Vite): `npm run dev:full` (uses `playground/debug-server.cjs`)
 - Build web app: `npm run build`
 - Build desktop app: `npm run tauri build`
 - Preview production build: `npm run preview`

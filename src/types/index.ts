@@ -5,6 +5,7 @@ import type { Preset } from './preset'
 import type { TraceImportSession } from './conversation-trace'
 import type { Worldbook } from './worldbook'
 import type { PlotEventRecord } from './rewrite-continuation'
+import type { AgentConfig } from '@/agents/types'
 
 export type { Worldbook, WorldbookEntry, WorldbookGroup, WorldbookCondition } from './worldbook'
 export type { Preset, PresetExample } from './preset'
@@ -336,6 +337,8 @@ export interface CharacterDevelopment {
 export interface Outline {
   /** 结构类型 */
   structure?: string
+  template?: string
+  changeHistory?: OutlineChangeImpact[]
   id: string
 
   // 总纲
@@ -352,6 +355,36 @@ export interface Outline {
 
   // 伏笔
   foreshadowings: Foreshadowing[]
+}
+
+export type OutlineChangeType = 'chapter_completed' | 'chapter_updated' | 'outline_refined' | 'scene_reordered' | 'template_applied'
+
+export interface OutlineChangeImpact {
+  id: string
+  type: OutlineChangeType
+  chapterNumber?: number
+  affectedChapterIds: string[]
+  summary: string
+  createdAt: number
+}
+
+export interface OutlineTemplatePhase {
+  id: string
+  name: string
+  description: string
+  chapterRatio: number
+  goals: string[]
+  keyBeats: string[]
+}
+
+export interface OutlineTemplate {
+  id: string
+  name: string
+  structure: string
+  description: string
+  phases: OutlineTemplatePhase[]
+  suitableGenres: string[]
+  defaultChapterCount: number
 }
 
 export interface PlotLine {
@@ -397,7 +430,11 @@ export interface ChapterOutline {
   foreshadowingToResolve?: string[]
 
   generationPrompt?: string
-  status: 'planned' | 'writing' | 'completed'
+  status: 'planned' | 'writing' | 'completed' | 'outdated'
+  draftedAt?: number
+  lastSyncedAt?: number
+  aiRefinedAt?: number
+  notes?: string
 }
 
 export interface Scene {
@@ -405,6 +442,10 @@ export interface Scene {
   description: string
   characters: string[]
   location: string
+  emotionalTone?: string
+  purpose?: string
+  wordCountHint?: number
+  order: number
 }
 
 export interface Foreshadowing {
@@ -504,6 +545,28 @@ export interface ModelInfo {
 }
 
 // 项目配置
+export interface StyleProfile {
+  id: string
+  name: string
+  description: string
+  genre?: string
+  tone: TemplateTone
+  narrativePerspective: NarrativePerspective
+  pacing: '舒缓' | '均衡' | '紧凑'
+  vocabulary: '通俗' | '典雅' | '专业' | '诗性'
+  sentenceStyle: '短句利落' | '长句铺陈' | '长短结合'
+  dialogueStyle: DialogueStyle
+  descriptionLevel: DescriptionLevel
+  avoidList: string[]
+  examplePhrases: string[]
+  customInstructions: string
+  metadata?: {
+    presetId?: string
+    source?: 'preset' | 'template' | 'ai-extracted' | 'custom'
+    updatedAt?: number
+  }
+}
+
 export interface ProjectConfig {
   // 生成预设
   preset: 'fast' | 'standard' | 'quality'
@@ -520,6 +583,9 @@ export interface ProjectConfig {
   // 系统提示词配置
   systemPrompts?: SystemPrompts
 
+  // 写作风格配置
+  styleProfile?: StyleProfile
+
   // 思考深度
   planningDepth: 'shallow' | 'medium' | 'deep'
   writingDepth: 'fast' | 'standard' | 'detailed'
@@ -533,6 +599,8 @@ export interface ProjectConfig {
 
   // AI建议
   enableAISuggestions: boolean
+  enableAutoReview?: boolean
+  agentConfigs?: AgentConfig[]
 
   // 自动化工作流与哨兵
   enableLogicValidator?: boolean      // 查杀落笔吃书

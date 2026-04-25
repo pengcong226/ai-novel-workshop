@@ -63,6 +63,41 @@ export class SystemPromptMiddleware implements ContextMiddleware {
   }
 }
 
+export class StyleMiddleware implements ContextMiddleware {
+  name = 'STYLE_PROFILE';
+
+  async process(payload: ContextPayload) {
+    const styleProfile = payload.project.config?.styleProfile;
+    if (!styleProfile) return;
+
+    const parts = [
+      '【项目写作风格 — 必须稳定遵循】',
+      `风格名称：${styleProfile.name}`,
+      `说明：${styleProfile.description}`,
+      styleProfile.genre ? `适用题材：${styleProfile.genre}` : '',
+      `基调：${styleProfile.tone}`,
+      `叙事视角：${styleProfile.narrativePerspective}`,
+      `节奏：${styleProfile.pacing}`,
+      `词汇倾向：${styleProfile.vocabulary}`,
+      `句式：${styleProfile.sentenceStyle}`,
+      `对话：${styleProfile.dialogueStyle}`,
+      `描写密度：${styleProfile.descriptionLevel}`,
+      styleProfile.avoidList.length > 0 ? `避免：${styleProfile.avoidList.join('、')}` : '',
+      styleProfile.examplePhrases.length > 0 ? `示例表达：${styleProfile.examplePhrases.join(' / ')}` : '',
+      styleProfile.customInstructions ? `补充要求：${styleProfile.customInstructions}` : ''
+    ].filter(Boolean).join('\n');
+
+    const budget = payload.budget.distribution[this.name] || 1200;
+    const styleText = enforceSectionBudget(payload, '写作风格', parts, budget);
+    payload.builtSections.styleProfile = styleText;
+    payload.systemParts.push(styleText);
+
+    const tokens = estimateTokens(styleText);
+    payload.budget.remaining -= tokens;
+    payload.totalTokensUsed += tokens;
+  }
+}
+
 export class AuthorsNoteMiddleware implements ContextMiddleware {
   name = 'AUTHORS_NOTE';
 

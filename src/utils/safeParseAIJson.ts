@@ -3,6 +3,11 @@
  * 统一处理 markdown 代码块包裹、多余文本、格式偏差等常见问题
  * V3 重构：抽取为公共工具，消除散落在各文件中的重复逻辑
  */
+
+import { getLogger } from '@/utils/logger'
+
+const logger = getLogger('utils:safeParseAIJson')
+
 export function safeParseAIJson<T = any>(raw: string): T | null {
   if (!raw || typeof raw !== 'string') return null
 
@@ -35,6 +40,6 @@ export function safeParseAIJson<T = any>(raw: string): T | null {
   }
 
   // 4. 全部失败
-  console.warn('[safeParseAIJson] 无法解析 AI 返回的 JSON:', cleaned.substring(0, 200))
+  logger.warn('[safeParseAIJson] 无法解析 AI 返回的 JSON:', cleaned.substring(0, 200))
   return null
 }

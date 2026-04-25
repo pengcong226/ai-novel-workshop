@@ -264,9 +264,6 @@ const DEFAULT_INSERTION_ORDER = 100
 /** 默认优先级 */
 const DEFAULT_PRIORITY = 10
 
-/** 最大递归扫描深度 */
-const MAX_SCAN_DEPTH = 3
-
 /** 条目位置权重（用于排序） */
 const POSITION_WEIGHTS: Record<string, number> = {
   before_char: 0,

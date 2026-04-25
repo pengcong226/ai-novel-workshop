@@ -40,12 +40,12 @@
                 <el-button
                   size="small"
                   :type="row.accepted === true ? 'success' : ''"
-                  @click="row.accepted = true; report.diffs[$index] = { ...row, accepted: true }"
+                  @click="setAccepted($index, true)"
                 >接受</el-button>
                 <el-button
                   size="small"
                   :type="row.accepted === false ? 'danger' : ''"
-                  @click="row.accepted = false; report.diffs[$index] = { ...row, accepted: false }"
+                  @click="setAccepted($index, false)"
                 >拒绝</el-button>
               </el-button-group>
             </template>
@@ -120,15 +120,21 @@ function categoryTagType(cat: StateDiffCategory): '' | 'success' | 'warning' | '
   return 'warning'
 }
 
+function setAccepted(index: number, accepted: boolean) {
+  const diff = props.report.diffs[index]
+  if (!diff) return
+  Object.assign(diff, { accepted })
+}
+
 function acceptAll() {
-  props.report.diffs.forEach((d, i) => {
-    props.report.diffs[i] = { ...d, accepted: true }
+  props.report.diffs.forEach(diff => {
+    Object.assign(diff, { accepted: true })
   })
 }
 
 function rejectAll() {
-  props.report.diffs.forEach((d, i) => {
-    props.report.diffs[i] = { ...d, accepted: false }
+  props.report.diffs.forEach(diff => {
+    Object.assign(diff, { accepted: false })
   })
 }
 </script>

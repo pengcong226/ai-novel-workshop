@@ -342,9 +342,10 @@ async function decompressZlib(compressed: Uint8Array, maxSize: number): Promise<
     const chunks: Uint8Array[] = []
     let totalSize = 0
 
-    while (true) {
-      const { done, value } = await reader.read()
-      if (done) break
+    let readResult = await reader.read()
+
+    while (!readResult.done) {
+      const value = readResult.value
 
       totalSize += value.length
       if (totalSize > maxSize) {
@@ -352,6 +353,7 @@ async function decompressZlib(compressed: Uint8Array, maxSize: number): Promise<
       }
 
       chunks.push(value)
+      readResult = await reader.read()
     }
 
     const decompressed = new Uint8Array(totalSize)

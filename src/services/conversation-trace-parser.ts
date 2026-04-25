@@ -382,12 +382,10 @@ export async function parseConversationTraceFile(
   let lineNumber = 0
   let processed = 0
 
-  while (true) {
-    const { done, value } = await reader.read()
+  let readResult = await reader.read()
 
-    if (done) {
-      break
-    }
+  while (!readResult.done) {
+    const value = readResult.value
 
     buffer += decoder.decode(value, { stream: true })
     const lines = buffer.split(/\r?\n/)
@@ -464,6 +462,8 @@ export async function parseConversationTraceFile(
         return buildResult(acc)
       }
     }
+
+    readResult = await reader.read()
   }
 
   if (buffer.trim()) {

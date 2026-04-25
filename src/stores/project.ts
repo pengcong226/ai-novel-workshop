@@ -247,20 +247,10 @@ export const useProjectStore = defineStore('project', () => {
     let meta: Omit<Project, 'chapters'> | null = null
     const chapters: Project['chapters'] = []
 
-    while (true) {
-      const { done, value } = await reader.read()
+    let readResult = await reader.read()
 
-      if (done) {
-        if (buffer.trim()) {
-          const record = JSON.parse(buffer) as ProjectLineRecord
-          if (record.type === 'meta') {
-            meta = record.data
-          } else if (record.type === 'chapter') {
-            chapters.push(record.data)
-          }
-        }
-        break
-      }
+    while (!readResult.done) {
+      const value = readResult.value
 
       buffer += decoder.decode(value, { stream: true })
       const lines = buffer.split(/\r?\n/)
@@ -275,6 +265,17 @@ export const useProjectStore = defineStore('project', () => {
         } else if (record.type === 'chapter') {
           chapters.push(record.data)
         }
+      }
+
+      readResult = await reader.read()
+    }
+
+    if (buffer.trim()) {
+      const record = JSON.parse(buffer) as ProjectLineRecord
+      if (record.type === 'meta') {
+        meta = record.data
+      } else if (record.type === 'chapter') {
+        chapters.push(record.data)
       }
     }
 
@@ -303,7 +304,7 @@ export const useProjectStore = defineStore('project', () => {
   }
 
   if (typeof window !== 'undefined') {
-    beforeUnloadHandler = (event: BeforeUnloadEvent) => {
+    beforeUnloadHandler = (_event: BeforeUnloadEvent) => {
       if (!saveDebounceTimer || !currentProject.value) {
         return
       }
@@ -321,14 +322,6 @@ export const useProjectStore = defineStore('project', () => {
     }
   }
 
-  function setupAutoSave() {
-    if (typeof window !== 'undefined' && beforeUnloadHandler) {
-      // 避免重复注册
-      window.removeEventListener('beforeunload', beforeUnloadHandler)
-      window.addEventListener('beforeunload', beforeUnloadHandler)
-    }
-  }
-
   function cleanup() {
     if (beforeUnloadHandler && typeof window !== 'undefined') {
       window.removeEventListener('beforeunload', beforeUnloadHandler)
@@ -342,6 +335,7 @@ export const useProjectStore = defineStore('project', () => {
   // V3: 保存锁，防止并发 saveCurrentProject 覆盖数据
   let isSaving = false
   let pendingSave = false
+  let currentSavePromise: Promise<void> | null = null
 
   // 立即保存当前项目（用于关键操作）
   async function saveCurrentProject() {
@@ -356,46 +350,62 @@ export const useProjectStore = defineStore('project', () => {
       saveDebounceTimer = null
     }
 
-    // V3: 若已在保存中，标记待保存，等当前完成后自动重新保存
+    // V3: 若已在保存中，标记待保存，并等待当前保存链完成
     if (isSaving) {
       pendingSave = true
       logger.debug('保存已在进行中，已排队等待')
+      await currentSavePromise
       return
     }
 
-    isSaving = true
-    loading.value = true
-    error.value = null
-    try {
-      logger.info('开始保存项目', {
-        id: currentProject.value.id,
-        title: currentProject.value.title
-      })
-      currentProject.value.updatedAt = new Date()
-      currentProject.value.config = normalizeProjectConfig(currentProject.value.config)
-      await storage.saveProject(currentProject.value)
-      logger.debug('项目已保存到 IndexedDB', { id: currentProject.value.id })
+    const runSave = async (): Promise<void> => {
+      const project = currentProject.value
+      if (!project) {
+        logger.error('保存失败：currentProject 为空')
+        return
+      }
 
-      // 更新项目列表
-      const index = projects.value.findIndex(p => p.id === currentProject.value!.id)
-      if (index !== -1) {
-        projects.value[index] = { ...currentProject.value }
-        await storage.saveProjects(projects.value)
-        logger.debug('项目列表已更新', { id: currentProject.value.id })
+      isSaving = true
+      loading.value = true
+      error.value = null
+      try {
+        logger.info('开始保存项目', {
+          id: project.id,
+          title: project.title
+        })
+        project.updatedAt = new Date()
+        project.config = normalizeProjectConfig(project.config)
+        await storage.saveProject(project)
+        logger.debug('项目已保存到 IndexedDB', { id: project.id })
+
+        // 更新项目列表
+        const index = projects.value.findIndex(p => p.id === project.id)
+        if (index !== -1) {
+          projects.value[index] = { ...project }
+          await storage.saveProjects(projects.value)
+          logger.debug('项目列表已更新', { id: project.id })
+        }
+      } catch (e) {
+        logger.error('保存失败', e)
+        error.value = e instanceof Error ? e.message : '保存项目失败'
+        pendingSave = false  // V3-fix: 保存失败时清除待保存标记，避免无限重试
+        throw e
+      } finally {
+        loading.value = false
+        isSaving = false
+        // 若有待保存，自动重新触发，并让调用方等待实际保存完成
+        if (pendingSave) {
+          pendingSave = false
+          await saveCurrentProject()
+        }
       }
-    } catch (e) {
-      logger.error('保存失败', e)
-      error.value = e instanceof Error ? e.message : '保存项目失败'
-      pendingSave = false  // V3-fix: 保存失败时清除待保存标记，避免无限重试
-      throw e
+    }
+
+    currentSavePromise = runSave()
+    try {
+      await currentSavePromise
     } finally {
-      loading.value = false
-      isSaving = false
-      // 若有待保存，自动重新触发
-      if (pendingSave) {
-        pendingSave = false
-        void saveCurrentProject().catch(e => logger.error('重新保存失败', e))
-      }
+      if (!isSaving) currentSavePromise = null
     }
   }
 

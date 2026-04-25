@@ -218,10 +218,12 @@ async function deflate(data: Uint8Array): Promise<Uint8Array> {
     const reader = stream.readable.getReader()
     const chunks: Uint8Array[] = []
 
-    while (true) {
-      const { done, value } = await reader.read()
-      if (done) break
+    let readResult = await reader.read()
+
+    while (!readResult.done) {
+      const value = readResult.value
       if (value) chunks.push(value)
+      readResult = await reader.read()
     }
 
     // 合并chunks

@@ -13,6 +13,8 @@ import type {
   CostEstimate
 } from '../types'
 import { enforceSecureAnthropicAccess } from '@/utils/anthropic-guard'
+import { getLogger } from '@/utils/logger'
+const logger = getLogger('plugins:builtin:anthropic-provider')
 
 type ModelConfig = any
 type CostBreakdown = CostEstimate
@@ -117,7 +119,7 @@ class AnthropicProvider implements ProviderInstance {
         finishReason: data.stop_reason === 'end_turn' ? 'stop' : data.stop_reason
       }
     } catch (error) {
-      console.error('Anthropic chat error:', error)
+      logger.error('Anthropic chat error:', error)
       throw error
     }
   }
@@ -212,7 +214,7 @@ class AnthropicProvider implements ProviderInstance {
 
       return response.ok || response.status === 400 // 400表示API密钥有效但请求格式错误
     } catch (error) {
-      console.error('Anthropic config validation error:', error)
+      logger.error('Anthropic config validation error:', error)
       return false
     }
   }
