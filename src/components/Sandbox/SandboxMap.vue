@@ -6,9 +6,7 @@
       </p>
     </div>
 
-    <!-- The Map Canvas -->
     <div class="map-canvas">
-      <!-- 1. Render Location Pins -->
       <div
         v-for="loc in locationNodes"
         :key="loc.id"
@@ -19,10 +17,9 @@
         <div class="map-pin-label">{{ loc.name }}</div>
       </div>
 
-      <!-- 2. Render Animated Avatar Paths (Only simple SVG lines connecting them) -->
       <svg class="map-svg-layer">
         <line
-          v-for="path in (avatarPaths as any[])"
+          v-for="path in avatarPaths"
           :key="path.id"
           :x1="path.x1 + '%'"
           :y1="path.y1 + '%'"
@@ -34,7 +31,6 @@
         />
       </svg>
 
-      <!-- 3. Render Avatars -->
       <div
         v-for="avatar in avatarNodes"
         :key="avatar.id"
@@ -50,48 +46,135 @@
 
 <script setup lang="ts">
 import { computed } from 'vue'
-import { useSandboxStore } from '@/stores/sandbox'
+import { useSandboxStore, type ResolvedEntity } from '@/stores/sandbox'
+import type { StateEvent } from '@/types/sandbox'
+
+interface Coordinate {
+  x: number
+  y: number
+}
+
+interface LocationNode extends Coordinate {
+  id: string
+  name: string
+  color: string
+}
+
+interface AvatarNode extends Coordinate {
+  id: string
+  name: string
+}
+
+interface AvatarPath {
+  id: string
+  x1: number
+  y1: number
+  x2: number
+  y2: number
+}
+
+const CHARACTER_CATEGORIES = new Set(['Protagonist', '核心人物', 'Antagonist', '反派'])
+const LOCATION_CATEGORIES = new Set(['Location', '地点'])
 
 const sandboxStore = useSandboxStore()
 
-// 1. Extract static locations to render pins
-const locationNodes = computed(() => {
-  const result: any[] = []
-  const activeState = sandboxStore.activeEntitiesState
-  for (const [id, state] of Object.entries(activeState)) {
-    if (state.category === 'Location' || state.category === '地点') {
-      const coord = state.visualMeta?.defaultCoordinates || { x: 50, y: 50 }
-      result.push({
-        id,
-        name: state.name,
-        x: coord.x,
-        y: coord.y,
-        color: state.visualMeta?.color || 'var(--accent-primary)'
-      })
-    }
+function isValidCoordinate(value: Coordinate | undefined): value is Coordinate {
+  return Boolean(value && Number.isFinite(value.x) && Number.isFinite(value.y))
+}
+
+function parseCoordinateValue(value: string | undefined): Coordinate | null {
+  if (!value) return null
+  const parts = value.split(',').map(part => part.trim())
+  if (parts.length !== 2 || parts.some(part => part === '')) return null
+
+  const coordinate = { x: Number(parts[0]), y: Number(parts[1]) }
+  return isValidCoordinate(coordinate) ? coordinate : null
+}
+
+function getLocationMoveCoordinate(event: StateEvent): Coordinate | null {
+  if (event.payload.coordinates && isValidCoordinate(event.payload.coordinates)) {
+    return event.payload.coordinates
+  }
+  return parseCoordinateValue(event.payload.value)
+}
+
+function isLocationEntity(state: ResolvedEntity): boolean {
+  return !state.isArchived && (state.type === 'LOCATION' || LOCATION_CATEGORIES.has(state.category))
+}
+
+function isTrackedCharacter(state: ResolvedEntity): boolean {
+  return !state.isArchived && (state.type === 'CHARACTER' || CHARACTER_CATEGORIES.has(state.category))
+}
+
+function compareStateEvents(a: StateEvent, b: StateEvent): number {
+  if (a.chapterNumber !== b.chapterNumber) return a.chapterNumber - b.chapterNumber
+  return a.id.localeCompare(b.id)
+}
+
+const locationNodes = computed<LocationNode[]>(() => {
+  const result: LocationNode[] = []
+  for (const [id, state] of Object.entries(sandboxStore.activeEntitiesState)) {
+    if (!isLocationEntity(state)) continue
+
+    const coord = state.visualMeta?.defaultCoordinates || { x: 50, y: 50 }
+    result.push({
+      id,
+      name: state.name,
+      x: coord.x,
+      y: coord.y,
+      color: state.visualMeta?.color || 'var(--accent-primary)'
+    })
   }
   return result
 })
 
-// 2. Extract active characters that have a location property
-const avatarNodes = computed(() => {
-  const result: any[] = []
-  const activeState = sandboxStore.activeEntitiesState
-  for (const [id, state] of Object.entries(activeState)) {
-    if ((state.category === 'Protagonist' || state.category === '核心人物' || state.category === 'Antagonist' || state.category === '反派') && state.location) {
-      result.push({
-        id,
-        name: state.name,
-        x: state.location.x,
-        y: state.location.y
-      })
-    }
+const avatarNodes = computed<AvatarNode[]>(() => {
+  const result: AvatarNode[] = []
+  for (const [id, state] of Object.entries(sandboxStore.activeEntitiesState)) {
+    if (!isTrackedCharacter(state) || !state.location) continue
+
+    result.push({
+      id,
+      name: state.name,
+      x: state.location.x,
+      y: state.location.y
+    })
   }
   return result
 })
 
-// TODO: 实现路径计算逻辑，目前返回空数组
-const avatarPaths = computed(() => [])
+const avatarPaths = computed<AvatarPath[]>(() => {
+  const movesByEntityId = new Map<string, Coordinate[]>()
+  const events = [...sandboxStore.stateEvents, ...sandboxStore.pendingStateEvents]
+    .filter(event => event.eventType === 'LOCATION_MOVE' && event.chapterNumber <= sandboxStore.currentChapter)
+    .sort(compareStateEvents)
+
+  for (const event of events) {
+    const coordinate = getLocationMoveCoordinate(event)
+    if (!coordinate) continue
+
+    const moves = movesByEntityId.get(event.entityId) || []
+    moves.push(coordinate)
+    movesByEntityId.set(event.entityId, moves)
+  }
+
+  return avatarNodes.value.flatMap(avatar => {
+    const moves = movesByEntityId.get(avatar.id) || []
+
+    if (moves.length < 2) return []
+
+    const previous = moves[moves.length - 2]
+    if (previous.x === avatar.x && previous.y === avatar.y) return []
+
+    return [{
+      id: `${avatar.id}:${previous.x},${previous.y}->${avatar.x},${avatar.y}`,
+      x1: previous.x,
+      y1: previous.y,
+      x2: avatar.x,
+      y2: avatar.y
+    }]
+  })
+})
 </script>
 
 <style scoped>
@@ -104,7 +187,6 @@ const avatarPaths = computed(() => [])
 
 .map-canvas {
   flex: 1;
-  /* Basic sci-fi grid overlay acting as map */
   background:
     linear-gradient(rgba(60, 130, 246, 0.1) 1px, transparent 1px),
     linear-gradient(90deg, rgba(60, 130, 246, 0.1) 1px, transparent 1px),

@@ -250,7 +250,7 @@ import { Plus, Edit, Download, Delete, MoreFilled, UploadFilled, Upload } from '
 import { templateManager } from '@/utils/templateManager'
 import { useSandboxStore } from '@/stores/sandbox'
 const TemplateLibrary = defineAsyncComponent(() => import('@/components/TemplateLibrary.vue'))
-import type { NovelTemplate } from '@/types'
+import type { NovelTemplate, Project } from '@/types'
 import { getLogger } from '@/utils/logger'
 const logger = getLogger('views:ProjectList')
 
@@ -296,6 +296,36 @@ onMounted(async () => {
   await projectStore.loadProjects()
 })
 
+const TEMPLATE_BY_CREATE_OPTION: Record<string, string> = {
+  standard: 'builtin-fantasy',
+  quick_outline: 'builtin-urban'
+}
+
+async function applyCreateTemplate(project: Project, templateId: string): Promise<void> {
+  await projectStore.openProject(project.id)
+  if (!projectStore.currentProject) return
+
+  const template = templateManager.getTemplate(templateId)
+  const { projectFields, entities } = templateManager.applyTemplate(
+    templateId,
+    projectStore.currentProject.title,
+    template?.meta.description || ''
+  )
+
+  if (projectFields.outline) {
+    projectStore.currentProject.outline = projectFields.outline
+  }
+  if (projectFields.config) {
+    projectStore.currentProject.config = projectFields.config
+  }
+  projectStore.currentProject.description = template?.meta.description || projectStore.currentProject.description
+
+  const sandboxStore = useSandboxStore()
+  await sandboxStore.batchAddEntities(entities.map(entity => ({ ...entity, projectId: project.id })))
+
+  await projectStore.saveCurrentProject()
+}
+
 // 创建项目
 const handleCreate = async () => {
   if (!createFormRef.value) return
@@ -311,9 +341,9 @@ const handleCreate = async () => {
           createForm.targetWords
         )
 
-        // TODO: 处理模板逻辑（如果是标准网文，预置一些设定结构）
-        if (createForm.template === 'standard') {
-          // 初始化标准结构...
+        const templateId = TEMPLATE_BY_CREATE_OPTION[createForm.template]
+        if (templateId) {
+          await applyCreateTemplate(project, templateId)
         }
 
         ElMessage.success('项目创建成功！')

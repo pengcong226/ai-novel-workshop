@@ -19,6 +19,73 @@ import { QuickCommandRegistry } from './registries/quick-command-registry'
 import { AIActionHandlerRegistry } from './registries/action-handler-registry'
 import { ThemeRegistry } from './registries/theme-registry'
 
+interface SemverVersion {
+  major: number
+  minor: number
+  patch: number
+}
+
+function parseSemver(version: string): SemverVersion | null {
+  const match = version.match(/^(\d+)\.(\d+)\.(\d+)(?:-[\w\d.-]+)?$/)
+  if (!match) return null
+
+  return {
+    major: Number(match[1]),
+    minor: Number(match[2]),
+    patch: Number(match[3])
+  }
+}
+
+function satisfiesCaretRange(current: SemverVersion, target: SemverVersion): boolean {
+  const comparison = compareSemver(current, target)
+  if (comparison < 0) return false
+  if (target.major > 0) return current.major === target.major
+  if (target.minor > 0) return current.major === 0 && current.minor === target.minor
+  return current.major === 0 && current.minor === 0 && current.patch === target.patch
+}
+
+function compareSemver(a: SemverVersion, b: SemverVersion): number {
+  if (a.major !== b.major) return a.major - b.major
+  if (a.minor !== b.minor) return a.minor - b.minor
+  return a.patch - b.patch
+}
+
+function satisfiesVersionRange(version: string, range: string): boolean {
+  const current = parseSemver(version)
+  if (!current) return false
+
+  const trimmed = range.trim()
+  if (!trimmed || trimmed === '*') return true
+
+  const comparators = trimmed.split(/\s+/).filter(Boolean)
+  return comparators.every(comparator => {
+    const match = comparator.match(/^(\^|~|>=|<=|>|<|=)?(\d+\.\d+\.\d+(?:-[\w\d.-]+)?)$/)
+    if (!match) return false
+
+    const operator = match[1] || '='
+    const target = parseSemver(match[2])
+    if (!target) return false
+
+    const comparison = compareSemver(current, target)
+    switch (operator) {
+      case '^':
+        return satisfiesCaretRange(current, target)
+      case '~':
+        return current.major === target.major && current.minor === target.minor && comparison >= 0
+      case '>=':
+        return comparison >= 0
+      case '<=':
+        return comparison <= 0
+      case '>':
+        return comparison > 0
+      case '<':
+        return comparison < 0
+      default:
+        return comparison === 0
+    }
+  })
+}
+
 /**
  * 插件管理器
  */
@@ -266,9 +333,7 @@ export class PluginManager {
         throw new Error(`缺少依赖插件: ${depId}`)
       }
 
-      // 简单的版本检查
-      // TODO: 实现完整的 semver 版本范围检查
-      if (!dep.manifest.version.startsWith(versionRange.replace('^', '').replace('~', ''))) {
+      if (!satisfiesVersionRange(dep.manifest.version, versionRange)) {
         this.logger.warn('插件依赖版本不匹配', {
           pluginId: manifest.id,
           dependency: depId,

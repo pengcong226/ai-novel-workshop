@@ -44,6 +44,124 @@ interface TavernParserResult {
 
 const logger = getLogger('worldbook-importer')
 
+function getEntryKeys(entry: WorldbookEntry): string[] {
+  return entry.keys?.length ? entry.keys : entry.key || []
+}
+
+function getDuplicateSignature(entry: WorldbookEntry): string {
+  const keys = getEntryKeys(entry)
+    .map(key => key.trim().toLowerCase())
+    .filter(Boolean)
+    .sort()
+
+  if (keys.length > 0) {
+    return `keys:${keys.join('|')}`
+  }
+
+  return `fallback:${(entry.name || entry.title || entry.comment || '').trim().toLowerCase()}|${entry.content.trim().toLowerCase()}`
+}
+
+function mergeWorldbookEntries(
+  existing: WorldbookEntry,
+  incoming: WorldbookEntry,
+  options: WorldbookMergeOptions
+): WorldbookEntry {
+  if (options.mergeFunction) {
+    return options.mergeFunction(existing, incoming)
+  }
+
+  const mergedKeys = [...new Set([...getEntryKeys(existing), ...getEntryKeys(incoming)])]
+  const mergedSecondaryKeys = [
+    ...new Set([
+      ...(existing.secondary_keys || []),
+      ...(existing.keysecondary || []),
+      ...(incoming.secondary_keys || []),
+      ...(incoming.keysecondary || [])
+    ])
+  ]
+  const content = existing.content.length >= incoming.content.length ? existing.content : incoming.content
+
+  return {
+    ...existing,
+    key: mergedKeys,
+    keys: mergedKeys,
+    keysecondary: mergedSecondaryKeys,
+    secondary_keys: mergedSecondaryKeys,
+    content,
+    enabled: existing.enabled || incoming.enabled,
+    disable: existing.disable && incoming.disable,
+    insertion_order: Math.min(existing.insertion_order || 0, incoming.insertion_order || 0),
+    order: Math.min(existing.order || 0, incoming.order || 0),
+    type: existing.type || incoming.type,
+    category: existing.category || incoming.category,
+    name: existing.name || incoming.name,
+    title: existing.title || incoming.title,
+    comment: [existing.comment, incoming.comment].filter(Boolean).join('\n') || undefined,
+    updated_at: options.updateTimestamps ? Date.now() : existing.updated_at,
+    extensions: {
+      ...incoming.extensions,
+      ...existing.extensions
+    }
+  }
+}
+
+function renameWorldbookEntry(entry: WorldbookEntry, suffix: number): WorldbookEntry {
+  const label = `副本 ${suffix}`
+  return {
+    ...entry,
+    uid: Date.now() + suffix,
+    name: entry.name ? `${entry.name} (${label})` : entry.name,
+    title: entry.title ? `${entry.title} (${label})` : entry.title,
+    comment: entry.comment ? `${entry.comment} (${label})` : label
+  }
+}
+
+function resolveMergedEntries(
+  entries: WorldbookEntry[],
+  options: WorldbookMergeOptions,
+  stats: WorldbookImportResult['stats']
+): WorldbookEntry[] {
+  const strategy = options.conflictResolution || 'keep_both'
+  if (strategy === 'keep_both') return entries
+
+  const resolved: WorldbookEntry[] = []
+  const seen = new Map<string, number>()
+
+  for (const entry of entries) {
+    const signature = getDuplicateSignature(entry)
+    const existingIndex = seen.get(signature)
+
+    if (existingIndex === undefined) {
+      seen.set(signature, resolved.length)
+      resolved.push(entry)
+      continue
+    }
+
+    if (stats) stats.duplicates++
+
+    if (strategy === 'skip') {
+      if (stats) stats.skipped++
+      continue
+    }
+
+    if (strategy === 'overwrite') {
+      resolved[existingIndex] = entry
+      continue
+    }
+
+    if (strategy === 'merge') {
+      resolved[existingIndex] = mergeWorldbookEntries(resolved[existingIndex], entry, options)
+      continue
+    }
+
+    const renamed = renameWorldbookEntry(entry, stats?.duplicates || resolved.length + 1)
+    resolved.push(renamed)
+    seen.set(getDuplicateSignature(renamed), resolved.length - 1)
+  }
+
+  return resolved
+}
+
 /**
  * 世界书导入器
  */
@@ -655,17 +773,14 @@ export async function mergeWorldbooks(
     }
   }
 
-  // 处理重复
-  if (options.conflictResolution === 'merge' || options.conflictResolution === 'rename') {
-    // TODO: 实现重复处理逻辑
-  }
+  const resolvedEntries = resolveMergedEntries(mergedEntries, options, stats)
 
   return {
     success: true,
     importedCount: stats.imported,
     skippedCount: stats.skipped,
     worldbook: {
-      entries: mergedEntries,
+      entries: resolvedEntries,
       name: '合并的世界书',
       description: `合并自 ${sources.length} 个源文件`
     },
