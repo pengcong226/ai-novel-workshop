@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>数据库内容检查</title>
+  <style>
+    body {
+      font-family: monospace;
+      max-width: 1400px;
+      margin: 20px auto;
+      padding: 20px;
+      background: #f5f5f5;
+    }
+    .section {
+      background: white;
+      padding: 15px;
+      margin-bottom: 15px;
+      border-radius: 4px;
+      border: 1px solid #ddd;
+    }
+    h2 {
+      margin-top: 0;
+      color: #409eff;
+    }
+    pre {
+      background: #fafafa;
+      padding: 10px;
+      overflow-x: auto;
+      border-radius: 4px;
+      white-space: pre-wrap;
+      word-wrap: break-word;
+    }
+    .error {
+      color: #f56c6c;
+    }
+    .success {
+      color: #67c23a;
+    }
+  </style>
+</head>
+<body>
+  <h1>数据库内容诊断</h1>
+
+  <div class="section">
+    <h2>检查步骤</h2>
+    <ol>
+      <li>打开浏览器开发者工具 (F12)</li>
+      <li>切换到 Console 标签</li>
+      <li>运行以下代码检查数据库内容</li>
+    </ol>
+  </div>
+
+  <div class="section">
+    <h2>检查世界书内容</h2>
+    <pre>
+// 获取世界书store
+const worldbookStore = window.__PINIA_STATE__?.worldbook || window.$pinia?.state?.value?.worldbook;
+
+if (worldbookStore) {
+  console.log('=== 世界书Store ===');
+  console.log('条目数:', worldbookStore.entries?.length);
+
+  if (worldbookStore.entries?.length > 0) {
+    const entry = worldbookStore.entries[0];
+    console.log('\n第一个条目:');
+    console.log('  UID:', entry.uid);
+    console.log('  keys:', entry.keys);
+    console.log('  content类型:', typeof entry.content);
+    console.log('  content长度:', entry.content?.length);
+    console.log('  content前200字符:', entry.content?.substring(0, 200));
+
+    // 检查是否有编码问题
+    console.log('\n编码检查:');
+    const testChar = entry.content?.charAt(0);
+    console.log('  第一个字符:', testChar);
+    console.log('  Unicode码点:', testChar?.charCodeAt(0)?.toString(16));
+    console.log('  是ASCII?', testChar?.charCodeAt(0) < 128);
+  }
+} else {
+  console.error('未找到世界书store');
+}
+    </pre>
+  </div>
+
+  <div class="section">
+    <h2>检查角色卡内容</h2>
+    <pre>
+// 获取角色卡store
+const characterCardStore = window.__PINIA_STATE__?.characterCard || window.$pinia?.state?.value?.characterCard;
+
+if (characterCardStore) {
+  console.log('=== 角色卡Store ===');
+  console.log('角色名:', characterCardStore.name);
+  console.log('开场白类型:', typeof characterCardStore.first_mes);
+  console.log('开场白长度:', characterCardStore.first_mes?.length);
+  console.log('开场白前200字符:', characterCardStore.first_mes?.substring(0, 200));
+
+  // 检查编码
+  if (characterCardStore.first_mes) {
+    const testChar = characterCardStore.first_mes.charAt(0);
+    console.log('\n编码检查:');
+    console.log('  第一个字符:', testChar);
+    console.log('  Unicode码点:', testChar.charCodeAt(0).toString(16));
+    console.log('  是ASCII?', testChar.charCodeAt(0) < 128);
+  }
+} else {
+  console.error('未找到角色卡store');
+}
+    </pre>
+  </div>
+
+  <div class="section">
+    <h2>检查IndexedDB</h2>
+    <pre>
+// 检查IndexedDB
+const dbName = 'ai_novel_workshop';
+const request = indexedDB.open(dbName);
+
+request.onsuccess = function(event) {
+  const db = event.target.result;
+  console.log('=== IndexedDB ===');
+  console.log('数据库名:', db.name);
+  console.log('数据库版本:', db.version);
+  console.log('对象存储:', Array.from(db.objectStoreNames).join(', '));
+
+  // 检查worldbook存储
+  if (db.objectStoreNames.contains('worldbook')) {
+    const transaction = db.transaction(['worldbook'], 'readonly');
+    const store = transaction.objectStore('worldbook');
+    const getAllRequest = store.getAll();
+
+    getAllRequest.onsuccess = function(e) {
+      const data = e.target.result;
+      console.log('\n世界书数据:');
+      console.log('  条目数:', data?.length);
+
+      if (data?.length > 0) {
+        const entry = data[0];
+        console.log('  第一个条目:', entry);
+      }
+    };
+  }
+};
+
+request.onerror = function(event) {
+  console.error('IndexedDB打开失败:', event.target.error);
+};
+    </pre>
+  </div>
+
+  <div class="section">
+    <h2>说明</h2>
+    <p>请在浏览器控制台中依次运行上述代码片段，然后将输出结果发给我，这样我就能诊断出具体是哪里出现了编码问题。</p>
+    <p>特别关注：</p>
+    <ul>
+      <li>content的实际内容和长度</li>
+      <li>第一个字符的Unicode码点</li>
+      <li>是否显示为乱码或正常中文</li>
+    </ul>
+  </div>
+</body>
+</html>

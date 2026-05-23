@@ -7,10 +7,18 @@ __pycache__/
 dist/
 build/
 
-# Environment files
-.env
-.env.local
-*.local
+# Build output
+dist/
+
+# Database
+*.db
+*.sqlite
+*.sqlite3
+
+# Temporary files
+*.tmp
+*.tmp.*
+.tmp_*
 
 # IDE
 .idea/
@@ -22,14 +30,32 @@ build/
 .DS_Store
 Thumbs.db
 
+# Environment files
+.env
+.env.local
+*.local
+.env.*.local
+
 # Logs
 *.log
 logs/
+npm-debug.log*
 
-# Database
-*.db
-*.sqlite
-*.sqlite3
+# Test data
+test.json
+100章极限测试作品.json
+playground/*.db
+
+# Build logs
+ts_err.log
+type-check.log
+
+# Embedded git repos
+st-memory-enhancement/
+
+# Local git worktrees
+.worktrees/
+.claude/worktrees/
 
 # Build outputs
 frontend/dist/

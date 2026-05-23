@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>测试项目加载</title>
+    <style>
+        body {
+            font-family: 'Microsoft YaHei', Arial, sans-serif;
+            max-width: 1000px;
+            margin: 20px auto;
+            padding: 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        }
+        .container {
+            background: white;
+            border-radius: 10px;
+            padding: 30px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+        }
+        h1 { color: #667eea; }
+        .test-result {
+            background: #f5f5f5;
+            padding: 15px;
+            margin: 10px 0;
+            border-radius: 5px;
+            border-left: 4px solid #17a2b8;
+        }
+        .success { border-left-color: #28a745; background: #d4edda; }
+        .error { border-left-color: #dc3545; background: #f8d7da; }
+        button {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 12px 30px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+            margin: 5px;
+        }
+        button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+        }
+        pre {
+            background: #282c34;
+            color: #abb2bf;
+            padding: 15px;
+            border-radius: 5px;
+            overflow-x: auto;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔍 项目加载测试</h1>
+
+        <div id="tests"></div>
+
+        <div style="margin-top: 30px;">
+            <button onclick="window.open('http://localhost:3000/', '_blank')">返回项目列表</button>
+        </div>
+    </div>
+
+    <script>
+        const DB_NAME = 'AI_Novel_Workshop';
+        const PROJECTS_STORE = 'projects';
+
+        function log(message, type = 'info') {
+            const testsDiv = document.getElementById('tests');
+            const div = document.createElement('div');
+            div.className = `test-result ${type}`);
+            div.innerHTML = DOMPurify.sanitize(message);
+            testsDiv.appendChild(div);
+        }
+
+        async function runTests() {
+            try {
+                log('<h2>测试 1: IndexedDB 原生加载</h2>');
+
+                // 测试1: 直接用 IndexedDB 加载
+                const db = await new Promise((resolve, reject) => {
+                    const request = indexedDB.open(DB_NAME, 1);
+                    request.onsuccess = (e) => resolve(e.target.result);
+                    request.onerror = () => reject(new Error('无法打开数据库'));
+                });
+
+                log('✅ IndexedDB 连接成功', 'success');
+
+                const allProjects = await new Promise((resolve) => {
+                    const tx = db.transaction([PROJECTS_STORE], 'readonly');
+                    const store = tx.objectStore(PROJECTS_STORE);
+                    const request = store.getAll();
+                    request.onsuccess = () => resolve(request.result);
+                });
+
+                log(`找到 ${allProjects.length} 个项目`, allProjects.length > 0 ? 'success' : 'error');
+
+                if (allProjects.length > 0) {
+                    const project = allProjects[0];
+                    log(`<h3>第一个项目:</h3><pre>${JSON.stringify(project, null, 2)}</pre>`);
+
+                    log('<h2>测试 2: 加载特定项目ID</h2>');
+                    const specificProject = await new Promise((resolve) => {
+                        const tx = db.transaction([PROJECTS_STORE], 'readonly');
+                        const store = tx.objectStore(PROJECTS_STORE);
+                        const request = store.get(project.id);
+                        request.onsuccess = () => resolve(request.result);
+                    });
+
+                    if (specificProject) {
+                        log(`✅ 成功加载项目: ${specificProject.title}`, 'success');
+                        log(`<pre>${JSON.stringify(specificProject, null, 2).substring(0, 500)}...</pre>`);
+
+                        log('<h2>测试 3: 测试项目URL</h2>');
+                        const testUrl = `http://localhost:3000/project/${project.id}`);
+                        log(`项目URL: <a href="${testUrl}" target="_blank">${testUrl}</a>`);
+                        log(`<button onclick="window.open('${testUrl}', '_blank')">打开项目页面</button>`);
+
+                    } else {
+                        log('❌ 无法通过ID加载项目', 'error');
+                    }
+                } else {
+                    log('❌ 没有找到任何项目', 'error');
+                    log('<button onclick="window.open(\'file:///C:/Users/PC/ai-novel-workshop/test-create-project.html\', \'_blank\')">创建测试项目</button>');
+                }
+
+                db.close();
+
+                log('<h2>测试 4: 检查 Pinia Store</h2>');
+                if (window.projectStore) {
+                    log('✅ Pinia Store 存在', 'success');
+                    log(`当前项目: ${window.projectStore.currentProject?.value?.title || 'null'}`);
+                    log(`项目列表: ${window.projectStore.projects?.value?.length || 0} 个`);
+
+                    if (allProjects.length > 0 && !window.projectStore.currentProject?.value) {
+                        log('<button onclick="tryLoadProject()">尝试加载项目到 Store</button>');
+                    }
+                } else {
+                    log('❌ Pinia Store 不存在（需要在项目页面运行）', 'error');
+                }
+
+            } catch (error) {
+                log(`<h2>❌ 测试失败</h2><pre>${error.stack || error.message}</pre>`, 'error');
+            }
+        }
+
+        async function tryLoadProject() {
+            try {
+                const db = await new Promise((resolve) => {
+                    const request = indexedDB.open(DB_NAME, 1);
+                    request.onsuccess = (e) => resolve(e.target.result);
+                });
+
+                const project = await new Promise((resolve) => {
+                    const tx = db.transaction([PROJECTS_STORE], 'readonly');
+                    const store = tx.objectStore(PROJECTS_STORE);
+                    const request = store.getAll();
+                    request.onsuccess = () => resolve(request.result[0]);
+                });
+
+                db.close();
+
+                if (project && window.projectStore) {
+                    window.projectStore.currentProject = project;
+                    log(`✅ 项目已加载: ${project.title}`, 'success');
+                    log('刷新页面查看效果');
+                }
+            } catch (error) {
+                log(`❌ 加载失败: ${error.message}`, 'error');
+            }
+        }
+
+        window.addEventListener('load', runTests);
+    </script>
+</body>
+</html>

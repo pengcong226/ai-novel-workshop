@@ -1,0 +1,630 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Competitive Features Mockup - AI Novel Workshop</title>
+  
+  <!-- Vue 3 -->
+  <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+  <!-- Element Plus -->
+  <link rel="stylesheet" href="https://unpkg.com/element-plus/dist/index.css" />
+  <script src="https://unpkg.com/element-plus"></script>
+  <!-- Element Plus Icons -->
+  <script src="https://unpkg.com/@element-plus/icons-vue"></script>
+
+  <style>
+    :root {
+      --el-color-primary: #409eff;
+      --ai-gradient: linear-gradient(135deg, #667eea, #764ba2);
+      --glass-bg: rgba(255, 255, 255, 0.7);
+      --glass-blur: blur(12px);
+      --font-ui: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      --font-serif: 'Songti SC', 'Noto Serif SC', STSong, serif;
+    }
+
+    body, html {
+      margin: 0;
+      padding: 0;
+      height: 100%;
+      font-family: var(--font-ui);
+      overflow: hidden;
+      /* Background image to show off the glassmorphism */
+      background: url('https://images.unsplash.com/photo-1519681393784-d120267933ba?ixlib=rb-4.0.3&auto=format&fit=crop&w=1920&q=80') center/cover no-repeat;
+    }
+
+    #app {
+      display: flex;
+      height: 100vh;
+      width: 100vw;
+      background: rgba(240, 242, 245, 0.5); /* Slight tint over the image */
+      backdrop-filter: blur(4px);
+    }
+
+    /* Editor Pane (Left Side) */
+    .editor-pane {
+      flex: 1;
+      display: flex;
+      justify-content: center;
+      padding: 40px;
+      overflow-y: auto;
+    }
+
+    .editor-content {
+      width: 100%;
+      max-width: 800px;
+      background: #ffffff;
+      border-radius: 8px;
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.08);
+      padding: 60px 80px;
+      font-family: var(--font-serif);
+      font-size: 18px;
+      line-height: 1.8;
+      color: #333;
+      height: max-content;
+    }
+
+    .editor-content h1 {
+      font-size: 28px;
+      text-align: center;
+      margin-bottom: 30px;
+      color: #000;
+    }
+
+    .editor-content p {
+      margin-bottom: 1.2em;
+      text-indent: 2em;
+    }
+
+    /* AI Assistant Drawer (Right Side) */
+    .ai-assistant {
+      width: 550px;
+      height: 100%;
+      background: var(--glass-bg);
+      backdrop-filter: var(--glass-blur);
+      -webkit-backdrop-filter: var(--glass-blur);
+      border-left: 1px solid rgba(255, 255, 255, 0.4);
+      box-shadow: -4px 0 24px rgba(0, 0, 0, 0.1);
+      display: flex;
+      flex-direction: column;
+      flex-shrink: 0;
+    }
+
+    .ai-header {
+      padding: 16px 24px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.5);
+      background: rgba(255, 255, 255, 0.4);
+    }
+
+    .ai-title {
+      font-size: 16px;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      background: var(--ai-gradient);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .ai-title .el-icon {
+      color: #667eea;
+    }
+
+    .ai-chat-container {
+      flex: 1;
+      padding: 24px;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 24px;
+    }
+
+    /* Chat Bubbles */
+    .message {
+      display: flex;
+      gap: 12px;
+      max-width: 95%;
+    }
+
+    .message.user {
+      align-self: flex-end;
+      flex-direction: row-reverse;
+    }
+
+    .message.ai {
+      align-self: flex-start;
+    }
+
+    .avatar {
+      width: 36px;
+      height: 36px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+      color: white;
+    }
+
+    .avatar-user {
+      background-color: var(--el-color-primary);
+    }
+
+    .avatar-ai {
+      background: var(--ai-gradient);
+    }
+
+    .bubble {
+      padding: 12px 16px;
+      border-radius: 12px;
+      font-size: 14px;
+      line-height: 1.6;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+    }
+
+    .message.user .bubble {
+      background: var(--el-color-primary);
+      color: white;
+      border-top-right-radius: 2px;
+    }
+
+    .message.ai .bubble {
+      background: rgba(255, 255, 255, 0.85);
+      backdrop-filter: blur(8px);
+      border: 1px solid rgba(255, 255, 255, 0.6);
+      color: #333;
+      border-top-left-radius: 2px;
+      width: 440px; /* Force width for the complex card */
+    }
+
+    .bubble p {
+      margin-top: 0;
+      margin-bottom: 12px;
+    }
+
+    /* Multi-role Review Tabs */
+    .review-tabs {
+      background: white;
+      border-radius: 8px;
+      border: 1px solid #ebeef5;
+      overflow: hidden;
+      margin-bottom: 16px;
+    }
+    
+    .review-tabs .el-tabs__header {
+      margin: 0;
+      background: #f5f7fa;
+    }
+    
+    .review-tabs .el-tabs__nav-wrap::after {
+      height: 1px;
+    }
+
+    .review-content {
+      padding: 16px;
+    }
+
+    .metric {
+      margin-bottom: 12px;
+    }
+
+    .metric-header {
+      display: flex;
+      justify-content: space-between;
+      font-size: 13px;
+      font-weight: 500;
+      margin-bottom: 6px;
+    }
+
+    .review-notes {
+      font-size: 13px;
+      color: #606266;
+      background: #f8f9fa;
+      padding: 12px;
+      border-radius: 6px;
+      border-left: 3px solid #c0c4cc;
+      margin-top: 16px;
+    }
+
+    /* Action Bus */
+    .action-bus {
+      background: rgba(240, 249, 235, 0.7);
+      border: 1px solid #e1f3d8;
+      border-radius: 8px;
+      padding: 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .action-bus-header {
+      font-size: 12px;
+      font-weight: 600;
+      color: #67c23a;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .action-buttons {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+
+    /* Input Area */
+    .ai-input-wrapper {
+      padding: 16px 24px 24px;
+      background: rgba(255, 255, 255, 0.5);
+      border-top: 1px solid rgba(255, 255, 255, 0.6);
+      position: relative;
+    }
+
+    .slash-commands {
+      position: absolute;
+      bottom: 100%;
+      left: 24px;
+      right: 24px;
+      margin-bottom: 8px;
+      background: white;
+      border-radius: 8px;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+      border: 1px solid #ebeef5;
+      overflow: hidden;
+      z-index: 100;
+    }
+
+    .command-item {
+      padding: 10px 16px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+
+    .command-item.active, .command-item:hover {
+      background: #ecf5ff;
+    }
+
+    .command-name {
+      font-family: monospace;
+      font-weight: 600;
+      color: var(--el-color-primary);
+      background: #e6f1fc;
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-size: 13px;
+    }
+
+    .command-desc {
+      font-size: 12px;
+      color: #909399;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .input-controls {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-top: 8px;
+    }
+
+    .hint-text {
+      font-size: 12px;
+      color: #909399;
+    }
+
+    /* Hide Vue templates before mount */
+    [v-cloak] { display: none; }
+    
+    /* Custom Scrollbar */
+    ::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: rgba(0, 0, 0, 0.2);
+      border-radius: 3px;
+    }
+    ::-webkit-scrollbar-track {
+      background: transparent;
+    }
+  </style>
+</head>
+<body>
+  <div id="app" v-cloak>
+    <!-- Left: Editor Pane -->
+    <div class="editor-pane">
+      <div class="editor-content">
+        <h1>Chapter 42: The Awakening</h1>
+        <p>The crimson moon hung low in the sky, casting long, unnatural shadows across the courtyard. Lin Fan stood motionless, his breath forming small clouds in the freezing air. The Qi swirling around him was chaotic, untamed, a stark contrast to his usually calm demeanor.</p>
+        <p>He had spent three years as the "trash" of the Lin family. Three years of enduring their sneers, their insults, their beatings. But tonight... tonight felt different. The ancient jade pendant his mother had left him was glowing with a faint, pulsing light against his chest.</p>
+        <p>"Is this it?" he murmured, clutching the pendant. The cold stone was now warm to the touch. A voice, ancient and resonant, echoed in his mind.</p>
+        <p><em>"The Bloodline of the Heavenly Sovereign cannot remain dormant forever. Awaken, my descendant."</em></p>
+        <p>Suddenly, a surge of power ripped through his meridians. It was agonizing, like molten iron flowing through his veins, but Lin Fan didn't scream. He gritted his teeth, a fierce light burning in his eyes. The age of humiliation was over.</p>
+      </div>
+    </div>
+
+    <!-- Right: AI Assistant Drawer (AIAssistant.vue Simulation) -->
+    <div class="ai-assistant">
+      <div class="ai-header">
+        <div class="ai-title">
+          <el-icon><Monitor /></el-icon>
+          AI Novel Assistant
+        </div>
+        <div>
+          <el-button circle size="small"><el-icon><Setting /></el-icon></el-button>
+          <el-button circle size="small"><el-icon><Close /></el-icon></el-button>
+        </div>
+      </div>
+
+      <div class="ai-chat-container">
+        <!-- Initial Message -->
+        <div class="message ai">
+          <div class="avatar avatar-ai"><el-icon><Cpu /></el-icon></div>
+          <div class="bubble">
+            <p>Hello! I'm your AI Novel Assistant. How can I help you with your writing today? You can type <code>/</code> to see available commands.</p>
+          </div>
+        </div>
+
+        <!-- User Command -->
+        <div class="message user">
+          <div class="bubble">
+            /review multi-role
+          </div>
+          <div class="avatar avatar-user"><el-icon><User /></el-icon></div>
+        </div>
+
+        <!-- AI Multi-role Review Response -->
+        <div class="message ai">
+          <div class="avatar avatar-ai"><el-icon><Cpu /></el-icon></div>
+          <div class="bubble">
+            <p>I've run a multi-role review on your current chapter. Here are the perspectives from our specialized AI agents:</p>
+            
+            <!-- Multi-role Tabs -->
+            <el-tabs v-model="activeTab" class="review-tabs">
+              <!-- Consistency Tab -->
+              <el-tab-pane label="Consistency" name="consistency">
+                <div class="review-content">
+                  <div class="metric">
+                    <div class="metric-header">
+                      <span>Worldbuilding Rules</span>
+                      <span style="color: #67c23a">95%</span>
+                    </div>
+                    <el-progress :percentage="95" status="success" :show-text="false" :stroke-width="8"></el-progress>
+                  </div>
+                  <div class="metric">
+                    <div class="metric-header">
+                      <span>Character State (Lin Fan)</span>
+                      <span style="color: #e6a23c">70%</span>
+                    </div>
+                    <el-progress :percentage="70" status="warning" :show-text="false" :stroke-width="8"></el-progress>
+                  </div>
+                  <div class="review-notes">
+                    <strong>Note:</strong> The "ancient jade pendant" matches the lore established in Chapter 1. However, Lin Fan's sudden tolerance to immense pain contradicts his low physical endurance stat mentioned in Chapter 40. Consider adding a line about him actively utilizing the 'Frost Body Technique' to endure the heat.
+                  </div>
+                </div>
+              </el-tab-pane>
+
+              <!-- Pacing Tab -->
+              <el-tab-pane label="Pacing" name="pacing">
+                <div class="review-content">
+                  <div class="metric">
+                    <div class="metric-header">
+                      <span>Scene Escalation</span>
+                      <span style="color: #409eff">88%</span>
+                    </div>
+                    <el-progress :percentage="88" :show-text="false" :stroke-width="8"></el-progress>
+                  </div>
+                  <div class="review-notes">
+                    <strong>Note:</strong> Excellent escalation. The transition from the environmental description (crimson moon) to internal state (chaotic Qi) to action (surge of power) flows beautifully. The pacing is appropriately tight for a major turning point.
+                  </div>
+                </div>
+              </el-tab-pane>
+
+              <!-- Reader Pull Tab -->
+              <el-tab-pane label="Reader Pull" name="reader">
+                <div class="review-content">
+                  <div class="metric">
+                    <div class="metric-header">
+                      <span>Hook Originality</span>
+                      <span style="color: #f56c6c">60%</span>
+                    </div>
+                    <el-progress :percentage="60" status="exception" :show-text="false" :stroke-width="8"></el-progress>
+                  </div>
+                  <div class="review-notes">
+                    <strong>Note:</strong> The "trash of the family" trope is classic but feels slightly generic in this execution. To increase reader hook, consider having the ancient voice reveal a specific, shocking truth about his mother's identity rather than just a standard "awaken" line.
+                  </div>
+                </div>
+              </el-tab-pane>
+            </el-tabs>
+
+            <!-- AI Action Execution Bus -->
+            <div class="action-bus">
+              <div class="action-bus-header">
+                <el-icon><Lightning /></el-icon> Suggested Actions
+              </div>
+              <div class="action-buttons">
+                <el-button type="success" plain @click="executeAction('fix-consistency')">
+                  <el-icon><EditPen /></el-icon> Fix Consistency (Add Frost Body)
+                </el-button>
+                <el-button type="primary" plain @click="executeAction('enhance-hook')">
+                  <el-icon><MagicStick /></el-icon> Enhance Hook (Rewrite Voice)
+                </el-button>
+                <el-button type="info" plain @click="executeAction('dismiss')">
+                  Dismiss
+                </el-button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Input Area -->
+      <div class="ai-input-wrapper">
+        <!-- Slash Commands Popover -->
+        <transition name="el-zoom-in-bottom">
+          <div class="slash-commands" v-if="showCommands">
+            <div 
+              v-for="(cmd, index) in filteredCommands" 
+              :key="cmd.name"
+              class="command-item"
+              :class="{ active: selectedCommandIndex === index }"
+              @mouseenter="selectedCommandIndex = index"
+              @click="selectCommand(cmd)"
+            >
+              <span class="command-name">{{ cmd.name }}</span>
+              <span class="command-desc">{{ cmd.desc }}</span>
+            </div>
+            <div v-if="filteredCommands.length === 0" style="padding: 12px; text-align: center; color: #909399; font-size: 13px;">
+              No matching commands
+            </div>
+          </div>
+        </transition>
+
+        <el-input
+          v-model="inputText"
+          type="textarea"
+          :rows="3"
+          placeholder="Ask AI, request edits, or type '/' for commands..."
+          resize="none"
+          @input="handleInput"
+          @keydown.enter.prevent="handleEnter"
+          @keydown.up.prevent="navigateCommands(-1)"
+          @keydown.down.prevent="navigateCommands(1)"
+        ></el-input>
+        
+        <div class="input-controls">
+          <span class="hint-text">Press Enter to send, Shift+Enter for new line</span>
+          <el-button type="primary" :icon="SendIcon" circle @click="sendMessage" :disabled="!inputText.trim()"></el-button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const { createApp, ref, computed } = Vue;
+    // We explicitly destructure the icons we need from the global ElementPlusIconsVue object
+    const { Monitor, Setting, Close, Cpu, User, Lightning, EditPen, MagicStick, Position } = ElementPlusIconsVue;
+
+    const app = createApp({
+      setup() {
+        const activeTab = ref('consistency');
+        const inputText = ref('');
+        const showCommands = ref(false);
+        const selectedCommandIndex = ref(0);
+        
+        const allCommands = [
+          { name: '/review multi-role', desc: 'Run Consistency, Pacing, and Reader Pull checks' },
+          { name: '/review consistency', desc: 'Check lore, timeline, and character states against memory' },
+          { name: '/review pacing', desc: 'Analyze scene escalation and emotional beats' },
+          { name: '/generate outline', desc: 'Create chapter beats based on current context' },
+          { name: '/rewrite style', desc: 'Adjust tone to match the target genre' },
+          { name: '/extract lore', desc: 'Update graph memory with new entities and relations' }
+        ];
+        
+        const filteredCommands = computed(() => {
+          if (!inputText.value.startsWith('/')) return [];
+          const query = inputText.value.toLowerCase();
+          return allCommands.filter(c => c.name.toLowerCase().includes(query));
+        });
+        
+        const handleInput = () => {
+          if (inputText.value.startsWith('/')) {
+            showCommands.value = true;
+            if (selectedCommandIndex.value >= filteredCommands.value.length) {
+              selectedCommandIndex.value = 0;
+            }
+          } else {
+            showCommands.value = false;
+          }
+        };
+        
+        const navigateCommands = (direction) => {
+          if (!showCommands.value || filteredCommands.value.length === 0) return;
+          
+          let newIndex = selectedCommandIndex.value + direction;
+          if (newIndex < 0) newIndex = filteredCommands.value.length - 1;
+          if (newIndex >= filteredCommands.value.length) newIndex = 0;
+          
+          selectedCommandIndex.value = newIndex;
+        };
+        
+        const selectCommand = (cmd) => {
+          inputText.value = cmd.name + ' ';
+          showCommands.value = false;
+        };
+        
+        const handleEnter = (e) => {
+          if (e.shiftKey) {
+            inputText.value += '\n';
+            return;
+          }
+          sendMessage();
+        };
+
+        const sendMessage = () => {
+          if (showCommands.value && filteredCommands.value.length > 0) {
+            selectCommand(filteredCommands.value[selectedCommandIndex.value]);
+            return;
+          }
+          
+          if (!inputText.value.trim()) return;
+          
+          ElementPlus.ElMessage({
+            message: `Command sent: ${inputText.value}`,
+            type: 'success',
+          });
+          
+          inputText.value = '';
+          showCommands.value = false;
+        };
+        
+        const executeAction = (action) => {
+          let msg = '';
+          if (action === 'fix-consistency') msg = 'Executing: Applying Frost Body Technique rewrite...';
+          else if (action === 'enhance-hook') msg = 'Executing: Rewriting ancient voice dialogue...';
+          else if (action === 'dismiss') msg = 'Action dismissed.';
+          
+          ElementPlus.ElMessage({
+            message: msg,
+            type: action === 'dismiss' ? 'info' : 'success',
+          });
+        };
+
+        return {
+          activeTab,
+          inputText,
+          showCommands,
+          filteredCommands,
+          selectedCommandIndex,
+          handleInput,
+          navigateCommands,
+          selectCommand,
+          handleEnter,
+          sendMessage,
+          executeAction,
+          SendIcon: Position
+        };
+      }
+    });
+    
+    // Register all Element Plus icons globally for templates
+    for (const [key, component] of Object.entries(ElementPlusIconsVue)) {
+      app.component(key, component);
+    }
+    
+    app.use(ElementPlus);
+    app.mount('#app');
+  </script>
+</body>
+</html>

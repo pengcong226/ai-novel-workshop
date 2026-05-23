@@ -1,0 +1,342 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Store诊断</title>
+  <style>
+    body {
+      font-family: monospace;
+      padding: 20px;
+      background: #f5f5f5;
+    }
+    pre {
+      background: white;
+      padding: 15px;
+      border-radius: 4px;
+      overflow-x: auto;
+      white-space: pre-wrap;
+      word-wrap: break-word;
+      margin: 10px 0;
+    }
+    .section {
+      background: white;
+      padding: 15px;
+      margin-bottom: 15px;
+      border-radius: 4px;
+      border-left: 4px solid #409eff;
+    }
+    h2 {
+      color: #409eff;
+      margin-top: 0;
+    }
+    button {
+      background: #409eff;
+      color: white;
+      border: none;
+      padding: 10px 20px;
+      border-radius: 4px;
+      cursor: pointer;
+      margin: 5px;
+    }
+    button:hover {
+      background: #66b1ff;
+    }
+    .error {
+      color: #f56c6c;
+    }
+    .success {
+      color: #67c23a;
+    }
+  </style>
+</head>
+<body>
+  <h1>Pinia Store 诊断</h1>
+
+  <div class="section">
+    <h2>步骤1: 检查Pinia实例</h2>
+    <button onclick="checkPinia()">检查Pinia</button>
+    <pre id="pinia-result"></pre>
+  </div>
+
+  <div class="section">
+    <h2>步骤2: 检查世界书Store</h2>
+    <button onclick="checkWorldbook()">检查世界书</button>
+    <pre id="worldbook-result"></pre>
+  </div>
+
+  <div class="section">
+    <h2>步骤3: 检查角色卡Store</h2>
+    <button onclick="checkCharacterCard()">检查角色卡</button>
+    <pre id="character-result"></pre>
+  </div>
+
+  <div class="section">
+    <h2>步骤4: 检查IndexedDB</h2>
+    <button onclick="checkIndexedDB()">检查IndexedDB</button>
+    <pre id="indexeddb-result"></pre>
+  </div>
+
+  <script type="module">
+    // 导入stores
+    import { useWorldbookStore } from '/src/stores/worldbook.ts';
+    import { useCharacterCardStore } from '/src/stores/character-card.ts';
+
+    function setResult(element, content, isError = false) {
+      element.textContent = content;
+      element.classList.toggle('error', isError);
+      element.classList.toggle('success', !isError);
+    }
+
+    const LOCAL_DEBUG_HOSTS = new Set(['localhost', '127.0.0.1', '::1']);
+    const localDebugAllowed =
+      window.location.protocol === 'file:' ||
+      LOCAL_DEBUG_HOSTS.has(window.location.hostname);
+
+    function getLocalOnlyMessage() {
+      return `此调试页面仅允许本地访问。当前主机: ${window.location.hostname || '(unknown)'}`;
+    }
+
+    function enforceLocalOnly() {
+      if (localDebugAllowed) {
+        return;
+      }
+
+      const message = getLocalOnlyMessage();
+      document.querySelectorAll('button').forEach(button => {
+        button.disabled = true;
+      });
+
+      ['pinia-result', 'worldbook-result', 'character-result', 'indexeddb-result'].forEach(id => {
+        const element = document.getElementById(id);
+        if (element) {
+          setResult(element, message, true);
+        }
+      });
+    }
+
+    function ensureLocalDebug(result) {
+      if (localDebugAllowed) {
+        return true;
+      }
+
+      setResult(result, getLocalOnlyMessage(), true);
+      return false;
+    }
+
+    enforceLocalOnly();
+
+    window.checkPinia = function() {
+      const result = document.getElementById('pinia-result');
+      if (!ensureLocalDebug(result)) {
+        return;
+      }
+      try {
+        // 尝试不同的访问方式
+        const checks = [];
+
+        // 方式1: 全局pinia
+        if (window.$pinia) {
+          checks.push('✅ window.$pinia 存在');
+          checks.push(`state: ${JSON.stringify(Object.keys(window.$pinia.state?.value || {}), null, 2)}`);
+        } else {
+          checks.push('❌ window.$pinia 不存在');
+        }
+
+        // 方式2: 直接访问store
+        try {
+          const worldbookStore = useWorldbookStore();
+          checks.push('✅ useWorldbookStore() 可用');
+          checks.push(`世界书条目数: ${worldbookStore.entries?.length}`);
+        } catch (e) {
+          checks.push(`❌ useWorldbookStore() 错误: ${e.message}`);
+        }
+
+        try {
+          const characterCardStore = useCharacterCardStore();
+          checks.push('✅ useCharacterCardStore() 可用');
+          checks.push(`角色名: ${characterCardStore.name}`);
+        } catch (e) {
+          checks.push(`❌ useCharacterCardStore() 错误: ${e.message}`);
+        }
+
+        setResult(result, checks.join('\n'));
+      } catch (error) {
+        setResult(result, `错误: ${error.message}\n${error.stack || ''}`, true);
+      }
+    };
+
+    window.checkWorldbook = function() {
+      const result = document.getElementById('worldbook-result');
+      if (!ensureLocalDebug(result)) {
+        return;
+      }
+      try {
+        const store = useWorldbookStore();
+        const info = [];
+
+        info.push('=== 世界书Store ===');
+        info.push(`条目数: ${store.entries?.length || 0}`);
+        info.push(`当前项目ID: ${store.currentProjectId || '无'}`);
+        info.push('');
+
+        if (store.entries && store.entries.length > 0) {
+          info.push('=== 第一个条目 ===');
+          const entry = store.entries[0];
+          info.push(`UID: ${entry.uid}`);
+          info.push(`keys: ${JSON.stringify(entry.keys || entry.key)}`);
+          info.push(`enabled: ${entry.enabled}`);
+          info.push(`content类型: ${typeof entry.content}`);
+          info.push(`content长度: ${entry.content?.length || 0}`);
+          info.push('');
+          info.push('content前500字符:');
+          info.push(entry.content?.substring(0, 500) || '(空)');
+          info.push('');
+
+          // 编码检查
+          if (entry.content) {
+            const firstChar = entry.content.charAt(0);
+            info.push('=== 编码检查 ===');
+            info.push(`第一个字符: "${firstChar}"`);
+            info.push(`Unicode码点: U+${firstChar.charCodeAt(0).toString(16).toUpperCase().padStart(4, '0')}`);
+            info.push(`是ASCII: ${firstChar.charCodeAt(0) < 128}`);
+
+            // 检查是否包含中文字符
+            const hasChinese = /[\u4e00-\u9fa5]/.test(entry.content);
+            info.push(`包含中文: ${hasChinese}`);
+
+            if (!hasChinese) {
+              info.push('⚠️ 内容不包含中文字符，可能存在编码问题');
+            }
+          }
+        } else {
+          info.push('⚠️ 没有条目数据');
+        }
+
+        setResult(result, info.join('\n'));
+      } catch (error) {
+        setResult(result, `错误: ${error.message}\n${error.stack || ''}`, true);
+      }
+    };
+
+    window.checkCharacterCard = function() {
+      const result = document.getElementById('character-result');
+      if (!ensureLocalDebug(result)) {
+        return;
+      }
+      try {
+        const store = useCharacterCardStore();
+        const info = [];
+
+        info.push('=== 角色卡Store ===');
+        info.push(`角色名: ${store.name || '(无)'}`);
+        info.push(`描述长度: ${store.description?.length || 0}`);
+        info.push(`开场白长度: ${store.first_mes?.length || 0}`);
+        info.push('');
+
+        if (store.first_mes) {
+          info.push('=== 开场白前500字符 ===');
+          info.push(store.first_mes.substring(0, 500));
+          info.push('');
+
+          // 编码检查
+          const firstChar = store.first_mes.charAt(0);
+          info.push('=== 编码检查 ===');
+          info.push(`第一个字符: "${firstChar}"`);
+          info.push(`Unicode码点: U+${firstChar.charCodeAt(0).toString(16).toUpperCase().padStart(4, '0')}`);
+          info.push(`是ASCII: ${firstChar.charCodeAt(0) < 128}`);
+
+          const hasChinese = /[\u4e00-\u9fa5]/.test(store.first_mes);
+          info.push(`包含中文: ${hasChinese}`);
+
+          if (!hasChinese) {
+            info.push('⚠️ 内容不包含中文字符，可能存在编码问题');
+          }
+        }
+
+        setResult(result, info.join('\n'));
+      } catch (error) {
+        setResult(result, `错误: ${error.message}\n${error.stack || ''}`, true);
+      }
+    };
+
+    window.checkIndexedDB = async function() {
+      const result = document.getElementById('indexeddb-result');
+      if (!ensureLocalDebug(result)) {
+        return;
+      }
+      try {
+        const dbName = 'ai_novel_workshop';
+        const request = indexedDB.open(dbName);
+
+        request.onsuccess = function(event) {
+          const db = event.target.result;
+          const info = [];
+
+          info.push('=== IndexedDB ===');
+          info.push(`数据库名: ${db.name}`);
+          info.push(`数据库版本: ${db.version}`);
+          info.push(`对象存储: ${Array.from(db.objectStoreNames).join(', ')}`);
+          info.push('');
+
+          if (db.objectStoreNames.contains('worldbook')) {
+            const transaction = db.transaction(['worldbook'], 'readonly');
+            transaction.onerror = function(event) {
+              setResult(result, `IndexedDB事务失败: ${String(event.target?.error || '未知错误')}`, true);
+            };
+            transaction.onabort = function() {
+              setResult(result, 'IndexedDB事务已中止', true);
+            };
+
+            const store = transaction.objectStore('worldbook');
+            const countRequest = store.count();
+
+            countRequest.onsuccess = function() {
+              info.push(`世界书条目总数: ${countRequest.result}`);
+              setResult(result, info.join('\n'));
+            };
+
+            countRequest.onerror = function(event) {
+              setResult(result, `世界书计数失败: ${String(event.target?.error || '未知错误')}`, true);
+            };
+
+            const getAllRequest = store.getAll();
+
+            getAllRequest.onsuccess = function(e) {
+              const data = e.target.result;
+              if (data && data.length > 0) {
+                info.push('');
+                info.push('=== 第一条记录 ===');
+                info.push(`ID: ${data[0].id}`);
+                info.push(`项目ID: ${data[0].projectId}`);
+                info.push(`条目数: ${data[0].entries?.length || 0}`);
+
+                if (data[0].entries && data[0].entries.length > 0) {
+                  const entry = data[0].entries[0];
+                  info.push('');
+                  info.push('=== 第一个条目 ===');
+                  info.push(`content前200字符: ${entry.content?.substring(0, 200) || '(空)'}`);
+                }
+
+                setResult(result, info.join('\n'));
+              }
+            };
+
+            getAllRequest.onerror = function(event) {
+              setResult(result, `世界书读取失败: ${String(event.target?.error || '未知错误')}`, true);
+            };
+          } else {
+            setResult(result, info.join('\n'));
+          }
+        };
+
+        request.onerror = function(event) {
+          setResult(result, `IndexedDB打开失败: ${String(event.target?.error || '未知错误')}`, true);
+        };
+      } catch (error) {
+        setResult(result, `错误: ${error.message}\n${error.stack || ''}`, true);
+      }
+    };
+  </script>
+</body>
+</html>

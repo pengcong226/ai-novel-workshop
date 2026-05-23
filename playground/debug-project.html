@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>项目调试工具</title>
+    <style>
+        body {
+            font-family: monospace;
+            padding: 20px;
+            background: #1e1e1e;
+            color: #d4d4d4;
+        }
+        .log {
+            background: #252526;
+            padding: 10px;
+            margin: 5px 0;
+            border-radius: 4px;
+            border-left: 3px solid #007acc;
+        }
+        .error {
+            border-left-color: #f48771;
+            background: #3c1f1f;
+        }
+        .success {
+            border-left-color: #89d185;
+        }
+        h2 {
+            color: #569cd6;
+        }
+        button {
+            background: #0e639c;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            margin: 5px;
+            cursor: pointer;
+            border-radius: 4px;
+        }
+        button:hover {
+            background: #1177bb;
+        }
+        #output {
+            margin-top: 20px;
+        }
+    </style>
+</head>
+<body>
+    <h2>🔍 AI小说工坊 - 项目调试工具</h2>
+    <div>
+        <button onclick="checkIndexedDB()">检查 IndexedDB 数据</button>
+        <button onclick="checkProjectStore()">检查项目状态</button>
+        <button onclick="reloadProject()">重新加载项目</button>
+        <button onclick="createTestProject()">创建测试项目</button>
+    </div>
+    <div id="output"></div>
+
+    <script>
+        const DB_NAME = 'AI_Novel_Workshop';
+        const DB_VERSION = 1;
+        const PROJECTS_STORE = 'projects';
+
+        function log(message, type = 'info') {
+            const output = document.getElementById('output');
+            const div = document.createElement('div');
+            div.className = `log ${type}`;
+            div.textContent = message;
+            output.appendChild(div);
+        }
+
+        async function checkIndexedDB() {
+            log('<h3>📦 检查 IndexedDB 数据...</h3>');
+            try {
+                const request = indexedDB.open(DB_NAME, DB_VERSION);
+
+                request.onsuccess = async (event) => {
+                    const db = event.target.result;
+                    log('✅ IndexedDB 连接成功', 'success');
+
+                    const transaction = db.transaction([PROJECTS_STORE], 'readonly');
+                    const store = transaction.objectStore(PROJECTS_STORE);
+                    const getAllRequest = store.getAll();
+
+                    getAllRequest.onsuccess = () => {
+                        const projects = getAllRequest.result;
+                        log(`📊 找到 ${projects.length} 个项目:`);
+
+                        projects.forEach((project, index) => {
+                            const details = [
+                                `项目 ${index + 1}:`,
+                                `- ID: ${project.id}`,
+                                `- 标题: ${project.title || '无标题'}`,
+                                `- 类型: ${project.genre || '无类型'}`,
+                                `- 字数: ${project.currentWords || 0} / ${project.targetWords || 0}`,
+                                `- 状态: ${project.status || '未知'}`,
+                                `- 创建时间: ${project.createdAt ? new Date(project.createdAt).toLocaleString() : '未知'}`,
+                                `- 世界观: ${project.world ? '✅' : '❌'}`,
+                                `- 人物: ${project.characters ? project.characters.length + '个' : '0个'}`,
+                                `- 章节: ${project.chapters ? project.chapters.length + '章' : '0章'}`
+                            ].join('\n');
+                            log(details);
+                        });
+
+                        if (projects.length === 0) {
+                            log('⚠️ 没有找到任何项目数据', 'error');
+                        }
+                    };
+
+                    // 检查特定项目
+                    const projectId = '3774e929-c917-4992-87f0-0a78f87fa662';
+                    const getRequest = store.get(projectId);
+
+                    getRequest.onsuccess = () => {
+                        if (getRequest.result) {
+                            log(`✅ 找到目标项目 ${projectId}:`, 'success');
+                            log(JSON.stringify(getRequest.result, null, 2));
+                        } else {
+                            log(`❌ 未找到目标项目 ${projectId}`, 'error');
+                        }
+                    };
+                };
+
+                request.onerror = () => {
+                    log('❌ IndexedDB 连接失败', 'error');
+                };
+            } catch (error) {
+                log(`❌ 错误: ${error.message}`, 'error');
+            }
+        }
+
+        function checkProjectStore() {
+            log('<h3>🏪 检查 Pinia Store 状态...</h3>');
+            if (window.projectStore) {
+                log(`项目列表: ${window.projectStore.projects.value.length} 个`);
+                log(`当前项目: ${window.projectStore.currentProject.value ? window.projectStore.currentProject.value.title : 'null'}`);
+                log(`加载状态: ${window.projectStore.loading.value}`);
+                log(`错误信息: ${window.projectStore.error.value || '无'}`);
+            } else {
+                log('❌ window.projectStore 未定义，请在项目页面打开此文件', 'error');
+            }
+        }
+
+        async function reloadProject() {
+            log('<h3>🔄 重新加载项目...</h3>');
+            if (window.projectStore) {
+                try {
+                    await window.projectStore.openProject('3774e929-c917-4992-87f0-0a78f87fa662');
+                    log('✅ 项目重新加载成功', 'success');
+                    checkProjectStore();
+                } catch (error) {
+                    log(`❌ 加载失败: ${error.message}`, 'error');
+                }
+            } else {
+                log('❌ window.projectStore 未定义', 'error');
+            }
+        }
+
+        async function createTestProject() {
+            log('<h3>➕ 创建测试项目...</h3>');
+            if (window.projectStore) {
+                try {
+                    const project = await window.projectStore.createProject('测试项目', '玄幻', 100000);
+                    log(`✅ 测试项目创建成功: ${project.id}`, 'success');
+                    log(`<pre>${JSON.stringify(project, null, 2)}</pre>`);
+                } catch (error) {
+                    log(`❌ 创建失败: ${error.message}`, 'error');
+                }
+            } else {
+                log('❌ window.projectStore 未定义', 'error');
+            }
+        }
+
+        // 页面加载时自动检查
+        window.addEventListener('load', () => {
+            log('调试工具已加载，请点击按钮进行检查');
+        });
+    </script>
+</body>
+</html>

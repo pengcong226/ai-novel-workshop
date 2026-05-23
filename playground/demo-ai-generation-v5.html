@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+<html lang="zh-CN" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Novel Workshop - V5 自动机塔台端</title>
+    <!-- Vue 3 -->
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        gray: { 850: '#1f2937', 900: '#111827', 950: '#030712' }
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        body { background-color: #030712; color: #e5e7eb; }
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-thumb { background: #374151; border-radius: 3px; }
+        
+        @keyframes flash-green { 0% { background-color: rgba(34, 197, 94, 0.3); } 100% { background-color: transparent; } }
+        .patch-highlight-green { animation: flash-green 1.5s ease-out; }
+        
+        @keyframes flash-red { 0% { background-color: rgba(239, 68, 68, 0.3); } 100% { background-color: transparent; } }
+        .patch-highlight-red { animation: flash-red 1.5s ease-out; border-color: #ef4444 !important; }
+
+        .typing-cursor::after { content: '▋'; animation: blink 1s step-start infinite; }
+        @keyframes blink { 50% { opacity: 0; } }
+        
+        .fade-enter-active, .fade-leave-active { transition: opacity 0.3s ease; }
+        .fade-enter-from, .fade-leave-to { opacity: 0; }
+    </style>
+</head>
+<body class="h-screen w-screen overflow-hidden flex flex-col font-sans">
+    <div id="app" class="h-full flex flex-col">
+        <!-- 顶部导航 -->
+        <header class="h-14 bg-gray-900 border-b border-gray-800 flex items-center justify-between px-6 shrink-0">
+            <h1 class="text-lg font-semibold tracking-wide flex items-center gap-3">
+                <span class="w-8 h-8 rounded bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center font-bold text-white">V5</span>
+                AI Novel Workshop <span class="text-xs text-gray-500 font-mono">AUTONOMOUS DASHBOARD</span>
+            </h1>
+            <div class="flex items-center gap-4 text-sm text-gray-400">
+                <div class="flex items-center gap-2"><span class="w-2 h-2 rounded-full bg-green-500 animate-pulse"></span> JSON State: Syncing</div>
+            </div>
+        </header>
+
+        <main class="flex-1 flex overflow-hidden">
+            <!-- 左侧：无人推演区 -->
+            <section class="w-7/12 border-r border-gray-800 flex flex-col bg-[#0a0a0f]">
+                <div class="h-12 border-b border-gray-800 flex items-center justify-between px-4 bg-gray-900/50">
+                    <h2 class="font-medium text-gray-300">推演引擎监控面板</h2>
+                    <button @click="startGeneration" :disabled="generationStatus !== 'idle'" 
+                            class="px-4 py-1.5 rounded text-sm font-medium transition-colors"
+                            :class="generationStatus === 'idle' ? 'bg-blue-600 hover:bg-blue-500 text-white' : 'bg-gray-800 text-gray-500 cursor-not-allowed'">
+                        {{ generationStatus === 'idle' ? '▶ 启动本章挂机推演' : '运行中...' }}
+                    </button>
+                </div>
+
+                <div class="flex-1 overflow-y-auto p-6 space-y-6" id="writer-scroll-container">
+                    <div v-if="generationStatus === 'idle'" class="h-full flex items-center justify-center text-gray-500">等待介入大纲任务...</div>
+                    <div v-for="(beat, index) in beats" :key="index" class="pl-4 border-l-2"
+                         :class="{ 'border-gray-800': beat.status === 'pending', 'border-blue-500': beat.status === 'generating', 'border-red-500': beat.status === 'healing', 'border-green-500': beat.status === 'done' || beat.status === 'healed' }">
+                        <div class="text-xs font-mono mb-2" :class="{ 'text-gray-500': beat.status === 'pending', 'text-blue-400': beat.status === 'generating', 'text-red-400': beat.status === 'healing', 'text-green-500': beat.status === 'done' || beat.status === 'healed' }">
+                            [BEAT {{ index + 1 }}] <span v-if="beat.status==='generating'">写入中...</span><span v-if="beat.status==='healing'"> 主编查错打断！滑动窗口定点重写中...</span>
+                        </div>
+                        <div class="p-4 rounded border text-gray-300 transition-colors duration-500"
+                             :class="{ 'border-gray-800': beat.status === 'pending' || beat.status === 'done', 'border-blue-500/30 bg-blue-900/10': beat.status === 'generating', 'patch-highlight-red text-red-100': beat.status === 'healing', 'patch-highlight-green': beat.status === 'healed' }">
+                            <span v-if="beat.status === 'pending'">[Waiting...]</span>
+                            <span v-else>{{ beat.text }}<span v-if="beat.status === 'generating' || beat.status === 'healing'" class="typing-cursor"></span></span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 终端日志 -->
+                <div class="h-32 border-t border-gray-800 bg-gray-950 p-3 overflow-y-auto font-mono text-xs space-y-1" id="log-container">
+                    <div v-for="(log, i) in systemLogs" :key="i" :class="{'text-green-400': log.type === 'success', 'text-red-400': log.type === 'error', 'text-blue-400': log.type === 'info'}">
+                        [{{ log.time }}] {{ log.text }}
+                    </div>
+                </div>
+            </section>
+
+            <!-- 右侧：创造工作台与状态池 -->
+            <section class="w-5/12 flex flex-col bg-gray-900">
+                <!-- 聊天交互 -->
+                <div class="flex-[3] flex flex-col border-b border-gray-800">
+                    <div class="h-10 border-b border-gray-800 flex items-center px-4 bg-gray-900"><h2 class="font-medium text-sm text-gray-300">互动修补台 (JSON Patcher)</h2></div>
+                    <div class="flex-1 p-4 overflow-y-auto space-y-4" id="chat-container">
+                        <div v-for="(msg, i) in chatLogs" :key="i" class="flex flex-col max-w-[85%]" :class="msg.role === 'user' ? 'self-end items-end' : 'self-start items-start'">
+                            <span class="text-[10px] text-gray-500 mb-1 px-1">{{ msg.role === 'user' ? '造物主' : 'JSON Agent' }}</span>
+                            <div class="px-3 py-2 rounded text-sm" :class="msg.role === 'user' ? 'bg-blue-600 text-white' : 'bg-gray-800 text-gray-200 border border-gray-700'">{{ msg.text }}</div>
+                        </div>
+                    </div>
+                    <div class="p-3 bg-gray-950 border-t border-gray-800">
+                        <input v-model="chatInput" @keyup.enter="sendChat" type="text" placeholder="输入指令 (例：让林渊变腹黑，塞给他一把神器)..." class="w-full bg-gray-900 border border-gray-700 rounded py-2 px-3 text-sm text-gray-200 focus:outline-none focus:border-purple-500">
+                    </div>
+                </div>
+
+                <!-- 核心数据池 -->
+                <div class="flex-[4] flex flex-col bg-[#0d1117]">
+                    <div class="h-10 border-b border-gray-800 flex items-center px-4 justify-between">
+                        <h2 class="font-medium text-sm text-gray-300">沙盒状态矩阵 (TableMemory)</h2>
+                        <button @click="showTriage = true" class="text-xs bg-gray-800 hover:bg-gray-700 px-2 py-1 rounded text-gray-400 transition-colors">模拟外部拖入卡片</button>
+                    </div>
+                    <div class="flex-1 p-4 overflow-y-auto space-y-4">
+                        <div>
+                            <h3 class="text-xs text-gray-500 font-mono mb-2">entities.characters</h3>
+                            <div v-for="char in worldState.characters" :key="char.id" class="bg-gray-900 border border-gray-800 rounded p-3 transition-colors duration-300" :class="{ 'patch-highlight-green': hl['char_' + char.id] }">
+                                <div class="flex justify-between items-center mb-2">
+                                    <span class="font-bold text-gray-200">{{ char.name }}</span>
+                                    <span class="text-xs px-2 py-0.5 rounded bg-gray-800 transition-colors duration-300" :class="{ 'text-red-400 patch-highlight-red': hl['status_'+char.id] }">HP: {{ char.status }}</span>
+                                </div>
+                                <div class="text-xs text-gray-400 space-y-1 flex flex-col gap-1">
+                                    <div class="flex"><span class="w-12 text-gray-500">性格:</span><span class="flex-1 transition-colors duration-300 rounded px-1" :class="{'bg-purple-500/30 text-purple-200': hl['personality_'+char.id]}">{{ char.personality }}</span></div>
+                                    <div class="flex"><span class="w-12 text-gray-500">门派:</span><span class="flex-1 transition-colors duration-300 rounded px-1" :class="{'bg-green-500/30 text-green-200': hl['faction_'+char.id]}">{{ char.faction }}</span></div>
+                                </div>
+                            </div>
+                        </div>
+                        <div>
+                            <h3 class="text-xs text-gray-500 font-mono mb-2">entities.inventory (物品库)</h3>
+                            <div class="bg-gray-900 border border-gray-800 rounded overflow-hidden transition-colors duration-300" :class="{'patch-highlight-green': hl['items']}">
+                                <table class="w-full text-left text-xs text-gray-400">
+                                    <thead class="bg-gray-800/50"><tr><th class="px-2 py-1 border-b border-gray-800">物品名</th><th class="px-2 py-1 border-b border-gray-800">归属</th></tr></thead>
+                                    <tbody>
+                                        <tr v-for="item in worldState.items" :key="item.id" class="border-b last:border-0 border-gray-800/50"><td class="px-2 py-1 text-gray-200">{{ item.name }}</td><td class="px-2 py-1 text-blue-400">{{ item.ownerName }}</td></tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+        </main>
+        
+        <!-- Tinder 安检局弹窗 -->
+        <transition name="fade">
+            <div v-if="showTriage" class="absolute inset-0 bg-black/80 flex items-center justify-center p-4 z-50">
+                <div class="bg-gray-900 border border-gray-700 rounded-xl shadow-2xl w-full max-w-sm">
+                    <div class="p-3 border-b border-gray-800"><h3 class="text-white">AI 实体分诊台 (Import Wizard)</h3></div>
+                    <div class="p-6">
+                        <div class="border border-green-500/50 outline outline-2 outline-green-500/20 bg-gray-800 rounded p-4 relative mb-4">
+                            <div class="absolute -top-2 right-2 bg-green-500 text-white text-[10px] px-1 rounded">置信度: 98%</div>
+                            <h4 class="text-white font-bold">玄炎宗</h4><p class="text-xs text-blue-400 font-mono">建议: [FACTION]</p>
+                        </div>
+                        <div class="flex gap-2">
+                            <button @click="showTriage=false" class="flex-1 bg-gray-700 text-white py-2 rounded text-sm">丢弃</button>
+                            <button @click="acceptTriage" class="flex-[2] bg-green-600 text-white py-2 rounded text-sm font-bold">放行入库</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </transition>
+    </div>
+
+    <script>
+        const { createApp, ref, reactive, nextTick } = Vue;
+
+        createApp({
+            setup() {
+                const worldState = reactive({
+                    characters: [{ id: '001', name: '林渊', status: '健康满血', personality: '阳光开朗，乐于助人', faction: '无门无派' }],
+                    items: [{ id: 'itm_001', name: '生锈的铁剑', ownerId: '001', ownerName: '林渊' }]
+                });
+                const hl = reactive({}); // 高亮控制
+
+                // 交互聊天
+                const chatInput = ref('');
+                const chatLogs = reactive([{ role: 'system', text: '造物就位。输入类似：“让林渊变阴暗腹黑，加入玄炎宗并发魔刀”。' }]);
+
+                const sendChat = () => {
+                    if(!chatInput.value) return;
+                    const q = chatInput.value; chatLogs.push({ role: 'user', text: q }); chatInput.value = '';
+                    setTimeout(() => {
+                        chatLogs.push({ role: 'system', text: '正在解析 JSON Patch...' });
+                        setTimeout(() => {
+                            let dirty = false;
+                            if(q.includes('腹黑')||q.includes('阴暗')) { worldState.characters[0].personality = '阴冷腹黑，为达目的不择手段'; hl['personality_001'] = true; dirty=true; }
+                            if(q.includes('剑')||q.includes('魔刀')) { worldState.items.push({ id:'itm_new', name:'九幽魔刃', ownerName:'林渊' }); hl['items'] = true; dirty=true; }
+                            if(q.includes('玄炎宗')) { worldState.characters[0].faction = '玄炎宗内门'; hl['faction_001'] = true; dirty=true; }
+                            
+                            chatLogs.push({ role: 'system', text: dirty ? '✔️ Patch Applied! 到底层沙盒成功。' : '⚠️ 无实体修补指令。' });
+                            setTimeout(() => { Object.keys(hl).forEach(k => hl[k]=false) }, 1500);
+                        }, 1000);
+                    }, 500);
+                }
+
+                // 推演引擎
+                const generationStatus = ref('idle');
+                const systemLogs = reactive([]);
+                const beats = reactive([]);
+                const script = [
+                    { t: '幽冷的雾气弥漫在深渊，林渊跌跌撞撞地走着。' },
+                    { t: '一只巨大的暗影豹突然从迷雾中扑出！' },
+                    { t: '林渊在此刻突然从储物戒抽出一把光芒四射的神剑... (逻辑错位点)' },
+                    { t: '战斗结束，林渊重伤跪地喘息。' }
+                ];
+
+                const log = (type, text) => { systemLogs.push({ time: new Date().toLocaleTimeString(), type, text}); nextTick(()=>document.getElementById('log-container').scrollTop=9999); };
+
+                const startGeneration = () => {
+                    generationStatus.value = 'generating'; beats.length=0; systemLogs.length=0;
+                    log('info', '启动全自动推演...');
+                    setTimeout(() => {
+                        log('success', '提取5个 XML Beat 成功。加载动态上下文。');
+                        script.forEach(s => beats.push({ full: s.t, text: '', status: 'pending' }));
+                        run(0);
+                    }, 1000);
+                }
+
+                const run = (idx) => {
+                    if(idx>=beats.length) { 
+                        log('success', '✅ 章节闭环。副脑正在结算 JSON 状态兵变...'); 
+                        setTimeout(() => {
+                            worldState.characters[0].status = '重伤垂死'; hl['status_001'] = true;
+                            setTimeout(() => hl['status_001']=false, 1500);
+                            generationStatus.value = 'idle';
+                        }, 1000);
+                        return; 
+                    }
+                    const b = beats[idx]; b.status = 'generating';
+                    log('info', `写作主线程 Beat ${idx+1} 运行中...`);
+                    let c = 0;
+                    const iv = setInterval(() => {
+                        b.text += b.full[c++];
+                        if(c>=b.full.length) {
+                            clearInterval(iv);
+                            if(idx===2) { // 模拟查错
+                                log('error', `🚫主编线程拦截：模型幻觉，JSON库显示林渊没有光芒神剑。`);
+                                b.status = 'healing';
+                                setTimeout(() => {
+                                    log('info', `带边距滑动切片重写 Beat 3...`);
+                                    b.text = ''; b.full = '林渊咬牙，用那把破旧铁剑硬生生捅穿了魔豹的肚子，铁剑断裂。'; b.status = 'generating';
+                                    let c2=0; const iv2=setInterval(()=>{
+                                        b.text+=b.full[c2++];
+                                        if(c2>=b.full.length){ clearInterval(iv2); b.status='healed'; log('success','✨切片重写通过，无痕放行。'); setTimeout(()=>run(idx+1),800); }
+                                    },30);
+                                }, 1500);
+                            } else {
+                                b.status = 'done'; setTimeout(()=>run(idx+1), 400);
+                            }
+                        }
+                    }, 30);
+                }
+
+                // Triage
+                const showTriage = ref(false);
+                const acceptTriage = () => {
+                    showTriage.value = false;
+                    chatLogs.push({role:'system', text:'从外部 PNG 分离出势力 [玄炎宗]，现可激活。'});
+                }
+
+                return { worldState, hl, chatInput, chatLogs, sendChat, generationStatus, systemLogs, beats, startGeneration, showTriage, acceptTriage }
+            }
+        }).mount('#app')
+    </script>
+</body>
+</html>

@@ -1,0 +1,14 @@
+node_modules
+dist
+dist-ssr
+*.local
+.tauri
+src-tauri/target
+.DS_Store
+.worktrees
+.claude
+.vscode
+*.d.ts
+playground
+st-memory-enhancement
+.tmp_*.txt
