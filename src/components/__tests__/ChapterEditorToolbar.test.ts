@@ -13,6 +13,7 @@ const ElButtonStub = {
       class="el-button-stub"
       :class="{ 'is-loading': loading }"
       :disabled="loading"
+      :aria-label="ariaLabel"
       @click="$emit('click', $event)"
     >
       <slot />
@@ -231,5 +232,105 @@ describe('ChapterEditorToolbar', () => {
 
     const wordCount = wrapper.find('.word-count')
     expect(wordCount.text()).toBe('0 墨')
+  })
+
+  // --- ARIA labels / Accessibility ---
+
+  it('sets correct aria-label on each action button', () => {
+    const wrapper = mountToolbar()
+
+    const buttons = wrapper.findAll('.el-button-stub')
+    expect(buttons[0].attributes('aria-label')).toBe('AI连载生成')
+    expect(buttons[1].attributes('aria-label')).toBe('打磨文笔')
+    expect(buttons[2].attributes('aria-label')).toBe('防吃书预警')
+    expect(buttons[3].attributes('aria-label')).toBe('运行审校')
+    expect(buttons[4].attributes('aria-label')).toBe('查找替换')
+  })
+
+  it('marks the word count element as aria-live polite', () => {
+    const wrapper = mountToolbar({ wordCount: 3500 })
+
+    const wordCount = wrapper.find('.word-count')
+    expect(wordCount.attributes('aria-live')).toBe('polite')
+    expect(wordCount.attributes('aria-label')).toBe('字数统计')
+  })
+
+  // --- Large / edge-case word counts ---
+
+  it('displays large word counts without truncation', () => {
+    const wrapper = mountToolbar({ wordCount: 999999 })
+
+    const wordCount = wrapper.find('.word-count')
+    expect(wordCount.text()).toBe('999999 墨')
+  })
+
+  // --- Generate button disabled while loading ---
+
+  it('disables the generate button while generating is true', () => {
+    const wrapper = mountToolbar({ generating: true })
+
+    const generateButton = wrapper.findAll('.el-button-stub')[0]
+    expect(generateButton.attributes('disabled')).toBeDefined()
+  })
+
+  it('enables the generate button when generating is false', () => {
+    const wrapper = mountToolbar({ generating: false })
+
+    const generateButton = wrapper.findAll('.el-button-stub')[0]
+    expect(generateButton.attributes('disabled')).toBeUndefined()
+  })
+
+  // --- Review button badge with large count ---
+
+  it('displays a large unresolved review count in the badge', () => {
+    const wrapper = mountToolbar({ unresolvedReviewCount: 99 })
+
+    const badge = wrapper.find('.el-badge-stub')
+    expect(badge.exists()).toBe(true)
+    expect(badge.text()).toBe('99')
+  })
+
+  // --- Simultaneous loading states ---
+
+  it('shows loading states on both generate and review buttons simultaneously', () => {
+    const wrapper = mountToolbar({ generating: true, reviewing: true })
+
+    const buttons = wrapper.findAll('.el-button-stub')
+    expect(buttons[0].classes()).toContain('is-loading')
+    expect(buttons[3].classes()).toContain('is-loading')
+  })
+
+  // --- Checkbox emitting false on uncheck ---
+
+  it('emits update:autoUpdateSettings with false when checkbox is unchecked', async () => {
+    const wrapper = mountToolbar({ autoUpdateSettings: true })
+
+    const checkbox = wrapper.find('.el-checkbox-stub input')
+    await checkbox.setValue(false)
+
+    expect(wrapper.emitted('update:autoUpdateSettings')).toBeTruthy()
+    expect(wrapper.emitted('update:autoUpdateSettings')![0]).toEqual([false])
+  })
+
+  // --- Review button disabled while reviewing ---
+
+  it('disables the review button while reviewing is true', () => {
+    const wrapper = mountToolbar({ reviewing: true })
+
+    const reviewButton = wrapper.findAll('.el-button-stub')[3]
+    expect(reviewButton.attributes('disabled')).toBeDefined()
+  })
+
+  // --- Multiple rapid clicks on generate ---
+
+  it('emits generate multiple times on repeated clicks', async () => {
+    const wrapper = mountToolbar()
+
+    const generateButton = wrapper.findAll('.el-button-stub')[0]
+    await generateButton.trigger('click')
+    await generateButton.trigger('click')
+    await generateButton.trigger('click')
+
+    expect(wrapper.emitted('generate')).toHaveLength(3)
   })
 })

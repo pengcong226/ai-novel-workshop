@@ -153,4 +153,107 @@ describe('LoadingSkeleton', () => {
     // 2 groups x 4 items = 8 tree items
     expect(wrapper.findAll('.skel-tree-item')).toHaveLength(8)
   })
+
+  // ---- Card progress elements ---------------------------------------------
+
+  it('renders progress label and bar inside each card', () => {
+    const wrapper = createWrapper({ variant: 'card', count: 2 })
+
+    // Each card has exactly one progress label and one progress bar
+    expect(wrapper.findAll('.skel-progress-label')).toHaveLength(2)
+    expect(wrapper.findAll('.skel-progress-bar')).toHaveLength(2)
+    // Both carry the skeleton animation class
+    expect(wrapper.findAll('.skel-progress-label.skeleton')).toHaveLength(2)
+    expect(wrapper.findAll('.skel-progress-bar.skeleton')).toHaveLength(2)
+  })
+
+  it('renders three tags per card (two normal + one date)', () => {
+    const wrapper = createWrapper({ variant: 'card', count: 1 })
+
+    const tags = wrapper.findAll('.skel-tag')
+    // 2 regular tags + 1 date tag = 3 per card
+    expect(tags).toHaveLength(3)
+    expect(wrapper.findAll('.skel-tag--date')).toHaveLength(1)
+  })
+
+  // ---- List variant detail elements ----------------------------------------
+
+  it('renders list variant with divider, chapter metadata, and action buttons', () => {
+    const wrapper = createWrapper({ variant: 'list', count: 1 })
+
+    expect(wrapper.find('.skel-divider').exists()).toBe(true)
+    expect(wrapper.find('.skel-chapter-num').exists()).toBe(true)
+    expect(wrapper.find('.skel-chapter-title').exists()).toBe(true)
+    // Action row with 2 normal buttons + 1 wide button
+    expect(wrapper.find('.skel-row--actions').exists()).toBe(true)
+    expect(wrapper.findAll('.skel-btn')).toHaveLength(3)
+    expect(wrapper.findAll('.skel-btn--wide')).toHaveLength(1)
+  })
+
+  // ---- Text line width values ----------------------------------------------
+
+  it('assigns correct preset widths to text lines in order', () => {
+    const expectedWidths = ['100%', '90%', '75%', '95%', '60%']
+    const wrapper = createWrapper({ variant: 'text', count: 5 })
+
+    const lines = wrapper.findAll('.skel-row--text')
+    lines.forEach((line, i) => {
+      expect(line.attributes('style')).toContain(`width: ${expectedWidths[i]}`)
+    })
+  })
+
+  it('wraps text line widths when count exceeds preset array length', () => {
+    const wrapper = createWrapper({ variant: 'text', count: 7 })
+
+    const lines = wrapper.findAll('.skel-row--text')
+    // Line 6 (index 5) wraps to widths[0] = '100%', line 7 (index 6) to widths[1] = '90%'
+    expect(lines[5].attributes('style')).toContain('width: 100%')
+    expect(lines[6].attributes('style')).toContain('width: 90%')
+  })
+
+  // ---- Tree group header sub-elements --------------------------------------
+
+  it('renders icon, label, and count inside each tree group header', () => {
+    const wrapper = createWrapper({ variant: 'tree', count: 2, groupItems: 1 })
+
+    // Each of the 2 groups has one header with icon, label, and count
+    expect(wrapper.findAll('.skel-tree-icon')).toHaveLength(2)
+    expect(wrapper.findAll('.skel-tree-label')).toHaveLength(2)
+    expect(wrapper.findAll('.skel-tree-count')).toHaveLength(2)
+    // All carry the skeleton animation class
+    expect(wrapper.findAll('.skel-tree-icon.skeleton')).toHaveLength(2)
+    expect(wrapper.findAll('.skel-tree-label.skeleton')).toHaveLength(2)
+    expect(wrapper.findAll('.skel-tree-count.skeleton')).toHaveLength(2)
+  })
+
+  // ---- Tree variant with default groupItems --------------------------------
+
+  it('defaults tree groupItems to 2 when omitted', () => {
+    const wrapper = createWrapper({ variant: 'tree', count: 3 })
+
+    // 3 groups x 2 default items = 6 tree items
+    expect(wrapper.findAll('.skel-tree-item')).toHaveLength(6)
+  })
+
+  // ---- Editor line width wrapping ------------------------------------------
+
+  it('wraps editor line widths when count exceeds preset array length', () => {
+    const wrapper = createWrapper({ variant: 'editor', count: 10 })
+
+    const lines = wrapper.findAll('.skel-row--editor-line')
+    // 8 presets; line 9 (index 8) wraps to widths[0] = '92%'
+    // line 10 (index 9) wraps to widths[1] = '88%'
+    expect(lines[8].attributes('style')).toContain('width: 92%')
+    expect(lines[9].attributes('style')).toContain('width: 88%')
+  })
+
+  // ---- Count of 1 (edge case) ----------------------------------------------
+
+  it('renders correctly with count of 1 for list variant', () => {
+    const wrapper = createWrapper({ variant: 'list', count: 1 })
+
+    expect(wrapper.findAll('.skel-list-item')).toHaveLength(1)
+    expect(wrapper.findAll('.skel-handle')).toHaveLength(1)
+    expect(wrapper.findAll('.skel-btn')).toHaveLength(3)
+  })
 })

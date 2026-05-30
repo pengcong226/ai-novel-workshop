@@ -653,4 +653,129 @@ describe('ProjectList', () => {
     expect(progressBar.attributes('aria-valuemax')).toBe('100')
     expect(progressBar.attributes('aria-valuenow')).toBe('50')
   })
+
+  // ---- Space key navigation ----
+
+  it('navigates to project page when Space key is pressed on a project card', async () => {
+    mockProjectStore.projects = [
+      createMockProject({ id: 'proj-space', title: 'Space Nav' }),
+    ]
+
+    const wrapper = mountProjectList()
+    await flushPromises()
+
+    await wrapper.find('.project-card').trigger('keydown.space')
+    expect(mockPush).toHaveBeenCalledWith('/project/proj-space')
+  })
+
+  // ---- Word count display on progress section ----
+
+  it('displays word count text with formatNumber values in progress section', async () => {
+    mockProjectStore.projects = [
+      createMockProject({ id: 'p-wc', title: 'Word Count', currentWords: 75000, targetWords: 300000 }),
+    ]
+
+    const wrapper = mountProjectList()
+    await flushPromises()
+
+    const progressHeader = wrapper.find('.progress-header')
+    expect(progressHeader.exists()).toBe(true)
+    // formatNumber mock converts 75000 -> '7.5万', 300000 -> '30.0万'
+    expect(progressHeader.text()).toContain('7.5万')
+    expect(progressHeader.text()).toContain('30.0万')
+    expect(progressHeader.text()).toContain('字')
+    expect(progressHeader.text()).toContain('25%')
+  })
+
+  // ---- getAccentGradient renders correct background style ----
+
+  it('applies genre-specific accent gradient on card accent element', async () => {
+    mockProjectStore.projects = [
+      createMockProject({ id: 'p-grad', genre: '科幻' }),
+    ]
+
+    const wrapper = mountProjectList()
+    await flushPromises()
+
+    const accent = wrapper.find('.card-accent')
+    expect(accent.exists()).toBe(true)
+    // Vue normalizes hex colors to rgb() in the DOM style attribute
+    expect(accent.attributes('style')).toContain('linear-gradient')
+    expect(accent.attributes('style')).toContain('rgb(6, 182, 212)')
+  })
+
+  it('applies default accent gradient for unknown genre', async () => {
+    mockProjectStore.projects = [
+      createMockProject({ id: 'p-unk', genre: '未知类型' }),
+    ]
+
+    const wrapper = mountProjectList()
+    await flushPromises()
+
+    const accent = wrapper.find('.card-accent')
+    expect(accent.exists()).toBe(true)
+    expect(accent.attributes('style')).toContain('var(--ds-accent)')
+  })
+
+  // ---- Progress bar edge cases ----
+
+  it('shows 0% progress when currentWords is 0', async () => {
+    mockProjectStore.projects = [
+      createMockProject({ id: 'p-zero', currentWords: 0, targetWords: 200000 }),
+    ]
+
+    const wrapper = mountProjectList()
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('0%')
+    const progressFill = wrapper.find('.progress-fill')
+    expect(progressFill.attributes('style')).toContain('width: 0%')
+  })
+
+  it('shows 100% progress when currentWords exceeds targetWords', async () => {
+    mockProjectStore.projects = [
+      createMockProject({ id: 'p-over', currentWords: 250000, targetWords: 200000 }),
+    ]
+
+    const wrapper = mountProjectList()
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('100%')
+    const progressFill = wrapper.find('.progress-fill')
+    expect(progressFill.attributes('style')).toContain('width: 100%')
+  })
+
+  // ---- Project card animation delay ----
+
+  it('applies staggered animation delay based on card index', async () => {
+    mockProjectStore.projects = [
+      createMockProject({ id: 'p0' }),
+      createMockProject({ id: 'p1' }),
+      createMockProject({ id: 'p2' }),
+    ]
+
+    const wrapper = mountProjectList()
+    await flushPromises()
+
+    const cards = wrapper.findAll('.project-card')
+    expect(cards[0].attributes('style')).toContain('animation-delay: 0ms')
+    expect(cards[1].attributes('style')).toContain('animation-delay: 60ms')
+    expect(cards[2].attributes('style')).toContain('animation-delay: 120ms')
+  })
+
+  // ---- Total words computed with multiple projects ----
+
+  it('computes totalWords as sum of all project currentWords divided by 10000', async () => {
+    mockProjectStore.projects = [
+      createMockProject({ id: 'a', currentWords: 120000 }),
+      createMockProject({ id: 'b', currentWords: 80000 }),
+      createMockProject({ id: 'c', currentWords: 50000 }),
+    ]
+
+    const wrapper = mountProjectList()
+    await flushPromises()
+
+    // 120000 + 80000 + 50000 = 250000 => 25.0 万字
+    expect(wrapper.find('.hero-subtitle').text()).toContain('25.0 万字')
+  })
 })

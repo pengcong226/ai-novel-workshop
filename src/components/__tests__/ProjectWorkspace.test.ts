@@ -63,7 +63,7 @@ const DeveloperPanelStub = {
 const ErrorBoundaryStub = {
   name: 'ErrorBoundary',
   props: ['name', 'showRetry', 'showDetail'],
-  template: '<slot />',
+  template: '<div data-test="error-boundary" :data-name="name" :data-show-retry="showRetry" :data-show-detail="showDetail"><slot /></div>',
 }
 
 // ---------------------------------------------------------------------------
@@ -498,5 +498,56 @@ describe('ProjectWorkspace', () => {
 
     const errorContainer = wrapper.find('.error-container')
     expect(errorContainer.text()).toContain('项目数据为空')
+  })
+
+  // ----- ErrorBoundary prop verification -----
+
+  it('configures WritingDashboard ErrorBoundary with showRetry=true and showDetail=false', () => {
+    const wrapper = mountWorkspace({ activeMenu: 'dashboard' })
+
+    const ebs = wrapper.findAll('[data-test="error-boundary"]')
+    const eb = ebs[0]
+    expect(eb.attributes('data-name')).toBe('WritingDashboard')
+    expect(eb.attributes('data-show-retry')).toBe('true')
+    expect(eb.attributes('data-show-detail')).toBe('false')
+  })
+
+  it('configures SandboxLayout ErrorBoundary with name and showRetry only', () => {
+    const wrapper = mountWorkspace({ activeMenu: 'sandbox' })
+
+    const ebs = wrapper.findAll('[data-test="error-boundary"]')
+    // SandboxLayout is the 2nd ErrorBoundary in template order
+    const eb = ebs[1]
+    expect(eb.attributes('data-name')).toBe('SandboxLayout')
+    expect(eb.attributes('data-show-retry')).toBe('true')
+  })
+
+  it('does not wrap AgentConsole in ErrorBoundary', () => {
+    const wrapper = mountWorkspace({ activeMenu: 'agents' })
+
+    expect(wrapper.find('.stub-agent-console').exists()).toBe(true)
+    // AgentConsole is not inside an ErrorBoundary div
+    const ebDivs = wrapper.findAll('[data-test="error-boundary"]')
+    const agentInsideEb = ebDivs.some((eb) => eb.find('.stub-agent-console').exists())
+    expect(agentInsideEb).toBe(false)
+  })
+
+  // ----- Loading takes precedence over error -----
+
+  it('shows loading state even when project is null', () => {
+    const wrapper = mountWorkspace({ loading: true, project: null, error: 'err' })
+
+    expect(wrapper.find('.loading-container').exists()).toBe(true)
+    expect(wrapper.find('.error-container').exists()).toBe(false)
+    expect(wrapper.find('.workspace-surface').exists()).toBe(false)
+  })
+
+  // ----- Project undefined -----
+
+  it('shows error container when project is undefined', () => {
+    const wrapper = mountWorkspace({ project: undefined })
+
+    expect(wrapper.find('.error-container').exists()).toBe(true)
+    expect(wrapper.find('.error-container').text()).toContain('不存在')
   })
 })

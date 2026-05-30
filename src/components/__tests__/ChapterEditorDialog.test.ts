@@ -520,4 +520,200 @@ describe('ChapterEditorDialog', () => {
     // The auto-save should be pending
     expect(vm.saveStatus).not.toBe('idle')
   })
+
+  // ---- 8. Find/replace toggle ----
+
+  it('toggles find/replace panel when the button is clicked', async () => {
+    const wrapper = await mountDialog({ modelValue: true })
+    await flushPromises()
+
+    const vm = wrapper.vm as any
+    expect(vm.showFindReplace).toBe(false)
+
+    const buttons = wrapper.findAll('.el-button-stub')
+    let findReplaceButton: ReturnType<typeof buttons[0]> | null = null
+    for (const btn of buttons) {
+      if (btn.text().includes('查找替换')) {
+        findReplaceButton = btn
+        break
+      }
+    }
+
+    expect(findReplaceButton).not.toBeNull()
+    await findReplaceButton!.trigger('click')
+    expect(vm.showFindReplace).toBe(true)
+
+    await findReplaceButton!.trigger('click')
+    expect(vm.showFindReplace).toBe(false)
+  })
+
+  // ---- 9. Optimize content info message ----
+
+  it('shows info message when optimizeContent is triggered', async () => {
+    const wrapper = await mountDialog({ modelValue: true })
+    await flushPromises()
+
+    const buttons = wrapper.findAll('.el-button-stub')
+    let optimizeButton: ReturnType<typeof buttons[0]> | null = null
+    for (const btn of buttons) {
+      if (btn.text().includes('打磨文笔')) {
+        optimizeButton = btn
+        break
+      }
+    }
+
+    expect(optimizeButton).not.toBeNull()
+    await optimizeButton!.trigger('click')
+    await flushPromises()
+
+    expect(ElMessage.info).toHaveBeenCalledWith('内容优化功能开发中...')
+  })
+
+  // ---- 10. Review panel: no content warning ----
+
+  it('shows warning when running review without content', async () => {
+    const wrapper = await mountDialog({ modelValue: true })
+    await flushPromises()
+
+    const buttons = wrapper.findAll('.el-button-stub')
+    let reviewButton: ReturnType<typeof buttons[0]> | null = null
+    for (const btn of buttons) {
+      if (btn.text().includes('审校')) {
+        reviewButton = btn
+        break
+      }
+    }
+
+    expect(reviewButton).not.toBeNull()
+    await reviewButton!.trigger('click')
+    await flushPromises()
+
+    expect(ElMessage.warning).toHaveBeenCalledWith('请先填写章节内容')
+  })
+
+  // ---- 11. Version restore handler ----
+
+  it('restores content and title from version and schedules auto-save', async () => {
+    const wrapper = await mountDialog({ modelValue: true })
+    await flushPromises()
+
+    const vm = wrapper.vm as any
+    // Set a title so auto-save is eligible
+    vm.chapterForm.title = '原始标题'
+    vm.chapterForm.content = '原始内容'
+    await nextTick()
+    await flushPromises()
+
+    // Invoke handleVersionRestore via the component instance
+    vm.handleVersionRestore('恢复后的内容', '恢复后的标题')
+    await nextTick()
+    await flushPromises()
+
+    expect(vm.chapterForm.content).toBe('恢复后的内容')
+    expect(vm.chapterForm.title).toBe('恢复后的标题')
+    // auto-save should have been triggered (status not idle)
+    expect(vm.saveStatus).not.toBe('idle')
+  })
+
+  // ---- 12. Save checkpoint calls createSnapshot ----
+
+  it('creates a snapshot when saveCheckpoint is called with title and content', async () => {
+    const { createSnapshot, pruneSnapshots } = await import('@/utils/chapterVersioning')
+    const wrapper = await mountDialog({ modelValue: true })
+    await flushPromises()
+
+    const vm = wrapper.vm as any
+    vm.chapterForm.title = '检查点标题'
+    vm.chapterForm.content = '检查点内容'
+    await nextTick()
+    await flushPromises()
+
+    await vm.saveCheckpoint()
+    await flushPromises()
+
+    expect(createSnapshot).toHaveBeenCalled()
+    expect(pruneSnapshots).toHaveBeenCalled()
+    expect(ElMessage.success).toHaveBeenCalledWith('手动版本已保存')
+  })
+
+  // ---- 13. Save checkpoint shows error on failure ----
+
+  it('shows error message when saveCheckpoint fails', async () => {
+    const { createSnapshot } = await import('@/utils/chapterVersioning')
+    vi.mocked(createSnapshot).mockRejectedValueOnce(new Error('snapshot failed'))
+
+    const wrapper = await mountDialog({ modelValue: true })
+    await flushPromises()
+
+    const vm = wrapper.vm as any
+    vm.chapterForm.title = '检查点标题'
+    vm.chapterForm.content = '检查点内容'
+    await nextTick()
+    await flushPromises()
+
+    await vm.saveCheckpoint()
+    await flushPromises()
+
+    expect(ElMessage.error).toHaveBeenCalledWith(expect.stringContaining('手动版本保存失败'))
+  })
+
+  // ---- 14. Save emits 'saved' event with chapter data ----
+
+  it('emits saved event with chapter data after successful save', async () => {
+    const wrapper = await mountDialog({ modelValue: true })
+    await flushPromises()
+
+    const vm = wrapper.vm as any
+    vm.chapterForm.title = '可保存标题'
+    vm.chapterForm.content = '可保存内容'
+    await nextTick()
+    await flushPromises()
+
+    const buttons = wrapper.findAll('.el-button-stub')
+    let saveButton: ReturnType<typeof buttons[0]> | null = null
+    for (const btn of buttons) {
+      if (btn.text().includes('保存')) {
+        saveButton = btn
+        break
+      }
+    }
+
+    expect(saveButton).not.toBeNull()
+    await saveButton!.trigger('click')
+    await flushPromises()
+
+    expect(wrapper.emitted('saved')).toBeTruthy()
+    const savedPayload = wrapper.emitted('saved')![0][0] as any
+    expect(savedPayload.title).toBe('可保存标题')
+    expect(savedPayload.content).toBe('可保存内容')
+  })
+
+  // ---- 15. "新建章节" label when no chapter is provided ----
+
+  it('displays "新建章节" label when no chapter is passed', async () => {
+    const wrapper = await mountDialog({ modelValue: true, chapter: undefined })
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('新建章节')
+  })
+
+  // ---- 16. Auto-save fires after the 3-second timer ----
+
+  it('persists chapter draft after the 3-second auto-save timer', async () => {
+    const wrapper = await mountDialog({ modelValue: true })
+    await flushPromises()
+
+    const vm = wrapper.vm as any
+    vm.chapterForm.title = '自动保存标题'
+    vm.chapterForm.content = '自动保存内容'
+    await nextTick()
+    await flushPromises()
+
+    // Advance fake timers by 3 seconds to trigger the auto-save
+    vi.advanceTimersByTime(3100)
+    await flushPromises()
+
+    expect(mockSaveChapter).toHaveBeenCalled()
+    expect(vm.saveStatus).toBe('saved')
+  })
 })

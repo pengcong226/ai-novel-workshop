@@ -288,6 +288,201 @@ describe('NovelEditor', () => {
     wrapper.unmount()
   })
 
+  // ---- Empty / edge-case modelValue ------------------------------------------
+
+  it('converts empty string to a single empty paragraph', async () => {
+    const wrapper = mountEditor({ modelValue: '' })
+    await waitForEditorReady()
+
+    const editor = (wrapper.vm as any).getEditor()
+    const html = editor.getHTML()
+    // Empty plain text should produce a minimal paragraph, not raw garbage
+    expect(html).toContain('<p')
+    wrapper.unmount()
+  })
+
+  it('parses h3 headings from ### prefix', async () => {
+    const wrapper = mountEditor({ modelValue: '### Level Three' })
+    await waitForEditorReady()
+
+    const editor = (wrapper.vm as any).getEditor()
+    const html = editor.getHTML()
+    expect(html).toContain('<h3')
+    expect(html).toContain('Level Three')
+    wrapper.unmount()
+  })
+
+  // ---- HTML escaping in plain-to-HTML conversion -----------------------------
+
+  it('escapes ampersands and angle brackets when converting plain text to HTML', async () => {
+    const wrapper = mountEditor({ modelValue: 'Tom & Jerry <friends>' })
+    await waitForEditorReady()
+
+    const editor = (wrapper.vm as any).getEditor()
+    // Tiptap will store escaped entities
+    const html = editor.getHTML()
+    expect(html).toContain('&amp;')
+    expect(html).toContain('&lt;')
+    expect(html).toContain('&gt;')
+    wrapper.unmount()
+  })
+
+  it('converts embedded newlines inside a paragraph to <br>', async () => {
+    const wrapper = mountEditor({ modelValue: 'line1\nline2' })
+    await waitForEditorReady()
+
+    const editor = (wrapper.vm as any).getEditor()
+    const html = editor.getHTML()
+    // A single paragraph with an embedded newline should produce a <br>
+    expect(html).toContain('<br')
+    expect(html).toContain('line1')
+    expect(html).toContain('line2')
+    wrapper.unmount()
+  })
+
+  // ---- Round-trip: plain -> HTML -> plain preserves inline marks ---------------
+
+  it('round-trips bold, italic, underline, and highlight marks through HTML', async () => {
+    const input = '**bold** *italic* __underline__ ==highlight=='
+    const wrapper = mountEditor({ modelValue: input })
+    await waitForEditorReady()
+
+    const editor = (wrapper.vm as any).getEditor()
+    const html = editor.getHTML()
+    // Verify all inline mark tags are present in the generated HTML
+    expect(html).toContain('<strong')
+    expect(html).toContain('<em')
+    expect(html).toContain('<u')
+    expect(html).toContain('<mark')
+    // Now exercise the same round-trip the component performs internally.
+    // Build a temp element, walk childNodes the same way inlineNodeToPlainText does,
+    // and verify the markdown markers survive.
+    const temp = document.createElement('div')
+    temp.innerHTML = html
+    const blocks = temp.querySelectorAll('p, h1, h2, h3')
+    const lines: string[] = []
+    blocks.forEach((block) => {
+      const children = Array.from(block.childNodes)
+      const parts = children.map((node: Node): string => {
+        if (node.nodeType === Node.TEXT_NODE) return node.textContent || ''
+        const el = node as HTMLElement
+        const tag = el.tagName.toLowerCase()
+        const content = el.textContent || ''
+        if (tag === 'strong') return `**${content}**`
+        if (tag === 'em') return `*${content}*`
+        if (tag === 'u') return `__${content}__`
+        if (tag === 'mark') return `==${content}==`
+        return content
+      })
+      lines.push(parts.join(''))
+    })
+    const plainRoundtrip = lines.join('\n\n')
+    expect(plainRoundtrip).toContain('**bold**')
+    expect(plainRoundtrip).toContain('*italic*')
+    expect(plainRoundtrip).toContain('__underline__')
+    expect(plainRoundtrip).toContain('==highlight==')
+    wrapper.unmount()
+  })
+
+  // ---- applySuggestedFix edge cases ------------------------------------------
+
+  it('applySuggestedFix returns false when snippet is empty string', async () => {
+    const wrapper = mountEditor({ modelValue: 'some text' })
+    await waitForEditorReady()
+
+    const result = (wrapper.vm as any).applySuggestedFix({
+      originalSnippet: '',
+      fixContent: 'replacement',
+      paragraphIndex: 0,
+    })
+    expect(result).toBe(false)
+    wrapper.unmount()
+  })
+
+  it('applySuggestedFix searches all paragraphs when paragraphIndex is omitted', async () => {
+    const wrapper = mountEditor({ modelValue: 'first para\n\nsecond para' })
+    await waitForEditorReady()
+
+    // "second" only appears in paragraph index 1; omitting paragraphIndex
+    // should still find exactly one match and succeed.
+    const result = (wrapper.vm as any).applySuggestedFix({
+      originalSnippet: 'second',
+      fixContent: 'updated',
+    })
+    expect(result).toBe(true)
+
+    const editor = (wrapper.vm as any).getEditor()
+    expect(editor.getText()).toContain('updated')
+    expect(editor.getText()).not.toContain('second')
+    wrapper.unmount()
+  })
+
+  it('applySuggestedFix escapes XML special characters in fixContent', async () => {
+    const wrapper = mountEditor({ modelValue: 'replace me' })
+    await waitForEditorReady()
+
+    const result = (wrapper.vm as any).applySuggestedFix({
+      originalSnippet: 'replace',
+      fixContent: '<script>alert("xss")</script>',
+      paragraphIndex: 0,
+    })
+    expect(result).toBe(true)
+
+    const editor = (wrapper.vm as any).getEditor()
+    const html = editor.getHTML()
+    // The dangerous HTML should be escaped, not rendered as raw tags
+    expect(html).not.toContain('<script>')
+    // The escaped entities should appear in the output (possibly double-encoded by Tiptap)
+    expect(html).toContain('script')
+    expect(html).toContain('alert')
+    wrapper.unmount()
+  })
+
+  // ---- scrollToParagraph multi-paragraph scenarios ---------------------------
+
+  it('scrollToParagraph returns false for negative index', async () => {
+    const wrapper = mountEditor({ modelValue: 'aaa\n\nbbb\n\nccc' })
+    await waitForEditorReady()
+
+    expect((wrapper.vm as any).scrollToParagraph(-1)).toBe(false)
+    wrapper.unmount()
+  })
+
+  it('scrollToParagraph returns true for a middle paragraph', async () => {
+    const wrapper = mountEditor({ modelValue: 'first\n\nsecond\n\nthird' })
+    await waitForEditorReady()
+
+    // Index 1 = "second"
+    expect((wrapper.vm as any).scrollToParagraph(1)).toBe(true)
+    wrapper.unmount()
+  })
+
+  // ---- Bubble menu / ai-action forwarding ------------------------------------
+
+  it('forwards ai-action event from EditorBubbleMenu', async () => {
+    const wrapper = mountEditor({ modelValue: 'text to edit' })
+    await waitForEditorReady()
+
+    const bubbleMenu = wrapper.findComponent({ name: 'EditorBubbleMenu' })
+    expect(bubbleMenu.exists()).toBe(true)
+
+    const payload = {
+      command: 'rewrite',
+      selectedText: 'text',
+      from: 0,
+      to: 4,
+      editorFrom: 1,
+      editorTo: 5,
+    }
+    await bubbleMenu.vm.$emit('ai-action', payload)
+    await nextTick()
+
+    const emitted = wrapper.emitted('ai-action')
+    expect(emitted).toBeTruthy()
+    expect(emitted![0][0]).toEqual(payload)
+    wrapper.unmount()
+  })
+
   // ---- Cleanup on unmount ---------------------------------------------------
 
   it('destroys the editor on unmount', async () => {

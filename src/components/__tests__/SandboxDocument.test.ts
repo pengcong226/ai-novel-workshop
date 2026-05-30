@@ -808,4 +808,104 @@ describe('SandboxDocument', () => {
     // Empty tag should NOT be present
     expect(wrapper.find('.empty-tag').exists()).toBe(false)
   })
+
+  // --- Textarea placeholder ---
+
+  it('renders system prompt textarea with placeholder text', async () => {
+    const store = useSandboxStore()
+    seedEntities(store, [
+      createMockEntity({ id: 'e1', name: '张三' }),
+    ])
+
+    const wrapper = mountDocument()
+    await nextTick()
+
+    const textarea = wrapper.find('#entity-system-prompt')
+    expect(textarea.exists()).toBe(true)
+    expect(textarea.attributes('placeholder')).toBe('请输入实体的背景、性格或世界观规则...')
+  })
+
+  // --- addEntity createdAt field ---
+
+  it('sets createdAt to a numeric timestamp when creating a new entity', async () => {
+    const store = useSandboxStore()
+    const projectStore = useProjectStore()
+    projectStore.currentProject = { id: 'proj-1' } as any
+
+    const addEntitySpy = vi.spyOn(store, 'addEntity').mockResolvedValue(undefined)
+
+    const wrapper = mountDocument()
+    await nextTick()
+
+    await wrapper.find('.el-button-stub').trigger('click')
+    await flushPromises()
+
+    const addedEntity = addEntitySpy.mock.calls[0][0]
+    expect(typeof addedEntity.createdAt).toBe('number')
+    // Timestamp should be within a reasonable range (within 5 seconds of now)
+    const now = Date.now()
+    expect(addedEntity.createdAt).toBeGreaterThanOrEqual(now - 5000)
+    expect(addedEntity.createdAt).toBeLessThanOrEqual(now)
+  })
+
+  // --- Empty-tag hidden when only relations (no location) ---
+
+  it('hides empty-tag when relations exist but location is null', async () => {
+    const store = useSandboxStore()
+    seedEntities(store, [
+      createMockEntity({ id: 'e1', name: '张三' }),
+      createMockEntity({ id: 'e2', name: '李四' }),
+    ])
+
+    vi.mocked(replayReducer).mockReturnValue({
+      e1: {
+        entityId: 'e1',
+        entityName: '张三',
+        entityType: 'CHARACTER',
+        properties: {},
+        relations: [{ targetId: 'e2', targetName: '李四', type: 'ally' }],
+        location: null,
+        vitalStatus: 'alive',
+        abilities: [],
+      },
+    })
+
+    const wrapper = mountDocument()
+    await nextTick()
+
+    // Relation tag should be shown
+    expect(wrapper.find('.rel-tag').exists()).toBe(true)
+    // Location tag should NOT be shown
+    expect(wrapper.find('.loc-tag').exists()).toBe(false)
+    // Empty tag should NOT be shown since relations exist
+    expect(wrapper.find('.empty-tag').exists()).toBe(false)
+  })
+
+  // --- All three fields preserved on category change ---
+
+  it('saves all three fields (name, category, systemPrompt) on category change', async () => {
+    const store = useSandboxStore()
+    seedEntities(store, [
+      createMockEntity({ id: 'e1', name: '赵六', category: 'Protagonist', systemPrompt: '核心角色设定' }),
+    ])
+
+    const updateSpy = vi.spyOn(store, 'updateEntity').mockResolvedValue(undefined)
+
+    const wrapper = mountDocument()
+    await nextTick()
+
+    const categorySelect = wrapper.find('#entity-category')
+    await categorySelect.setValue('Antagonist')
+    await categorySelect.trigger('change')
+    await flushPromises()
+
+    // Verify the last call preserves all three fields
+    const lastCall = updateSpy.mock.calls[updateSpy.mock.calls.length - 1]
+    expect(lastCall[0]).toBe('e1')
+    expect(lastCall[1]).toMatchObject({
+      name: '赵六',
+      category: 'Antagonist',
+      systemPrompt: '核心角色设定',
+    })
+  })
 })
