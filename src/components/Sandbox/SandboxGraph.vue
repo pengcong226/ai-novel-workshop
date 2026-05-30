@@ -1,5 +1,5 @@
 <template>
-  <div class="sandbox-graph-container">
+  <div class="sandbox-graph-container" role="img" aria-label="实体关系图谱">
     <div style="display:flex; justify-content: space-between; align-items:center; margin-bottom: 10px;">
       <p style="font-size: 12px; color: var(--ds-text-secondary);">
         <i class="ri-information-line"></i> 图谱由实体的双向链接(#标签)自动生成，无须手动绘制。拖拽节点可重排。

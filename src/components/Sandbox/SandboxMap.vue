@@ -1,5 +1,5 @@
 <template>
-  <div class="sandbox-map-container">
+  <div class="sandbox-map-container" role="img" aria-label="势力分布地图">
     <div style="display:flex; justify-content: space-between; align-items:center; margin-bottom: 10px;">
       <p style="font-size: 12px; color: var(--ds-text-secondary);">
         <i class="ri-information-line"></i> 角色位置根据时间线中提取的 @地点 自动同步。基于地理坐标系百分比渲染。
