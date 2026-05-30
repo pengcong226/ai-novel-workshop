@@ -229,7 +229,7 @@ onBeforeUnmount(() => {
   document.removeEventListener('keydown', handleKeydown)
   window.removeEventListener('resize', updateTargetRect)
   window.removeEventListener('scroll', updateTargetRect, true)
-  resizeObserver?.disconnect()
+  ;(resizeObserver as ResizeObserver | null)?.disconnect()
 })
 </script>
 

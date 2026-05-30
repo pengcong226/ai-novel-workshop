@@ -125,10 +125,10 @@ export class ExporterRegistry {
       if (this.processorRegistry) {
         logger.info(`执行 pre-export 管道`)
         
-        let projectObj = undefined
+        let projectObj = undefined as (typeof import('@/types').Project | undefined)
 
         if (data.type === 'project') {
-          projectObj = data.content
+          projectObj = data.content as typeof import('@/types').Project
         }
         
         processedData = (await this.processorRegistry.processPipeline(

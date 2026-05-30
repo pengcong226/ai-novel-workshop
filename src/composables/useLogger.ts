@@ -17,15 +17,8 @@
  * ```
  */
 import { getCurrentInstance, onUnmounted } from 'vue'
-import { getLogger } from '@/utils/logger'
+import { getLogger, type LogContext } from '@/utils/logger'
 import { useProjectStore } from '@/stores/project'
-
-/** Lightweight context bag attached to every log entry. */
-export interface LogContext {
-  module?: string
-  projectId?: string
-  [key: string]: unknown
-}
 
 /** Shape returned by useLogger — mirrors the base logger with lazy context. */
 export interface Logger {
@@ -33,6 +26,10 @@ export interface Logger {
   info: (message: string, ...args: unknown[]) => void
   warn: (message: string, ...args: unknown[]) => void
   error: (message: string, ...args: unknown[]) => void
+  debugWithContext: (message: string, ctx: LogContext, ...args: unknown[]) => void
+  infoWithContext: (message: string, ctx: LogContext, ...args: unknown[]) => void
+  warnWithContext: (message: string, ctx: LogContext, ...args: unknown[]) => void
+  errorWithContext: (message: string, ctx: LogContext, ...args: unknown[]) => void
 }
 
 /**
@@ -74,7 +71,7 @@ export function useLogger(componentLabel?: string, extraContext?: LogContext): L
     context.projectId = projectId
   }
 
-  const baseLogger = getLogger(`component:${resolvedLabel}`)
+  const baseLogger = getLogger(`component:${resolvedLabel}`, context)
 
   // Wrap each level so projectId is lazily re-resolved if it was not
   // available at setup time (e.g. before the project store is hydrated).
@@ -100,6 +97,22 @@ export function useLogger(componentLabel?: string, extraContext?: LogContext): L
     error: (message: string, ...args: unknown[]) => {
       ensureProjectId()
       return baseLogger.error(message, ...args)
+    },
+    debugWithContext: (message: string, ctx: LogContext, ...args: unknown[]) => {
+      ensureProjectId()
+      return baseLogger.debugWithContext(message, ctx, ...args)
+    },
+    infoWithContext: (message: string, ctx: LogContext, ...args: unknown[]) => {
+      ensureProjectId()
+      return baseLogger.infoWithContext(message, ctx, ...args)
+    },
+    warnWithContext: (message: string, ctx: LogContext, ...args: unknown[]) => {
+      ensureProjectId()
+      return baseLogger.warnWithContext(message, ctx, ...args)
+    },
+    errorWithContext: (message: string, ctx: LogContext, ...args: unknown[]) => {
+      ensureProjectId()
+      return baseLogger.errorWithContext(message, ctx, ...args)
     }
   }
 

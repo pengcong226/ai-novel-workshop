@@ -137,12 +137,24 @@ class LoggerManager {
     return [...this.buffer]
   }
 
-  createLogger(namespace: string) {
+  createLogger(namespace: string, defaultContext?: LogContext) {
+    const withCtx = (level: RuntimeLogLevel, message: string, ctx?: LogContext, ...args: unknown[]) => {
+      const merged = { ...defaultContext, ...ctx }
+      const suffix = Object.keys(merged).length > 0
+        ? ' ' + JSON.stringify(merged)
+        : ''
+      this.log(level, namespace, message + suffix, ...args)
+    }
+
     return {
       debug: (message: string, ...args: unknown[]) => this.log('debug', namespace, message, ...args),
       info: (message: string, ...args: unknown[]) => this.log('info', namespace, message, ...args),
       warn: (message: string, ...args: unknown[]) => this.log('warn', namespace, message, ...args),
-      error: (message: string, ...args: unknown[]) => this.log('error', namespace, message, ...args)
+      error: (message: string, ...args: unknown[]) => this.log('error', namespace, message, ...args),
+      debugWithContext: (message: string, ctx: LogContext, ...args: unknown[]) => withCtx('debug', message, ctx, ...args),
+      infoWithContext: (message: string, ctx: LogContext, ...args: unknown[]) => withCtx('info', message, ctx, ...args),
+      warnWithContext: (message: string, ctx: LogContext, ...args: unknown[]) => withCtx('warn', message, ctx, ...args),
+      errorWithContext: (message: string, ctx: LogContext, ...args: unknown[]) => withCtx('error', message, ctx, ...args),
     }
   }
 
@@ -222,8 +234,8 @@ export function initLogger(config?: Partial<LoggerConfig>): LoggerManager {
   return loggerManager
 }
 
-export function getLogger(namespace: string) {
-  return loggerManager.createLogger(namespace)
+export function getLogger(namespace: string, context?: LogContext) {
+  return loggerManager.createLogger(namespace, context)
 }
 
 export function getLoggerManager() {

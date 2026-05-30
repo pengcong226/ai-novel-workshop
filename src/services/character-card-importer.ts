@@ -149,11 +149,11 @@ export class CharacterCardImporter {
   ): Promise<void> {
     // 角色基本信息
     result.character = {
-      name: data.name || data.char_name || 'Unknown',
-      description: data.description || data.char_persona,
+      name: (data.name || (data as Record<string, unknown>).char_name || 'Unknown') as string,
+      description: (data.description || (data as Record<string, unknown>).char_persona) as string | undefined,
       personality: data.personality,
       scenario: data.scenario,
-      first_mes: data.first_mes || data.char_greeting,
+      first_mes: (data.first_mes || (data as Record<string, unknown>).char_greeting) as string | undefined,
       mes_example: data.mes_example,
       creator_notes: data.creator_notes,
       system_prompt: data.system_prompt,

@@ -70,8 +70,9 @@ export class TemplateManager {
       const stored = await storageStore.loadTemplates()
 
       if (stored && stored.length > 0) {
-        stored.forEach((template: NovelTemplate) => {
-          this.templates.set(template.meta.id, template)
+        stored.forEach((template) => {
+          const tmpl = template as unknown as NovelTemplate
+          this.templates.set(tmpl.meta.id, tmpl)
         })
         logger.info(`Loaded ${stored.length} user templates from IndexedDB`)
         this.initialized = true
@@ -86,7 +87,7 @@ export class TemplateManager {
           this.templates.set(template.meta.id, template)
         })
         // 迁移到 IndexedDB
-        await storageStore.saveTemplates(userTemplates)
+        await storageStore.saveTemplates(userTemplates as any[])
         // 清理旧 localStorage
         localStorage.removeItem(STORAGE_KEY)
         logger.info(`Migrated ${userTemplates.length} templates from localStorage to IndexedDB`)
@@ -121,7 +122,7 @@ export class TemplateManager {
       const { useStorage } = await import('@/stores/storage')
       const storageStore = useStorage()
       await storageStore.init()
-      await storageStore.saveTemplates(userTemplates)
+      await storageStore.saveTemplates(userTemplates as any[])
     } catch (error) {
       logger.error('Failed to save user templates:', error)
       // 降级到 localStorage

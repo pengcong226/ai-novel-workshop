@@ -95,8 +95,8 @@ export function useContextRadar(
 
   return {
     /** Matched CHARACTER entities resolved through state reducer (read-only) */
-    activeContextCharacters: readonly(activeContextCharacters),
+    activeContextCharacters: readonly(activeContextCharacters) as unknown as Readonly<Ref<ResolvedEntity[]>>,
     /** Matched LORE entities (read-only) */
-    activeContextWorldbook: readonly(activeContextWorldbook)
+    activeContextWorldbook: readonly(activeContextWorldbook) as unknown as Readonly<Ref<Entity[]>>
   }
 }

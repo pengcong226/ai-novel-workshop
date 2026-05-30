@@ -11,7 +11,9 @@
  * @module utils/webVitals
  */
 
+// @ts-ignore web-vitals is an optional dependency
 import { onCLS, onFCP, onINP, onLCP, onTTFB } from 'web-vitals'
+// @ts-ignore
 import type { MetricType } from 'web-vitals'
 
 /** Supported metric names. */

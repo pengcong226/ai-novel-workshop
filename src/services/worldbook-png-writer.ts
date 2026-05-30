@@ -211,7 +211,7 @@ function base64Encode(data: Uint8Array): string {
 async function deflate(data: Uint8Array): Promise<Uint8Array> {
   try {
     // 尝试使用pako (如果可用)
-    // @ts-expect-error pako is an optional peer dependency; fallback to CompressionStream if unavailable
+    // pako is an optional peer dependency; fallback to CompressionStream if unavailable
     const pako = await import('pako')
     return pako.deflate(data)
   } catch {
@@ -219,7 +219,7 @@ async function deflate(data: Uint8Array): Promise<Uint8Array> {
     // 如果pako不可用，使用浏览器原生CompressionStream
     const stream = new CompressionStream('deflate')
     const writer = stream.writable.getWriter()
-    await writer.write(data)
+    await writer.write(data as unknown as Uint8Array<ArrayBuffer>)
     await writer.close()
 
     const reader = stream.readable.getReader()

@@ -1036,7 +1036,8 @@ async function processWithLLM(text: string) {
       title: importForm.value.title,
       author: importForm.value.author,
       chapters: llmResult.value.chapters.map((ch: LLMChapter) => ({
-          chapterId: uuidv4(),
+          id: uuidv4(),
+          number: ch.number,
           title: ch.title,
           content: ch.content || '',
           wordCount: ch.wordCount || 0,

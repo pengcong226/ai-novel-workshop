@@ -23,7 +23,6 @@ import {
 
 import {
   exportAllChaptersToDocx,
-  exportChapterToDocx,
   type DocxExportOptions,
   DEFAULT_DOCX_OPTIONS
 } from '@/utils/docxExporter'
@@ -35,7 +34,6 @@ import {
 import {
   exportAllChaptersToTxt,
   exportChapterToTxt,
-  exportProjectToTxt,
   type TxtExportOptions,
   DEFAULT_TXT_OPTIONS
 } from '@/utils/txtExporter'
@@ -265,7 +263,7 @@ export async function exportWithManager(
           if (!chapter) throw new Error(`章节索引 ${chapterIndex} 超出范围`)
           exportChapterToTxt(chapter, projectTitle, txtOpts)
         } else if (scope === 'project') {
-          exportProjectToTxt(project, txtOpts, onProgress)
+          exportAllChaptersToTxt(project.chapters, project.title, txtOpts, onProgress)
         } else {
           exportAllChaptersToTxt(chapters, projectTitle, txtOpts, onProgress)
         }
@@ -303,9 +301,9 @@ export async function exportWithManager(
         if (scope === 'single' && chapterIndex !== undefined) {
           const chapter = chapters[chapterIndex]
           if (!chapter) throw new Error(`章节索引 ${chapterIndex} 超出范围`)
-          await exportChapterToDocx(chapter, projectTitle, docxOpts)
+          await exportAllChaptersToDocx([chapter], projectTitle, docxOpts)
         } else {
-          await exportAllChaptersToDocx(chapters, project, docxOpts, onProgress)
+          await exportAllChaptersToDocx(chapters, projectTitle, docxOpts, onProgress)
         }
         break
       }

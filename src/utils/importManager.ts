@@ -113,14 +113,15 @@ function detectFormat(file: File): ImportFormat | null {
  */
 async function extractTextFromDocx(file: File): Promise<string> {
   try {
+    // @ts-ignore mammoth is an optional peer dependency
     const mammoth = await import('mammoth')
     const arrayBuffer = await file.arrayBuffer()
-    const result = await mammoth.extractRawText({ arrayBuffer })
+    const result = await (mammoth as any).extractRawText({ arrayBuffer })
 
     if (result.messages.length > 0) {
-      const warnings = result.messages
-        .filter(m => m.type === 'warning')
-        .map(m => m.message)
+      const warnings = (result.messages as Array<{ type: string; message: string }>)
+        .filter((m: { type: string }) => m.type === 'warning')
+        .map((m: { message: string }) => m.message)
       if (warnings.length > 0) {
         logger.warn('DOCX 解析警告:', warnings)
       }

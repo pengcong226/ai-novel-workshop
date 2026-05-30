@@ -80,12 +80,15 @@ const emit = defineEmits<{
 const projectStore = useProjectStore()
 
 const {
-  currentStep,
+  currentStep: sessionStep,
   clearSession,
   setKeyChapters,
   abort: abortExtraction,
   isRunning,
 } = useDeepImportSession()
+
+// Local writable step to allow transitions from the dialog
+const currentStep = ref(sessionStep.value)
 
 const parsedChapters = ref<ParsedChapter[]>([])
 const sourceText = ref('')

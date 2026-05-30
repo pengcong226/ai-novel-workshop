@@ -189,7 +189,7 @@ const recentResults = computed(() => {
   for (const chNum of chapters) {
     const result = session.value!.results.get(chNum)
     if (result?.status === 'success') {
-      results.push(result)
+      results.push(result as ChapterExtractionResult)
     }
   }
   return results

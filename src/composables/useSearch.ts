@@ -140,7 +140,7 @@ export function useSearch(options?: UseSearchOptions): UseSearchReturn {
     /** Whether a search is in progress (read-only) */
     searching: readonly(searching),
     /** Search results (read-only) */
-    results: readonly(results),
+    results: readonly(results) as unknown as Readonly<Ref<ScoredResult[]>>,
     filters,
     setFilter,
     clearFilters,

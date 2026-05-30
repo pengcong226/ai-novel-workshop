@@ -198,7 +198,7 @@ export class PluginSecurityGuard {
     }
 
     // 合并插件声明的偏好与默认值
-    const pluginSandbox = manifest.sandbox ?? {}
+    const pluginSandbox = (manifest.sandbox ?? {}) as Partial<SandboxConfig>
     const allowedNamespaces = this.intersectNamespaces(
       pluginSandbox.allowedNamespaces ?? requiredNamespaces,
       requiredNamespaces

@@ -364,7 +364,7 @@ export interface PluginManifest {
 export interface PluginInstance {
   manifest: PluginManifest
   active: boolean
-  module: unknown
+  module: any
   context: PluginContext
   settings?: Record<string, unknown>
 }

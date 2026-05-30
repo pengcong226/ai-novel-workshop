@@ -961,9 +961,9 @@ export const useStorage = defineStore('storage', () => {
     return await storage.loadProjectsList()
   }
 
-  async function saveProjects(projects: StoredProject[]) {
+  async function saveProjects(projects: unknown[]) {
     await init()
-    return await storage.saveProjectsList(projects)
+    return await storage.saveProjectsList(projects as StoredProject[])
   }
 
   async function loadProject(projectId: string) {
@@ -996,9 +996,9 @@ export const useStorage = defineStore('storage', () => {
     return project
   }
 
-  async function saveProject(project: StoredProject) {
+  async function saveProject(project: unknown) {
     await init()
-    return await storage.saveProject(project)
+    return await storage.saveProject(project as StoredProject)
   }
 
   async function deleteProject(projectId: string) {

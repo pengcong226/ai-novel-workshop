@@ -565,7 +565,7 @@ export class GenerationScheduler {
           const postResult = await processorRegistry.processPipeline(
             'post-generation',
             { chapter: chapterData, project: currentProject },
-            { project: currentProject, chapter: chapterData, config: currentProject.config }
+            { project: currentProject, chapter: chapterData, config: currentProject.config as unknown as Record<string, unknown> }
           )
           const resultChapter = (postResult as Record<string, unknown> | null)?.chapter as Record<string, unknown> | undefined
           if (resultChapter && typeof resultChapter.content === 'string') {
