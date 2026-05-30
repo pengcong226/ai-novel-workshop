@@ -660,4 +660,262 @@ describe('PluginManager', () => {
     expect(dialog.exists()).toBe(true)
     expect(dialog.text()).toContain('此插件没有可配置项')
   })
+
+  // ---------------------------------------------------------------
+  // 16. Refresh shows error message when loadInstalledPlugins fails
+  // ---------------------------------------------------------------
+
+  it('shows error message when refresh fails', async () => {
+    const loadSpy = vi.spyOn(pluginStore, 'loadInstalledPlugins').mockResolvedValue(undefined)
+
+    const wrapper = mountManager()
+    await nextTick()
+
+    // Make it reject only for the refresh click
+    loadSpy.mockRejectedValueOnce(new Error('DB offline'))
+
+    const headerButtons = wrapper.findAll('.header-card .el-button-stub')
+    const refreshButton = headerButtons.find(b => b.text().includes('刷新'))
+    await refreshButton!.trigger('click')
+    await flushPromises()
+
+    expect(mockElMessageError).toHaveBeenCalledWith('刷新失败: DB offline')
+    expect(mockElMessageSuccess).not.toHaveBeenCalled()
+  })
+
+  // ---------------------------------------------------------------
+  // 17. Save plugin settings successfully
+  // ---------------------------------------------------------------
+
+  it('saves plugin settings and closes dialog', async () => {
+    pluginStore.plugins = [createPlugin({ id: 'p1' })]
+    pluginStore.activePlugins = ['p1']
+    pluginStore.pluginSettings = { p1: { apiKey: 'old-key' } }
+
+    vi.spyOn(pluginStore, 'updatePluginSettings').mockResolvedValue(undefined)
+
+    const wrapper = mountManager()
+    await nextTick()
+
+    // Open settings dialog
+    const buttons = wrapper.findAll('.plugin-card .el-button-stub')
+    const settingsButton = buttons.find(b => b.text().includes('设置'))
+    await settingsButton!.trigger('click')
+    await nextTick()
+
+    // Click save button in dialog footer
+    const dialog = wrapper.find('.el-dialog-stub')
+    const footerButtons = dialog.findAll('.el-button-stub')
+    const saveButton = footerButtons.find(b => b.text().includes('保存'))
+    expect(saveButton).toBeDefined()
+
+    await saveButton!.trigger('click')
+    await flushPromises()
+
+    expect(pluginStore.updatePluginSettings).toHaveBeenCalledWith('p1', expect.any(Object))
+    expect(mockElMessageSuccess).toHaveBeenCalledWith('设置已保存')
+  })
+
+  // ---------------------------------------------------------------
+  // 18. Save plugin settings shows error on failure
+  // ---------------------------------------------------------------
+
+  it('shows error when saving plugin settings fails', async () => {
+    pluginStore.plugins = [createPlugin({ id: 'p1' })]
+    pluginStore.activePlugins = ['p1']
+    pluginStore.pluginSettings = { p1: { apiKey: 'test' } }
+
+    vi.spyOn(pluginStore, 'updatePluginSettings').mockRejectedValue(new Error('Permission denied'))
+
+    const wrapper = mountManager()
+    await nextTick()
+
+    const buttons = wrapper.findAll('.plugin-card .el-button-stub')
+    const settingsButton = buttons.find(b => b.text().includes('设置'))
+    await settingsButton!.trigger('click')
+    await nextTick()
+
+    const dialog = wrapper.find('.el-dialog-stub')
+    const saveButton = dialog.findAll('.el-button-stub').find(b => b.text().includes('保存'))
+    await saveButton!.trigger('click')
+    await flushPromises()
+
+    expect(mockElMessageError).toHaveBeenCalledWith('保存失败: Permission denied')
+  })
+
+  // ---------------------------------------------------------------
+  // 19. Install from URL shows error when plugin is incompatible
+  // ---------------------------------------------------------------
+
+  it('shows error when installed plugin is incompatible', async () => {
+    const manifest = createPlugin({ id: 'bad-plugin', name: 'Bad Plugin' })
+    vi.mocked(PluginLoader.loadFromUrl).mockResolvedValue({
+      success: true,
+      manifest,
+      module: {},
+    })
+    vi.mocked(PluginLoader.checkCompatibility).mockReturnValue({
+      compatible: false,
+      issues: ['Requires v2.0+', 'Missing API endpoint'],
+    })
+
+    const installSpy = vi.spyOn(pluginStore, 'installPlugin')
+
+    const wrapper = mountManager()
+    await nextTick()
+
+    const headerButtons = wrapper.findAll('.header-card .el-button-stub')
+    const installButton = headerButtons.find(b => b.text().includes('安装插件'))
+    await installButton!.trigger('click')
+    await nextTick()
+
+    const urlInput = wrapper.find('.el-dialog-stub .el-input-stub')
+    await urlInput.setValue('https://example.com/manifest.json')
+
+    const dialog = wrapper.find('.el-dialog-stub')
+    const submitButton = dialog.findAll('.el-button-stub').find(b => b.text().trim() === '安装')
+    await submitButton!.trigger('click')
+    await flushPromises()
+
+    expect(mockElMessageError).toHaveBeenCalledWith('插件不兼容: Requires v2.0+, Missing API endpoint')
+    expect(installSpy).not.toHaveBeenCalled()
+  })
+
+  // ---------------------------------------------------------------
+  // 20. Execute command succeeds and shows success message
+  // ---------------------------------------------------------------
+
+  it('executes quick command and shows success message', async () => {
+    const handler = vi.fn().mockResolvedValue(undefined)
+    pluginStore.getQuickCommands = vi.fn().mockReturnValue([
+      { id: 'cmd1', text: '/hello', command: 'hello', handler },
+    ])
+
+    const wrapper = mountManager()
+    await nextTick()
+
+    // Switch to commands tab by setting the tab pane directly
+    // The commands tab content is always rendered in the DOM, just find the execute button
+    const commandCards = wrapper.findAll('.command-card')
+    expect(commandCards).toHaveLength(1)
+
+    const executeButton = commandCards[0].find('.el-button-stub')
+    expect(executeButton.text()).toContain('执行')
+
+    await executeButton.trigger('click')
+    await flushPromises()
+
+    expect(handler).toHaveBeenCalled()
+    expect(mockElMessageSuccess).toHaveBeenCalledWith('命令执行成功')
+  })
+
+  // ---------------------------------------------------------------
+  // 21. Execute command shows error when handler throws
+  // ---------------------------------------------------------------
+
+  it('shows error when quick command handler throws', async () => {
+    const handler = vi.fn().mockRejectedValue(new Error('Command failed'))
+    pluginStore.getQuickCommands = vi.fn().mockReturnValue([
+      { id: 'cmd1', text: '/fail', command: 'fail', handler },
+    ])
+
+    const wrapper = mountManager()
+    await nextTick()
+
+    const commandCards = wrapper.findAll('.command-card')
+    const executeButton = commandCards[0].find('.el-button-stub')
+    await executeButton.trigger('click')
+    await flushPromises()
+
+    expect(handler).toHaveBeenCalled()
+    expect(mockElMessageError).toHaveBeenCalledWith('命令执行失败: Command failed')
+  })
+
+  // ---------------------------------------------------------------
+  // 22. Unknown permission label falls back to raw string
+  // ---------------------------------------------------------------
+
+  it('shows raw permission string for unknown permission types', async () => {
+    pluginStore.plugins = [
+      createPlugin({ id: 'p1', permissions: ['storage', 'custom-unknown'] }),
+    ]
+
+    const wrapper = mountManager()
+    await nextTick()
+
+    const tags = wrapper.findAll('.plugin-card .el-tag-stub')
+    const tagTexts = tags.map(t => t.text())
+    expect(tagTexts).toContain('存储访问')
+    expect(tagTexts).toContain('custom-unknown')
+  })
+
+  // ---------------------------------------------------------------
+  // 23. Plugin without icon uses default emoji
+  // ---------------------------------------------------------------
+
+  it('renders default icon emoji when plugin has no icon property', async () => {
+    pluginStore.plugins = [createPlugin({ id: 'p1', icon: undefined })]
+
+    const wrapper = mountManager()
+    await nextTick()
+
+    const pluginIcon = wrapper.find('.plugin-icon')
+    expect(pluginIcon.exists()).toBe(true)
+    expect(pluginIcon.text()).toContain('📦')
+  })
+
+  // ---------------------------------------------------------------
+  // 24. Settings button is disabled for inactive plugins
+  // ---------------------------------------------------------------
+
+  it('disables settings button when plugin is inactive', async () => {
+    pluginStore.plugins = [createPlugin({ id: 'p1' })]
+    pluginStore.activePlugins = [] // inactive
+
+    const wrapper = mountManager()
+    await nextTick()
+
+    const buttons = wrapper.findAll('.plugin-card .el-button-stub')
+    const settingsButton = buttons.find(b => b.text().includes('设置'))
+    expect(settingsButton).toBeDefined()
+    expect(settingsButton!.attributes('disabled')).toBeDefined()
+  })
+
+  // ---------------------------------------------------------------
+  // 25. Install from URL shows warnings from PluginLoader
+  // ---------------------------------------------------------------
+
+  it('displays warnings when PluginLoader.loadFromUrl returns warnings', async () => {
+    const manifest = createPlugin({ id: 'warn-plugin', name: 'Warn Plugin' })
+    vi.mocked(PluginLoader.loadFromUrl).mockResolvedValue({
+      success: true,
+      manifest,
+      module: {},
+      warnings: ['API version will be deprecated', 'No tests found'],
+    })
+    vi.spyOn(pluginStore, 'installPlugin').mockResolvedValue(undefined)
+    vi.spyOn(pluginStore, 'loadInstalledPlugins').mockResolvedValue(undefined)
+
+    const wrapper = mountManager()
+    await nextTick()
+
+    const headerButtons = wrapper.findAll('.header-card .el-button-stub')
+    const installButton = headerButtons.find(b => b.text().includes('安装插件'))
+    await installButton!.trigger('click')
+    await nextTick()
+
+    const urlInput = wrapper.find('.el-dialog-stub .el-input-stub')
+    await urlInput.setValue('https://example.com/manifest.json')
+
+    const dialog = wrapper.find('.el-dialog-stub')
+    const submitButton = dialog.findAll('.el-button-stub').find(b => b.text().trim() === '安装')
+    await submitButton!.trigger('click')
+    await flushPromises()
+
+    expect(mockElMessageWarning).toHaveBeenCalledWith('API version will be deprecated')
+    expect(mockElMessageWarning).toHaveBeenCalledWith('No tests found')
+    // Plugin should still install despite warnings
+    expect(pluginStore.installPlugin).toHaveBeenCalled()
+    expect(mockElMessageSuccess).toHaveBeenCalledWith('插件 Warn Plugin 安装成功')
+  })
 })

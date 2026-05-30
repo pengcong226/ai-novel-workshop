@@ -418,4 +418,160 @@ describe('AgentConsole', () => {
 
     vi.restoreAllMocks()
   })
+
+  // ---- Rendering: "running" status tag ----
+
+  it('shows "运行中" status tag while an agent is running', async () => {
+    const wrapper = mountAgentConsole()
+
+    const agentCards = wrapper.findAll('.agent-card')
+    const plannerRunBtn = agentCards[0].findAll('.stub-button')[0]
+    await plannerRunBtn.trigger('click')
+    await flushPromises()
+
+    expect(wrapper.find('.stub-tag').text()).toContain('运行中')
+
+    // Clean up: advance timer so the agent finishes
+    await vi.advanceTimersByTimeAsync(2000)
+    await flushPromises()
+  })
+
+  // ---- Rendering: toggle-all button when all enabled ----
+
+  it('shows "全部禁用" button when all agents are already enabled', () => {
+    const allEnabled = DEFAULT_MOCK_AGENT_CONFIGS.map(c => ({ ...c, enabled: true }))
+    const wrapper = mountAgentConsole({
+      config: { agentConfigs: allEnabled },
+    })
+
+    const toggleBtn = wrapper.find('.header-actions .stub-button')
+    expect(toggleBtn.text()).toBe('全部禁用')
+  })
+
+  // ---- Interaction: configure agent ----
+
+  it('shows info message when "配置" button is clicked', async () => {
+    const { ElMessage } = await import('element-plus')
+    const wrapper = mountAgentConsole()
+
+    const agentCards = wrapper.findAll('.agent-card')
+    // Planner card: second button is "配置"
+    const configureBtn = agentCards[0].findAll('.stub-button')[1]
+    await configureBtn.trigger('click')
+    await flushPromises()
+
+    expect(ElMessage.info).toHaveBeenCalledWith(
+      expect.stringContaining('配置')
+    )
+    expect(ElMessage.info).toHaveBeenCalledWith(
+      expect.stringContaining('规划师')
+    )
+  })
+
+  // ---- Interaction: log cap at 50 entries ----
+
+  it('caps execution log at 50 entries', async () => {
+    const wrapper = mountAgentConsole()
+
+    // Directly manipulate the internal executionLog to simulate 50+ entries
+    // by running the single agent many times rapidly.
+    // Instead, access the component's exposed addLog indirectly by running
+    // agents. Since runSingleAgent uses a 1500ms timeout, we pre-fill
+    // the log via the component instance.
+    const vm = wrapper.vm as any
+    // Manually push 55 log entries through the component's addLog logic
+    for (let i = 0; i < 55; i++) {
+      vm.executionLog.unshift({
+        time: '00:00:00',
+        role: 'planner',
+        status: 'success',
+        message: `entry-${i}`,
+      })
+    }
+    // Trigger a real agent run which calls addLog, which enforces the cap
+    const agentCards = wrapper.findAll('.agent-card')
+    const plannerRunBtn = agentCards[0].findAll('.stub-button')[0]
+    await plannerRunBtn.trigger('click')
+    await flushPromises()
+
+    await vi.advanceTimersByTimeAsync(2000)
+    await flushPromises()
+
+    // addLog caps at 50; we started with 55, then added 2 more (running + success)
+    // but the cap of 50 should have trimmed them
+    expect(wrapper.findAll('.log-entry').length).toBeLessThanOrEqual(50)
+  })
+
+  // ---- Rendering: disabled agent run button ----
+
+  it('disables the run button for a disabled agent', () => {
+    const wrapper = mountAgentConsole()
+
+    const agentCards = wrapper.findAll('.agent-card')
+    // Reader (index 3) is disabled in DEFAULT_MOCK_AGENT_CONFIGS
+    const readerRunBtn = agentCards[3].findAll('.stub-button')[0]
+    expect(readerRunBtn.attributes('disabled')).toBeDefined()
+  })
+
+  // ---- Interaction: batch run disables single agent buttons ----
+
+  it('disables the stop button when no agents are running', () => {
+    const wrapper = mountAgentConsole()
+
+    const batchButtons = wrapper.findAll('.batch-section .stub-button')
+    const stopBtn = batchButtons[2]
+    expect(stopBtn.attributes('disabled')).toBeDefined()
+  })
+
+  // ---- Interaction: run pre-generation agents ----
+
+  it('runs all enabled pre-generation agents when batch button is clicked', async () => {
+    const wrapper = mountAgentConsole()
+
+    const batchButtons = wrapper.findAll('.batch-section .stub-button')
+    const preGenBtn = batchButtons[0]
+
+    await preGenBtn.trigger('click')
+    await flushPromises()
+
+    // Advance past the simulated 2000ms batch execution
+    await vi.advanceTimersByTimeAsync(2500)
+    await flushPromises()
+
+    const logEntries = wrapper.findAll('.log-entry')
+    expect(logEntries.length).toBeGreaterThan(0)
+
+    // Planner is the only pre-generation agent and it's enabled
+    const successEntries = logEntries.filter(e => e.classes().includes('log-success'))
+    expect(successEntries.length).toBeGreaterThanOrEqual(1)
+    expect(logEntries.some(e => e.text().includes('规划师'))).toBe(true)
+  })
+
+  // ---- Error handling: batch phase agents failure ----
+
+  it('logs failed entries when batch phase agents execution fails', async () => {
+    const originalSetTimeout = globalThis.setTimeout
+    let callCount = 0
+    vi.spyOn(globalThis, 'setTimeout').mockImplementation((fn: any, ms?: number) => {
+      // Let the 1500ms single-agent calls through, but throw for the 2000ms batch call
+      if (ms === 2000) {
+        throw new Error('batch network error')
+      }
+      return originalSetTimeout(fn, ms ?? 0) as any
+    })
+
+    const wrapper = mountAgentConsole()
+
+    const batchButtons = wrapper.findAll('.batch-section .stub-button')
+    const postGenBtn = batchButtons[1]
+    await postGenBtn.trigger('click')
+    await flushPromises()
+
+    const logEntries = wrapper.findAll('.log-entry')
+    const failedEntries = logEntries.filter(e => e.classes().includes('log-failed'))
+    expect(failedEntries.length).toBeGreaterThan(0)
+    expect(failedEntries[0].text()).toContain('friendly: batch network error')
+
+    vi.restoreAllMocks()
+  })
 })

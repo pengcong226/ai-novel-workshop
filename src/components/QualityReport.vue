@@ -503,7 +503,7 @@ const trendAnalysis = computed(() => {
 // 需改进章节数
 const needImprovementCount = computed(() => {
   const threshold = project.value?.config?.qualityThreshold || 7
-  return reports.value.filter(r => r.overallScore < threshold).length
+  return reports.value.filter(r => r && r.overallScore < threshold).length
 })
 
 // 过滤后的报告

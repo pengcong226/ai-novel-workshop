@@ -1201,4 +1201,371 @@ describe('CharacterDevelopment', () => {
     const uniqueChapterEl = statValues.find(el => el.text() === '3')
     expect(uniqueChapterEl).toBeDefined()
   })
+
+  // -----------------------------------------------------------------------
+  // 21. Delete cancellation does not call deleteStateEvent
+  // -----------------------------------------------------------------------
+
+  it('does not delete event when user cancels the confirmation dialog', async () => {
+    // Override ElMessageBox.confirm to reject (simulating user cancel)
+    const { ElMessageBox } = await import('element-plus') as any
+    ElMessageBox.confirm.mockRejectedValueOnce(new Error('cancelled'))
+
+    const char = makeCharacter({ id: 'c1', name: '黄忠' })
+
+    const events = [
+      makeStateEvent({ id: 'evt1', entityId: 'c1', chapterNumber: 1, eventType: 'PROPERTY_UPDATE', payload: { key: '箭术', value: '99' } }),
+    ]
+
+    vi.mocked(buildStateEventIndexes).mockReturnValue({
+      eventsByEntity: new Map([['c1', events]]),
+      countsByEntity: new Map([['c1', 1]]),
+      chapterNumbersByEntity: new Map([['c1', new Set([1])]]),
+      entityIdsByChapterNumber: new Map(),
+    })
+
+    vi.mocked(replayReducer).mockReturnValue({
+      c1: {
+        entityId: 'c1', entityName: '黄忠', entityType: 'CHARACTER',
+        properties: {}, relations: [], location: null, vitalStatus: 'alive', abilities: [],
+      },
+    })
+
+    seedEntities(store, [char])
+    seedStateEvents(store, events)
+
+    const deleteSpy = vi.spyOn(store, 'deleteStateEvent').mockResolvedValue(undefined)
+
+    const wrapper = mountComponent()
+    await nextTick()
+    await nextTick()
+
+    // Click the "删除" button
+    const buttons = wrapper.findAll('.el-button-stub')
+    const deleteButton = buttons.find(b => b.text().includes('删除'))
+    expect(deleteButton).toBeDefined()
+
+    await deleteButton!.trigger('click')
+    await flushPromises()
+
+    // deleteStateEvent should NOT have been called since user cancelled
+    expect(deleteSpy).not.toHaveBeenCalled()
+  })
+
+  // -----------------------------------------------------------------------
+  // 22. LOCATION_MOVE event with undefined coordinates displays fallback
+  // -----------------------------------------------------------------------
+
+  it('renders LOCATION_MOVE event with "未知" when coordinates are undefined', async () => {
+    const char = makeCharacter({ id: 'c1', name: '孙悟空' })
+
+    const events = [
+      makeStateEvent({
+        id: 'evt1',
+        entityId: 'c1',
+        chapterNumber: 2,
+        eventType: 'LOCATION_MOVE',
+        payload: { coordinates: undefined },
+      }),
+    ]
+
+    vi.mocked(buildStateEventIndexes).mockReturnValue({
+      eventsByEntity: new Map([['c1', events]]),
+      countsByEntity: new Map([['c1', 1]]),
+      chapterNumbersByEntity: new Map([['c1', new Set([2])]]),
+      entityIdsByChapterNumber: new Map(),
+    })
+
+    vi.mocked(replayReducer).mockReturnValue({
+      c1: {
+        entityId: 'c1', entityName: '孙悟空', entityType: 'CHARACTER',
+        properties: {}, relations: [], location: null, vitalStatus: 'alive', abilities: [],
+      },
+    })
+
+    seedEntities(store, [char])
+    seedStateEvents(store, events)
+
+    const wrapper = mountComponent()
+    await nextTick()
+    await nextTick()
+
+    // Should display "未知" as the coordinate fallback
+    expect(wrapper.text()).toContain('位置迁移')
+    expect(wrapper.text()).toContain('未知')
+  })
+
+  // -----------------------------------------------------------------------
+  // 23. Dialog title switches between add and edit mode
+  // -----------------------------------------------------------------------
+
+  it('shows "添加成长节点" title when adding and "编辑成长节点" when editing', async () => {
+    const char = makeCharacter({ id: 'c1', name: '诸葛亮' })
+
+    const events = [
+      makeStateEvent({ id: 'evt1', entityId: 'c1', chapterNumber: 1, eventType: 'PROPERTY_UPDATE', payload: { key: '智谋', value: '100' } }),
+    ]
+
+    vi.mocked(buildStateEventIndexes).mockReturnValue({
+      eventsByEntity: new Map([['c1', events]]),
+      countsByEntity: new Map([['c1', 1]]),
+      chapterNumbersByEntity: new Map([['c1', new Set([1])]]),
+      entityIdsByChapterNumber: new Map(),
+    })
+
+    vi.mocked(replayReducer).mockReturnValue({
+      c1: {
+        entityId: 'c1', entityName: '诸葛亮', entityType: 'CHARACTER',
+        properties: {}, relations: [], location: null, vitalStatus: 'alive', abilities: [],
+      },
+    })
+
+    seedEntities(store, [char])
+    seedStateEvents(store, events)
+
+    const wrapper = mountComponent()
+    await nextTick()
+    await nextTick()
+
+    // --- Test ADD mode ---
+    const addButtons = wrapper.findAll('.el-button-stub')
+    const addButton = addButtons.find(b => b.text().includes('添加节点'))
+    expect(addButton).toBeDefined()
+
+    await addButton!.trigger('click')
+    await nextTick()
+
+    // Dialog should now be visible with form content
+    let dialog = wrapper.find('.el-dialog-stub')
+    expect(dialog.exists()).toBe(true)
+    // Add mode: form shows default PROPERTY_UPDATE fields
+    expect(dialog.text()).toContain('属性名')
+    expect(dialog.text()).toContain('属性值')
+
+    // Close the dialog by clicking "取消"
+    const cancelButton = dialog.findAll('.el-button-stub').find(b => b.text() === '取消')
+    expect(cancelButton).toBeDefined()
+    await cancelButton!.trigger('click')
+    await nextTick()
+
+    // Dialog should be closed
+    expect(wrapper.find('.el-dialog-stub').exists()).toBe(false)
+
+    // --- Test EDIT mode ---
+    const editButton = wrapper.findAll('.el-button-stub').find(b => b.text().includes('编辑'))
+    expect(editButton).toBeDefined()
+
+    await editButton!.trigger('click')
+    await nextTick()
+
+    // Dialog should re-open with pre-populated edit form
+    dialog = wrapper.find('.el-dialog-stub')
+    expect(dialog.exists()).toBe(true)
+    // The form should contain the pre-populated data from the event
+    expect(dialog.text()).toContain('属性名')
+    expect(dialog.text()).toContain('属性值')
+  })
+
+  // -----------------------------------------------------------------------
+  // 24. Save validation shows warning when PROPERTY_UPDATE key is empty
+  // -----------------------------------------------------------------------
+
+  it('shows validation warning when saving PROPERTY_UPDATE with empty key', async () => {
+    const { ElMessage } = await import('element-plus') as any
+
+    const char = makeCharacter({ id: 'c1', name: '赵云' })
+
+    vi.mocked(buildStateEventIndexes).mockReturnValue({
+      eventsByEntity: new Map(),
+      countsByEntity: new Map([['c1', 0]]),
+      chapterNumbersByEntity: new Map(),
+      entityIdsByChapterNumber: new Map(),
+    })
+
+    vi.mocked(replayReducer).mockReturnValue({
+      c1: {
+        entityId: 'c1', entityName: '赵云', entityType: 'CHARACTER',
+        properties: {}, relations: [], location: null, vitalStatus: 'alive', abilities: [],
+      },
+    })
+
+    seedEntities(store, [char])
+
+    const wrapper = mountComponent()
+    await nextTick()
+    await nextTick()
+
+    // Open the add dialog
+    const addButtons = wrapper.findAll('.el-button-stub')
+    const addButton = addButtons.find(b => b.text().includes('添加节点'))
+    await addButton!.trigger('click')
+    await nextTick()
+
+    // The form defaults to PROPERTY_UPDATE with empty key -- click save
+    const saveButton = wrapper.findAll('.el-button-stub').find(b => b.text() === '保存')
+    expect(saveButton).toBeDefined()
+    await saveButton!.trigger('click')
+    await nextTick()
+
+    // Should show a warning about empty property name
+    expect(ElMessage.warning).toHaveBeenCalledWith('请输入属性名')
+  })
+
+  // -----------------------------------------------------------------------
+  // 25. Other entities filter excludes selected entity from relation dropdown
+  // -----------------------------------------------------------------------
+
+  it('excludes the selected entity from the relation target dropdown', async () => {
+    const char1 = makeCharacter({ id: 'c1', name: '刘备' })
+    const char2 = makeCharacter({ id: 'c2', name: '关羽' })
+    const char3 = makeCharacter({ id: 'c3', name: '张飞' })
+
+    const events = [
+      makeStateEvent({ id: 'evt1', entityId: 'c1', chapterNumber: 1, eventType: 'PROPERTY_UPDATE', payload: { key: 'rank', value: 'leader' } }),
+    ]
+
+    vi.mocked(buildStateEventIndexes).mockReturnValue({
+      eventsByEntity: new Map([['c1', events]]),
+      countsByEntity: new Map([['c1', 1], ['c2', 0], ['c3', 0]]),
+      chapterNumbersByEntity: new Map([['c1', new Set([1])]]),
+      entityIdsByChapterNumber: new Map(),
+    })
+
+    vi.mocked(replayReducer).mockReturnValue({
+      c1: {
+        entityId: 'c1', entityName: '刘备', entityType: 'CHARACTER',
+        properties: {}, relations: [], location: null, vitalStatus: 'alive', abilities: [],
+      },
+    })
+
+    seedEntities(store, [char1, char2, char3])
+    seedStateEvents(store, events)
+
+    const wrapper = mountComponent()
+    await nextTick()
+    await nextTick()
+
+    // Open add dialog and switch to RELATION_ADD
+    const addButtons = wrapper.findAll('.el-button-stub')
+    const addButton = addButtons.find(b => b.text().includes('添加节点'))
+    await addButton!.trigger('click')
+    await nextTick()
+
+    // Change event type to RELATION_ADD via the select
+    const selects = wrapper.findAll('.el-select-stub')
+    // The event type select is in the dialog
+    const dialog = wrapper.find('.el-dialog-stub')
+    const eventTypeSelect = dialog.findAll('.el-select-stub')[0]
+    await eventTypeSelect.setValue('RELATION_ADD')
+    await nextTick()
+
+    // The target entity dropdown should show options for c2 and c3 but NOT c1
+    const dialogOptions = dialog.findAll('.el-option-stub')
+    const optionTexts = dialogOptions.map(o => o.attributes('value') || o.text())
+
+    // c1 (selected entity) should not appear in the target entity options
+    // The first select is event type, second is the target entity
+    const targetOptions = dialogOptions.filter(o => {
+      const val = o.attributes('value')
+      return val === 'c2' || val === 'c3' || val === 'c1'
+    })
+
+    const targetValues = targetOptions.map(o => o.attributes('value'))
+    expect(targetValues).toContain('c2')
+    expect(targetValues).toContain('c3')
+    expect(targetValues).not.toContain('c1')
+  })
+
+  // -----------------------------------------------------------------------
+  // 26. Growth statistics display correct numeric values per category
+  // -----------------------------------------------------------------------
+
+  it('displays correct numeric counts for each growth category', async () => {
+    const char = makeCharacter({ id: 'c1', name: '孙悟空' })
+
+    const events = [
+      makeStateEvent({ id: 'evt1', entityId: 'c1', chapterNumber: 1, eventType: 'ABILITY_CHANGE', payload: { abilityName: '七十二变', abilityStatus: 'active' } }),
+      makeStateEvent({ id: 'evt2', entityId: 'c1', chapterNumber: 1, eventType: 'ABILITY_CHANGE', payload: { abilityName: '筋斗云', abilityStatus: 'active' } }),
+      makeStateEvent({ id: 'evt3', entityId: 'c1', chapterNumber: 1, eventType: 'ABILITY_CHANGE', payload: { abilityName: '火眼金睛', abilityStatus: 'active' } }),
+      makeStateEvent({ id: 'evt4', entityId: 'c1', chapterNumber: 2, eventType: 'RELATION_ADD', payload: { targetId: 'c2', relationType: 'friend' } }),
+      makeStateEvent({ id: 'evt5', entityId: 'c1', chapterNumber: 2, eventType: 'RELATION_UPDATE', payload: { targetId: 'c2', relationType: 'friend', attitude: '信任' } }),
+      makeStateEvent({ id: 'evt6', entityId: 'c1', chapterNumber: 3, eventType: 'VITAL_STATUS_CHANGE', payload: { status: '痊愈' } }),
+      makeStateEvent({ id: 'evt7', entityId: 'c1', chapterNumber: 3, eventType: 'LOCATION_MOVE', payload: { coordinates: { x: 5, y: 10 } } }),
+      makeStateEvent({ id: 'evt8', entityId: 'c1', chapterNumber: 3, eventType: 'PROPERTY_UPDATE', payload: { key: '等级', value: '大圣' } }),
+    ]
+
+    vi.mocked(buildStateEventIndexes).mockReturnValue({
+      eventsByEntity: new Map([['c1', events]]),
+      countsByEntity: new Map([['c1', 8]]),
+      chapterNumbersByEntity: new Map([['c1', new Set([1, 2, 3])]]),
+      entityIdsByChapterNumber: new Map(),
+    })
+
+    vi.mocked(replayReducer).mockReturnValue({
+      c1: {
+        entityId: 'c1', entityName: '孙悟空', entityType: 'CHARACTER',
+        properties: {}, relations: [], location: null, vitalStatus: 'alive', abilities: [],
+      },
+    })
+
+    seedEntities(store, [char])
+    seedStateEvents(store, events)
+
+    const wrapper = mountComponent()
+    await nextTick()
+    await nextTick()
+
+    // Find the stats card with growth categories
+    const statBoxes = wrapper.findAll('.stat-box')
+    expect(statBoxes.length).toBe(3)
+
+    // ability: 3, relationship: 2, state: 3 (VITAL_STATUS_CHANGE + LOCATION_MOVE + PROPERTY_UPDATE)
+    const statTexts = statBoxes.map(box => box.find('.stat-value')?.text())
+    expect(statTexts).toContain('3') // ability
+    expect(statTexts).toContain('2') // relationship
+  })
+
+  // -----------------------------------------------------------------------
+  // 27. "添加第一个成长节点" button in empty state opens add dialog
+  // -----------------------------------------------------------------------
+
+  it('opens add dialog when "添加第一个成长节点" button is clicked from empty state', async () => {
+    const char = makeCharacter({ id: 'c1', name: '新角色' })
+
+    vi.mocked(buildStateEventIndexes).mockReturnValue({
+      eventsByEntity: new Map(),
+      countsByEntity: new Map([['c1', 0]]),
+      chapterNumbersByEntity: new Map(),
+      entityIdsByChapterNumber: new Map(),
+    })
+
+    vi.mocked(replayReducer).mockReturnValue({
+      c1: {
+        entityId: 'c1', entityName: '新角色', entityType: 'CHARACTER',
+        properties: {}, relations: [], location: null, vitalStatus: 'alive', abilities: [],
+      },
+    })
+
+    seedEntities(store, [char])
+
+    const wrapper = mountComponent()
+    await nextTick()
+    await nextTick()
+
+    // Should be in empty state
+    expect(wrapper.find('.el-empty-stub').exists()).toBe(true)
+
+    // Find the button inside the empty state (second "添加" button)
+    const buttons = wrapper.findAll('.el-button-stub')
+    const emptyStateButton = buttons.find(b => b.text().includes('添加第一个成长节点'))
+    expect(emptyStateButton).toBeDefined()
+
+    await emptyStateButton!.trigger('click')
+    await nextTick()
+
+    // Dialog should now be visible with form content
+    const dialog = wrapper.find('.el-dialog-stub')
+    expect(dialog.exists()).toBe(true)
+    expect(dialog.text()).toContain('事件类型')
+  })
 })

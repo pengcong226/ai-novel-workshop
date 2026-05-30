@@ -606,4 +606,229 @@ describe('ConflictReport.vue', () => {
     expect(card.text()).toContain('Auto fix')
     expect(card.text()).toContain('Manual fix')
   })
+
+  // -----------------------------------------------------------------------
+  // 21. Combined filters (type + severity) narrow results correctly
+  // -----------------------------------------------------------------------
+
+  it('applies multiple filters simultaneously to narrow results', async () => {
+    const conflicts = [
+      makeConflict({ id: 'c1', type: 'character_personality', severity: 'critical', title: 'CP-Crit' }),
+      makeConflict({ id: 'c2', type: 'character_personality', severity: 'warning', title: 'CP-Warn' }),
+      makeConflict({ id: 'c3', type: 'timeline_age', severity: 'critical', title: 'TA-Crit' }),
+      makeConflict({ id: 'c4', type: 'timeline_age', severity: 'warning', title: 'TA-Warn' }),
+    ]
+    mockDetect.mockResolvedValue(makeResult(conflicts))
+
+    const wrapper = mountComponent()
+    await wrapper.findAll('.stub-elbutton.primary')[0].trigger('click')
+    await flushPromises()
+    await nextTick()
+
+    // Apply both type and severity filter
+    ;(wrapper.vm as any).filterType = 'character_personality'
+    ;(wrapper.vm as any).filterSeverity = 'critical'
+    await nextTick()
+
+    const cards = wrapper.findAll('.conflict-card')
+    expect(cards).toHaveLength(1)
+    expect(cards[0].text()).toContain('CP-Crit')
+  })
+
+  // -----------------------------------------------------------------------
+  // 22. Combined filters yielding zero results shows no cards
+  // -----------------------------------------------------------------------
+
+  it('shows no conflict cards when combined filters match nothing', async () => {
+    const conflicts = [
+      makeConflict({ id: 'c1', type: 'character_personality', severity: 'critical', title: 'Only Crit' }),
+      makeConflict({ id: 'c2', type: 'timeline_age', severity: 'warning', title: 'Only Warn' }),
+    ]
+    mockDetect.mockResolvedValue(makeResult(conflicts))
+
+    const wrapper = mountComponent()
+    await wrapper.findAll('.stub-elbutton.primary')[0].trigger('click')
+    await flushPromises()
+    await nextTick()
+
+    expect(wrapper.findAll('.conflict-card')).toHaveLength(2)
+
+    // Filter to a combination that does not exist
+    ;(wrapper.vm as any).filterType = 'world_rule'
+    ;(wrapper.vm as any).filterSeverity = 'info'
+    await nextTick()
+
+    expect(wrapper.findAll('.conflict-card')).toHaveLength(0)
+  })
+
+  // -----------------------------------------------------------------------
+  // 23. getTypeName returns correct Chinese labels for all conflict types
+  // -----------------------------------------------------------------------
+
+  it('returns correct Chinese type names via getTypeName for each conflict type', async () => {
+    const types: Array<{ type: string; expected: string }> = [
+      { type: 'character_personality', expected: '人物性格' },
+      { type: 'character_ability', expected: '人物能力' },
+      { type: 'character_appearance', expected: '人物外貌' },
+      { type: 'timeline_sequence', expected: '时间线顺序' },
+      { type: 'timeline_duration', expected: '时间跨度' },
+      { type: 'timeline_age', expected: '人物年龄' },
+      { type: 'world_rule', expected: '世界规则' },
+      { type: 'world_setting', expected: '世界设定' },
+      { type: 'plot_logic', expected: '情节逻辑' },
+      { type: 'relationship', expected: '人物关系' },
+      { type: 'location', expected: '地点位置' },
+      { type: 'item', expected: '物品属性' },
+      { type: 'foreshadowing', expected: '伏笔' },
+      { type: 'custom', expected: '自定义' },
+    ]
+
+    const wrapper = mountComponent()
+
+    for (const { type, expected } of types) {
+      expect((wrapper.vm as any).getTypeName(type)).toBe(expected)
+    }
+
+    // Unknown type falls back to the raw string
+    expect((wrapper.vm as any).getTypeName('unknown_type')).toBe('unknown_type')
+  })
+
+  // -----------------------------------------------------------------------
+  // 24. getSeverityType maps severity values to correct element-plus types
+  // -----------------------------------------------------------------------
+
+  it('maps severity values to element-plus tag types via getSeverityType', async () => {
+    const wrapper = mountComponent()
+
+    expect((wrapper.vm as any).getSeverityType('critical')).toBe('danger')
+    expect((wrapper.vm as any).getSeverityType('warning')).toBe('warning')
+    expect((wrapper.vm as any).getSeverityType('info')).toBe('info')
+    // Unknown severity falls back to 'info'
+    expect((wrapper.vm as any).getSeverityType('unknown')).toBe('info')
+  })
+
+  // -----------------------------------------------------------------------
+  // 25. getSeverityText returns correct Chinese text for each severity
+  // -----------------------------------------------------------------------
+
+  it('returns correct Chinese severity text via getSeverityText', async () => {
+    const wrapper = mountComponent()
+
+    expect((wrapper.vm as any).getSeverityText('critical')).toBe('严重')
+    expect((wrapper.vm as any).getSeverityText('warning')).toBe('警告')
+    expect((wrapper.vm as any).getSeverityText('info')).toBe('提示')
+    // Unknown severity falls back to the raw string
+    expect((wrapper.vm as any).getSeverityText('unknown')).toBe('unknown')
+  })
+
+  // -----------------------------------------------------------------------
+  // 26. formatDate produces expected output
+  // -----------------------------------------------------------------------
+
+  it('formats dates correctly via formatDate', async () => {
+    const wrapper = mountComponent()
+    const testDate = new Date('2025-03-05T14:08:00')
+    const formatted = (wrapper.vm as any).formatDate(testDate)
+    expect(formatted).toBe('2025-03-05 14:08')
+  })
+
+  // -----------------------------------------------------------------------
+  // 27. ignoreConflict updates updatedAt timestamp
+  // -----------------------------------------------------------------------
+
+  it('updates updatedAt when a conflict is ignored', async () => {
+    const originalDate = new Date('2025-01-01')
+    const conflict = makeConflict({ id: 'c1', status: 'active', updatedAt: originalDate })
+    mockDetect.mockResolvedValue(makeResult([conflict]))
+
+    const wrapper = mountComponent()
+    await wrapper.findAll('.stub-elbutton.primary')[0].trigger('click')
+    await flushPromises()
+    await nextTick()
+
+    ;(wrapper.vm as any).ignoreConflict(conflict)
+    await nextTick()
+
+    expect(conflict.status).toBe('ignored')
+    expect(conflict.updatedAt.getTime()).toBeGreaterThan(originalDate.getTime())
+  })
+
+  // -----------------------------------------------------------------------
+  // 28. restoreConflict updates updatedAt timestamp
+  // -----------------------------------------------------------------------
+
+  it('updates updatedAt when a conflict is restored', async () => {
+    const originalDate = new Date('2025-01-01')
+    const conflict = makeConflict({ id: 'c1', status: 'ignored', updatedAt: originalDate })
+    mockDetect.mockResolvedValue(makeResult([conflict]))
+
+    const wrapper = mountComponent()
+    await wrapper.findAll('.stub-elbutton.primary')[0].trigger('click')
+    await flushPromises()
+    await nextTick()
+
+    ;(wrapper.vm as any).restoreConflict(conflict)
+    await nextTick()
+
+    expect(conflict.status).toBe('active')
+    expect(conflict.updatedAt.getTime()).toBeGreaterThan(originalDate.getTime())
+  })
+
+  // -----------------------------------------------------------------------
+  // 29. markAsResolved is a no-op when passed null
+  // -----------------------------------------------------------------------
+
+  it('does nothing when markAsResolved is called with null', async () => {
+    const wrapper = mountComponent()
+
+    // Should not throw
+    ;(wrapper.vm as any).markAsResolved(null)
+    await nextTick()
+
+    // Dialog should remain closed (showDetailDialog starts as false)
+    expect((wrapper.vm as any).showDetailDialog).toBe(false)
+    expect(ElMessage.success).not.toHaveBeenCalled()
+  })
+
+  // -----------------------------------------------------------------------
+  // 30. Per-type statistics render correct labels in statistics card
+  // -----------------------------------------------------------------------
+
+  it('displays per-type statistics with Chinese type names', async () => {
+    const conflicts = [
+      makeConflict({ id: 'c1', type: 'character_personality' }),
+      makeConflict({ id: 'c2', type: 'character_personality' }),
+      makeConflict({ id: 'c3', type: 'timeline_age' }),
+    ]
+    mockDetect.mockResolvedValue(makeResult(conflicts))
+
+    const wrapper = mountComponent()
+    await wrapper.findAll('.stub-elbutton.primary')[0].trigger('click')
+    await flushPromises()
+    await nextTick()
+
+    const typeStats = wrapper.find('.type-statistics')
+    expect(typeStats.text()).toContain('按类型统计')
+    expect(typeStats.text()).toContain('人物性格')
+    expect(typeStats.text()).toContain('人物年龄')
+  })
+
+  // -----------------------------------------------------------------------
+  // 31. Detection success message shows conflict count
+  // -----------------------------------------------------------------------
+
+  it('shows success message with conflict count after detection', async () => {
+    const conflicts = [
+      makeConflict({ id: 'c1' }),
+      makeConflict({ id: 'c2' }),
+      makeConflict({ id: 'c3' }),
+    ]
+    mockDetect.mockResolvedValue(makeResult(conflicts))
+
+    const wrapper = mountComponent()
+    await wrapper.findAll('.stub-elbutton.primary')[0].trigger('click')
+    await flushPromises()
+
+    expect(ElMessage.success).toHaveBeenCalledWith('检测完成！发现 3 个冲突')
+  })
 })

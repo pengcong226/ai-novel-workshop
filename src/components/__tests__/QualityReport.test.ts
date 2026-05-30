@@ -89,6 +89,10 @@ vi.mock('@/utils/logger', () => ({
   getLogger: () => ({ error: vi.fn(), info: vi.fn(), warn: vi.fn(), debug: vi.fn() }),
 }))
 
+vi.mock('@/utils/getErrorMessage', () => ({
+  getErrorMessage: vi.fn((err: unknown) => err instanceof Error ? err.message : String(err)),
+}))
+
 vi.mock('@/utils/formatters', () => ({
   formatDate: vi.fn(() => '2025-01-15 10:00'),
   formatNumber: vi.fn((n: number) => String(n)),
@@ -597,5 +601,185 @@ describe('QualityReport.vue', () => {
     // The CED card should show the "no interceptions" message
     expect(wrapper.text()).toContain('防跑偏拦截大盘')
     expect(wrapper.text()).toContain('当前生成暂无防吃书拦截记录，一致性良好')
+  })
+
+  // =========================================================================
+  // 12. Export report as JSON
+  // =========================================================================
+
+  it('exports report as JSON when user confirms export dialog', async () => {
+    const { wrapper } = mountReport()
+    const { exportQualityReportAsJSON } = await import('@/utils/reportExporter')
+
+    // Populate reports
+    const report = makeQualityReport()
+    mockCheckChapter.mockResolvedValueOnce(report)
+    await wrapper.findAll('button.stub-elbutton')[0].trigger('click')
+    await flushPromises()
+
+    // Click the "导出报告" button (third button in actions)
+    const exportBtn = wrapper.findAll('button.stub-elbutton').find((b) => b.text().includes('导出报告'))
+    expect(exportBtn).toBeDefined()
+
+    await exportBtn!.trigger('click')
+    await flushPromises()
+
+    // ElMessageBox is mocked to resolve with 'confirm' by default
+    // This triggers the JSON export path
+    expect(exportQualityReportAsJSON).toHaveBeenCalledWith(
+      expect.arrayContaining([expect.objectContaining({ chapterId: 'ch-1' })]),
+      'Test Novel',
+      expect.objectContaining({ averageScore: expect.any(Number) })
+    )
+  })
+
+  // =========================================================================
+  // 13. Export report as Markdown
+  // =========================================================================
+
+  it('exports report as Markdown when user cancels export dialog', async () => {
+    const { wrapper } = mountReport()
+    const { exportQualityReportAsMarkdown } = await import('@/utils/reportExporter')
+    const { ElMessageBox } = await import('element-plus')
+
+    // Make ElMessageBox reject with action='cancel' (cancel button path)
+    ;(ElMessageBox as unknown as Mock).mockRejectedValueOnce('cancel')
+
+    // Populate reports
+    const report = makeQualityReport()
+    mockCheckChapter.mockResolvedValueOnce(report)
+    await wrapper.findAll('button.stub-elbutton')[0].trigger('click')
+    await flushPromises()
+
+    const exportBtn = wrapper.findAll('button.stub-elbutton').find((b) => b.text().includes('导出报告'))
+    await exportBtn!.trigger('click')
+    await flushPromises()
+
+    // The catch block with action === 'cancel' should trigger Markdown export
+    expect(exportQualityReportAsMarkdown).toHaveBeenCalledWith(
+      expect.arrayContaining([expect.objectContaining({ chapterId: 'ch-1' })]),
+      'Test Novel'
+    )
+  })
+
+  // =========================================================================
+  // 14. AIGC table data and overall score computed properties
+  // =========================================================================
+
+  it('computes correct AIGC table data with human/ai/mixed classification', async () => {
+    const { wrapper } = mountReport()
+
+    const report = makeQualityReport()
+    mockCheckChapter.mockResolvedValueOnce(report)
+    await wrapper.findAll('button.stub-elbutton')[0].trigger('click')
+    await flushPromises()
+
+    // Configure AIGC detector to return mixed probabilities
+    mockDetect.mockResolvedValueOnce({
+      overallScore: 50,
+      aiProbability: 0.6,
+      humanProbability: 0.4,
+      provider: 'local',
+      paragraphs: [],
+      latencyMs: 80,
+    })
+
+    const aigcButton = wrapper.findAll('button.stub-elbutton').find((b) => b.text().includes('AIGC检测'))
+    await aigcButton!.trigger('click')
+    await flushPromises()
+
+    // humanProbability 0.4 => classification 'mixed'
+    expect((wrapper.vm as any).aigcTableData).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          chapter: '第1章',
+          humanProb: 40,
+          classification: 'mixed',
+        }),
+      ])
+    )
+
+    // overallAIGCScore should be 40 (0.4 * 100)
+    expect((wrapper.vm as any).overallAIGCScore).toBe(40)
+  })
+
+  // =========================================================================
+  // 15. Sensitive words tab shows empty state
+  // =========================================================================
+
+  it('shows sensitive words empty state in detail dialog', async () => {
+    const { wrapper } = mountReport()
+    const { validateSensitiveWords } = await import('@/agents/PostWriteValidator')
+
+    // Mock to return empty array (no sensitive words)
+    ;(validateSensitiveWords as Mock).mockReturnValue([])
+
+    const report = makeQualityReport()
+    mockCheckChapter.mockResolvedValueOnce(report)
+    await wrapper.findAll('button.stub-elbutton')[0].trigger('click')
+    await flushPromises()
+
+    // Open detail dialog
+    const viewDetailBtn = wrapper.findAll('button.stub-elbutton').find((b) => b.text().includes('查看详情'))
+    if (viewDetailBtn) {
+      await viewDetailBtn.trigger('click')
+      await nextTick()
+
+      // The sensitive tab pane should exist
+      expect(wrapper.text()).toContain('敏感词检测')
+    }
+  })
+
+  // =========================================================================
+  // 16. checkAllChapters warns when project has no chapters
+  // =========================================================================
+
+  it('shows warning when checking with no chapters available', async () => {
+    const { wrapper, projectStore } = mountReport()
+    const { ElMessage } = await import('element-plus')
+
+    // Set project with empty chapters
+    projectStore.currentProject = createMockProject({
+      title: 'Empty Novel',
+      chapters: [],
+    })
+    await nextTick()
+
+    // Click the "批量检查" button
+    await wrapper.findAll('button.stub-elbutton')[0].trigger('click')
+    await flushPromises()
+
+    expect(ElMessage.warning).toHaveBeenCalledWith('没有可检查的章节')
+    expect(mockCheckChapter).not.toHaveBeenCalled()
+  })
+
+  // =========================================================================
+  // 17. AIGC detection error handling
+  // =========================================================================
+
+  it('handles AIGC detection error gracefully', async () => {
+    const { wrapper } = mountReport()
+    const { ElMessage } = await import('element-plus')
+
+    // Populate reports first
+    const report = makeQualityReport()
+    mockCheckChapter.mockResolvedValueOnce(report)
+    await wrapper.findAll('button.stub-elbutton')[0].trigger('click')
+    await flushPromises()
+
+    // Make AIGC detection throw
+    mockDetect.mockRejectedValueOnce(new Error('检测服务不可用'))
+
+    const aigcButton = wrapper.findAll('button.stub-elbutton').find((b) => b.text().includes('AIGC检测'))
+    await aigcButton!.trigger('click')
+    await flushPromises()
+
+    // Should show error message
+    expect(ElMessage.error).toHaveBeenCalledWith(
+      expect.stringContaining('AIGC检测失败')
+    )
+
+    // aigcChecking should be reset to false
+    expect((wrapper.vm as any).aigcChecking).toBe(false)
   })
 })

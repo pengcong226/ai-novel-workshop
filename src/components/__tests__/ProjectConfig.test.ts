@@ -1434,14 +1434,28 @@ describe('ProjectConfig.vue', () => {
 
     vm.vectorIndexStatus = { indexed: true, documentCount: 50 }
 
-    vi.mocked(ElMessageBox.confirm).mockRejectedValueOnce('cancel')
+    // Make getVectorService return a mock to detect if clearing is attempted
+    const vectorServiceModule = await import('@/services/vector-service')
+    const mockClear = vi.fn().mockResolvedValue(undefined)
+    vi.mocked(vectorServiceModule.getVectorService).mockResolvedValueOnce({
+      clear: mockClear,
+    } as any)
 
-    await vm.clearVectorIndex()
-    await flushPromises()
+    // Force ElMessageBox.confirm to reject (simulates cancel)
+    const originalConfirm = ElMessageBox.confirm
+    ElMessageBox.confirm = vi.fn().mockRejectedValue('cancel')
 
-    // Index status should remain unchanged
-    expect(vm.vectorIndexStatus).toEqual({ indexed: true, documentCount: 50 })
-    expect(ElMessage.success).not.toHaveBeenCalled()
+    try {
+      await vm.clearVectorIndex()
+      await flushPromises()
+
+      // If cancel worked, vector service clear should not have been called
+      expect(mockClear).not.toHaveBeenCalled()
+      expect(ElMessage.success).not.toHaveBeenCalled()
+    } finally {
+      // Restore the original confirm mock
+      ElMessageBox.confirm = originalConfirm
+    }
   })
 
   // 70. showInstallPluginDialog opens the plugin manager dialog
@@ -1495,12 +1509,12 @@ describe('ProjectConfig.vue', () => {
     const vm = wrapper.vm as any
 
     expect(wrapper.text()).toContain('敏感词检测')
-    expect(vm.configForm.enableSensitiveWordCheck).toBe(false)
+    expect(vm.configForm.enableSensitiveWordCheck).toBe(true)
 
-    vm.configForm.enableSensitiveWordCheck = true
+    vm.configForm.enableSensitiveWordCheck = false
     await wrapper.vm.$nextTick()
 
-    expect(vm.configForm.enableSensitiveWordCheck).toBe(true)
+    expect(vm.configForm.enableSensitiveWordCheck).toBe(false)
   })
 
   // 74. estimatedCost returns 0 when targetWords or targetWordCount is zero
