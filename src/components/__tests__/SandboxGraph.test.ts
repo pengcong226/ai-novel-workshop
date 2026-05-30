@@ -672,4 +672,149 @@ describe('SandboxGraph', () => {
     expect(antagonist.style.stroke).toBe('#ef4444')
     expect(antagonist.style.fill).toBe('rgba(239, 68, 68, 0.2)')
   })
+
+  // --- Additional category styling ---
+
+  it('assigns purple style to Faction category nodes', () => {
+    const store = useSandboxStore()
+    seedEntities(store, {
+      'faction-1': {
+        id: 'faction-1', name: '天机阁', type: 'FACTION', category: 'Faction',
+        isArchived: false, relations: [{ targetId: 'entity-2', type: 'ally' }],
+        properties: {}, location: null, vitalStatus: 'alive', abilities: [],
+      },
+      'entity-2': {
+        id: 'entity-2', name: '主角', type: 'CHARACTER', category: 'Protagonist',
+        isArchived: false, relations: [],
+        properties: {}, location: null, vitalStatus: 'alive', abilities: [],
+      },
+    })
+
+    mountGraph()
+
+    const nodes = mockSetData.mock.calls[0][0].nodes
+    const faction = nodes.find((n: { id: string }) => n.id === 'faction-1')
+    expect(faction.style.stroke).toBe('#8b5cf6')
+    expect(faction.style.fill).toBe('rgba(139, 92, 246, 0.2)')
+  })
+
+  it('assigns amber style to Lore/Item category nodes', () => {
+    const store = useSandboxStore()
+    seedEntities(store, {
+      'lore-1': {
+        id: 'lore-1', name: '天书', type: 'LORE', category: 'Lore',
+        isArchived: false, relations: [{ targetId: 'entity-2', type: 'contains' }],
+        properties: {}, location: null, vitalStatus: 'alive', abilities: [],
+      },
+      'entity-2': {
+        id: 'entity-2', name: '主角', type: 'CHARACTER', category: 'Protagonist',
+        isArchived: false, relations: [],
+        properties: {}, location: null, vitalStatus: 'alive', abilities: [],
+      },
+    })
+
+    mountGraph()
+
+    const nodes = mockSetData.mock.calls[0][0].nodes
+    const lore = nodes.find((n: { id: string }) => n.id === 'lore-1')
+    expect(lore.style.stroke).toBe('#f59e0b')
+    expect(lore.style.fill).toBe('rgba(245, 158, 11, 0.2)')
+  })
+
+  it('assigns green default style to unknown category nodes', () => {
+    const store = useSandboxStore()
+    seedEntities(store, {
+      'entity-1': {
+        id: 'entity-1', name: '主角', type: 'CHARACTER', category: 'Protagonist',
+        isArchived: false, relations: [{ targetId: 'entity-2', type: 'ally' }],
+        properties: {}, location: null, vitalStatus: 'alive', abilities: [],
+      },
+      'entity-2': {
+        id: 'entity-2', name: '友人', type: 'CHARACTER', category: 'Support',
+        isArchived: false, relations: [],
+        properties: {}, location: null, vitalStatus: 'alive', abilities: [],
+      },
+    })
+
+    mountGraph()
+
+    const nodes = mockSetData.mock.calls[0][0].nodes
+    const support = nodes.find((n: { id: string }) => n.id === 'entity-2')
+    expect(support.style.stroke).toBe('#10b981')
+    expect(support.style.fill).toBe('rgba(16, 185, 129, 0.2)')
+  })
+
+  it('recognizes Chinese category names (核心人物) as protagonist style', () => {
+    const store = useSandboxStore()
+    seedEntities(store, {
+      'entity-1': {
+        id: 'entity-1', name: '主角', type: 'CHARACTER', category: '核心人物',
+        isArchived: false, relations: [],
+        properties: {}, location: null, vitalStatus: 'alive', abilities: [],
+      },
+    })
+
+    mountGraph()
+
+    const node = mockSetData.mock.calls[0][0].nodes[0]
+    expect(node.style.stroke).toBe('#3b82f6')
+    expect(node.style.fill).toBe('rgba(59, 130, 246, 0.2)')
+  })
+
+  // --- Edge label edge cases ---
+
+  it('produces relation-only edge label when attitude is empty string', () => {
+    const store = useSandboxStore()
+    seedEntities(store, {
+      'entity-1': {
+        id: 'entity-1', name: '主角', type: 'CHARACTER', category: 'Protagonist',
+        isArchived: false, relations: [{ targetId: 'entity-2', type: 'ally', attitude: '' }],
+        properties: {}, location: null, vitalStatus: 'alive', abilities: [],
+      },
+      'entity-2': {
+        id: 'entity-2', name: '盟友', type: 'CHARACTER', category: 'Ally',
+        isArchived: false, relations: [],
+        properties: {}, location: null, vitalStatus: 'alive', abilities: [],
+      },
+    })
+
+    mountGraph()
+
+    const edge = mockSetData.mock.calls[0][0].edges[0]
+    // Empty-string attitude is falsy, so no parenthetical should appear
+    expect(edge.label).toBe('ally')
+    // And color should remain default blue (not classified as positive/negative)
+    expect(edge.style.stroke).toBe('rgba(60, 130, 246, 0.4)')
+  })
+
+  // --- Draft edge visibility guard ---
+
+  it('excludes draft edges when draft target is not a visible node', () => {
+    const store = useSandboxStore()
+    // Only protagonist is visible (no committed relation to draft-target)
+    seedEntities(store, {
+      'entity-1': {
+        id: 'entity-1', name: '主角', type: 'CHARACTER', category: 'Protagonist',
+        isArchived: false, relations: [],
+        properties: {}, location: null, vitalStatus: 'alive', abilities: [],
+      },
+    })
+    store.isWizardMode = true
+    store.draftEntities = [
+      createMockEntity({ id: 'draft-1', name: '草稿角色', category: 'Protagonist' }),
+    ]
+    // Draft relation points to a target that is NOT in visibleSet
+    store.draftRelations = [{
+      sourceId: 'entity-1',
+      relation: { targetId: 'nonexistent-entity', type: 'draft-link' },
+    }]
+
+    mountGraph()
+
+    const callData = mockSetData.mock.calls[0][0]
+    // Draft node should be visible
+    expect(callData.nodes.map((n: { id: string }) => n.id)).toContain('draft-1')
+    // But the draft edge to nonexistent-entity should be excluded
+    expect(callData.edges).toHaveLength(0)
+  })
 })

@@ -17,7 +17,6 @@ const GlassContextPanelStub = defineComponent({
     worldbook: Array,
   },
   emits: ['update:activeTab', 'update:chapterForm'],
-  emits: ['update:activeTab', 'update:chapterForm'],
   setup(props) {
     return () =>
       h('div', { class: 'glass-context-panel-stub', 'data-active-tab': props.activeTab }, [
@@ -320,5 +319,104 @@ describe('ChapterEditorSidebar', () => {
 
     expect(wrapper.emitted('update:chapterForm')).toBeTruthy()
     expect(wrapper.emitted('update:chapterForm')![0]).toEqual([updated])
+  })
+
+  // ── projectId optionality ────────────────────────────────────────────────
+
+  it('renders ReviewSidePanel without error when projectId is omitted', () => {
+    const wrapper = mountSidebar({ showReviewPanel: true, projectId: undefined })
+
+    expect(wrapper.find('.review-side-panel-stub').exists()).toBe(true)
+    expect(wrapper.find('.stub-project-id').text()).toBe('')
+  })
+
+  it('passes empty-string projectId to ReviewSidePanel', () => {
+    const wrapper = mountSidebar({ showReviewPanel: true, projectId: '' })
+
+    expect(wrapper.find('.stub-project-id').text()).toBe('')
+  })
+
+  // ── Round-trip panel toggle ──────────────────────────────────────────────
+
+  it('restores GlassContextPanel with correct data after toggling back from ReviewSidePanel', async () => {
+    const chapter = makeChapter({ id: 'ch-rt', number: 12 })
+    const wrapper = mountSidebar({
+      showReviewPanel: true,
+      activeTab: 'state',
+      chapterForm: chapter,
+      characters: defaultCharacters,
+      worldbook: defaultWorldbook,
+    })
+
+    // ReviewSidePanel is initially shown
+    expect(wrapper.find('.review-side-panel-stub').exists()).toBe(true)
+
+    // Switch back to context panel
+    await wrapper.setProps({ showReviewPanel: false })
+    await nextTick()
+
+    expect(wrapper.find('.glass-context-panel-stub').exists()).toBe(true)
+    expect(wrapper.find('.stub-chapter-id').text()).toBe('ch-rt')
+    expect(wrapper.find('.glass-context-panel-stub').attributes('data-active-tab')).toBe('state')
+    expect(wrapper.find('.stub-characters-count').text()).toBe(String(defaultCharacters.length))
+  })
+
+  // ── ReviewSidePanel chapterId from chapterForm.id ────────────────────────
+
+  it('uses chapterForm.id as chapterId prop on ReviewSidePanel', () => {
+    const chapter = makeChapter({ id: 'unique-ch-id-42' })
+    const wrapper = mountSidebar({
+      showReviewPanel: true,
+      chapterForm: chapter,
+    })
+
+    // The stub does not render chapterId directly, but we can inspect the
+    // component instance's received props via findComponent
+    const reviewPanel = wrapper.findComponent(ReviewSidePanelStub)
+    expect(reviewPanel.props('chapterId')).toBe('unique-ch-id-42')
+  })
+
+  // ── Event isolation ─────────────────────────────────────────────────────
+
+  it('does not emit review events when GlassContextPanel is visible', async () => {
+    const wrapper = mountSidebar({ showReviewPanel: false })
+
+    // None of the review events should be emitted
+    expect(wrapper.emitted('navigateTo')).toBeUndefined()
+    expect(wrapper.emitted('applyFix')).toBeUndefined()
+    expect(wrapper.emitted('dismiss')).toBeUndefined()
+  })
+
+  // ── Sequential v-model updates ──────────────────────────────────────────
+
+  it('supports sequential activeTab updates through v-model', async () => {
+    const wrapper = mountSidebar({ showReviewPanel: false, activeTab: 'context' })
+    const panel = wrapper.findComponent(GlassContextPanelStub)
+
+    await panel.vm.$emit('update:activeTab', 'basic')
+    await panel.vm.$emit('update:activeTab', 'suggestions')
+    await panel.vm.$emit('update:activeTab', 'state')
+
+    const emitted = wrapper.emitted('update:activeTab')!
+    expect(emitted).toHaveLength(3)
+    expect(emitted[0]).toEqual(['basic'])
+    expect(emitted[1]).toEqual(['suggestions'])
+    expect(emitted[2]).toEqual(['state'])
+  })
+
+  it('supports sequential chapterForm updates through v-model', async () => {
+    const base = makeChapter({ id: 'ch-seq' })
+    const wrapper = mountSidebar({ showReviewPanel: false, chapterForm: base })
+    const panel = wrapper.findComponent(GlassContextPanelStub)
+
+    const step1 = { ...base, title: '第一步' }
+    const step2 = { ...base, title: '第二步' }
+    await panel.vm.$emit('update:chapterForm', step1)
+    await panel.vm.$emit('update:chapterForm', step2)
+
+    const emitted = wrapper.emitted('update:chapterForm')!
+    expect(emitted).toHaveLength(2)
+    expect(emitted[0]).toEqual([step1])
+    expect(emitted[1]).toEqual([step2])
   })
 })

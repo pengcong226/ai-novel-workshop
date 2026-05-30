@@ -684,4 +684,189 @@ describe('SandboxTimeline', () => {
     expect(wrapper.text()).toContain('AI 生成正文并全盘同步状态')
     expect(wrapper.text()).toContain('手动撰写')
   })
+
+  // ===== Keyboard Navigation Boundary Conditions =====
+
+  it('does not throw or focus out-of-bounds when pressing ArrowUp on the first node', async () => {
+    const chapters = [
+      createMockChapterOutline({ chapterId: 'ch-1', title: '第一章', status: 'completed' }),
+      createMockChapterOutline({ chapterId: 'ch-2', title: '第二章', status: 'planned' }),
+    ]
+    seedProject(chapters)
+    const wrapper = mountTimeline()
+
+    const nodes = wrapper.findAll('.outline-node')
+    const fakeQuerySelectorAll = vi.fn().mockReturnValue({ length: 2 })
+    const closestSpy = vi.spyOn(nodes[0].element, 'closest' as any).mockReturnValue({
+      querySelectorAll: fakeQuerySelectorAll,
+    } as any)
+
+    // ArrowUp on the first node (index 0) should attempt index -1, which is out of bounds
+    await nodes[0].trigger('keydown.up')
+
+    // focusNextNode computes nextIndex = 0 + (-1) = -1, returns early without focusing
+    // The closest querySelectorAll should NOT be called since nextIndex < 0
+    expect(fakeQuerySelectorAll).not.toHaveBeenCalled()
+
+    closestSpy.mockRestore()
+  })
+
+  it('does not throw or focus out-of-bounds when pressing ArrowDown on the last node', async () => {
+    const chapters = [
+      createMockChapterOutline({ chapterId: 'ch-1', title: '第一章', status: 'completed' }),
+      createMockChapterOutline({ chapterId: 'ch-2', title: '第二章', status: 'planned' }),
+    ]
+    seedProject(chapters)
+    const wrapper = mountTimeline()
+
+    const nodes = wrapper.findAll('.outline-node')
+    const fakeQuerySelectorAll = vi.fn().mockReturnValue({ length: 2 })
+    const closestSpy = vi.spyOn(nodes[1].element, 'closest' as any).mockReturnValue({
+      querySelectorAll: fakeQuerySelectorAll,
+    } as any)
+
+    // ArrowDown on the last node (index 1) should attempt index 2, which is out of bounds
+    await nodes[1].trigger('keydown.down')
+
+    // focusNextNode computes nextIndex = 1 + 1 = 2, and 2 >= chapters.length (2), returns early
+    expect(fakeQuerySelectorAll).not.toHaveBeenCalled()
+
+    closestSpy.mockRestore()
+  })
+
+  // ===== Execute Chapter calls addStateEvent =====
+
+  it('calls sandboxStore.addStateEvent with correct payload after executeChapter timer fires', async () => {
+    vi.useFakeTimers()
+    const chapters = [
+      createMockChapterOutline({ chapterId: 'ch-1', title: '第一章', status: 'planned' }),
+      createMockChapterOutline({ chapterId: 'ch-2', title: '第二章', status: 'planned' }),
+    ]
+    seedProject(chapters)
+    const sandboxStore = useSandboxStore()
+    const addStateEventSpy = vi.spyOn(sandboxStore, 'addStateEvent')
+
+    const wrapper = mountTimeline()
+    const generateBtn = wrapper.findAll('.el-button-stub').find((b) => b.text().includes('AI 生成'))
+    await generateBtn!.trigger('click')
+
+    vi.advanceTimersByTime(2500)
+    await flushPromises()
+    await nextTick()
+
+    expect(addStateEventSpy).toHaveBeenCalledTimes(1)
+    const callArg = addStateEventSpy.mock.calls[0][0]
+    expect(callArg).toMatchObject({
+      projectId: expect.any(String),
+      chapterNumber: 1,
+      entityId: 'mock-entity-1',
+      eventType: 'PROPERTY_UPDATE',
+      payload: { key: 'status', value: '同步完成' },
+      source: 'AI_EXTRACTED',
+    })
+  })
+
+  // ===== Batch Planning New Chapter Title =====
+
+  it('generates new chapter with correct title format during batch planning', async () => {
+    vi.useFakeTimers()
+    const chapters = [
+      createMockChapterOutline({ chapterId: 'ch-1', title: '第一章', status: 'completed' }),
+      createMockChapterOutline({ chapterId: 'ch-2', title: '第二章', status: 'planned' }),
+    ]
+    const projectStore = seedProject(chapters)
+    const wrapper = mountTimeline()
+
+    const batchBtn = wrapper.findAll('.el-button-stub').find((b) =>
+      b.text().includes('AI 批量推演'),
+    )
+    await batchBtn!.trigger('click')
+
+    vi.advanceTimersByTime(2000)
+    await flushPromises()
+    await nextTick()
+
+    // 2 existing chapters + 1 new = 3 total; new chapter is index 2 (number 3)
+    const allChapters = projectStore.currentProject!.outline.chapters
+    expect(allChapters).toHaveLength(3)
+    expect(allChapters[2].title).toBe('第3章：未命名')
+    expect(allChapters[2].status).toBe('planned')
+  })
+
+  // ===== Empty Chapter Title Fallback =====
+
+  it('displays 未命名章节 when chapter title is empty string', () => {
+    const chapters = [
+      createMockChapterOutline({ chapterId: 'ch-1', title: '', status: 'planned' }),
+    ]
+    seedProject(chapters)
+    const wrapper = mountTimeline()
+
+    expect(wrapper.find('.outline-title').text()).toBe('未命名章节')
+  })
+
+  // ===== Execute Chapter with no currentProject (guard clause) =====
+
+  it('shows empty state when project becomes null after mount, preventing executeChapter', async () => {
+    const chapters = [
+      createMockChapterOutline({ chapterId: 'ch-1', title: '第一章', status: 'planned' }),
+    ]
+    seedProject(chapters)
+    const wrapper = mountTimeline()
+
+    // Initially has timeline nodes and active action area
+    expect(wrapper.findAll('.outline-node')).toHaveLength(1)
+    expect(wrapper.findAll('.active-action-area')).toHaveLength(1)
+
+    // Clear the project after mount to simulate null
+    const projectStore = useProjectStore()
+    projectStore.currentProject = null as any
+    await nextTick()
+
+    // Empty state should now show; no outline-node or action buttons exist
+    expect(wrapper.find('.el-empty-stub').exists()).toBe(true)
+    expect(wrapper.findAll('.outline-node')).toHaveLength(0)
+    expect(wrapper.findAll('.active-action-area')).toHaveLength(0)
+    expect(ElMessage.info).not.toHaveBeenCalled()
+  })
+
+  // ===== Simulate Batch Planning with no currentProject (guard clause) =====
+
+  it('does nothing when batch planning is triggered and currentProject is null', async () => {
+    const chapters = [
+      createMockChapterOutline({ chapterId: 'ch-1', title: '第一章', status: 'planned' }),
+    ]
+    seedProject(chapters)
+    const wrapper = mountTimeline()
+
+    // Clear the project after mount and wait for Vue to update
+    const projectStore = useProjectStore()
+    projectStore.currentProject = null as any
+    await nextTick()
+
+    // Bottom actions should be hidden when project is null
+    expect(wrapper.find('.bottom-actions').exists()).toBe(false)
+
+    // ElMessage.info should not have been called (no batch planning triggered)
+    expect(ElMessage.info).not.toHaveBeenCalled()
+  })
+
+  // ===== Chapter with generationPrompt taking precedence over scene description =====
+
+  it('prefers generationPrompt over scene description when both exist', () => {
+    const chapters = [
+      createMockChapterOutline({
+        chapterId: 'ch-1',
+        title: '第一章',
+        status: 'planned',
+        generationPrompt: '优先显示的提示词',
+        scenes: [{ id: 's1', description: '场景描述应被忽略', characters: [], location: '', order: 0 }],
+      }),
+    ]
+    seedProject(chapters)
+    const wrapper = mountTimeline()
+
+    expect(wrapper.find('.outline-text').text()).toBe('优先显示的提示词')
+    expect(wrapper.text()).not.toContain('场景描述应被忽略')
+  })
 })

@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { mount, VueWrapper } from '@vue/test-utils'
+import { mount, flushPromises, VueWrapper } from '@vue/test-utils'
 import { nextTick } from 'vue'
 import { createTestPinia } from '@/test/helpers'
 import type { Entity, EntityType, EntityImportance } from '@/types/sandbox'
@@ -487,5 +487,187 @@ describe('EntityTree', () => {
     await item.trigger('click')
 
     expect(item.attributes('aria-selected')).toBe('true')
+  })
+
+  // ── 11. Create entity ─────────────────────────────────────────────
+
+  it('creates a new CHARACTER entity via addEntity and emits select', async () => {
+    await seedEntities(pinia, [])
+    const wrapper = mountWithStore(pinia)
+
+    const sandboxStore = useSandboxStore(pinia)
+    const addEntitySpy = vi.spyOn(sandboxStore, 'addEntity')
+
+    // Click the "创建第一个实体" button in the empty state
+    const createBtn = wrapper.findAll('.tree-empty button')
+    expect(createBtn.length).toBeGreaterThan(0)
+    await createBtn[0].trigger('click')
+    await flushPromises()
+
+    expect(addEntitySpy).toHaveBeenCalledTimes(1)
+    const created = addEntitySpy.mock.calls[0][0]
+    expect(created.type).toBe('CHARACTER')
+    expect(created.name).toBe('新角色')
+    expect(created.importance).toBe('minor')
+    expect(created.projectId).toBe('proj-1')
+    expect(created.isArchived).toBe(false)
+
+    // Should emit select with the new entity id
+    expect(wrapper.emitted('select')).toBeTruthy()
+  })
+
+  it('does not create entity when no current project is set', async () => {
+    setCurrentProject(pinia, null)
+    await seedEntities(pinia, [])
+    const wrapper = mountWithStore(pinia)
+
+    const sandboxStore = useSandboxStore(pinia)
+    const addEntitySpy = vi.spyOn(sandboxStore, 'addEntity')
+
+    // Click header "+" button
+    const headerBtns = wrapper.findAll('button')
+    await headerBtns[0].trigger('click')
+
+    expect(addEntitySpy).not.toHaveBeenCalled()
+    expect(wrapper.emitted('select')).toBeFalsy()
+  })
+
+  // ── 12. Group header aria-label with count ────────────────────────
+
+  it('renders group header aria-label with type name and entity count', async () => {
+    const entities = [
+      makeEntity({ id: 'e1', type: 'CHARACTER', name: 'Aria' }),
+      makeEntity({ id: 'e2', type: 'CHARACTER', name: 'Gandalf' }),
+      makeEntity({ id: 'e3', type: 'CHARACTER', name: 'Frodo', importance: 'critical' }),
+    ]
+    await seedEntities(pinia, entities)
+    const wrapper = mountWithStore(pinia)
+
+    const header = wrapper.find('.group-header')
+    expect(header.attributes('aria-label')).toBe('人物，3个实体')
+  })
+
+  // ── 13. Group arrow collapsed class ───────────────────────────────
+
+  it('adds collapsed class to group arrow when group is collapsed', async () => {
+    const entities = [
+      makeEntity({ id: 'e1', type: 'CHARACTER', name: 'Aria' }),
+    ]
+    await seedEntities(pinia, entities)
+    const wrapper = mountWithStore(pinia)
+
+    const arrow = wrapper.find('.group-arrow')
+    expect(arrow.classes()).not.toContain('collapsed')
+
+    // Collapse the group
+    await wrapper.find('.group-header').trigger('click')
+    await nextTick()
+
+    expect(wrapper.find('.group-arrow').classes()).toContain('collapsed')
+  })
+
+  // ── 14. Space key on entity selects ───────────────────────────────
+
+  it('selects entity on Space keypress', async () => {
+    const entities = [
+      makeEntity({ id: 'e1', name: 'Aria' }),
+    ]
+    await seedEntities(pinia, entities)
+    const wrapper = mountWithStore(pinia)
+
+    const item = wrapper.find('.tree-item')
+    await item.trigger('keydown.space')
+
+    expect(wrapper.emitted('select')).toHaveLength(1)
+    expect(wrapper.emitted('select')![0]).toEqual(['e1'])
+  })
+
+  // ── 15. Cross-group keyboard navigation boundary ─────────────────
+
+  it('does not move focus beyond the last item in a group on ArrowDown', async () => {
+    const entities = [
+      makeEntity({ id: 'e1', type: 'CHARACTER', name: 'Only Char' }),
+    ]
+    await seedEntities(pinia, entities)
+    const wrapper = mountWithStore(pinia)
+
+    const items = wrapper.findAll('.tree-item')
+    // ArrowDown on the last (and only) item should not throw
+    await items[0].trigger('keydown', { key: 'down' })
+
+    // Component should still be intact
+    expect(wrapper.findAll('.tree-item')).toHaveLength(1)
+  })
+
+  // ── 16. Space key on group header toggles ─────────────────────────
+
+  it('toggles group collapse on Space keypress on group header', async () => {
+    const entities = [
+      makeEntity({ id: 'e1', type: 'CHARACTER', name: 'Aria' }),
+    ]
+    await seedEntities(pinia, entities)
+    const wrapper = mountWithStore(pinia)
+
+    // Group items visible initially
+    expect(wrapper.find('.group-items').isVisible()).toBe(true)
+
+    const header = wrapper.find('.group-header')
+    await header.trigger('keydown.space')
+    await nextTick()
+
+    expect(wrapper.find('.group-items').attributes('style')).toContain('display: none')
+  })
+
+  // ── 17. Multiple type groups ──────────────────────────────────────
+
+  it('renders multiple independent groups with correct labels', async () => {
+    const entities = [
+      makeEntity({ id: 'e1', type: 'CHARACTER', name: 'Aria' }),
+      makeEntity({ id: 'e2', type: 'CHARACTER', name: 'Gandalf' }),
+      makeEntity({ id: 'e3', type: 'LOCATION', name: 'Forest' }),
+      makeEntity({ id: 'e4', type: 'FACTION', name: 'Rebels', importance: 'critical' }),
+    ]
+    await seedEntities(pinia, entities)
+    const wrapper = mountWithStore(pinia)
+
+    const groups = wrapper.findAll('.tree-group')
+    expect(groups).toHaveLength(3)
+
+    // Verify canonical order: CHARACTER > FACTION > LOCATION
+    expect(groups[0].find('.group-label').text()).toBe('人物')
+    expect(groups[1].find('.group-label').text()).toBe('势力')
+    expect(groups[2].find('.group-label').text()).toBe('地点')
+
+    // Verify counts
+    const counts = groups.map(g => g.find('.group-count').text())
+    expect(counts).toEqual(['2', '1', '1'])
+
+    // Verify total tree items
+    expect(wrapper.findAll('.tree-item')).toHaveLength(4)
+  })
+
+  // ── 18. Aria-label on empty and no-match states ───────────────────
+
+  it('renders empty state with role=status and aria-live=polite', async () => {
+    await seedEntities(pinia, [])
+    const wrapper = mountWithStore(pinia)
+
+    const empty = wrapper.find('.tree-empty')
+    expect(empty.attributes('role')).toBe('status')
+    expect(empty.attributes('aria-live')).toBe('polite')
+  })
+
+  it('renders no-match state with role=status and aria-live=polite', async () => {
+    await seedEntities(pinia, [makeEntity({ id: 'e1', name: 'Aria' })])
+    const wrapper = mountWithStore(pinia)
+
+    const input = wrapper.find('.tree-search input')
+    await input.setValue('zzz_nonexistent')
+    await nextTick()
+
+    const empty = wrapper.find('.tree-empty')
+    expect(empty.attributes('role')).toBe('status')
+    expect(empty.attributes('aria-live')).toBe('polite')
+    expect(empty.text()).toContain('未找到匹配实体')
   })
 })

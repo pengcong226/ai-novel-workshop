@@ -20,7 +20,19 @@ const ElButtonStub = {
 const ElDropdownStub = {
   name: 'ElDropdown',
   emits: ['command'],
-  template: '<div class="stub-dropdown"><slot /><slot name="dropdown" /></div>',
+  methods: {
+    /** Triggered by test code to simulate a dropdown-item click. */
+    triggerCommand(this: any, cmd: string) {
+      this.$emit('command', cmd)
+    },
+  },
+  template: `<div class="stub-dropdown"
+    @click.capture="(e) => {
+      const target = e.target;
+      const cmd = target && (target.getAttribute && target.getAttribute('data-command') || (target.closest && target.closest('[data-command]') && target.closest('[data-command]').getAttribute('data-command')));
+      if (cmd) $emit('command', cmd);
+    }"
+  ><slot /><slot name="dropdown" /></div>`,
 }
 const ElDropdownMenuStub = {
   name: 'ElDropdownMenu',
@@ -29,7 +41,7 @@ const ElDropdownMenuStub = {
 const ElDropdownItemStub = {
   name: 'ElDropdownItem',
   props: ['command', 'divided'],
-  template: '<div class="stub-dropdown-item" :data-command="command"><slot /></div>',
+  template: '<div class="stub-dropdown-item" :data-command="command" :data-divided="divided"><slot /></div>',
 }
 const ElIconStub = {
   name: 'ElIcon',
@@ -231,18 +243,58 @@ describe('ChapterBatchActions', () => {
   it('export dropdown emits exportCommand with the selected command', async () => {
     const wrapper = mountBatchActions()
 
-    // Simulate the dropdown emitting command via the parent handler
     const dropdown = wrapper.find('.stub-dropdown')
     expect(dropdown.exists()).toBe(true)
 
-    // The template binds @command on el-dropdown to emit 'exportCommand'
-    // We can trigger it via the component's internal handler by emitting from the dropdown stub
-    // Since the stub doesn't auto-trigger, we call the handler via the emitted event
-    // Verify that the exportCommand event type is wired
-    const _vm = wrapper.vm as any
-    // The template emits exportCommand when the dropdown fires command
-    // We'll just verify the event is defined on the component
-    expect(wrapper.emitted('exportCommand')).toBeUndefined() // not emitted yet
+    // No command emitted yet
+    expect(wrapper.emitted('exportCommand')).toBeUndefined()
+
+    // Simulate command emission from dropdown
+    dropdown.element.dispatchEvent(new CustomEvent('click', { bubbles: true }))
+    // The stub emits on click-capture when a [data-command] element is the target.
+    // We can also call the method directly as a safety net.
+    const mdItem = wrapper.find('[data-command="exportAllMarkdown"]')
+    await mdItem.trigger('click')
+
+    expect(wrapper.emitted('exportCommand')).toHaveLength(1)
+    expect(wrapper.emitted('exportCommand')![0]).toEqual(['exportAllMarkdown'])
+  })
+
+  it('each export format emits exportCommand with its own command value', async () => {
+    const wrapper = mountBatchActions()
+
+    const expected: Array<{ command: string; label: string }> = [
+      { command: 'exportAllMarkdown', label: 'Markdown' },
+      { command: 'exportAllPdf', label: 'PDF' },
+      { command: 'exportAllDocx', label: 'DOCX' },
+      { command: 'exportAllTxt', label: 'TXT' },
+      { command: 'exportAllEpub', label: 'EPUB' },
+      { command: 'exportAllJson', label: 'JSON' },
+    ]
+
+    for (const { command, label } of expected) {
+      const item = wrapper.find(`[data-command="${command}"]`)
+      expect(item.exists()).toBe(true)
+      await item.trigger('click')
+    }
+
+    const emitted = wrapper.emitted('exportCommand')!
+    expect(emitted).toHaveLength(expected.length)
+    for (let i = 0; i < expected.length; i++) {
+      expect(emitted[i]).toEqual([expected[i].command])
+    }
+  })
+
+  it('exportSettings item emits exportCommand with "exportSettings"', async () => {
+    const wrapper = mountBatchActions()
+
+    const item = wrapper.find('[data-command="exportSettings"]')
+    expect(item.exists()).toBe(true)
+    expect(item.text()).toContain('导出设置')
+
+    await item.trigger('click')
+    expect(wrapper.emitted('exportCommand')).toHaveLength(1)
+    expect(wrapper.emitted('exportCommand')![0]).toEqual(['exportSettings'])
   })
 
   // ---- Layout structure ----
@@ -259,5 +311,78 @@ describe('ChapterBatchActions', () => {
 
     const actions = wrapper.find('.actions')
     expect(actions.exists()).toBe(true)
+  })
+
+  // ---- Additional coverage: multiple emits, dropdown item count, export while validating ----
+
+  it('emits batchGenerate multiple times on repeated clicks', async () => {
+    const wrapper = mountBatchActions()
+
+    const buttons = wrapper.findAll('.stub-button')
+    const batchBtn = buttons.find((b) => b.text().includes('批量生成'))!
+
+    await batchBtn.trigger('click')
+    await batchBtn.trigger('click')
+    await batchBtn.trigger('click')
+
+    expect(wrapper.emitted('batchGenerate')).toHaveLength(3)
+  })
+
+  it('renders exactly 7 export dropdown items (6 formats + 1 settings)', () => {
+    const wrapper = mountBatchActions()
+
+    const items = wrapper.findAll('.stub-dropdown-item')
+    expect(items).toHaveLength(7)
+  })
+
+  it('dropdown items with divided attribute mark the settings separator', () => {
+    const wrapper = mountBatchActions()
+
+    const settingsItem = wrapper.find('[data-command="exportSettings"]')
+    // Vue renders boolean true as a present (empty-string) HTML attribute
+    expect(settingsItem.attributes('data-divided')).toBeDefined()
+    expect(settingsItem.attributes('data-divided')).not.toBe('false')
+  })
+
+  it('export dropdown remains functional when validating=true', async () => {
+    const wrapper = mountBatchActions(true)
+
+    const item = wrapper.find('[data-command="exportAllPdf"]')
+    expect(item.exists()).toBe(true)
+
+    await item.trigger('click')
+    expect(wrapper.emitted('exportCommand')).toHaveLength(1)
+    expect(wrapper.emitted('exportCommand')![0]).toEqual(['exportAllPdf'])
+  })
+
+  it('does not emit any event without user interaction', () => {
+    const wrapper = mountBatchActions()
+
+    expect(wrapper.emitted('validate')).toBeUndefined()
+    expect(wrapper.emitted('exportCommand')).toBeUndefined()
+    expect(wrapper.emitted('batchGenerate')).toBeUndefined()
+    expect(wrapper.emitted('writeNext')).toBeUndefined()
+    expect(wrapper.emitted('continuation')).toBeUndefined()
+    expect(wrapper.emitted('rewrite')).toBeUndefined()
+    expect(wrapper.emitted('addChapter')).toBeUndefined()
+  })
+
+  it('all events are independent and can be emitted in the same render', async () => {
+    const wrapper = mountBatchActions()
+
+    const buttons = wrapper.findAll('.stub-button')
+    const findBtn = (text: string) => buttons.find((b) => b.text().includes(text))!
+
+    await findBtn('验证章节').trigger('click')
+    await findBtn('批量生成').trigger('click')
+    await findBtn('一键续写').trigger('click')
+    await findBtn('改写').trigger('click')
+    await findBtn('新建章节').trigger('click')
+
+    expect(wrapper.emitted('validate')).toHaveLength(1)
+    expect(wrapper.emitted('batchGenerate')).toHaveLength(1)
+    expect(wrapper.emitted('writeNext')).toHaveLength(1)
+    expect(wrapper.emitted('rewrite')).toHaveLength(1)
+    expect(wrapper.emitted('addChapter')).toHaveLength(1)
   })
 })

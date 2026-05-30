@@ -1,7 +1,95 @@
 import { describe, it, expect, beforeEach } from 'vitest'
 import { mount, VueWrapper } from '@vue/test-utils'
 import { createTestPinia } from '@/test/helpers'
+import { defineComponent, h } from 'vue'
 import ChapterBatchActions from './ChapterBatchActions.vue'
+
+// ---------------------------------------------------------------------------
+// Element Plus stubs – auto-import is disabled during tests, so we provide
+// lightweight renderless stubs that preserve slots and pass through attrs.
+// ---------------------------------------------------------------------------
+const StubPassSlots = defineComponent({
+  inheritAttrs: false,
+  setup(_, { slots, attrs }) {
+    const tag = (attrs as Record<string, unknown>)['data-stub-tag'] || 'div'
+    return () =>
+      h(
+        tag as string,
+        { class: attrs.class || '', ...attrs },
+        slots.default?.(),
+      )
+  },
+})
+
+/** el-button stub: renders a <button> so click events and classes work */
+const ElButtonStub = defineComponent({
+  props: {
+    type: { type: String, default: '' },
+    loading: { type: Boolean, default: false },
+  },
+  inheritAttrs: false,
+  setup(props, { slots, attrs }) {
+    return () => {
+      const classes: string[] = ['el-button']
+      if (props.type) classes.push(`el-button--${props.type}`)
+      if (props.loading) classes.push('is-loading')
+      return h('button', { class: classes.join(' '), ...attrs }, slots.default?.())
+    }
+  },
+})
+
+/** el-dropdown stub: renders trigger + dropdown content, delegates item clicks as command events */
+const ElDropdownStub = defineComponent({
+  inheritAttrs: false,
+  emits: ['command'],
+  setup(_, { slots, emit }) {
+    function onClick(e: Event) {
+      const target = e.target as HTMLElement | null
+      // Walk up to find the closest dropdown-item (li with command attr)
+      const item = target?.closest<HTMLElement>('.el-dropdown-menu__item[command]')
+      if (item) {
+        emit('command', item.getAttribute('command'))
+      }
+    }
+    return () =>
+      h('div', { class: 'el-dropdown', onClick }, [
+        slots.default?.(),
+        slots.dropdown?.(),
+      ])
+  },
+})
+
+/** el-dropdown-menu stub: renders a <ul> for querying menu items */
+const ElDropdownMenuStub = defineComponent({
+  inheritAttrs: false,
+  setup(_, { slots }) {
+    return () => h('ul', { class: 'el-dropdown-menu' }, slots.default?.())
+  },
+})
+
+/** el-dropdown-item stub: renders an <li> with the command attribute */
+const ElDropdownItemStub = defineComponent({
+  props: {
+    command: { type: String, default: '' },
+    divided: { type: Boolean, default: false },
+  },
+  inheritAttrs: false,
+  setup(props, { slots }) {
+    const classes = ['el-dropdown-menu__item']
+    if (props.divided) classes.push('is-divided')
+    return () =>
+      h('li', { class: classes.join(' '), command: props.command }, slots.default?.())
+  },
+})
+
+const stubs = {
+  ElCard: StubPassSlots,
+  ElButton: ElButtonStub,
+  ElIcon: StubPassSlots,
+  ElDropdown: ElDropdownStub,
+  ElDropdownMenu: ElDropdownMenuStub,
+  ElDropdownItem: ElDropdownItemStub,
+}
 
 // ---------------------------------------------------------------------------
 // Mount helper
@@ -15,6 +103,7 @@ function mountActions(propsOverrides: Record<string, unknown> = {}): VueWrapper 
     props: { ...defaultProps, ...propsOverrides },
     global: {
       plugins: [createTestPinia()],
+      stubs,
     },
   })
 }
@@ -39,17 +128,17 @@ describe('ChapterBatchActions', () => {
 
   // -- Action button rendering ------------------------------------------------
 
-  it('renders all action buttons', () => {
+  it('renders all seven action buttons', () => {
     const wrapper = mountActions()
 
     const buttons = wrapper.findAll('button')
-    // Verify each expected label appears among the button texts
     const labels = buttons.map((b) => b.text())
+
     expect(labels.some((t) => t.includes('验证章节'))).toBe(true)
     expect(labels.some((t) => t.includes('导出'))).toBe(true)
     expect(labels.some((t) => t.includes('批量生成'))).toBe(true)
     expect(labels.some((t) => t.includes('一键续写'))).toBe(true)
-    expect(labels.some((t) => t.includes('续写'))).toBe(true)
+    expect(labels.some((t) => t.trim() === '续写')).toBe(true)
     expect(labels.some((t) => t.includes('改写'))).toBe(true)
     expect(labels.some((t) => t.includes('新建章节'))).toBe(true)
   })
@@ -59,8 +148,7 @@ describe('ChapterBatchActions', () => {
   it('emits validate when the validate button is clicked', async () => {
     const wrapper = mountActions()
 
-    const buttons = wrapper.findAll('button')
-    const validateBtn = buttons.find((b) => b.text().includes('验证章节'))
+    const validateBtn = wrapper.findAll('button').find((b) => b.text().includes('验证章节'))
     expect(validateBtn).toBeTruthy()
 
     await validateBtn!.trigger('click')
@@ -74,8 +162,7 @@ describe('ChapterBatchActions', () => {
   it('emits batchGenerate when the batch generate button is clicked', async () => {
     const wrapper = mountActions()
 
-    const buttons = wrapper.findAll('button')
-    const batchBtn = buttons.find((b) => b.text().includes('批量生成'))
+    const batchBtn = wrapper.findAll('button').find((b) => b.text().includes('批量生成'))
     expect(batchBtn).toBeTruthy()
 
     await batchBtn!.trigger('click')
@@ -89,8 +176,7 @@ describe('ChapterBatchActions', () => {
   it('emits writeNext when the one-click continuation button is clicked', async () => {
     const wrapper = mountActions()
 
-    const buttons = wrapper.findAll('button')
-    const writeNextBtn = buttons.find((b) => b.text().includes('一键续写'))
+    const writeNextBtn = wrapper.findAll('button').find((b) => b.text().includes('一键续写'))
     expect(writeNextBtn).toBeTruthy()
 
     await writeNextBtn!.trigger('click')
@@ -104,8 +190,7 @@ describe('ChapterBatchActions', () => {
   it('emits continuation when the continuation button is clicked', async () => {
     const wrapper = mountActions()
 
-    const buttons = wrapper.findAll('button')
-    const continuationBtn = buttons.find((b) => b.text().trim() === '续写')
+    const continuationBtn = wrapper.findAll('button').find((b) => b.text().trim() === '续写')
     expect(continuationBtn).toBeTruthy()
 
     await continuationBtn!.trigger('click')
@@ -119,8 +204,7 @@ describe('ChapterBatchActions', () => {
   it('emits rewrite when the rewrite button is clicked', async () => {
     const wrapper = mountActions()
 
-    const buttons = wrapper.findAll('button')
-    const rewriteBtn = buttons.find((b) => b.text().includes('改写'))
+    const rewriteBtn = wrapper.findAll('button').find((b) => b.text().includes('改写'))
     expect(rewriteBtn).toBeTruthy()
 
     await rewriteBtn!.trigger('click')
@@ -134,8 +218,7 @@ describe('ChapterBatchActions', () => {
   it('emits addChapter when the new chapter button is clicked', async () => {
     const wrapper = mountActions()
 
-    const buttons = wrapper.findAll('button')
-    const addBtn = buttons.find((b) => b.text().includes('新建章节'))
+    const addBtn = wrapper.findAll('button').find((b) => b.text().includes('新建章节'))
     expect(addBtn).toBeTruthy()
 
     await addBtn!.trigger('click')
@@ -161,7 +244,7 @@ describe('ChapterBatchActions', () => {
     expect(commands).toContain('exportSettings')
   })
 
-  it('emits exportCommand with the correct format when dropdown item is clicked', async () => {
+  it('emits exportCommand with the correct format when a dropdown item is clicked', async () => {
     const wrapper = mountActions()
 
     const dropdownItems = wrapper.findAll('.el-dropdown-menu__item')
@@ -176,42 +259,34 @@ describe('ChapterBatchActions', () => {
     expect(wrapper.emitted('exportCommand')![0]).toEqual(['exportAllMarkdown'])
   })
 
-  // -- validating prop --------------------------------------------------------
+  // -- validating prop: loading state -----------------------------------------
 
-  it('passes the validating prop to the validate button loading state', () => {
+  it('applies loading class to validate button when validating is true', () => {
     const wrapper = mountActions({ validating: true })
 
-    // el-button renders an aria-busy attribute or a loading class when loading is true
-    const buttons = wrapper.findAll('button')
-    const validateBtn = buttons.find((b) => b.text().includes('验证章节'))
+    const validateBtn = wrapper.findAll('button').find((b) => b.text().includes('验证章节'))
     expect(validateBtn).toBeTruthy()
-
-    // When validating=true the button should have the is-loading class (Element Plus)
     expect(validateBtn!.classes()).toContain('is-loading')
   })
 
-  it('does not apply loading state to validate button when validating is false', () => {
+  it('does not apply loading class to validate button when validating is false', () => {
     const wrapper = mountActions({ validating: false })
 
-    const buttons = wrapper.findAll('button')
-    const validateBtn = buttons.find((b) => b.text().includes('验证章节'))
+    const validateBtn = wrapper.findAll('button').find((b) => b.text().includes('验证章节'))
     expect(validateBtn).toBeTruthy()
-
     expect(validateBtn!.classes()).not.toContain('is-loading')
   })
 
   // -- Export settings divider ------------------------------------------------
 
-  it('renders a divider before the export settings item', () => {
+  it('renders a divider on the export settings item', () => {
     const wrapper = mountActions()
 
-    const dropdownItems = wrapper.findAll('.el-dropdown-menu__item')
-    const settingsItem = dropdownItems.find(
-      (item) => item.attributes('command') === 'exportSettings',
-    )
-    expect(settingsItem).toBeTruthy()
+    const settingsItem = wrapper
+      .findAll('.el-dropdown-menu__item')
+      .find((item) => item.attributes('command') === 'exportSettings')
 
-    // The "divided" attribute produces a divider class on the item
+    expect(settingsItem).toBeTruthy()
     expect(settingsItem!.classes()).toContain('is-divided')
   })
 })

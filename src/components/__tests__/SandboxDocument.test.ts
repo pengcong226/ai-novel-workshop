@@ -11,13 +11,17 @@ vi.mock('@/utils/anthropic-guard', () => ({
   isOfficialAnthropicEndpoint: () => false,
 }))
 
-vi.mock('@/utils/logger', () => ({
-  getLogger: () => ({
+const { sharedMockLogger } = vi.hoisted(() => ({
+  sharedMockLogger: {
     error: vi.fn(),
     warn: vi.fn(),
     info: vi.fn(),
     debug: vi.fn(),
-  }),
+  },
+}))
+
+vi.mock('@/utils/logger', () => ({
+  getLogger: () => sharedMockLogger,
 }))
 
 vi.mock('@/utils/stateDiff', () => ({
@@ -624,5 +628,184 @@ describe('SandboxDocument', () => {
     expect(addedEntity.category).toBe('Supporting')
     expect(addedEntity.systemPrompt).toBe('')
     expect(addedEntity.isArchived).toBe(false)
+  })
+
+  // --- Error handling in saveEntity ---
+
+  it('logs error and does not throw when updateEntity rejects', async () => {
+    const store = useSandboxStore()
+    seedEntities(store, [
+      createMockEntity({ id: 'e1', name: '张三' }),
+    ])
+
+    const saveError = new Error('DB write failed')
+    vi.spyOn(store, 'updateEntity').mockRejectedValue(saveError)
+
+    const wrapper = mountDocument()
+    await nextTick()
+
+    const nameInput = wrapper.find('#entity-name')
+    await nameInput.setValue('张三丰')
+    await nameInput.trigger('blur')
+
+    // saveEntity is async and catches errors internally; it should not throw
+    await flushPromises()
+    // If we reach here without an exception, the error was caught gracefully
+    expect(wrapper.find('.entity-details').exists()).toBe(true)
+    // Verify the error was logged
+    expect(sharedMockLogger.error).toHaveBeenCalledWith('Failed to save entity:', saveError)
+  })
+
+  // --- generateId fallback ---
+
+  it('falls back to Math.random when generateId returns falsy', async () => {
+    const { generateId } = await import('@/utils/generateId')
+    vi.mocked(generateId).mockReturnValueOnce('')
+
+    const store = useSandboxStore()
+    const projectStore = useProjectStore()
+    projectStore.currentProject = { id: 'proj-1' } as any
+
+    const addEntitySpy = vi.spyOn(store, 'addEntity').mockResolvedValue(undefined)
+    const randomSpy = vi.spyOn(Math, 'random').mockReturnValue(0.123456)
+
+    const wrapper = mountDocument()
+    await nextTick()
+
+    await wrapper.find('.el-button-stub').trigger('click')
+    await flushPromises()
+
+    const addedEntity = addEntitySpy.mock.calls[0][0]
+    // Should use Math.random().toString(36).slice(2) instead of 'mock-generated-id'
+    expect(addedEntity.id).not.toBe('mock-generated-id')
+    expect(addedEntity.id).toBe((0.123456).toString(36).slice(2))
+
+    randomSpy.mockRestore()
+  })
+
+  // --- ElMessage.success on creation ---
+
+  it('shows success message after creating a new entity', async () => {
+    const { ElMessage } = await import('element-plus')
+    const store = useSandboxStore()
+    const projectStore = useProjectStore()
+    projectStore.currentProject = { id: 'proj-1' } as any
+
+    vi.spyOn(store, 'addEntity').mockResolvedValue(undefined)
+
+    const wrapper = mountDocument()
+    await nextTick()
+
+    await wrapper.find('.el-button-stub').trigger('click')
+    await flushPromises()
+
+    expect(ElMessage.success).toHaveBeenCalledWith('已创建新实体，请在左侧实体库中选择查看')
+  })
+
+  // --- activeEntityId picks first entity ---
+
+  it('selects the first entity when multiple entities exist', async () => {
+    const store = useSandboxStore()
+    seedEntities(store, [
+      createMockEntity({ id: 'e1', name: '角色甲', systemPrompt: '甲的设定' }),
+      createMockEntity({ id: 'e2', name: '角色乙', systemPrompt: '乙的设定' }),
+      createMockEntity({ id: 'e3', name: '角色丙', systemPrompt: '丙的设定' }),
+    ])
+
+    const wrapper = mountDocument()
+    await nextTick()
+
+    // Should display the first entity's data
+    const nameInput = wrapper.find('#entity-name')
+    expect((nameInput.element as HTMLInputElement).value).toBe('角色甲')
+
+    const textarea = wrapper.find('#entity-system-prompt')
+    expect((textarea.element as HTMLTextAreaElement).value).toBe('甲的设定')
+  })
+
+  // --- Accessibility attributes ---
+
+  it('has correct accessibility attributes on form elements', async () => {
+    const store = useSandboxStore()
+    seedEntities(store, [
+      createMockEntity({ id: 'e1', name: '张三' }),
+    ])
+
+    const wrapper = mountDocument()
+    await nextTick()
+
+    // Name input has aria-required
+    const nameInput = wrapper.find('#entity-name')
+    expect(nameInput.attributes('aria-required')).toBe('true')
+
+    // State group has aria-live and aria-atomic
+    const stateGroup = wrapper.find('.state-group')
+    expect(stateGroup.attributes('aria-live')).toBe('polite')
+    expect(stateGroup.attributes('aria-atomic')).toBe('true')
+  })
+
+  // --- System prompt textarea saves all three fields ---
+
+  it('saves all three fields when system prompt textarea loses focus', async () => {
+    const store = useSandboxStore()
+    seedEntities(store, [
+      createMockEntity({ id: 'e1', name: '王五', category: 'Antagonist', systemPrompt: '旧设定' }),
+    ])
+
+    const updateSpy = vi.spyOn(store, 'updateEntity').mockResolvedValue(undefined)
+
+    const wrapper = mountDocument()
+    await nextTick()
+
+    const textarea = wrapper.find('#entity-system-prompt')
+    await textarea.setValue('新设定内容')
+    await textarea.trigger('blur')
+    await flushPromises()
+
+    expect(updateSpy).toHaveBeenCalledOnce()
+    expect(updateSpy).toHaveBeenCalledWith('e1', {
+      name: '王五',
+      category: 'Antagonist',
+      systemPrompt: '新设定内容',
+    })
+  })
+
+  // --- Both relations and location rendered simultaneously ---
+
+  it('renders both relation tags and location tag when both exist', async () => {
+    const store = useSandboxStore()
+    seedEntities(store, [
+      createMockEntity({ id: 'e1', name: '张三' }),
+      createMockEntity({ id: 'e2', name: '李四' }),
+    ])
+
+    vi.mocked(replayReducer).mockReturnValue({
+      e1: {
+        entityId: 'e1',
+        entityName: '张三',
+        entityType: 'CHARACTER',
+        properties: {},
+        relations: [{ targetId: 'e2', targetName: '李四', type: 'mentor' }],
+        location: '50,75',
+        vitalStatus: 'alive',
+        abilities: [],
+      },
+    })
+
+    const wrapper = mountDocument()
+    await nextTick()
+
+    // Both relation and location tags should be present
+    expect(wrapper.find('.rel-tag').exists()).toBe(true)
+    expect(wrapper.find('.rel-tag').text()).toContain('李四')
+    expect(wrapper.find('.rel-tag').text()).toContain('mentor')
+
+    expect(wrapper.find('.loc-tag').exists()).toBe(true)
+    expect(wrapper.find('.loc-tag').text()).toContain('@坐标:')
+    expect(wrapper.find('.loc-tag').text()).toContain('50')
+    expect(wrapper.find('.loc-tag').text()).toContain('75')
+
+    // Empty tag should NOT be present
+    expect(wrapper.find('.empty-tag').exists()).toBe(false)
   })
 })

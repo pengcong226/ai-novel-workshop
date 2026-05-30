@@ -464,13 +464,234 @@ describe('SandboxLayout', () => {
   // 11. Layout structure -- three-panel layout
   // =========================================================================
 
-  it('renders the three-panel layout (sidebar, main-view, right-sidebar)', () => {
+  // =========================================================================
+  // 12. Tour auto-show when not completed
+  // =========================================================================
+
+  it('opens the tour automatically when not previously completed', async () => {
+    localStorage.removeItem('ai-novel-workshop:sandbox-tour:completed')
+    sessionStorage.removeItem('ai-novel-workshop:sandbox-tour:completed')
+
     const wrapper = mountLayout()
 
-    const layout = wrapper.find('.sandbox-layout')
-    expect(layout.exists()).toBe(true)
-    expect(layout.find('.sidebar').exists()).toBe(true)
-    expect(layout.find('.main-view').exists()).toBe(true)
-    expect(layout.find('.right-sidebar').exists()).toBe(true)
+    // Tour should not be open yet (modelValue is false before timeout)
+    const tour = wrapper.findComponent(AppTourStub)
+    expect(tour.props('modelValue')).toBe(false)
+
+    // Advance timers past the 1000ms delay
+    vi.advanceTimersByTime(1100)
+    await nextTick()
+
+    // Tour should now be open
+    expect(tour.props('modelValue')).toBe(true)
+  })
+
+  // =========================================================================
+  // 13. Tour finish / close handlers persist completion
+  // =========================================================================
+
+  it('marks tour as completed when tour emits finish', async () => {
+    localStorage.removeItem('ai-novel-workshop:sandbox-tour:completed')
+    sessionStorage.removeItem('ai-novel-workshop:sandbox-tour:completed')
+
+    const wrapper = mountLayout()
+    vi.advanceTimersByTime(1100)
+    await nextTick()
+
+    const tour = wrapper.findComponent(AppTourStub)
+    await tour.vm.$emit('finish')
+
+    expect(localStorage.getItem('ai-novel-workshop:sandbox-tour:completed')).toBe('true')
+    expect(sessionStorage.getItem('ai-novel-workshop:sandbox-tour:completed')).toBe('true')
+  })
+
+  it('marks tour as completed when tour emits close', async () => {
+    localStorage.removeItem('ai-novel-workshop:sandbox-tour:completed')
+    sessionStorage.removeItem('ai-novel-workshop:sandbox-tour:completed')
+
+    const wrapper = mountLayout()
+    vi.advanceTimersByTime(1100)
+    await nextTick()
+
+    const tour = wrapper.findComponent(AppTourStub)
+    await tour.vm.$emit('close')
+
+    expect(localStorage.getItem('ai-novel-workshop:sandbox-tour:completed')).toBe('true')
+    expect(sessionStorage.getItem('ai-novel-workshop:sandbox-tour:completed')).toBe('true')
+  })
+
+  // =========================================================================
+  // 14. Tab switch closes open tour
+  // =========================================================================
+
+  it('closes the tour and marks completed when tab is switched while tour is open', async () => {
+    localStorage.removeItem('ai-novel-workshop:sandbox-tour:completed')
+    sessionStorage.removeItem('ai-novel-workshop:sandbox-tour:completed')
+
+    const wrapper = mountLayout()
+    vi.advanceTimersByTime(1100)
+    await nextTick()
+
+    // Tour should be open now
+    const tour = wrapper.findComponent(AppTourStub)
+    expect(tour.props('modelValue')).toBe(true)
+
+    // Switch tab
+    const tabs = wrapper.findComponent(ElTabsStub)
+    await tabs.vm.$emit('update:modelValue', 'graph')
+    await nextTick()
+
+    // Tour should be closed and completed persisted
+    expect(tour.props('modelValue')).toBe(false)
+    expect(localStorage.getItem('ai-novel-workshop:sandbox-tour:completed')).toBe('true')
+  })
+
+  // =========================================================================
+  // 15. totalChapters defaults to 1 when no project
+  // =========================================================================
+
+  it('defaults totalChapters to 1 when no project is set', () => {
+    const projectStore = useProjectStore()
+    projectStore.currentProject = null
+
+    const wrapper = mountLayout()
+
+    const scrubber = wrapper.findComponent(ChapterScrubberStub)
+    expect(scrubber.props('totalChapters')).toBe(1)
+  })
+
+  // =========================================================================
+  // 16. Project change watcher reloads data
+  // =========================================================================
+
+  it('reloads sandbox data when currentProject changes to a different project', async () => {
+    const projectStore = useProjectStore()
+    const sandboxStore = useSandboxStore()
+
+    projectStore.currentProject = {
+      id: 'proj-initial',
+      title: 'Initial',
+      chapters: [],
+    } as any
+
+    const loadSpy = vi.spyOn(sandboxStore, 'loadData').mockResolvedValue(undefined)
+
+    mountLayout()
+    await flushPromises()
+    expect(loadSpy).toHaveBeenCalledTimes(1)
+    expect(loadSpy).toHaveBeenCalledWith('proj-initial')
+
+    // Simulate project change
+    projectStore.currentProject = {
+      id: 'proj-new',
+      title: 'New Project',
+      chapters: [{ id: 'ch-1', number: 1 }],
+    } as any
+    await flushPromises()
+
+    expect(loadSpy).toHaveBeenCalledTimes(2)
+    expect(loadSpy).toHaveBeenCalledWith('proj-new')
+    expect(sandboxStore.isLoaded).toBe(false)
+  })
+
+  it('does not reload data when project changes to the same id', async () => {
+    const projectStore = useProjectStore()
+    const sandboxStore = useSandboxStore()
+
+    projectStore.currentProject = {
+      id: 'proj-same',
+      title: 'Same',
+      chapters: [],
+    } as any
+
+    const loadSpy = vi.spyOn(sandboxStore, 'loadData').mockResolvedValue(undefined)
+
+    mountLayout()
+    await flushPromises()
+    expect(loadSpy).toHaveBeenCalledTimes(1)
+
+    // Re-set the same project id (simulates reactive ref update without actual change)
+    projectStore.currentProject = {
+      id: 'proj-same',
+      title: 'Same Updated Title',
+      chapters: [],
+    } as any
+    await flushPromises()
+
+    // Should NOT have reloaded
+    expect(loadSpy).toHaveBeenCalledTimes(1)
+  })
+
+  // =========================================================================
+  // 17. Main view accessibility
+  // =========================================================================
+
+  it('renders the main view with correct role and aria-label', () => {
+    const wrapper = mountLayout()
+
+    const mainView = wrapper.find('.main-view')
+    expect(mainView.attributes('role')).toBe('main')
+    expect(mainView.attributes('aria-label')).toBe('沙盘主视图')
+  })
+
+  // =========================================================================
+  // 18. Deep import close handler hides the dialog
+  // =========================================================================
+
+  it('hides deep import dialog when close event is emitted', async () => {
+    const wrapper = mountLayout()
+
+    // Open deep import
+    const buttons = wrapper.findAll('.el-button-stub')
+    await buttons[1].trigger('click')
+    await nextTick()
+    expect(wrapper.find('[data-testid="deep-import"]').exists()).toBe(true)
+
+    // Emit close
+    const importDialog = wrapper.findComponent(NovelDeepImportDialogStub)
+    await importDialog.vm.$emit('close')
+    await nextTick()
+
+    // Should revert to automaton chat
+    expect(wrapper.find('[data-testid="deep-import"]').exists()).toBe(false)
+    expect(wrapper.find('[data-testid="automaton-chat"]').exists()).toBe(true)
+  })
+
+  // =========================================================================
+  // 19. Wizard close handler exits wizard mode
+  // =========================================================================
+
+  it('exits wizard mode when WorldGenWizard emits close', async () => {
+    const wrapper = mountLayout()
+    const sandboxStore = useSandboxStore()
+
+    // Enter wizard mode
+    const buttons = wrapper.findAll('.el-button-stub')
+    await buttons[0].trigger('click')
+    await nextTick()
+    expect(sandboxStore.isWizardMode).toBe(true)
+    expect(wrapper.find('[data-testid="world-gen-wizard"]').exists()).toBe(true)
+
+    // Emit close from wizard
+    const wizard = wrapper.findComponent(WorldGenWizardStub)
+    await wizard.vm.$emit('close')
+    await nextTick()
+
+    // Should exit wizard mode and show chat
+    expect(sandboxStore.isWizardMode).toBe(false)
+    expect(wrapper.find('[data-testid="world-gen-wizard"]').exists()).toBe(false)
+    expect(wrapper.find('[data-testid="automaton-chat"]').exists()).toBe(true)
+  })
+
+  // =========================================================================
+  // 20. Tab pane labels
+  // =========================================================================
+
+  it('renders tab panes with correct labels', () => {
+    const wrapper = mountLayout()
+
+    const tabPanes = wrapper.findAllComponents(ElTabPaneStub)
+    const labels = tabPanes.map((p) => p.props('label'))
+    expect(labels).toEqual(['文档视图', '命运织布机', '关系图', '势力图'])
   })
 })

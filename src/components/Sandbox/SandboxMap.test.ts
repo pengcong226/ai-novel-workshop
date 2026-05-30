@@ -394,4 +394,221 @@ describe('SandboxMap', () => {
     expect(line.attributes('stroke')).toBe('var(--accent-glow)')
     expect(line.attributes('stroke-dasharray')).toBe('5,5')
   })
+
+  // ── 5. Coordinate parsing fallback ────────────────────────────────────
+
+  it('falls back to parsing payload.value as comma-separated coordinates when payload.coordinates is absent', () => {
+    const char = makeCharacterEntity({ id: 'char-val', name: 'ValWalker' })
+    const move1 = makeStateEvent({
+      id: 'move-v1',
+      entityId: 'char-val',
+      chapterNumber: 1,
+      eventType: 'LOCATION_MOVE',
+      payload: { value: '10,20' },
+    })
+    const move2 = makeStateEvent({
+      id: 'move-v2',
+      entityId: 'char-val',
+      chapterNumber: 2,
+      eventType: 'LOCATION_MOVE',
+      payload: { value: '60,70' },
+    })
+    seedStore(pinia, [char], [move1, move2], 2)
+    const wrapper = mountWithStore(pinia)
+
+    const avatars = wrapper.findAll('.map-avatar')
+    expect(avatars).toHaveLength(1)
+    expect(avatars[0].attributes('style')).toContain('top: 70%')
+    expect(avatars[0].attributes('style')).toContain('left: 60%')
+
+    const lines = wrapper.find('.map-svg-layer').findAll('line')
+    expect(lines).toHaveLength(1)
+    expect(lines[0].attributes('x1')).toBe('10%')
+    expect(lines[0].attributes('y1')).toBe('20%')
+    expect(lines[0].attributes('x2')).toBe('60%')
+    expect(lines[0].attributes('y2')).toBe('70%')
+  })
+
+  it('prefers payload.coordinates over payload.value when both are present', () => {
+    const char = makeCharacterEntity({ id: 'char-both', name: 'BothWalker' })
+    const move = makeStateEvent({
+      id: 'move-both',
+      entityId: 'char-both',
+      chapterNumber: 1,
+      eventType: 'LOCATION_MOVE',
+      payload: { coordinates: { x: 25, y: 35 }, value: '99,99' },
+    })
+    seedStore(pinia, [char], [move], 1)
+    const wrapper = mountWithStore(pinia)
+
+    const avatars = wrapper.findAll('.map-avatar')
+    expect(avatars).toHaveLength(1)
+    expect(avatars[0].attributes('style')).toContain('top: 35%')
+    expect(avatars[0].attributes('style')).toContain('left: 25%')
+  })
+
+  // ── 6. Category-based entity detection ────────────────────────────────
+
+  it('renders location pin for entity with category "地点" even when type is not LOCATION', () => {
+    const loc = makeLocationEntity({
+      id: 'loc-cat-cn',
+      name: 'Chinese Category Location',
+      type: 'FACTION' as any,
+      category: '地点',
+      visualMeta: { defaultCoordinates: { x: 15, y: 25 } },
+    })
+    seedStore(pinia, [loc])
+    const wrapper = mountWithStore(pinia)
+
+    const pins = wrapper.findAll('.map-pin')
+    expect(pins).toHaveLength(1)
+    expect(pins[0].find('.map-pin-label').text()).toBe('Chinese Category Location')
+  })
+
+  it('renders avatar for character entity with category "Antagonist"', () => {
+    const char = makeCharacterEntity({
+      id: 'char-antag',
+      name: 'Villain',
+      type: 'FACTION' as any,
+      category: 'Antagonist',
+    })
+    const move = makeStateEvent({
+      id: 'move-antag',
+      entityId: 'char-antag',
+      chapterNumber: 1,
+      eventType: 'LOCATION_MOVE',
+      payload: { coordinates: { x: 75, y: 85 } },
+    })
+    seedStore(pinia, [char], [move])
+    const wrapper = mountWithStore(pinia)
+
+    const avatars = wrapper.findAll('.map-avatar')
+    expect(avatars).toHaveLength(1)
+    expect(avatars[0].text()).toBe('V')
+    expect(avatars[0].attributes('title')).toContain('Villain')
+  })
+
+  // ── 7. Default color fallback ─────────────────────────────────────────
+
+  it('uses default accent color when visualMeta has coordinates but no color', () => {
+    const loc = makeLocationEntity({
+      id: 'loc-no-color',
+      name: 'No Color Place',
+      visualMeta: {
+        defaultCoordinates: { x: 40, y: 60 },
+      },
+    })
+    seedStore(pinia, [loc])
+    const wrapper = mountWithStore(pinia)
+
+    const pins = wrapper.findAll('.map-pin')
+    expect(pins).toHaveLength(1)
+    const icon = pins[0].find('i')
+    expect(icon.attributes('style')).toContain('color: var(--accent-primary)')
+  })
+
+  // ── 8. Pending state events contribute to paths ───────────────────────
+
+  it('renders movement path from pending state events', () => {
+    const char = makeCharacterEntity({ id: 'char-pending', name: 'PendingMover' })
+    const committedMove = makeStateEvent({
+      id: 'move-committed',
+      entityId: 'char-pending',
+      chapterNumber: 1,
+      eventType: 'LOCATION_MOVE',
+      payload: { coordinates: { x: 10, y: 10 } },
+    })
+    const pendingMove = makeStateEvent({
+      id: 'move-pending',
+      entityId: 'char-pending',
+      chapterNumber: 2,
+      eventType: 'LOCATION_MOVE',
+      payload: { coordinates: { x: 50, y: 60 } },
+    })
+
+    const store = useSandboxStore(pinia)
+    store.entities = [char]
+    store.stateEvents = [committedMove]
+    store.pendingStateEvents = [pendingMove]
+    store.currentChapter = 2
+
+    const wrapper = mountWithStore(pinia)
+
+    const lines = wrapper.find('.map-svg-layer').findAll('line')
+    expect(lines).toHaveLength(1)
+    expect(lines[0].attributes('x1')).toBe('10%')
+    expect(lines[0].attributes('y1')).toBe('10%')
+    expect(lines[0].attributes('x2')).toBe('50%')
+    expect(lines[0].attributes('y2')).toBe('60%')
+  })
+
+  // ── 9. Multiple characters with separate paths ────────────────────────
+
+  it('renders separate movement paths for multiple characters', () => {
+    const char1 = makeCharacterEntity({ id: 'char-m1', name: 'Mover1' })
+    const char2 = makeCharacterEntity({ id: 'char-m2', name: 'Mover2' })
+    const events = [
+      makeStateEvent({ id: 'e1', entityId: 'char-m1', chapterNumber: 1, payload: { coordinates: { x: 10, y: 10 } } }),
+      makeStateEvent({ id: 'e2', entityId: 'char-m1', chapterNumber: 2, payload: { coordinates: { x: 30, y: 40 } } }),
+      makeStateEvent({ id: 'e3', entityId: 'char-m2', chapterNumber: 1, payload: { coordinates: { x: 70, y: 20 } } }),
+      makeStateEvent({ id: 'e4', entityId: 'char-m2', chapterNumber: 2, payload: { coordinates: { x: 90, y: 80 } } }),
+    ]
+    seedStore(pinia, [char1, char2], events, 2)
+    const wrapper = mountWithStore(pinia)
+
+    const lines = wrapper.find('.map-svg-layer').findAll('line')
+    expect(lines).toHaveLength(2)
+
+    // First path: char-m1 from (10,10) to (30,40)
+    expect(lines[0].attributes('x1')).toBe('10%')
+    expect(lines[0].attributes('y1')).toBe('10%')
+    expect(lines[0].attributes('x2')).toBe('30%')
+    expect(lines[0].attributes('y2')).toBe('40%')
+
+    // Second path: char-m2 from (70,20) to (90,80)
+    expect(lines[1].attributes('x1')).toBe('70%')
+    expect(lines[1].attributes('y1')).toBe('20%')
+    expect(lines[1].attributes('x2')).toBe('90%')
+    expect(lines[1].attributes('y2')).toBe('80%')
+  })
+
+  // ── 10. Event sorting by id when chapterNumber is equal ───────────────
+
+  it('sorts same-chapter path events by id for movement trail', () => {
+    const char = makeCharacterEntity({ id: 'char-sort', name: 'Sorter' })
+    // Two events in the same chapter with ids that sort lexicographically
+    const moveA = makeStateEvent({
+      id: 'evt-aaa',
+      entityId: 'char-sort',
+      chapterNumber: 1,
+      eventType: 'LOCATION_MOVE',
+      payload: { coordinates: { x: 20, y: 30 } },
+    })
+    const moveB = makeStateEvent({
+      id: 'evt-bbb',
+      entityId: 'char-sort',
+      chapterNumber: 1,
+      eventType: 'LOCATION_MOVE',
+      payload: { coordinates: { x: 80, y: 90 } },
+    })
+    // Store applies in input order; SandboxMap sorts by (chapterNumber, id).
+    // Input in id order so both agree: evt-aaa first, evt-bbb last.
+    // Resolved location = last applied = evt-bbb (80, 90).
+    // SandboxMap path: prev=evt-aaa(20,30), last=evt-bbb(80,90), avatar at (80,90)
+    // prev != avatar → path renders from (20,30) to (80,90).
+    seedStore(pinia, [char], [moveA, moveB], 1)
+    const wrapper = mountWithStore(pinia)
+
+    const avatars = wrapper.findAll('.map-avatar')
+    expect(avatars).toHaveLength(1)
+    expect(avatars[0].attributes('style')).toContain('top: 90%')
+    expect(avatars[0].attributes('style')).toContain('left: 80%')
+
+    const lines = wrapper.find('.map-svg-layer').findAll('line')
+    expect(lines).toHaveLength(1)
+    expect(lines[0].attributes('x1')).toBe('20%')
+    expect(lines[0].attributes('y1')).toBe('30%')
+    expect(lines[0].attributes('x2')).toBe('80%')
+    expect(lines[0].attributes('y2')).toBe('90%')
+  })
 })
