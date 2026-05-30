@@ -183,4 +183,52 @@ describe('ChapterReadingPreview', () => {
     const article = wrapper.find('article.chapter-reading-preview')
     expect(article.exists()).toBe(true)
   })
+
+  // --- buildReadingPreview fallback path ---
+
+  it('falls back to summaryData.summary via buildReadingPreview when content is empty', async () => {
+    const { splitReadingParagraphs } = await import('@/utils/readingPreview')
+    vi.mocked(splitReadingParagraphs).mockReturnValueOnce(['来自 summaryData'])
+
+    const wrapper = mountPreview({
+      content: '',
+      summaryData: { summary: '来自 summaryData' },
+    })
+
+    const paragraphs = wrapper.find('.reader-content').findAll('p')
+    expect(paragraphs).toHaveLength(1)
+    expect(paragraphs[0].text()).toBe('来自 summaryData')
+    // ElEmpty should NOT appear when buildReadingPreview produces text
+    expect(wrapper.find('.stub-empty').exists()).toBe(false)
+  })
+
+  it('renders paragraphs from summary fallback when content is falsy', async () => {
+    const { splitReadingParagraphs } = await import('@/utils/readingPreview')
+    vi.mocked(splitReadingParagraphs).mockReturnValueOnce(['摘要段落一', '摘要段落二'])
+
+    const wrapper = mountPreview({
+      content: undefined as unknown as string,
+      summary: '摘要段落一\n\n摘要段落二',
+    })
+
+    const paragraphs = wrapper.find('.reader-content').findAll('p')
+    expect(paragraphs).toHaveLength(2)
+    expect(paragraphs[0].text()).toBe('摘要段落一')
+    expect(paragraphs[1].text()).toBe('摘要段落二')
+    expect(wrapper.find('.stub-empty').exists()).toBe(false)
+  })
+
+  // --- v-else branch --------------------------------------------------------
+
+  it('does not render reader-content and shows ElEmpty when paragraphs resolve to empty', async () => {
+    const { splitReadingParagraphs } = await import('@/utils/readingPreview')
+    vi.mocked(splitReadingParagraphs).mockReturnValueOnce([])
+
+    const wrapper = mountPreview({ content: '' })
+
+    expect(wrapper.find('.reader-content').exists()).toBe(false)
+    expect(wrapper.find('.stub-empty').exists()).toBe(true)
+    expect(wrapper.find('.stub-empty').text()).toContain('暂无正文内容')
+  })
+
 })

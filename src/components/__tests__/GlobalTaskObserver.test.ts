@@ -374,4 +374,126 @@ describe('GlobalTaskObserver', () => {
 
     expect(clearSpy).toHaveBeenCalled()
   })
+
+  // ---- Task title status CSS classes ----
+
+  it('applies error class to task title when task has error status', async () => {
+    const task = store.createTask({ title: 'Failed task' })
+    store.failTask(task.id, 'Something broke')
+
+    const wrapper = mountObserver()
+    await nextTick()
+    await wrapper.find('.panel-header').trigger('click')
+    await nextTick()
+
+    expect(wrapper.find('.task-title').classes()).toContain('error')
+    expect(wrapper.find('.task-status-text').text()).toBe('失败')
+  })
+
+  it('applies success class to task title when task completed', async () => {
+    const task = store.createTask({ title: 'Done task' })
+    store.completeTask(task.id)
+
+    const wrapper = mountObserver()
+    await nextTick()
+    await wrapper.find('.panel-header').trigger('click')
+    await nextTick()
+
+    expect(wrapper.find('.task-title').classes()).toContain('success')
+    expect(wrapper.find('.task-status-text').text()).toBe('完成')
+  })
+
+  it('applies cancelled class to task title when task is cancelled', async () => {
+    const task = store.createTask({ title: 'Cancelled task', cancellable: true })
+    store.cancelTask(task.id)
+
+    const wrapper = mountObserver()
+    await nextTick()
+    await wrapper.find('.panel-header').trigger('click')
+    await nextTick()
+
+    expect(wrapper.find('.task-title').classes()).toContain('cancelled')
+    expect(wrapper.find('.task-status-text').text()).toBe('已取消')
+  })
+
+  // ---- Description visibility ----
+
+  it('does not render task description when not provided', async () => {
+    store.createTask({ title: 'No description task' })
+
+    const wrapper = mountObserver()
+    await nextTick()
+    await wrapper.find('.panel-header').trigger('click')
+    await nextTick()
+
+    expect(wrapper.find('.task-item-desc').exists()).toBe(false)
+  })
+
+  // ---- Progress bar for pending tasks ----
+
+  it('renders progress bar for pending tasks', async () => {
+    store.createTask({ title: 'Pending task' })
+
+    const wrapper = mountObserver()
+    await nextTick()
+    await wrapper.find('.panel-header').trigger('click')
+    await nextTick()
+
+    const progress = wrapper.find('.el-progress-stub')
+    expect(progress.exists()).toBe(true)
+    expect(progress.attributes('data-percentage')).toBe('0')
+  })
+
+  // ---- Running task status text ----
+
+  it('shows running status text for running tasks', async () => {
+    const task = store.createTask({ title: 'Active task' })
+    store.updateTask(task.id, { status: 'running', progress: 50 })
+
+    const wrapper = mountObserver()
+    await nextTick()
+    await wrapper.find('.panel-header').trigger('click')
+    await nextTick()
+
+    expect(wrapper.find('.task-status-text').text()).toBe('进行中')
+  })
+
+  // ---- Multiple tasks with mixed statuses ----
+
+  it('renders multiple tasks with different statuses simultaneously', async () => {
+    const t1 = store.createTask({ title: 'Pending' })
+    const t2 = store.createTask({ title: 'Running' })
+    store.updateTask(t2.id, { status: 'running', progress: 30 })
+    const t3 = store.createTask({ title: 'Completed' })
+    store.completeTask(t3.id)
+    const t4 = store.createTask({ title: 'Failed' })
+    store.failTask(t4.id, 'err')
+
+    const wrapper = mountObserver()
+    await nextTick()
+    await wrapper.find('.panel-header').trigger('click')
+    await nextTick()
+
+    const items = wrapper.findAll('.task-item')
+    expect(items).toHaveLength(4)
+
+    // t4 (failed) was unshifted last, so it appears first
+    expect(items[0].find('.task-title').classes()).toContain('error')
+    expect(items[1].find('.task-title').classes()).toContain('success')
+    expect(items[2].find('.task-title').text()).toBe('Running')
+    expect(items[3].find('.task-title').text()).toBe('Pending')
+  })
+
+  // ---- Panel header aria ----
+
+  it('renders task panel with correct aria attributes', async () => {
+    store.createTask({ title: 'Task' })
+
+    const wrapper = mountObserver()
+    await nextTick()
+
+    const panel = wrapper.find('.task-panel')
+    expect(panel.attributes('role')).toBe('region')
+    expect(panel.attributes('aria-label')).toBe('任务队列')
+  })
 })

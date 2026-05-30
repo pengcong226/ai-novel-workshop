@@ -423,4 +423,206 @@ describe('SandboxDocument', () => {
     expect(wrapper.text()).toContain('基础档案')
     expect(wrapper.text()).toContain('系统约束设定')
   })
+
+  // --- Additional tests ---
+
+  it('saves all three fields (name, category, systemPrompt) on name blur', async () => {
+    const store = useSandboxStore()
+    seedEntities(store, [
+      createMockEntity({ id: 'e1', name: '李四', category: 'Supporting', systemPrompt: '原始提示' }),
+    ])
+
+    const updateSpy = vi.spyOn(store, 'updateEntity').mockResolvedValue(undefined)
+
+    const wrapper = mountDocument()
+    await nextTick()
+
+    // Change name, then trigger blur
+    const nameInput = wrapper.find('#entity-name')
+    await nameInput.setValue('李四改')
+    await nameInput.trigger('blur')
+    await flushPromises()
+
+    expect(updateSpy).toHaveBeenCalledOnce()
+    expect(updateSpy).toHaveBeenCalledWith('e1', {
+      name: '李四改',
+      category: 'Supporting',
+      systemPrompt: '原始提示',
+    })
+  })
+
+  it('renders all six category options in select', async () => {
+    const store = useSandboxStore()
+    seedEntities(store, [
+      createMockEntity({ id: 'e1', name: '张三', category: 'Location' }),
+    ])
+
+    const wrapper = mountDocument()
+    await nextTick()
+
+    const select = wrapper.find('#entity-category')
+    const options = select.findAll('option')
+    expect(options).toHaveLength(6)
+    expect(options[0].text()).toContain('Protagonist')
+    expect(options[1].text()).toContain('Supporting')
+    expect(options[2].text()).toContain('Antagonist')
+    expect(options[3].text()).toContain('Faction')
+    expect(options[4].text()).toContain('Location')
+    expect(options[5].text()).toContain('Lore')
+  })
+
+  it('hides dynamic properties grid when resolved properties are empty', async () => {
+    const store = useSandboxStore()
+    seedEntities(store, [
+      createMockEntity({ id: 'e1', name: '张三' }),
+    ])
+
+    vi.mocked(replayReducer).mockReturnValue({
+      e1: {
+        entityId: 'e1',
+        entityName: '张三',
+        entityType: 'CHARACTER',
+        properties: {},
+        relations: [],
+        location: null,
+        vitalStatus: 'alive',
+        abilities: [],
+      },
+    })
+
+    const wrapper = mountDocument()
+    await nextTick()
+
+    expect(wrapper.find('.props-grid').exists()).toBe(false)
+  })
+
+  it('renders location coordinates in @坐标: [x, y] format', async () => {
+    const store = useSandboxStore()
+    seedEntities(store, [
+      createMockEntity({ id: 'e1', name: '张三' }),
+    ])
+
+    vi.mocked(replayReducer).mockReturnValue({
+      e1: {
+        entityId: 'e1',
+        entityName: '张三',
+        entityType: 'CHARACTER',
+        properties: {},
+        relations: [],
+        location: '42,88',
+        vitalStatus: 'alive',
+        abilities: [],
+      },
+    })
+
+    const wrapper = mountDocument()
+    await nextTick()
+
+    const locTag = wrapper.find('.loc-tag')
+    expect(locTag.exists()).toBe(true)
+    expect(locTag.text()).toContain('@坐标:')
+    expect(locTag.text()).toContain('42')
+    expect(locTag.text()).toContain('88')
+  })
+
+  it('renders static section labels', async () => {
+    const store = useSandboxStore()
+    seedEntities(store, [
+      createMockEntity({ id: 'e1', name: '测试角色' }),
+    ])
+
+    const wrapper = mountDocument()
+    await nextTick()
+
+    expect(wrapper.text()).toContain('实体名称')
+    expect(wrapper.text()).toContain('分类类型')
+    expect(wrapper.text()).toContain('核心设定')
+    expect(wrapper.text()).toContain('实体羁绊')
+  })
+
+  it('shows empty tag when resolved state is null', async () => {
+    const store = useSandboxStore()
+    seedEntities(store, [
+      createMockEntity({ id: 'e1', name: '张三' }),
+    ])
+
+    // replayReducer returns empty object => no resolved state for e1
+    vi.mocked(replayReducer).mockReturnValue({})
+
+    const wrapper = mountDocument()
+    await nextTick()
+
+    expect(wrapper.text()).toContain('暂无状态关联')
+    expect(wrapper.find('.rel-tag').exists()).toBe(false)
+    expect(wrapper.find('.loc-tag').exists()).toBe(false)
+  })
+
+  it('uses entity ID as fallback when relation target ID is not in entity map', async () => {
+    const store = useSandboxStore()
+    seedEntities(store, [
+      createMockEntity({ id: 'e1', name: '张三' }),
+    ])
+
+    // Relation references an entity ID that doesn't exist in store
+    vi.mocked(replayReducer).mockReturnValue({
+      e1: {
+        entityId: 'e1',
+        entityName: '张三',
+        entityType: 'CHARACTER',
+        properties: {},
+        relations: [{ targetId: 'unknown-id', targetName: '未知', type: 'ally' }],
+        location: null,
+        vitalStatus: 'alive',
+        abilities: [],
+      },
+    })
+
+    const wrapper = mountDocument()
+    await nextTick()
+
+    const relTag = wrapper.find('.rel-tag')
+    expect(relTag.exists()).toBe(true)
+    // Should fall back to showing the raw ID since unknown-id isn't in entityNameMap
+    expect(relTag.text()).toContain('unknown-id')
+    expect(relTag.text()).toContain('ally')
+  })
+
+  it('does not call addEntity when create is clicked without a current project', async () => {
+    const store = useSandboxStore()
+    const projectStore = useProjectStore()
+    projectStore.currentProject = null
+
+    const addEntitySpy = vi.spyOn(store, 'addEntity')
+
+    const wrapper = mountDocument()
+    await nextTick()
+
+    await wrapper.find('.el-button-stub').trigger('click')
+    await flushPromises()
+
+    expect(addEntitySpy).not.toHaveBeenCalled()
+  })
+
+  it('creates entity with generated ID and expected defaults', async () => {
+    const store = useSandboxStore()
+    const projectStore = useProjectStore()
+    projectStore.currentProject = { id: 'proj-42' } as any
+
+    const addEntitySpy = vi.spyOn(store, 'addEntity').mockResolvedValue(undefined)
+
+    const wrapper = mountDocument()
+    await nextTick()
+
+    await wrapper.find('.el-button-stub').trigger('click')
+    await flushPromises()
+
+    const addedEntity = addEntitySpy.mock.calls[0][0]
+    expect(addedEntity.id).toBe('mock-generated-id')
+    expect(addedEntity.type).toBe('CHARACTER')
+    expect(addedEntity.aliases).toEqual([])
+    expect(addedEntity.importance).toBe('minor')
+    expect(addedEntity.category).toBe('Supporting')
+    expect(addedEntity.systemPrompt).toBe('')
+    expect(addedEntity.isArchived).toBe(false)
+  })
 })

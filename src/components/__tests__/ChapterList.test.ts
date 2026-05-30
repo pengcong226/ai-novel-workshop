@@ -402,4 +402,143 @@ describe('ChapterList', () => {
     // Virtualizer mock returns all items, component renders them all
     expect(wrapper.findAll('.stub-card')).toHaveLength(50)
   })
+
+  // ---- Drag-and-drop interactions ----
+
+  it('applies is-dragging class to the dragged chapter card', async () => {
+    const chapters = createMockChapters(3)
+    const wrapper = mountChapterList(chapters)
+
+    const dragHandles = wrapper.findAll('.drag-handle')
+    const dataTransfer = { setData: vi.fn(), effectAllowed: '' }
+    await dragHandles[0].trigger('dragstart', { dataTransfer })
+
+    const cards = wrapper.findAll('.chapter-card')
+    expect(cards[0].classes()).toContain('is-dragging')
+    expect(cards[1].classes()).not.toContain('is-dragging')
+    expect(cards[2].classes()).not.toContain('is-dragging')
+  })
+
+  it('sets drag data and effectAllowed on dragstart', async () => {
+    const chapters = createMockChapters(2)
+    const wrapper = mountChapterList(chapters)
+
+    const dragHandles = wrapper.findAll('.drag-handle')
+    const dataTransfer = { setData: vi.fn(), effectAllowed: '' }
+    await dragHandles[0].trigger('dragstart', { dataTransfer })
+
+    expect(dataTransfer.setData).toHaveBeenCalledWith('text/plain', chapters[0].id)
+    expect(dataTransfer.effectAllowed).toBe('move')
+  })
+
+  it('applies is-drag-over class when dragging over another chapter', async () => {
+    const chapters = createMockChapters(3)
+    const wrapper = mountChapterList(chapters)
+
+    const dragHandles = wrapper.findAll('.drag-handle')
+    const dataTransfer = { setData: vi.fn(), effectAllowed: '' }
+    await dragHandles[0].trigger('dragstart', { dataTransfer })
+
+    const cards = wrapper.findAll('.chapter-card')
+    await cards[1].trigger('dragover', {
+      dataTransfer: { dropEffect: '' },
+    })
+
+    expect(cards[1].classes()).toContain('is-drag-over')
+  })
+
+  it('clears drag state on dragend', async () => {
+    const chapters = createMockChapters(2)
+    const wrapper = mountChapterList(chapters)
+
+    const dragHandles = wrapper.findAll('.drag-handle')
+    const dataTransfer = { setData: vi.fn(), effectAllowed: '' }
+    await dragHandles[0].trigger('dragstart', { dataTransfer })
+
+    const cards = wrapper.findAll('.chapter-card')
+    expect(cards[0].classes()).toContain('is-dragging')
+
+    await dragHandles[0].trigger('dragend')
+    expect(cards[0].classes()).not.toContain('is-dragging')
+    expect(cards[0].classes()).not.toContain('is-drag-over')
+  })
+
+  it('emits reorderChapters with reordered IDs on drop', async () => {
+    const chapters = createMockChapters(3)
+    const wrapper = mountChapterList(chapters)
+
+    const dragHandles = wrapper.findAll('.drag-handle')
+    const dataTransfer = { setData: vi.fn(), effectAllowed: '' }
+    await dragHandles[0].trigger('dragstart', { dataTransfer })
+
+    const cards = wrapper.findAll('.chapter-card')
+    await cards[2].trigger('drop')
+
+    expect(wrapper.emitted('reorderChapters')).toHaveLength(1)
+    const emittedIds = wrapper.emitted('reorderChapters')![0][0] as string[]
+    expect(emittedIds).toHaveLength(3)
+    // Source (index 0) should have moved
+    expect(emittedIds.indexOf(chapters[0].id)).not.toBe(0)
+  })
+
+  it('does not emit reorderChapters when dropping on the same chapter', async () => {
+    const chapters = createMockChapters(3)
+    const wrapper = mountChapterList(chapters)
+
+    const dragHandles = wrapper.findAll('.drag-handle')
+    const dataTransfer = { setData: vi.fn(), effectAllowed: '' }
+    await dragHandles[1].trigger('dragstart', { dataTransfer })
+
+    const cards = wrapper.findAll('.chapter-card')
+    await cards[1].trigger('drop')
+
+    expect(wrapper.emitted('reorderChapters')).toBeUndefined()
+  })
+
+  it('clears drag-over highlight when hovering over the dragged chapter itself', async () => {
+    const chapters = createMockChapters(3)
+    const wrapper = mountChapterList(chapters)
+
+    const dragHandles = wrapper.findAll('.drag-handle')
+    const dataTransfer = { setData: vi.fn(), effectAllowed: '' }
+    await dragHandles[0].trigger('dragstart', { dataTransfer })
+
+    const cards = wrapper.findAll('.chapter-card')
+    // Drag over chapter at index 2 first to set a drag-over state
+    await cards[2].trigger('dragover', {
+      dataTransfer: { dropEffect: '' },
+    })
+    expect(cards[2].classes()).toContain('is-drag-over')
+
+    // Now drag over the source chapter itself - should clear drag-over
+    await cards[0].trigger('dragover', {
+      dataTransfer: { dropEffect: '' },
+    })
+    expect(cards[2].classes()).not.toContain('is-drag-over')
+  })
+
+  // ---- Dropdown command emission ----
+
+  it('renders all standard action items including regenerate, checkpoints, and aigc-detect', () => {
+    const chapter = createMockChapter()
+    const wrapper = mountChapterList([chapter])
+
+    const commands = wrapper.findAll('.stub-dropdown-item').map(i => i.attributes('data-command'))
+    expect(commands).toContain('regenerate')
+    expect(commands).toContain('checkpoints')
+    expect(commands).toContain('aigc-detect')
+  })
+
+  it('renders plugin toolbar buttons with correct plugin: prefix commands', () => {
+    const chapter = createMockChapter()
+    const pluginToolbarButtons = [
+      { id: 'custom-one', label: 'First Plugin' },
+      { id: 'custom-two', label: 'Second Plugin' },
+    ]
+    const wrapper = mountChapterList([chapter], pluginToolbarButtons)
+
+    const commands = wrapper.findAll('.stub-dropdown-item').map(i => i.attributes('data-command'))
+    expect(commands).toContain('plugin:custom-one')
+    expect(commands).toContain('plugin:custom-two')
+  })
 })

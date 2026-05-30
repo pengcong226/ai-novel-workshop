@@ -422,4 +422,203 @@ describe('AppTour', () => {
     expect(wrapper.emitted('update:modelValue')![0]).toEqual([false])
     wrapper.unmount()
   })
+
+  // ---------------------------------------------------------------
+  // 15. Keyboard ArrowRight advances to next step
+  // ---------------------------------------------------------------
+
+  it('navigates to the next step when ArrowRight key is pressed', async () => {
+    createTargetElement('step-1')
+    createTargetElement('step-2')
+    const { wrapper, openTour } = mountTour()
+    await openTour()
+
+    expect(document.querySelector('.app-tour-progress')!.textContent).toBe('1 / 3')
+
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight' }))
+    await nextTick()
+    await nextTick()
+
+    expect(document.querySelector('.app-tour-card')!.textContent).toContain('第二步标题')
+    expect(document.querySelector('.app-tour-progress')!.textContent).toBe('2 / 3')
+    wrapper.unmount()
+  })
+
+  // ---------------------------------------------------------------
+  // 16. Keyboard ArrowLeft goes back to previous step
+  // ---------------------------------------------------------------
+
+  it('navigates to the previous step when ArrowLeft key is pressed', async () => {
+    createTargetElement('step-1')
+    createTargetElement('step-2')
+    const { wrapper, openTour } = mountTour()
+    await openTour()
+
+    // Go to step 2 first
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight' }))
+    await nextTick()
+    await nextTick()
+    expect(document.querySelector('.app-tour-progress')!.textContent).toBe('2 / 3')
+
+    // Go back with ArrowLeft
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowLeft' }))
+    await nextTick()
+    await nextTick()
+
+    expect(document.querySelector('.app-tour-card')!.textContent).toContain('第一步标题')
+    expect(document.querySelector('.app-tour-progress')!.textContent).toBe('1 / 3')
+    wrapper.unmount()
+  })
+
+  // ---------------------------------------------------------------
+  // 17. Keyboard Enter advances to next step
+  // ---------------------------------------------------------------
+
+  it('navigates to the next step when Enter key is pressed', async () => {
+    createTargetElement('step-1')
+    createTargetElement('step-2')
+    const { wrapper, openTour } = mountTour()
+    await openTour()
+
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter' }))
+    await nextTick()
+    await nextTick()
+
+    expect(document.querySelector('.app-tour-card')!.textContent).toContain('第二步标题')
+    wrapper.unmount()
+  })
+
+  // ---------------------------------------------------------------
+  // 18. Keyboard events are ignored when tour is closed
+  // ---------------------------------------------------------------
+
+  it('ignores keyboard events when tour is closed', async () => {
+    createTargetElement('step-1')
+    const { wrapper } = mountTour(false)
+
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }))
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight' }))
+    await nextTick()
+
+    // No overlay rendered, no events emitted
+    expect(document.querySelector('.app-tour-overlay')).toBeNull()
+    expect(wrapper.emitted('close')).toBeUndefined()
+    wrapper.unmount()
+  })
+
+  // ---------------------------------------------------------------
+  // 19. Target resolved via Ref object
+  // ---------------------------------------------------------------
+
+  it('renders step card when target is a Ref object', async () => {
+    const el = createTargetElement('ref-target')
+    const refTarget = { value: el }
+
+    const { wrapper, openTour } = mountTour(true, [
+      { target: refTarget, title: 'Ref 标题', description: 'Ref 描述' },
+    ])
+    await openTour()
+
+    const card = document.querySelector('.app-tour-card')
+    expect(card).not.toBeNull()
+    expect(card!.textContent).toContain('Ref 标题')
+    expect(card!.textContent).toContain('Ref 描述')
+    wrapper.unmount()
+  })
+
+  // ---------------------------------------------------------------
+  // 20. Card is positioned below target when space is sufficient
+  // ---------------------------------------------------------------
+
+  it('positions card below target when there is enough viewport space', async () => {
+    createTargetElement('step-1', { top: 50, bottom: 130, height: 80 })
+    const { wrapper, openTour } = mountTour()
+    await openTour()
+
+    const card = document.querySelector('.app-tour-card') as HTMLElement
+    expect(card).not.toBeNull()
+
+    // Component logic: top = r.bottom + gap (12) = 130 + 12 = 142
+    expect(card.style.top).toBe('142px')
+    wrapper.unmount()
+  })
+
+  // ---------------------------------------------------------------
+  // 21. Card is positioned above target when not enough space below
+  // ---------------------------------------------------------------
+
+  it('positions card above target when viewport space below is insufficient', async () => {
+    // Place target near bottom of viewport so below-position overflows
+    const nearBottomTop = window.innerHeight - 50
+    createTargetElement('step-1', {
+      top: nearBottomTop,
+      bottom: nearBottomTop + 30,
+      height: 30,
+    })
+    const { wrapper, openTour } = mountTour()
+    await openTour()
+
+    const card = document.querySelector('.app-tour-card') as HTMLElement
+    expect(card).not.toBeNull()
+
+    // Component logic: top + 200 > viewportH triggers above-placement
+    // top = Math.max(gap(12), r.top - gap(12) - 160)
+    const expectedTop = Math.max(12, nearBottomTop - 12 - 160)
+    expect(card.style.top).toBe(`${expectedTop}px`)
+    wrapper.unmount()
+  })
+
+  // ---------------------------------------------------------------
+  // 22. Icon component is rendered in step header when provided
+  // ---------------------------------------------------------------
+
+  it('renders icon component in the step header when step has an icon', async () => {
+    createTargetElement('step-1')
+    const IconComponent = { name: 'TestIcon', template: '<span class="test-icon" />' }
+    const stepsWithIcon: TourStep[] = [
+      { target: '#step-1', title: '带图标', description: '有图标步骤', icon: IconComponent },
+    ]
+    const { wrapper, openTour } = mountTour(true, stepsWithIcon)
+    await openTour()
+
+    const card = document.querySelector('.app-tour-card')!
+    const iconEl = card.querySelector('.test-icon')
+    expect(iconEl).not.toBeNull()
+    wrapper.unmount()
+  })
+
+  // ---------------------------------------------------------------
+  // 23. Navigate through all steps and finish from the last
+  // ---------------------------------------------------------------
+
+  it('navigates through all steps sequentially and finishes on the last', async () => {
+    createTargetElement('step-1')
+    createTargetElement('step-2')
+    createTargetElement('step-3')
+    const { wrapper, openTour } = mountTour()
+    await openTour()
+
+    const buttons = () => Array.from(document.querySelectorAll('.el-button-stub'))
+
+    // Step 1 -> 2
+    ;(buttons().find((b) => b.textContent?.trim() === '下一步')! as HTMLElement).click()
+    await nextTick()
+    await nextTick()
+    expect(document.querySelector('.app-tour-progress')!.textContent).toBe('2 / 3')
+
+    // Step 2 -> 3
+    ;(buttons().find((b) => b.textContent?.trim() === '下一步')! as HTMLElement).click()
+    await nextTick()
+    await nextTick()
+    expect(document.querySelector('.app-tour-progress')!.textContent).toBe('3 / 3')
+
+    // Finish from step 3
+    const finishBtn = buttons().find((b) => b.textContent?.trim() === '完成')!
+    ;(finishBtn as HTMLElement).click()
+    await nextTick()
+
+    expect(wrapper.emitted('finish')).toBeTruthy()
+    expect(document.querySelector('.app-tour-overlay')).toBeNull()
+    wrapper.unmount()
+  })
 })

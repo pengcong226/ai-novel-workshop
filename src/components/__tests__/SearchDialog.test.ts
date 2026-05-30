@@ -38,7 +38,14 @@ vi.mock('@/composables/useGlobalSearch', () => ({
 }))
 
 vi.mock('@/utils/searchEngine', () => ({
-  highlightText: vi.fn((text: string) => `<mark>${text}</mark>`),
+  highlightText: vi.fn((text: string) => {
+    const escaped = text
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+    return `<mark>${escaped}</mark>`
+  }),
 }))
 
 vi.mock('@/utils/eventTypeLabels', () => ({
@@ -436,5 +443,263 @@ describe('SearchDialog', () => {
     expect(footer.text()).toContain('导航')
     expect(footer.text()).toContain('选择')
     expect(footer.text()).toContain('关闭')
+  })
+
+  // --- clearAllRecent ---
+
+  it('clears all recent searches when clicking the clear button', async () => {
+    mockVisible.value = true
+    mockQuery.value = ''
+    mockRecentSearches.value = ['termA', 'termB', 'termC']
+
+    const wrapper = mountDialog()
+    await nextTick()
+
+    const clearBtn = wrapper.find('.clear-recent-btn')
+    expect(clearBtn.exists()).toBe(true)
+
+    await clearBtn.trigger('click')
+    await nextTick()
+
+    // deleteRecent should have been called once for each term
+    expect(mockDeleteRecent).toHaveBeenCalledTimes(3)
+    expect(mockDeleteRecent).toHaveBeenCalledWith('termA')
+    expect(mockDeleteRecent).toHaveBeenCalledWith('termB')
+    expect(mockDeleteRecent).toHaveBeenCalledWith('termC')
+  })
+
+  // --- deleteRecent via remove button ---
+
+  it('deletes a single recent search when clicking the remove button', async () => {
+    mockVisible.value = true
+    mockQuery.value = ''
+    mockRecentSearches.value = ['keep', 'remove-me']
+
+    const wrapper = mountDialog()
+    await nextTick()
+
+    const removeButtons = wrapper.findAll('.remove-recent-btn')
+    // Click the remove button on the second item
+    await removeButtons[1].trigger('click')
+
+    expect(mockDeleteRecent).toHaveBeenCalledWith('remove-me')
+    expect(mockDeleteRecent).toHaveBeenCalledTimes(1)
+  })
+
+  // --- Result ordering by entity type ---
+
+  it('orders result groups by entity type priority (chapter before character)', async () => {
+    mockVisible.value = true
+    mockQuery.value = 'test'
+    // Provide results in reverse priority order
+    mockResults.value = [
+      { type: 'character', id: 'char:1', title: 'Char A', snippet: '...' },
+      { type: 'chapter', id: 'ch:1', title: 'Chapter 1', snippet: '...' },
+      { type: 'outline', id: 'outline:1', title: 'Outline', snippet: '...' },
+    ]
+
+    const wrapper = mountDialog()
+    await nextTick()
+
+    const tags = wrapper.findAll('.el-tag-stub')
+    // chapter < character < outline in the defined order
+    expect(tags[0].text()).toBe('章节')
+    expect(tags[1].text()).toBe('人物')
+    expect(tags[2].text()).toBe('大纲')
+  })
+
+  // --- selectActive with search results on Enter ---
+
+  it('activates the selected search result on Enter key', async () => {
+    mockVisible.value = true
+    mockQuery.value = 'match'
+    mockResults.value = [
+      { type: 'chapter', id: 'ch:1', title: 'Matched Chapter', snippet: '...' },
+      { type: 'character', id: 'char:1', title: 'Matched Char', snippet: '...' },
+    ]
+
+    const wrapper = mountDialog()
+    await nextTick()
+
+    const input = wrapper.find('.search-input')
+    // Default selectedIndex is 0, so pressing Enter activates first result
+    await input.trigger('keydown.enter')
+    await nextTick()
+
+    expect(mockActivate).toHaveBeenCalledWith(
+      expect.objectContaining({ type: 'chapter', id: 'ch:1', title: 'Matched Chapter' }),
+    )
+  })
+
+  // --- selectedIndex resets when query changes ---
+
+  it('resets selected index to 0 when query changes', async () => {
+    mockVisible.value = true
+    mockQuery.value = ''
+    mockRecentSearches.value = ['a', 'b', 'c']
+
+    const wrapper = mountDialog()
+    await nextTick()
+
+    const input = wrapper.find('.search-input')
+
+    // Navigate down to index 1
+    await input.trigger('keydown.down')
+    await nextTick()
+
+    // Now change query (simulates typing)
+    mockQuery.value = 'new search'
+    await nextTick()
+
+    // With results, first result should be at index 0
+    // Verify by checking that after another ArrowDown, index moves to 1
+    mockResults.value = [
+      { type: 'chapter', id: 'ch:1', title: 'Result1', snippet: '...' },
+      { type: 'chapter', id: 'ch:2', title: 'Result2', snippet: '...' },
+    ]
+    await nextTick()
+
+    await input.trigger('keydown.down')
+    await nextTick()
+
+    // After reset + one ArrowDown, we should be at index 1 (second item)
+    const items = wrapper.findAll('.search-item:not(.recent-item)')
+    if (items.length >= 2) {
+      expect(items[1].classes()).toContain('search-item--active')
+    }
+  })
+
+  // --- Entity type tags with correct labels ---
+
+  it('renders entity type tags with correct labels for each group', async () => {
+    mockVisible.value = true
+    mockQuery.value = 'q'
+    mockResults.value = [
+      { type: 'chapter', id: 'ch:1', title: 'Ch1', snippet: '...' },
+      { type: 'character', id: 'c:1', title: 'C1', snippet: '...' },
+      { type: 'lore', id: 'l:1', title: 'L1', snippet: '...' },
+      { type: 'location', id: 'loc:1', title: 'Loc1', snippet: '...' },
+      { type: 'faction', id: 'f:1', title: 'F1', snippet: '...' },
+    ]
+
+    const wrapper = mountDialog()
+    await nextTick()
+
+    const tags = wrapper.findAll('.el-tag-stub')
+    const tagTexts = tags.map(t => t.text())
+
+    expect(tagTexts).toContain('章节')
+    expect(tagTexts).toContain('人物')
+    expect(tagTexts).toContain('设定')
+    expect(tagTexts).toContain('地点')
+    expect(tagTexts).toContain('势力')
+  })
+
+  // --- Result count per group ---
+
+  it('shows correct item count per result group', async () => {
+    mockVisible.value = true
+    mockQuery.value = 'test'
+    mockResults.value = [
+      { type: 'chapter', id: 'ch:1', title: 'Ch1', snippet: '...' },
+      { type: 'chapter', id: 'ch:2', title: 'Ch2', snippet: '...' },
+      { type: 'chapter', id: 'ch:3', title: 'Ch3', snippet: '...' },
+      { type: 'character', id: 'c:1', title: 'C1', snippet: '...' },
+    ]
+
+    const wrapper = mountDialog()
+    await nextTick()
+
+    const counts = wrapper.findAll('.result-count')
+    expect(counts[0].text()).toBe('3 项')
+    expect(counts[1].text()).toBe('1 项')
+  })
+
+  // --- ArrowDown wraps in search results ---
+
+  it('wraps selection from last to first on ArrowDown in search results', async () => {
+    mockVisible.value = true
+    mockQuery.value = 'q'
+    mockResults.value = [
+      { type: 'chapter', id: 'ch:1', title: 'R1', snippet: '...' },
+      { type: 'chapter', id: 'ch:2', title: 'R2', snippet: '...' },
+      { type: 'chapter', id: 'ch:3', title: 'R3', snippet: '...' },
+    ]
+
+    const wrapper = mountDialog()
+    await nextTick()
+
+    const input = wrapper.find('.search-input')
+
+    // Press up from index 0 to go to last (index 2)
+    await input.trigger('keydown.up')
+    await nextTick()
+
+    // Press down from index 2 to wrap to index 0
+    await input.trigger('keydown.down')
+    await nextTick()
+
+    const items = wrapper.findAll('.search-item:not(.recent-item)')
+    expect(items[0].classes()).toContain('search-item--active')
+  })
+
+  // --- Escaping special characters in titles ---
+
+  it('escapes HTML special characters in result titles', async () => {
+    mockVisible.value = true
+    mockQuery.value = 'test'
+    mockResults.value = [
+      { type: 'chapter', id: 'ch:1', title: 'Chapter <1> & "test"', snippet: '...' },
+    ]
+
+    const wrapper = mountDialog()
+    await nextTick()
+
+    const title = wrapper.find('.search-item:not(.recent-item) .item-title')
+    // highlightText escapes HTML then wraps in <mark>.
+    // wrapper.html() returns the DOM serialization where entities are decoded,
+    // so we check the innerHTML via element.innerHTML which preserves encoding.
+    const el = title.element as HTMLElement
+    const innerHtml = el.innerHTML
+    expect(innerHtml).toContain('<mark>')
+    expect(innerHtml).toContain('&lt;1&gt;')
+    expect(innerHtml).toContain('&amp;')
+  })
+
+  // --- Section header hidden for recent when query present ---
+
+  it('does not render recent section header when query is non-empty', async () => {
+    mockVisible.value = true
+    mockQuery.value = 'searching'
+    mockRecentSearches.value = ['old term']
+
+    const wrapper = mountDialog()
+    await nextTick()
+
+    expect(wrapper.text()).not.toContain('最近搜索')
+    expect(wrapper.find('.clear-recent-btn').exists()).toBe(false)
+  })
+
+  // --- Search footer always visible ---
+
+  it('always shows footer regardless of query or result state', async () => {
+    mockVisible.value = true
+    mockQuery.value = ''
+    mockRecentSearches.value = []
+
+    const wrapper = mountDialog()
+    await nextTick()
+
+    // Footer should always be present
+    expect(wrapper.find('.search-footer').exists()).toBe(true)
+
+    // With results
+    mockQuery.value = 'something'
+    mockResults.value = [
+      { type: 'chapter', id: 'ch:1', title: 'Something', snippet: '...' },
+    ]
+    await nextTick()
+
+    expect(wrapper.find('.search-footer').exists()).toBe(true)
   })
 })

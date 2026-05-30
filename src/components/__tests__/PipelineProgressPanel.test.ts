@@ -364,4 +364,164 @@ describe('PipelineProgressPanel', () => {
 
     expect(wrapper.find('.status-row').text()).toContain('01:05')
   })
+
+  // --- 13. Stage connector lines ---
+
+  it('adds connector-done class to connector after a completed stage', () => {
+    const events: PipelineProgressEvent[] = [
+      makeEvent({ type: 'stage-complete', stage: 'prepare' }),
+    ]
+    const wrapper = mountPanel({ events })
+
+    const stages = wrapper.findAll('.stage-item')
+    // First stage (prepare) is completed, its connector should be done
+    const connector = stages[0].find('.stage-connector')
+    expect(connector.exists()).toBe(true)
+    expect(connector.classes()).toContain('connector-done')
+  })
+
+  it('does not add connector-done class when stage is not completed', () => {
+    const wrapper = mountPanel({
+      currentEvent: makeEvent({ stage: 'plan', type: 'stage-start' }),
+      isRunning: true,
+    })
+
+    const stages = wrapper.findAll('.stage-item')
+    // First stage (prepare) is pending, its connector should not be done
+    const connector = stages[0].find('.stage-connector')
+    expect(connector.exists()).toBe(true)
+    expect(connector.classes()).not.toContain('connector-done')
+  })
+
+  it('does not render a connector on the last stage', () => {
+    const wrapper = mountPanel()
+    const stages = wrapper.findAll('.stage-item')
+    const lastStage = stages[stages.length - 1]
+    expect(lastStage.find('.stage-connector').exists()).toBe(false)
+  })
+
+  // --- 14. Token display for small values ---
+
+  it('displays raw number for token count under 1000', () => {
+    const wrapper = mountPanel({
+      currentEvent: makeEvent({ totalTokenUsage: 450 }),
+    })
+
+    expect(wrapper.find('.token-row').text()).toContain('450')
+    expect(wrapper.find('.token-row').text()).not.toContain('K')
+  })
+
+  it('displays 0 when token usage is 0', () => {
+    const wrapper = mountPanel({
+      currentEvent: makeEvent({ totalTokenUsage: 0 }),
+    })
+
+    expect(wrapper.find('.token-row').text()).toContain('0')
+  })
+
+  // --- 15. Stage label fallback ---
+
+  it('shows dash for stage label when currentEvent has no stage', () => {
+    const wrapper = mountPanel({
+      currentEvent: makeEvent({ stage: undefined }),
+    })
+
+    expect(wrapper.find('.status-row').text()).toContain('阶段: -')
+  })
+
+  // --- 16. Progress bar defaults to 0 when no currentEvent ---
+
+  it('shows 0% progress when currentEvent is null', () => {
+    const wrapper = mountPanel({ currentEvent: null })
+
+    const progress = wrapper.find('.el-progress')
+    expect(progress.attributes('data-pct')).toBe('0')
+  })
+
+  // --- 17. Stage icon rendering ---
+
+  it('renders check icon for completed stages instead of number', () => {
+    const events: PipelineProgressEvent[] = [
+      makeEvent({ type: 'stage-complete', stage: 'prepare' }),
+      makeEvent({ type: 'stage-complete', stage: 'plan' }),
+    ]
+    const wrapper = mountPanel({ events, isRunning: false })
+
+    const stages = wrapper.findAll('.stage-item')
+    // Completed stages should have stage-icon (check), not stage-number
+    expect(stages[0].find('.stage-icon').exists()).toBe(true)
+    expect(stages[0].find('.stage-number').exists()).toBe(false)
+    // Pending stage should have stage-number
+    expect(stages[2].find('.stage-number').exists()).toBe(true)
+    expect(stages[2].find('.stage-icon').exists()).toBe(false)
+  })
+
+  it('renders rotating loading icon for the running stage', () => {
+    const wrapper = mountPanel({
+      currentEvent: makeEvent({ stage: 'write', type: 'stage-start' }),
+      isRunning: true,
+    })
+
+    const stages = wrapper.findAll('.stage-item')
+    // 'write' is index 3
+    const runningStage = stages[3]
+    expect(runningStage.find('.stage-icon.rotating').exists()).toBe(true)
+  })
+
+  // --- 18. Header displays correct title ---
+
+  it('displays pipeline title in header', () => {
+    const wrapper = mountPanel()
+    expect(wrapper.find('.header').text()).toContain('流水线续写')
+  })
+
+  // --- 19. Cancel button disabled when paused but not running ---
+
+  it('disables cancel button when paused but not running', () => {
+    const wrapper = mountPanel({ isRunning: false, isPaused: true })
+    const buttons = wrapper.findAll('.el-button')
+    const cancelButton = buttons[1]
+    expect(cancelButton.attributes('disabled')).toBeDefined()
+  })
+
+  // --- 20. No in-progress for batch-complete event ---
+
+  it('does not show in-progress indicator for batch-complete event', () => {
+    const wrapper = mountPanel({
+      currentEvent: makeEvent({ type: 'batch-complete', chapterNumber: 5, progress: 100 }),
+      isRunning: false,
+    })
+
+    expect(wrapper.find('.in-progress').exists()).toBe(false)
+  })
+
+  // --- 21. Status row chapter number ---
+
+  it('displays dash for chapter number when currentEvent is null', () => {
+    const wrapper = mountPanel({ currentEvent: null })
+    expect(wrapper.find('.status-row').text()).toContain('第-章')
+  })
+
+  // --- 22. Elapsed time resets when running starts ---
+
+  it('resets elapsed timer when isRunning transitions to true', async () => {
+    const wrapper = mountPanel({ isRunning: false })
+
+    // Switch to running
+    await wrapper.setProps({ isRunning: true })
+
+    // Advance 10 seconds
+    vi.advanceTimersByTime(10_000)
+    await nextTick()
+
+    expect(wrapper.find('.status-row').text()).toContain('00:10')
+
+    // Stop and restart running
+    await wrapper.setProps({ isRunning: false })
+    await wrapper.setProps({ isRunning: true })
+
+    // Timer should have reset
+    await nextTick()
+    expect(wrapper.find('.status-row').text()).toContain('00:00')
+  })
 })

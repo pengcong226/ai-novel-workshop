@@ -372,4 +372,130 @@ describe('ChapterVersionPanel', () => {
 
     expect(mockListSnapshots).toHaveBeenCalledWith('ch-xyz', 'proj-abc')
   })
+
+  // --- Snapshot comparison / selection workflow ---
+
+  it('switches active selection when clicking a different snapshot', async () => {
+    const wrapper = mountPanel([
+      makeSnapshot({ id: 's1' }),
+      makeSnapshot({ id: 's2' }),
+      makeSnapshot({ id: 's3' }),
+    ])
+    await openAndFlush(wrapper)
+
+    const items = wrapper.findAll('.version-item')
+
+    // Select first
+    await items[0].trigger('click')
+    await nextTick()
+    expect(items[0].classes()).toContain('active')
+    expect(items[1].classes()).not.toContain('active')
+
+    // Switch to third
+    await items[2].trigger('click')
+    await nextTick()
+    expect(items[0].classes()).not.toContain('active')
+    expect(items[2].classes()).toContain('active')
+  })
+
+  it('renders multiple snapshots with distinct metadata for comparison', async () => {
+    const now = Date.now()
+    const wrapper = mountPanel([
+      makeSnapshot({ id: 's1', title: '第一幕', wordCount: 800, createdAt: now - 2000 }),
+      makeSnapshot({ id: 's2', title: '第二幕', wordCount: 1500, createdAt: now - 1000 }),
+    ])
+    await openAndFlush(wrapper)
+
+    const metas = wrapper.findAll('.version-meta')
+    expect(metas[0].text()).toContain('800')
+    expect(metas[0].text()).toContain('第一幕')
+    expect(metas[1].text()).toContain('1500')
+    expect(metas[1].text()).toContain('第二幕')
+  })
+
+  it('renders formatted timestamps for each snapshot', async () => {
+    const fixedTime = new Date(2025, 0, 15, 10, 30).getTime() // Jan 15 10:30
+    const wrapper = mountPanel([
+      makeSnapshot({ id: 's1', createdAt: fixedTime }),
+    ])
+    await openAndFlush(wrapper)
+
+    const timeEl = wrapper.find('.version-time')
+    expect(timeEl.text()).toContain('01-15')
+    expect(timeEl.text()).toContain('10:30')
+  })
+
+  // --- Restore edge cases ---
+
+  it('closes drawer after successful restore', async () => {
+    const snap = makeSnapshot({ id: 's1', content: 'some content', title: 'title' })
+    mockGetSnapshot.mockResolvedValue(snap)
+
+    const wrapper = mountPanel([snap])
+    await openAndFlush(wrapper)
+
+    await wrapper.find('.version-item').trigger('click')
+    await nextTick()
+
+    const restoreBtn = wrapper.findAll('.el-button-stub').find(b => b.text() === '恢复此版本')
+    await restoreBtn!.trigger('click')
+    await nextTick()
+    await new Promise(r => setTimeout(r, 0))
+    await nextTick()
+
+    expect(wrapper.find('[data-testid="drawer"]').exists()).toBe(false)
+  })
+
+  it('does nothing when getSnapshot returns undefined', async () => {
+    mockGetSnapshot.mockResolvedValue(undefined)
+
+    const wrapper = mountPanel([makeSnapshot({ id: 's1' })])
+    await openAndFlush(wrapper)
+
+    await wrapper.find('.version-item').trigger('click')
+    await nextTick()
+
+    const restoreBtn = wrapper.findAll('.el-button-stub').find(b => b.text() === '恢复此版本')
+    await restoreBtn!.trigger('click')
+    await nextTick()
+    await new Promise(r => setTimeout(r, 0))
+    await nextTick()
+
+    expect(mockMessageBoxConfirm).not.toHaveBeenCalled()
+    expect(wrapper.emitted('restore')).toBeFalsy()
+  })
+
+  // --- Close button ---
+
+  it('closes drawer when close button is clicked', async () => {
+    const wrapper = mountPanel([makeSnapshot({ id: 's1' })])
+    await openAndFlush(wrapper)
+    expect(wrapper.find('[data-testid="drawer"]').exists()).toBe(true)
+
+    const closeBtn = wrapper.findAll('.el-button-stub').find(b => b.text() === '关闭')
+    await closeBtn!.trigger('click')
+    await nextTick()
+
+    expect(wrapper.find('[data-testid="drawer"]').exists()).toBe(false)
+  })
+
+  // --- Reload on props change ---
+
+  it('reloads snapshots when chapterId prop changes while drawer is open', async () => {
+    const wrapper = mountPanel([
+      makeSnapshot({ id: 's1' }),
+    ], { projectId: 'proj-1', chapterId: 'ch-1' })
+    await openAndFlush(wrapper)
+    expect(wrapper.findAll('.version-item')).toHaveLength(1)
+
+    const newSnap = makeSnapshot({ id: 's-new', title: '新章节' })
+    mockListSnapshots.mockResolvedValueOnce([newSnap])
+    await wrapper.setProps({ chapterId: 'ch-2' })
+    await nextTick()
+    await new Promise(r => setTimeout(r, 0))
+    await nextTick()
+
+    expect(mockListSnapshots).toHaveBeenLastCalledWith('ch-2', 'proj-1')
+    expect(wrapper.findAll('.version-item')).toHaveLength(1)
+  })
 })
