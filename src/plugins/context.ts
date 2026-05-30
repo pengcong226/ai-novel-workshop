@@ -225,7 +225,7 @@ export function createPluginContext(
     async showDialog(options: DialogOptions): Promise<unknown> {
       return new Promise((resolve, _reject) => {
         ElMessageBox.confirm(
-          options.message,
+          options.message as string,
           options.title || '提示',
           {
             confirmButtonText: options.confirmText || '确定',

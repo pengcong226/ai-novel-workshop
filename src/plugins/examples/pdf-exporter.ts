@@ -94,8 +94,8 @@ async function generatePdfContent(data: ExportData, options: ExportOptions): Pro
         height: 841.89, // A4高度（点）
         content: content,
         metadata: options.includeMetadata ? {
-          title: data.content?.title || '未命名',
-          author: data.content?.author || '未知',
+          title: (data.content as any)?.title || '未命名',
+          author: (data.content as any)?.author || '未知',
           creator: 'AI小说工坊 PDF导出器',
           producer: 'PDF导出器插件 v1.0.0'
         } : undefined

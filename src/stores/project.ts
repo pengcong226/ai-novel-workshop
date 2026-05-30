@@ -402,7 +402,7 @@ export const useProjectStore = defineStore('project', () => {
         // 自动定期备份（不阻断主流程）
         try {
           const { maybeAutoBackup } = await import('@/utils/autoBackup')
-          void maybeAutoBackup(project)
+          void maybeAutoBackup(project as any)
         } catch { /* 静默 */ }
 
         // 更新项目列表

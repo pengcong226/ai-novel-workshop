@@ -26,27 +26,27 @@ function replaceControlChars(input: string, replacement: string): string {
 
 const SUSPICIOUS_PATTERNS: Array<{ pattern: RegExp; message: string }> = [
   // Chinese prompt injection
-  { pattern: /忽略(?:上面|之前|上述|以上)?(?:所有)?(?:指令|要求|规则)/gi, message: '检测到疑似绕过系统指令的中文注入语句' },
-  { pattern: /请无视(?:上面|之前|上述|以上)?(?:所有)?(?:指令|要求|规则)/gi, message: '检测到疑似绕过系统指令的中文注入语句' },
-  { pattern: /不要(?:遵循|遵守|执行)(?:上面|之前|上述|以上)?(?:所有)?(?:指令|要求|规则)/gi, message: '检测到疑似绕过系统指令的中文注入语句' },
-  { pattern: /你(?:现在)?(?:是|扮演)(?:一个)?(?:(?:没有|不受)(?:任何)?(?:限制|约束|规则))/gi, message: '检测到疑似角色劫持的中文注入语句' },
+  { pattern: /忽略(?:上面|之前|上述|以上)?(?:所有)?(?:指令|要求|规则)/i, message: '检测到疑似绕过系统指令的中文注入语句' },
+  { pattern: /请无视(?:上面|之前|上述|以上)?(?:所有)?(?:指令|要求|规则)/i, message: '检测到疑似绕过系统指令的中文注入语句' },
+  { pattern: /不要(?:遵循|遵守|执行)(?:上面|之前|上述|以上)?(?:所有)?(?:指令|要求|规则)/i, message: '检测到疑似绕过系统指令的中文注入语句' },
+  { pattern: /你(?:现在)?(?:是|扮演)(?:一个)?(?:(?:没有|不受)(?:任何)?(?:限制|约束|规则))/i, message: '检测到疑似角色劫持的中文注入语句' },
   // English prompt injection
-  { pattern: /ignore\s+(?:all\s+)?(?:previous|above|prior|earlier)\s+(?:instructions?|rules?|prompts?|directives?)/gi, message: '检测到疑似绕过系统指令的英文注入语句' },
-  { pattern: /disregard\s+(?:all\s+)?(?:previous|above|prior|earlier)\s+(?:instructions?|rules?|prompts?|directives?)/gi, message: '检测到疑似绕过系统指令的英文注入语句' },
-  { pattern: /forget\s+(?:all\s+)?(?:previous|above|prior|earlier)\s+(?:instructions?|rules?|prompts?)/gi, message: '检测到疑似绕过系统指令的英文注入语句' },
-  { pattern: /override\s+(?:your\s+)?(?:instructions?|programming|rules?|safety)/gi, message: '检测到疑似绕过系统指令的英文注入语句' },
-  { pattern: /you\s+(?:are|now)\s+(?:a|an)\s+(?:unrestricted|uncensored|unfiltered)/gi, message: '检测到疑似角色劫持的英文注入语句' },
+  { pattern: /ignore\s+(?:all\s+)?(?:previous|above|prior|earlier)\s+(?:instructions?|rules?|prompts?|directives?)/i, message: '检测到疑似绕过系统指令的英文注入语句' },
+  { pattern: /disregard\s+(?:all\s+)?(?:previous|above|prior|earlier)\s+(?:instructions?|rules?|prompts?|directives?)/i, message: '检测到疑似绕过系统指令的英文注入语句' },
+  { pattern: /forget\s+(?:all\s+)?(?:previous|above|prior|earlier)\s+(?:instructions?|rules?|prompts?)/i, message: '检测到疑似绕过系统指令的英文注入语句' },
+  { pattern: /override\s+(?:your\s+)?(?:instructions?|programming|rules?|safety)/i, message: '检测到疑似绕过系统指令的英文注入语句' },
+  { pattern: /you\s+(?:are|now)\s+(?:a|an)\s+(?:unrestricted|uncensored|unfiltered)/i, message: '检测到疑似角色劫持的英文注入语句' },
   // System prompt probing
-  { pattern: /system\s*prompt/gi, message: '检测到疑似探测系统提示词的语句' },
-  { pattern: /developer\s*message/gi, message: '检测到疑似探测开发者消息的语句' },
-  { pattern: /(?:show|reveal|print|output|repeat)\s+(?:your|the)\s+(?:system|initial|original)\s+(?:prompt|instructions?)/gi, message: '检测到疑似探测系统提示词的语句' },
+  { pattern: /system\s*prompt/i, message: '检测到疑似探测系统提示词的语句' },
+  { pattern: /developer\s*message/i, message: '检测到疑似探测开发者消息的语句' },
+  { pattern: /(?:show|reveal|print|output|repeat)\s+(?:your|the)\s+(?:system|initial|original)\s+(?:prompt|instructions?)/i, message: '检测到疑似探测系统提示词的语句' },
   // Role tag spoofing
-  { pattern: /<\/?(?:system|assistant|user|instructions?|prompt)>/gi, message: '检测到疑似伪造角色标签的语句' },
+  { pattern: /<\/?(?:system|assistant|user|instructions?|prompt)>/i, message: '检测到疑似伪造角色标签的语句' },
   // Code block injection
-  { pattern: /```(?:system|assistant|user|prompt)?/gi, message: '检测到疑似利用代码块注入的语句' },
+  { pattern: /```(?:system|assistant|user|prompt)?/i, message: '检测到疑似利用代码块注入的语句' },
   // Encoded instruction bypass attempts
-  { pattern: /(?:decode|execute|run)\s+(?:this|the)?\s*(?:base64|hex|encoded)/gi, message: '检测到疑似编码绕过指令' },
-  { pattern: /\bDAN\b.*(?:jailbreak|mode|prompt)/gi, message: '检测到疑似DAN越狱注入语句' },
+  { pattern: /(?:decode|execute|run)\s+(?:this|the)?\s*(?:base64|hex|encoded)/i, message: '检测到疑似编码绕过指令' },
+  { pattern: /\bDAN\b.*(?:jailbreak|mode|prompt)/i, message: '检测到疑似DAN越狱注入语句' },
 ]
 
 /**

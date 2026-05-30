@@ -434,10 +434,11 @@ export async function importNovel(
       relationships: relations
         .filter(r => r.from === char.name || r.to === char.name)
         .map(r => ({
-          characterId: r.from === char.name ? r.to : r.from,
+          targetId: r.from === char.name ? r.to : r.from,
           type: r.type as Relationship['type'],
-          description: ''
-        })),
+          description: '',
+          evolution: []
+        })) as Relationship[],
       appearances: [],
       development: [],
       tags: char.tags || ['other'],
@@ -487,7 +488,7 @@ export async function importNovel(
     world: worldTemplate as WorldSetting,
     characters: fullCharacters,
     chapters: chapters,
-    outline: projectOutline,
+    outline: projectOutline as any,
     createdAt: now,
     updatedAt: now
   }
