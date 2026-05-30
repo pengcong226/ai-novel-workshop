@@ -496,4 +496,135 @@ describe('GlobalTaskObserver', () => {
     expect(panel.attributes('role')).toBe('region')
     expect(panel.attributes('aria-label')).toBe('任务队列')
   })
+
+  // ---- Error toast aria-live="assertive" ----
+
+  it('sets aria-live="assertive" on error toasts and "polite" on others', async () => {
+    store.addToast('info msg', 'info', 0)
+    store.addToast('warning msg', 'warning', 0)
+    store.addToast('error msg', 'error', 0)
+
+    const wrapper = mountObserver()
+    await nextTick()
+
+    const toasts = wrapper.findAll('.task-toast')
+    expect(toasts[0].attributes('aria-live')).toBe('polite')
+    expect(toasts[1].attributes('aria-live')).toBe('polite')
+    expect(toasts[2].attributes('aria-live')).toBe('assertive')
+  })
+
+  // ---- Spinning class on loading icon when active tasks ----
+
+  it('applies is-spinning class to header icon when there are active tasks', async () => {
+    store.createTask({ title: 'Running task' })
+
+    const wrapper = mountObserver()
+    await nextTick()
+
+    // Pending task counts as active; icon should spin
+    const spinningIcon = wrapper.find('.panel-header .el-icon-stub.is-spinning')
+    expect(spinningIcon.exists()).toBe(true)
+  })
+
+  it('does not apply is-spinning class when all tasks are completed', async () => {
+    const task = store.createTask({ title: 'Done task' })
+    store.completeTask(task.id)
+
+    const wrapper = mountObserver()
+    await nextTick()
+
+    const spinningIcon = wrapper.find('.panel-header .el-icon-stub.is-spinning')
+    expect(spinningIcon.exists()).toBe(false)
+  })
+
+  // ---- Header active tasks count excludes completed ----
+
+  it('header shows only active task count, not total', async () => {
+    const t1 = store.createTask({ title: 'Active' })
+    const t2 = store.createTask({ title: 'Also active' })
+    const t3 = store.createTask({ title: 'Will complete' })
+    store.completeTask(t3.id)
+
+    const wrapper = mountObserver()
+    await nextTick()
+
+    // activeTasks = running + pending only => 2 active (t1, t2 are pending)
+    expect(wrapper.find('.title').text()).toContain('2')
+  })
+
+  // ---- Progress bar hidden for failed and cancelled tasks ----
+
+  it('does not render progress bar for failed tasks', async () => {
+    const task = store.createTask({ title: 'Failed task' })
+    store.failTask(task.id, 'boom')
+
+    const wrapper = mountObserver()
+    await nextTick()
+    await wrapper.find('.panel-header').trigger('click')
+    await nextTick()
+
+    expect(wrapper.find('.el-progress-stub').exists()).toBe(false)
+  })
+
+  it('does not render progress bar for cancelled tasks', async () => {
+    const task = store.createTask({ title: 'Cancelled task', cancellable: true })
+    store.cancelTask(task.id)
+
+    const wrapper = mountObserver()
+    await nextTick()
+    await wrapper.find('.panel-header').trigger('click')
+    await nextTick()
+
+    expect(wrapper.find('.el-progress-stub').exists()).toBe(false)
+  })
+
+  // ---- Panel remains visible when tasks exist but all completed ----
+
+  it('keeps task panel visible when tasks are all completed', async () => {
+    const task = store.createTask({ title: 'Done' })
+    store.completeTask(task.id)
+
+    const wrapper = mountObserver()
+    await nextTick()
+
+    // manager.tasks still has length > 0 (completed tasks are retained)
+    expect(wrapper.find('.task-panel').exists()).toBe(true)
+  })
+
+  // ---- Task description is hidden after v-if boundary ----
+
+  it('hides description when task has no description field', async () => {
+    store.createTask({ title: 'Title only', description: undefined })
+
+    const wrapper = mountObserver()
+    await nextTick()
+    await wrapper.find('.panel-header').trigger('click')
+    await nextTick()
+
+    expect(wrapper.find('.task-item-desc').exists()).toBe(false)
+  })
+
+  // ---- Multiple toasts with different durations dismiss independently ----
+
+  it('dismisses toasts with different durations independently', async () => {
+    store.addToast('fast toast', 'info', 500)
+    store.addToast('slow toast', 'warning', 2000)
+
+    const wrapper = mountObserver()
+    await nextTick()
+
+    expect(wrapper.findAll('.task-toast')).toHaveLength(2)
+
+    // After 500ms, fast toast is gone, slow toast remains
+    vi.advanceTimersByTime(500)
+    await nextTick()
+    const remaining = wrapper.findAll('.task-toast')
+    expect(remaining).toHaveLength(1)
+    expect(remaining[0].text()).toContain('slow toast')
+
+    // After 2000ms total, both are gone
+    vi.advanceTimersByTime(1500)
+    await nextTick()
+    expect(wrapper.findAll('.task-toast')).toHaveLength(0)
+  })
 })
