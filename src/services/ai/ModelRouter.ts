@@ -222,9 +222,9 @@ export class ModelRouter {
   selectModel(context: TaskContext): ModelConfig {
     const candidates = this.getRankedCandidates(context);
     if (candidates.length > 0) {
-      return candidates[0];
+      return candidates[0]!;
     }
-    const defaultModel = DEFAULT_MODELS.writing[0];
+    const defaultModel = DEFAULT_MODELS.writing[0]!;
     return defaultModel;
   }
 
@@ -232,7 +232,7 @@ export class ModelRouter {
    * 确定任务层级
    */
   private determineTier(context: TaskContext): ModelTier {
-    return TASK_TIER_MAP[context.type];
+    return TASK_TIER_MAP[context.type]!;
   }
 
   /**
@@ -361,7 +361,7 @@ export class ModelRouter {
 
     // 尝试降级到更低成本的层级
     for (let i = currentIndex + 1; i < tierOrder.length; i++) {
-      const models = this.tierModels.get(tierOrder[i]) ?? [];
+      const models = this.tierModels.get(tierOrder[i]!) ?? [];
       const available = models.find(m => m.enabled);
       if (available) {
         logger.warn(
@@ -372,7 +372,7 @@ export class ModelRouter {
     }
 
     // 如果所有层级都没有可用模型，返回默认模型
-    const defaultModel = DEFAULT_MODELS.writing[0];
+    const defaultModel = DEFAULT_MODELS.writing[0]!;
     logger.error('No available models, using default fallback');
     return defaultModel;
   }

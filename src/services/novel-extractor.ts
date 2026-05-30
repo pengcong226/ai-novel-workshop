@@ -251,28 +251,28 @@ export class NovelExtractor {
 
       // Build entity summary map using first chapter of batch for nearby window
       const entitySummaryMap = this.buildEntitySummaryMap(
-        knownEntities, batchChapters[0].number, session
+        knownEntities, batchChapters[0]!.number, session
       )
 
       // Get prev chapter content for batch context
       const prevChapterContent = this.getPreviousChapterContent(
-        chapters, batchChapters[0].number
+        chapters, batchChapters[0]!.number
       )
 
       // Progress emission with batch info
       this.emitProgress({
-        currentChapter: batchChapters[0].number,
+        currentChapter: batchChapters[0]!.number,
         totalChapters: session.totalChapters,
         phase: 'entity_extraction',
         percentage: Math.round((session.extractedChapters.length / session.totalChapters) * 100),
         tokenUsage: { ...session.totalTokenUsage },
         costUSD: session.totalCostUSD,
         message: batchSize > 1
-          ? `正在提取第${batchChapters[0].number}-${batchChapters[batchChapters.length-1].number}章 (批次${batchIndex+1}/${totalBatches})...`
-          : `正在提取第${batchChapters[0].number}章的实体信息...`,
+          ? `正在提取第${batchChapters[0]!.number}-${batchChapters[batchChapters.length-1]!.number}章 (批次${batchIndex+1}/${totalBatches})...`
+          : `正在提取第${batchChapters[0]!.number}章的实体信息...`,
         currentBatch: batchIndex + 1,
         totalBatches,
-        batchChapterRange: { start: batchChapters[0].number, end: batchChapters[batchChapters.length-1].number }
+        batchChapterRange: { start: batchChapters[0]!.number, end: batchChapters[batchChapters.length-1]!.number }
       })
 
       try {
@@ -323,7 +323,7 @@ export class NovelExtractor {
         // Check checkpoint interval
         if (this.options.checkpointInterval > 0 && session.extractedChapters.length % this.options.checkpointInterval === 0) {
           this.emitProgress({
-            currentChapter: batchChapters[0].number,
+            currentChapter: batchChapters[0]!.number,
             totalChapters: session.totalChapters,
             phase: 'review_checkpoint',
             percentage: Math.round((session.extractedChapters.length / session.totalChapters) * 100),
@@ -332,7 +332,7 @@ export class NovelExtractor {
             message: `已完成${session.extractedChapters.length}章，等待审核...`,
             currentBatch: batchIndex + 1,
             totalBatches,
-            batchChapterRange: { start: batchChapters[0].number, end: batchChapters[batchChapters.length-1].number }
+            batchChapterRange: { start: batchChapters[0]!.number, end: batchChapters[batchChapters.length-1]!.number }
           })
           this.pause()
         }
@@ -377,7 +377,7 @@ export class NovelExtractor {
     prevChapterContent?: string
   ): Promise<ChapterExtractionResult> {
     const batchResult = await this.extractBatch([chapter], knownEntityMap, prevChapterContent)
-    return batchResult.chapterResults[0]
+    return batchResult.chapterResults[0]!
   }
 
   // --------------------------------------------------------------------------
@@ -438,15 +438,15 @@ export class NovelExtractor {
 
     // --- Call 2: State event extraction ---
     this.emitProgress({
-      currentChapter: chapters[0].number,
+      currentChapter: chapters[0]!.number,
       totalChapters: 0, // filled by caller
       phase: 'state_extraction',
       percentage: 0,
       tokenUsage: { input: 0, output: 0 },
       costUSD: 0,
       message: chapters.length > 1
-        ? `正在提取第${chapters[0].number}-${chapters[chapters.length-1].number}章的状态事件...`
-        : `正在提取第${chapters[0].number}章的状态事件...`
+        ? `正在提取第${chapters[0]!.number}-${chapters[chapters.length-1]!.number}章的状态事件...`
+        : `正在提取第${chapters[0]!.number}章的状态事件...`
     })
 
     const stateSystemMsg = STATE_EXTRACTION_SYSTEM +
@@ -486,15 +486,15 @@ export class NovelExtractor {
     let plotCostUSD = 0
     if (this.options.extractPlotEvents) {
       this.emitProgress({
-        currentChapter: chapters[0].number,
+        currentChapter: chapters[0]!.number,
         totalChapters: 0,
         phase: 'plot_extraction',
         percentage: 0,
         tokenUsage: { input: 0, output: 0 },
         costUSD: 0,
         message: chapters.length > 1
-          ? `正在提取第${chapters[0].number}-${chapters[chapters.length-1].number}章的情节事件...`
-          : `正在提取第${chapters[0].number}章的情节事件...`
+          ? `正在提取第${chapters[0]!.number}-${chapters[chapters.length-1]!.number}章的情节事件...`
+          : `正在提取第${chapters[0]!.number}章的情节事件...`
       })
 
       const plotMaxTokens = Math.min(800 * chapters.length, 16000)
@@ -539,7 +539,7 @@ export class NovelExtractor {
 
     return {
       batchIndex,
-      chapterRange: { start: chapters[0].number, end: chapters[chapters.length - 1].number },
+      chapterRange: { start: chapters[0]!.number, end: chapters[chapters.length - 1]!.number },
       chapterResults,
       tokenUsage: { input: totalInputTokens, output: totalOutputTokens },
       costUSD: totalCostUSD,
@@ -578,24 +578,24 @@ export class NovelExtractor {
 
     // Distribute entity items
     for (const entity of entitiesOutput.newEntities) {
-      const chNum = chapterSet.has(entity.chapterNumber) ? entity.chapterNumber : chapterNumbers[0]
+      const chNum = chapterSet.has(entity.chapterNumber) ? entity.chapterNumber : chapterNumbers[0]!
       const bucket = entitiesByChapter.get(chNum)!
       bucket.newEntities.push(entity)
     }
     for (const update of entitiesOutput.entityUpdates) {
-      const chNum = chapterSet.has(update.chapterNumber) ? update.chapterNumber : chapterNumbers[0]
+      const chNum = chapterSet.has(update.chapterNumber) ? update.chapterNumber : chapterNumbers[0]!
       const bucket = entitiesByChapter.get(chNum)!
       bucket.entityUpdates.push(update)
     }
     for (const rel of entitiesOutput.relations) {
-      const chNum = chapterSet.has(rel.chapterNumber) ? rel.chapterNumber : chapterNumbers[0]
+      const chNum = chapterSet.has(rel.chapterNumber) ? rel.chapterNumber : chapterNumbers[0]!
       const bucket = entitiesByChapter.get(chNum)!
       bucket.relations.push(rel)
     }
 
     // Distribute state events
     for (const evt of stateOutput.events) {
-      const chNum = chapterSet.has(evt.chapterNumber) ? evt.chapterNumber : chapterNumbers[0]
+      const chNum = chapterSet.has(evt.chapterNumber) ? evt.chapterNumber : chapterNumbers[0]!
       const bucket = stateByChapter.get(chNum)!
       bucket.events.push(evt)
     }
@@ -603,7 +603,7 @@ export class NovelExtractor {
     // Distribute plot events
     if (plotOutput) {
       for (const evt of plotOutput.plotEvents) {
-        const chNum = chapterSet.has(evt.chapterNumber) ? evt.chapterNumber : chapterNumbers[0]
+        const chNum = chapterSet.has(evt.chapterNumber) ? evt.chapterNumber : chapterNumbers[0]!
         const bucket = plotByChapter.get(chNum)!
         bucket.plotEvents.push(evt)
       }

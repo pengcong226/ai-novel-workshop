@@ -201,10 +201,10 @@ function romanToNumber(str: string): number {
   const upper = str.toUpperCase()
 
   for (let i = 0; i < upper.length; i++) {
-    const current = ROMAN_MAP[upper[i]]
+    const current = ROMAN_MAP[upper[i]!]
     if (!current) return 0
 
-    const next = ROMAN_MAP[upper[i + 1]]
+    const next = ROMAN_MAP[upper[i + 1]!]
     if (next && next > current) {
       result -= current
     } else {
@@ -254,13 +254,13 @@ function extractChapterNumber(title: string): number {
   // 4. 罗马数字（仅匹配明确章节位）
   const chapterRomanMatch = title.match(/\bChapter\s+([IVXLCDM]+)\b/i)
   if (chapterRomanMatch) {
-    const num = romanToNumber(chapterRomanMatch[1])
+    const num = romanToNumber(chapterRomanMatch[1]!)
     if (num > 0) return num
   }
 
   const chineseRomanMatch = title.match(/^第([IVXLCDM]+)[章节回篇部集話幕]/i)
   if (chineseRomanMatch) {
-    const num = romanToNumber(chineseRomanMatch[1])
+    const num = romanToNumber(chineseRomanMatch[1]!)
     if (num > 0) return num
   }
 
@@ -331,7 +331,7 @@ export function detectChapterPattern(text: string): ChapterPattern | null {
     return scoreB - scoreA
   })
 
-  return scores[0].pattern
+  return scores[0]!.pattern
 }
 
 // ============================================================================
@@ -373,9 +373,9 @@ export function parseChapters(text: string, pattern?: ChapterPattern | null): Pa
   const chapters: ParsedChapter[] = []
 
   for (let i = 0; i < matches.length; i++) {
-    const match = matches[i]
+    const match = matches[i]!
     const startIndex = match.index!
-    const endIndex = i < matches.length - 1 ? matches[i + 1].index! : text.length
+    const endIndex = i < matches.length - 1 ? matches[i + 1]!.index! : text.length
 
     const title = detectedPattern.titleExtractor(match)
     const content = text.slice(startIndex, endIndex).replace(title, '').trim()

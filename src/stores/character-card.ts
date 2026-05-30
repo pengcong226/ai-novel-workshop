@@ -396,7 +396,7 @@ export const useCharacterCardStore = defineStore('characterCard', () => {
     const index = worldbookEntries.value.findIndex(e => e.uid === uid)
     if (index !== -1) {
       worldbookEntries.value[index] = {
-        ...worldbookEntries.value[index],
+        ...worldbookEntries.value[index]!,
         ...updates
       }
     }
@@ -440,7 +440,7 @@ export const useCharacterCardStore = defineStore('characterCard', () => {
     const index = regexScripts.value.findIndex(s => s.id === id)
     if (index !== -1) {
       regexScripts.value[index] = {
-        ...regexScripts.value[index],
+        ...regexScripts.value[index]!,
         ...updates
       }
     }

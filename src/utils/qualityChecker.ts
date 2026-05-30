@@ -196,8 +196,8 @@ export class QualityChecker {
     const reports: QualityReport[] = []
 
     for (let i = 0; i < chapters.length; i++) {
-      const report = await this.checkChapter(chapters[i], (_progress) => {
-        onProgress?.(i + 1, chapters.length, chapters[i].number)
+      const report = await this.checkChapter(chapters[i]!, (_progress) => {
+        onProgress?.(i + 1, chapters.length, chapters[i]!.number)
       })
       reports.push(report)
     }
@@ -879,7 +879,7 @@ export class QualityChecker {
     patterns.forEach(pattern => {
       let match
       while ((match = pattern.exec(content)) !== null) {
-        dialogues.push(match[1])
+        dialogues.push(match[1]!)
       }
     })
 
@@ -1003,7 +1003,7 @@ export function analyzeQualityTrend(reports: QualityReport[]): {
 
   if (scores.length >= 3) {
     const recent = scores.slice(-3)
-    const trend = recent[recent.length - 1] - recent[0]
+    const trend = recent[recent.length - 1]! - recent[0]!
     if (trend > 0.5) {
       scoreTrend = 'improving'
     } else if (trend < -0.5) {
@@ -1014,17 +1014,17 @@ export function analyzeQualityTrend(reports: QualityReport[]): {
   // 分析各维度趋势
   const dimensionTrends: Record<string, { trend: string; scores: number[] }> = {}
 
-  if (reports[0].dimensions.length > 0) {
-    reports[0].dimensions.forEach(dim => {
+  if (reports[0]!.dimensions.length > 0) {
+    reports[0]!.dimensions.forEach(dim => {
       const dimScores = reports.map(r => {
         const d = r.dimensions.find(d => d.name === dim.name)
         return d ? d.score : 0
       })
 
       const dimTrend = dimScores.length >= 3
-        ? dimScores[dimScores.length - 1] - dimScores[dimScores.length - 3] > 0.5
+        ? dimScores[dimScores.length - 1]! - dimScores[dimScores.length - 3]! > 0.5
           ? '上升'
-          : dimScores[dimScores.length - 1] - dimScores[dimScores.length - 3] < -0.5
+          : dimScores[dimScores.length - 1]! - dimScores[dimScores.length - 3]! < -0.5
           ? '下降'
           : '稳定'
         : '稳定'

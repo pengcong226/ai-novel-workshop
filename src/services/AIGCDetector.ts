@@ -107,7 +107,7 @@ export class AIGCDetector {
     )
 
     for (let i = 0; i < settled.length; i++) {
-      const result = settled[i]
+      const result = settled[i]!
       if (result.status === 'fulfilled') {
         results.push(result.value)
       } else {

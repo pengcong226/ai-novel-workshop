@@ -132,11 +132,8 @@ export default defineConfig({
           ) return 'vendor-tiptap'
           // vendor-g6: AntV G6
           if (id.includes('/node_modules/@antv/')) return 'vendor-g6'
-          // vendor-vis: vis-timeline, vis-data
-          if (id.includes('/node_modules/vis-')) return 'vendor-vis'
-          // vendor-misc: xlsx, transformers, konva, utils
+          // vendor-misc: transformers, konva, utils
           if (
-            id.includes('/node_modules/xlsx/') ||
             id.includes('/node_modules/@xenova/') ||
             id.includes('/node_modules/konva/') ||
             id.includes('/node_modules/vue-konva/') ||

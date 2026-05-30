@@ -387,9 +387,9 @@ export class RegexScriptManager {
     const match = regexString.match(/^\/(.*)\/([gimsuy]*)$/)
 
     if (match) {
-      const pattern = match[1]
-      const flags = match[2]
-      return new RegExp(pattern, flags)
+      const _pattern = match[1]
+      const _flags = match[2]
+      return new RegExp(match[1]!, match[2])
     }
 
     // 否则直接作为模式

@@ -254,7 +254,7 @@ class IndexedDBStorage {
       const writeNextChapter = (index: number) => {
         if (index >= chapters.length) return
 
-        const chapter = { ...chapters[index], projectId: projectData.id }
+        const chapter = { ...chapters[index]!, projectId: projectData.id }
         const getRequest = chaptersStore.get(chapter.id)
         getRequest.onsuccess = () => {
           const existingChapter = getRequest.result
@@ -829,7 +829,7 @@ class TauriStorage {
     try {
       // 探针机制：新项目导入时包含完整的内容（content），此时我们使用全局替换保存。
       // 日常编辑器触发的存盘，因为在 project.ts 中 content 已经被前端状态层剥离，因此只保存骨架以防数据覆盖丢失。
-      const isFullPackage = chapters.length > 0 && chapters[0].content !== undefined;
+      const isFullPackage = chapters.length > 0 && chapters[0]!.content !== undefined;
 
       if (isFullPackage) {
         await invoke('save_project_with_chapters', {

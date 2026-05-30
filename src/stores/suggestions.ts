@@ -580,7 +580,7 @@ export const useSuggestionsStore = defineStore('suggestions', () => {
   // 获取下一个待推送的建议
   function getNextPendingSuggestion(): Suggestion | null {
     for (let i = 0; i < pendingQueue.value.length; i++) {
-      const item = pendingQueue.value[i]
+      const item = pendingQueue.value[i]!
       const suggestion = suggestions.value.find(s => s.id === item.id)
       if (suggestion && suggestion.status === 'unread') {
         return suggestion
@@ -719,7 +719,7 @@ export const useSuggestionsStore = defineStore('suggestions', () => {
   function updateRule(ruleId: string, updates: Partial<SuggestionRule>) {
     const index = rules.value.findIndex(r => r.id === ruleId)
     if (index !== -1) {
-      rules.value[index] = { ...rules.value[index], ...updates }
+      rules.value[index] = { ...rules.value[index]!, ...updates }
       saveToStorage()
     }
   }

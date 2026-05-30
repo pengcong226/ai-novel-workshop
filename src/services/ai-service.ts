@@ -458,7 +458,7 @@ export class AIService {
     };
 
     return {
-      content: response.choices[0].message.content,
+      content: response.choices[0]!.message.content,
       model: response.model,
       usage,
       cost: {
@@ -483,7 +483,7 @@ export class AIService {
     }
 
     // 尝试通过模型ID找到对应的provider
-    const providerId = model.id.split('-')[0]; // 假设模型ID格式为 "provider-model"
+    const providerId = model.id.split('-')[0]!; // 假设模型ID格式为 "provider-model"
 
     const startTime = Date.now();
 

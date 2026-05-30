@@ -299,7 +299,7 @@ export async function parseConversationTraceText(
   let processed = 0
 
   for (let i = 0; i < lines.length; i++) {
-    const line = lines[i]
+    const line = lines[i]!
     if (!line.trim()) {
       continue
     }

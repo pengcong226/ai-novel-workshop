@@ -692,7 +692,7 @@ export class WorldbookInjector {
         )
 
       case 'not':
-        return !this.evaluateCondition(condition.conditions![0], context)
+        return !this.evaluateCondition(condition.conditions![0]!, context)
 
       case 'comparison':
         return this.evaluateComparison(condition, context)

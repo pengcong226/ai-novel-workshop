@@ -276,11 +276,11 @@ export class ConflictDetector {
       const gaps: Array<{ start: number; end: number }> = []
 
       for (let i = 0; i < sortedChapters.length - 1; i++) {
-        const gap = sortedChapters[i + 1] - sortedChapters[i]
+        const gap = sortedChapters[i + 1]! - sortedChapters[i]!
         if (gap > 10) { // 超过10章未使用该能力
           gaps.push({
-            start: sortedChapters[i],
-            end: sortedChapters[i + 1]
+            start: sortedChapters[i]!,
+            end: sortedChapters[i + 1]!
           })
         }
       }
@@ -472,7 +472,7 @@ export class ConflictDetector {
           for (const pattern of agePatterns) {
             const matches = para.matchAll(pattern)
             for (const match of matches) {
-              const mentionedAge = parseInt(match[1])
+              const mentionedAge = parseInt(match[1]!)
               if (mentionedAge > 0 && mentionedAge < 200) { // 合理年龄范围
                 ageAppearances.push({
                   chapter: chapter.number,
@@ -491,8 +491,8 @@ export class ConflictDetector {
         const maxAgeDiff = Math.max(...ages) - Math.min(...ages)
 
         if (maxAgeDiff > this.config.ageErrorTolerance) {
-          const firstAppearance = ageAppearances[0]
-          const lastAppearance = ageAppearances[ageAppearances.length - 1]
+          const firstAppearance = ageAppearances[0]!
+          const lastAppearance = ageAppearances[ageAppearances.length - 1]!
 
           this.addConflict({
             type: 'timeline_age',

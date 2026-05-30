@@ -344,7 +344,7 @@ export const useSandboxStore = defineStore('sandbox', () => {
     const index = entities.value.findIndex(e => e.id === id);
     if (index === -1) return;
 
-    const updated = { ...entities.value[index], ...updates };
+    const updated = { ...entities.value[index]!, ...updates };
 
     if (isWebRuntime()) {
       const nextEntities = [
@@ -603,7 +603,7 @@ export const useSandboxStore = defineStore('sandbox', () => {
     if (newEntities.length === 0) return;
 
     if (isWebRuntime()) {
-      const projectId = newEntities[0].projectId;
+      const projectId = newEntities[0]!.projectId;
       if (!projectId) throw new Error('batchAddEntities: entities must have a projectId');
       const merged = new Map(entities.value.map(entity => [entity.id, entity]));
       for (const entity of newEntities) {
@@ -616,7 +616,7 @@ export const useSandboxStore = defineStore('sandbox', () => {
     }
 
     const { invoke } = await import('@tauri-apps/api/core');
-    const projectId = newEntities[0].projectId;
+    const projectId = newEntities[0]!.projectId;
     if (!projectId) throw new Error('batchAddEntities: entities must have a projectId');
     try {
       await invoke('batch_save_entities', {
@@ -644,7 +644,7 @@ export const useSandboxStore = defineStore('sandbox', () => {
     if (events.length === 0) return;
 
     if (isWebRuntime()) {
-      const projectId = events[0].projectId;
+      const projectId = events[0]!.projectId;
       if (!projectId) throw new Error('batchAddStateEvents: events must have a projectId');
       const merged = new Map(stateEvents.value.map(event => [event.id, event]));
       for (const event of events) {
@@ -657,7 +657,7 @@ export const useSandboxStore = defineStore('sandbox', () => {
     }
 
     const { invoke } = await import('@tauri-apps/api/core');
-    const projectId = events[0].projectId;
+    const projectId = events[0]!.projectId;
     if (!projectId) throw new Error('batchAddStateEvents: events must have a projectId');
     try {
       await invoke('batch_save_state_events', {
@@ -747,7 +747,7 @@ export const useSandboxStore = defineStore('sandbox', () => {
     const failures: Array<{ id: string; reason: string }> = [];
 
     results.forEach((result, index) => {
-      const id = idsToDelete[index];
+      const id = idsToDelete[index]!;
       if (result.status === 'fulfilled') {
         deletedIds.add(id);
         return;
@@ -857,7 +857,7 @@ export const useSandboxStore = defineStore('sandbox', () => {
     // Validate all state events before applying anything
     const eventsToAdd = delta.stateEventsToAdd ?? [];
     for (let i = 0; i < eventsToAdd.length; i++) {
-      const result = StateEventSchema.validate(eventsToAdd[i]);
+      const result = StateEventSchema.validate(eventsToAdd[i]!);
       if (!result.valid) {
         errors.push(`stateEventsToAdd[${i}] validation failed: ${result.errors.join('; ')}`);
       }

@@ -170,7 +170,7 @@ function crc32(data: Uint8Array): number {
   let crc = 0xffffffff
 
   for (let i = 0; i < data.length; i++) {
-    crc = CRC32_TABLE[(crc ^ data[i]) & 0xff] ^ (crc >>> 8)
+    crc = CRC32_TABLE[(crc ^ data[i]!) & 0xff]! ^ (crc >>> 8)
   }
 
   return (crc ^ 0xffffffff) >>> 0
@@ -845,12 +845,12 @@ export class WorldbookPngWriter {
     let currentY = y
 
     for (let i = 0; i < words.length; i++) {
-      const testLine = line + words[i]
+      const testLine = line + words[i]!
       const metrics = ctx.measureText(testLine)
 
       if (metrics.width > maxWidth && i > 0) {
         ctx.fillText(line, x, currentY)
-        line = words[i]
+        line = words[i]!
         currentY += lineHeight
       } else {
         line = testLine

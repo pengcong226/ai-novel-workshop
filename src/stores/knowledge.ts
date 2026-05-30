@@ -324,12 +324,12 @@ export const useKnowledgeStore = defineStore('knowledge', () => {
     }
 
     const updatedEntry: KnowledgeEntry = {
-      ...entries.value[index],
+      ...entries.value[index]!,
       ...updates,
       metadata: {
-        ...entries.value[index].metadata,
+        ...entries.value[index]!.metadata,
         ...updates.metadata,
-        createdAt: entries.value[index].metadata?.createdAt || new Date(),
+        createdAt: entries.value[index]!.metadata?.createdAt || new Date(),
         updatedAt: new Date()
       } as KnowledgeMetadata
     }

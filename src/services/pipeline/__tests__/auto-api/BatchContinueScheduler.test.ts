@@ -155,7 +155,8 @@ describe('BatchContinueScheduler 接口自动化测试', { timeout: 30000 }, () 
   // =========================================================================
   describe('TC-6.4 取消操作', () => {
     it('P0: cancel()终止批量任务', async () => {
-      const scheduler: InstanceType<typeof BatchContinueScheduler>
+      // eslint-disable-next-line prefer-const -- scheduler is used in mock callback before assignment
+      let scheduler: InstanceType<typeof BatchContinueScheduler>
 
       pipelineWriteNextChapterMock.mockImplementation(async (opts: { chapterNumber: number }) => {
         // 在第2章时取消

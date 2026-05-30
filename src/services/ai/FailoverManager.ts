@@ -48,10 +48,10 @@ export class FailoverManager {
     }
 
     let lastError: Error | null = null;
-    let initialModel = candidates[0];
+    let initialModel = candidates[0]!;
 
     for (let i = 0; i < candidates.length; i++) {
-      const model = candidates[i];
+      const model = candidates[i]!;
       const breaker = this.getBreaker(model.provider);
 
       // 1. 检查熔断状态

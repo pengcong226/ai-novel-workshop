@@ -56,8 +56,8 @@ function bigrams(tokens: string[]): string[] {
   const result: string[] = []
   for (let i = 0; i < tokens.length - 1; i++) {
     // Only create bigrams for CJK characters
-    if (CJK_RANGE.test(tokens[i]) && CJK_RANGE.test(tokens[i + 1])) {
-      result.push(tokens[i] + tokens[i + 1])
+    if (CJK_RANGE.test(tokens[i]!) && CJK_RANGE.test(tokens[i + 1]!)) {
+      result.push(tokens[i]! + tokens[i + 1]!)
     }
   }
   return result
@@ -73,21 +73,21 @@ function levenshtein(a: string, b: string, maxDist: number): number {
   const m = a.length
   const n = b.length
   const dp: number[][] = [Array(n + 1).fill(0), Array(n + 1).fill(0)]
-  for (let j = 0; j <= n; j++) dp[0][j] = j
+  for (let j = 0; j <= n; j++) dp[0]![j] = j
   for (let i = 1; i <= m; i++) {
-    dp[i % 2][0] = i
+    dp[i % 2]![0] = i
     for (let j = 1; j <= n; j++) {
       const cost = a[i - 1] === b[j - 1] ? 0 : 1
-      dp[i % 2][j] = Math.min(
-        dp[(i - 1) % 2][j] + 1,
-        dp[i % 2][j - 1] + 1,
-        dp[(i - 1) % 2][j - 1] + cost,
+      dp[i % 2]![j] = Math.min(
+        dp[(i - 1) % 2]![j]! + 1,
+        dp[i % 2]![j - 1]! + 1,
+        dp[(i - 1) % 2]![j - 1]! + cost,
       )
     }
     // Early exit: if the minimum in the current row exceeds maxDist
-    if (Math.min(...dp[i % 2]) > maxDist) return maxDist + 1
+    if (Math.min(...dp[i % 2]!) > maxDist) return maxDist + 1
   }
-  return dp[m % 2][n]
+  return dp[m % 2]![n]!
 }
 
 /**
@@ -355,8 +355,8 @@ export function highlightText(text: string, indices: [number, number][]): string
   const sorted = [...indices].sort((a, b) => a[0] - b[0])
   const merged: [number, number][] = []
   for (const [start, end] of sorted) {
-    if (merged.length > 0 && start <= merged[merged.length - 1][1]) {
-      merged[merged.length - 1][1] = Math.max(merged[merged.length - 1][1], end)
+    if (merged.length > 0 && start <= merged[merged.length - 1]![1]!) {
+      merged[merged.length - 1]![1] = Math.max(merged[merged.length - 1]![1]!, end)
     } else {
       merged.push([start, end])
     }

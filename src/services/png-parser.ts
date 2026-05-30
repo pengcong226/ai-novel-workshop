@@ -96,8 +96,8 @@ async function extractPngMetadata(buffer: Uint8Array): Promise<PngMetadata> {
 
   while (offset + 12 <= buffer.length) {
     // 读取块长度（大端序）
-    const length = (buffer[offset] << 24) | (buffer[offset + 1] << 16) | (buffer[offset + 2] << 8) | buffer[offset + 3]
-    const type = String.fromCharCode(buffer[offset + 4], buffer[offset + 5], buffer[offset + 6], buffer[offset + 7])
+    const length = (buffer[offset]! << 24) | (buffer[offset + 1]! << 16) | (buffer[offset + 2]! << 8) | buffer[offset + 3]!
+    const type = String.fromCharCode(buffer[offset + 4]!, buffer[offset + 5]!, buffer[offset + 6]!, buffer[offset + 7]!)
     const dataStart = offset + 8
     const dataEnd = dataStart + length
 

@@ -90,7 +90,7 @@ function hasDuplicateParagraphs(content: string): boolean {
   const paragraphs = content.split(/\n\s*\n/).filter(p => p.trim().length > 20)
   for (let i = 0; i < paragraphs.length - 1; i++) {
     for (let j = i + 1; j < paragraphs.length; j++) {
-      if (calculateSimilarity(paragraphs[i], paragraphs[j]) > DUPLICATE_SIMILARITY_THRESHOLD) {
+      if (calculateSimilarity(paragraphs[i]!, paragraphs[j]!) > DUPLICATE_SIMILARITY_THRESHOLD) {
         return true
       }
     }

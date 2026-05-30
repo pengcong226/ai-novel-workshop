@@ -106,7 +106,7 @@ export function storeLoggingMiddleware({ store, options }: PiniaPluginContext): 
 
     // Replace the action with an instrumented wrapper
     store[actionName] = function (this: typeof store, ...args: unknown[]) {
-      const metric = actionMetrics[metricKey]
+      const metric = actionMetrics[metricKey]!
       metric.count++
 
       const start = performance.now()

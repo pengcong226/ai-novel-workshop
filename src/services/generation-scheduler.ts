@@ -317,7 +317,7 @@ export class GenerationScheduler {
 
         // Remove successfully flushed chapters; keep failed ones for potential retry
         for (let i = stagedChaptersForFinalSave.length - 1; i >= 0; i--) {
-          if (flushedIds.has(stagedChaptersForFinalSave[i].id)) {
+          if (flushedIds.has(stagedChaptersForFinalSave[i]!.id)) {
             stagedChaptersForFinalSave.splice(i, 1)
           }
         }

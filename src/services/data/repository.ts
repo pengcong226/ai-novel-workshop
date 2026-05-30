@@ -386,7 +386,7 @@ export class TauriProjectRepository implements Repository<Entity> {
     }
 
     try {
-      const isFullPackage = chapters.length > 0 && chapters[0].content !== undefined
+      const isFullPackage = chapters.length > 0 && chapters[0]!.content !== undefined
 
       if (isFullPackage) {
         await tauriInvoke('save_project_with_chapters', {

@@ -115,10 +115,10 @@ export class SnapshotManager {
     }
 
     let bestIndex = 0
-    let bestScore = this.snapshots[0].score
+    let bestScore = this.snapshots[0]!.score
 
     for (let i = 1; i < this.snapshots.length; i++) {
-      const currentScore = this.snapshots[i].score
+      const currentScore = this.snapshots[i]!.score
       // 同分时取较晚版本（>= 保证后面的优先）
       if (currentScore >= bestScore) {
         bestScore = currentScore
@@ -127,7 +127,7 @@ export class SnapshotManager {
     }
 
     logger.debug(`最佳快照索引: [${bestIndex}], 分数: ${bestScore}`)
-    return this.snapshots[bestIndex]
+    return this.snapshots[bestIndex] ?? null
   }
 
   /**
@@ -141,10 +141,10 @@ export class SnapshotManager {
     }
 
     let bestIndex = 0
-    let bestScore = this.snapshots[0].score
+    let bestScore = this.snapshots[0]!.score
 
     for (let i = 1; i < this.snapshots.length; i++) {
-      const currentScore = this.snapshots[i].score
+      const currentScore = this.snapshots[i]!.score
       if (currentScore >= bestScore) {
         bestScore = currentScore
         bestIndex = i
@@ -163,7 +163,7 @@ export class SnapshotManager {
     if (this.snapshots.length === 0) {
       return null
     }
-    return this.snapshots[this.snapshots.length - 1]
+    return this.snapshots[this.snapshots.length - 1] ?? null
   }
 
   // --------------------------------------------------------------------------
@@ -185,13 +185,13 @@ export class SnapshotManager {
     }
 
     const latestIndex = this.snapshots.length - 1
-    const latestScore = this.snapshots[latestIndex].score
+    const latestScore = this.snapshots[latestIndex]!.score
 
     // 计算前一个最佳快照（不包括最新快照）
-    let previousBestScore = this.snapshots[0].score
+    let previousBestScore = this.snapshots[0]!.score
     for (let i = 1; i < latestIndex; i++) {
-      if (this.snapshots[i].score >= previousBestScore) {
-        previousBestScore = this.snapshots[i].score
+      if (this.snapshots[i]!.score >= previousBestScore) {
+        previousBestScore = this.snapshots[i]!.score
       }
     }
 
@@ -410,8 +410,8 @@ export class SnapshotManager {
     // 生成逐对比较：每个快照与前一个的比较
     const comparisons: SnapshotComparison[] = []
     for (let i = 1; i < this.snapshots.length; i++) {
-      const prev = this.snapshots[i - 1]
-      const curr = this.snapshots[i]
+      const prev = this.snapshots[i - 1]!
+      const curr = this.snapshots[i]!
       comparisons.push({
         from: i - 1,
         to: i,

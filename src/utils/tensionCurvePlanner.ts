@@ -103,7 +103,7 @@ function detectClimaxCluster(values: Array<{ chapter: number; tension: number }>
   let runStart = -1
 
   for (let i = 0; i <= values.length; i++) {
-    const isHigh = i < values.length && values[i].tension > 70
+    const isHigh = i < values.length && values[i]!.tension > 70
     if (isHigh) {
       if (runStart < 0) runStart = i
     } else {
@@ -135,7 +135,7 @@ function detectLowLying(values: Array<{ chapter: number; tension: number }>): Te
   let runStart = -1
 
   for (let i = 0; i <= values.length; i++) {
-    const isLow = i < values.length && values[i].tension < 30
+    const isLow = i < values.length && values[i]!.tension < 30
     if (isLow) {
       if (runStart < 0) runStart = i
     } else {
@@ -195,13 +195,13 @@ function detectSuddenJump(values: Array<{ chapter: number; tension: number }>): 
   const issues: TensionIssue[] = []
 
   for (let i = 1; i < values.length; i++) {
-    const diff = Math.abs(values[i].tension - values[i - 1].tension)
+    const diff = Math.abs(values[i]!.tension - values[i - 1]!.tension)
     if (diff > 50) {
       issues.push({
         type: 'sudden_jump',
-        chapters: [values[i - 1].chapter, values[i].chapter],
+        chapters: [values[i - 1]!.chapter, values[i]!.chapter],
         severity: 'warning',
-        message: `第${values[i - 1].chapter}→${values[i].chapter}章张力突变${diff}点（${values[i - 1].tension}→${values[i].tension}）`,
+        message: `第${values[i - 1]!.chapter}→${values[i]!.chapter}章张力突变${diff}点（${values[i - 1]!.tension}→${values[i]!.tension}）`,
         suggestion: '建议在两章之间增加过渡段落，使张力变化更平滑',
       })
     }
@@ -273,7 +273,7 @@ function calculateSuggestedTension(values: Array<{ chapter: number; tension: num
   // 如果最近3章平均张力偏低，建议升高到中等偏上
   if (avg < 30) return 65
   // 正常情况下，根据最近一章进行适度调整
-  const last = values[values.length - 1].tension
+  const last = values[values.length - 1]!.tension
   if (last > 70) return Math.max(40, last - 25)
   if (last < 30) return Math.min(60, last + 25)
   // 在中等范围内，建议适度波动

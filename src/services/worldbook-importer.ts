@@ -184,7 +184,7 @@ function resolveMergedEntries(
     }
 
     if (strategy === 'merge') {
-      resolved[existingIndex] = mergeWorldbookEntries(resolved[existingIndex], entry, options)
+      resolved[existingIndex] = mergeWorldbookEntries(resolved[existingIndex]!, entry, options)
       continue
     }
 
@@ -260,7 +260,7 @@ export class WorldbookImporter {
       const seenKeys = new Map<string, WorldbookEntry>()
 
       for (let i = 0; i < worldbook.entries.length; i++) {
-        const entry = worldbook.entries[i]
+        const entry = worldbook.entries[i]!
         const progress = 40 + (i / worldbook.entries.length) * 40
         onProgress?.(progress, 100, `正在处理条目 ${i + 1}/${worldbook.entries.length}...`)
 
@@ -549,7 +549,7 @@ export class WorldbookImporter {
 
     for (let i = 0; i < lines.length; i++) {
       try {
-        const entry = JSON.parse(lines[i]) as TavernEntry
+        const entry = JSON.parse(lines[i]!) as TavernEntry
         entries.push(entry)
       } catch (error) {
         logger.warn(`JSONL 第 ${i + 1} 行解析失败:`, error)
@@ -790,7 +790,7 @@ export async function mergeWorldbooks(
   }
 
   for (let i = 0; i < sources.length; i++) {
-    const result = await importer.importWorldbook(sources[i], {
+    const result = await importer.importWorldbook(sources[i]!, {
       autoGenerateIds: !options.preserveIds
     })
 

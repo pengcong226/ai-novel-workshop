@@ -78,8 +78,8 @@ function extractGoals(content: string): string[] {
   for (const pattern of goalPatterns) {
     const matches = content.matchAll(pattern)
     for (const match of matches) {
-      if (match[1].length >= 5 && match[1].length <= 30) {
-        goals.push(match[1])
+      if (match[1]!.length >= 5 && match[1]!.length <= 30) {
+        goals.push(match[1]!)
       }
     }
   }
@@ -195,11 +195,11 @@ function autoDivideVolumes(
   let arcStart = 1
 
   for (let i = 0; i < chapters.length; i++) {
-    const chapter = chapters[i]
+    const chapter = chapters[i]!
     let foundArc = false
 
     for (let arc = 0; arc < arcKeywords.length; arc++) {
-      for (const keyword of arcKeywords[arc]) {
+      for (const keyword of arcKeywords[arc]!) {
         if (chapter.title.includes(keyword)) {
           if (arc > currentArc) {
             // 新的故事弧开始
@@ -287,7 +287,7 @@ export async function generateOutline(
   const chapterOutlines: ChapterOutline[] = []
 
   for (let i = 0; i < chapters.length; i++) {
-    const chapter = chapters[i]
+    const chapter = chapters[i]!
 
     chapterOutlines.push({
       chapterId: uuidv4(),

@@ -126,15 +126,15 @@ function validateChapters(
 
   // 检查章节号连续性
   for (let i = 1; i < chapters.length; i++) {
-    if (chapters[i].number !== chapters[i - 1].number + 1) {
-      issues.push(`章节号不连续：第${chapters[i - 1].number}章之后是第${chapters[i].number}章`)
+    if (chapters[i]!.number !== chapters[i - 1]!.number + 1) {
+      issues.push(`章节号不连续：第${chapters[i - 1]!.number}章之后是第${chapters[i]!.number}章`)
     }
   }
 
   // 检查位置连续性
   for (let i = 1; i < chapters.length; i++) {
-    if (chapters[i].startPosition !== chapters[i - 1].endPosition) {
-      issues.push(`位置不连续：第${chapters[i - 1].number}章结束于${chapters[i - 1].endPosition}，第${chapters[i].number}章开始于${chapters[i].startPosition}`)
+    if (chapters[i]!.startPosition !== chapters[i - 1]!.endPosition) {
+      issues.push(`位置不连续：第${chapters[i - 1]!.number}章结束于${chapters[i - 1]!.endPosition}，第${chapters[i]!.number}章开始于${chapters[i]!.startPosition}`)
     }
   }
 
@@ -147,8 +147,8 @@ function validateChapters(
 
   // 检查是否覆盖全文
   if (chapters.length > 0) {
-    const firstChapter = chapters[0]
-    const lastChapter = chapters[chapters.length - 1]
+    const firstChapter = chapters[0]!
+    const lastChapter = chapters[chapters.length - 1]!
 
     if (firstChapter.startPosition !== 0) {
       issues.push(`第一个章节不是从文本开头开始（位置${firstChapter.startPosition}）`)

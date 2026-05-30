@@ -141,12 +141,12 @@ export class OpenAIProvider {
     };
 
     return {
-      content: response.choices[0].message.content,
+      content: response.choices[0]!.message.content,
       model: response.model,
       usage,
       cost,
       latency: 0, // 需要在调用时计算
-      finishReason: this.mapFinishReason(response.choices[0].finish_reason),
+      finishReason: this.mapFinishReason(response.choices[0]!.finish_reason),
     };
   }
 

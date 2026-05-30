@@ -91,36 +91,36 @@ const REGEX_PATTERNS: RegexPattern[] = [
   {
     pattern: /(?:帮我)?(?:写|生成|创作)第\s*${CH}\s*章/,
     intent: 'write_chapter',
-    extractParams: (m) => ({ chapterNumber: parseNumber(m[1]) }),
+    extractParams: (m) => ({ chapterNumber: parseNumber(m[1]!) }),
   },
   {
     pattern: /(?:写|生成)第\s*${CH}\s*章/,
     intent: 'write_chapter',
-    extractParams: (m) => ({ chapterNumber: parseNumber(m[1]) }),
+    extractParams: (m) => ({ chapterNumber: parseNumber(m[1]!) }),
   },
 
   // rewrite_chapter: 改写指定章节
   {
     pattern: /(?:改写|重写)第\s*${CH}\s*章/,
     intent: 'rewrite_chapter',
-    extractParams: (m) => ({ chapterNumber: parseNumber(m[1]) }),
+    extractParams: (m) => ({ chapterNumber: parseNumber(m[1]!) }),
   },
   {
     pattern: /第\s*${CH}\s*章(?:改写|重写|重来)/,
     intent: 'rewrite_chapter',
-    extractParams: (m) => ({ chapterNumber: parseNumber(m[1]) }),
+    extractParams: (m) => ({ chapterNumber: parseNumber(m[1]!) }),
   },
   {
     pattern: /(?:把|将)第\s*${CH}\s*章(?:改写|重写)/,
     intent: 'rewrite_chapter',
-    extractParams: (m) => ({ chapterNumber: parseNumber(m[1]) }),
+    extractParams: (m) => ({ chapterNumber: parseNumber(m[1]!) }),
   },
 
   // continue_writing: 续写
   {
     pattern: /续写\s*${CH}\s*(?:章|节)/,
     intent: 'continue_writing',
-    extractParams: (m) => ({ count: parseNumber(m[1]) }),
+    extractParams: (m) => ({ count: parseNumber(m[1]!) }),
   },
   { pattern: /续写下去|继续续写|接着续写/, intent: 'continue_writing' },
 
@@ -128,34 +128,34 @@ const REGEX_PATTERNS: RegexPattern[] = [
   {
     pattern: /(?:扩写|扩展|扩充)第\s*${CH}\s*章/,
     intent: 'expand_chapter',
-    extractParams: (m) => ({ chapterNumber: parseNumber(m[1]) }),
+    extractParams: (m) => ({ chapterNumber: parseNumber(m[1]!) }),
   },
   {
     pattern: /第\s*${CH}\s*章(?:太短|太少了).*(?:扩[充写]|加[长多]|丰富)/,
     intent: 'expand_chapter',
-    extractParams: (m) => ({ chapterNumber: parseNumber(m[1]) }),
+    extractParams: (m) => ({ chapterNumber: parseNumber(m[1]!) }),
   },
   {
     pattern: /(?:把|将)第\s*${CH}\s*章(?:写长|扩展|丰富|充实)/,
     intent: 'expand_chapter',
-    extractParams: (m) => ({ chapterNumber: parseNumber(m[1]) }),
+    extractParams: (m) => ({ chapterNumber: parseNumber(m[1]!) }),
   },
 
   // compress_chapter: 压缩章节
   {
     pattern: /(?:压缩|精简|缩短|瘦身)第\s*${CH}\s*章/,
     intent: 'compress_chapter',
-    extractParams: (m) => ({ chapterNumber: parseNumber(m[1]) }),
+    extractParams: (m) => ({ chapterNumber: parseNumber(m[1]!) }),
   },
   {
     pattern: /第\s*${CH}\s*章(?:太长|太多了).*(?:压缩|精简|缩短|删减)/,
     intent: 'compress_chapter',
-    extractParams: (m) => ({ chapterNumber: parseNumber(m[1]) }),
+    extractParams: (m) => ({ chapterNumber: parseNumber(m[1]!) }),
   },
   {
     pattern: /(?:把|将)第\s*${CH}\s*章(?:压缩|精简|缩短)/,
     intent: 'compress_chapter',
-    extractParams: (m) => ({ chapterNumber: parseNumber(m[1]) }),
+    extractParams: (m) => ({ chapterNumber: parseNumber(m[1]!) }),
   },
 
   // change_style: 改变文风
@@ -172,7 +172,7 @@ const REGEX_PATTERNS: RegexPattern[] = [
   {
     pattern: /第\s*${CH}\s*章(?:改|换|变成?)(?:为|成|到)?(.+?)(?:风格|文风)/,
     intent: 'change_style',
-    extractParams: (m) => ({ chapterNumber: parseNumber(m[1]), style: m[2]?.trim() }),
+    extractParams: (m) => ({ chapterNumber: parseNumber(m[1]!), style: m[2]?.trim() }),
   },
   { pattern: /(?:更|再)?(?:口语化|文艺|幽默|严肃|悬疑|轻松)/, intent: 'change_style', extractParams: (m) => ({ style: m[0] }) },
 
@@ -184,12 +184,12 @@ const REGEX_PATTERNS: RegexPattern[] = [
   {
     pattern: /(?:检查|审计|审核|质检|查查|看看)第\s*${CH}\s*章/,
     intent: 'audit_chapter',
-    extractParams: (m) => ({ chapterNumber: parseNumber(m[1]) }),
+    extractParams: (m) => ({ chapterNumber: parseNumber(m[1]!) }),
   },
   {
     pattern: /第\s*${CH}\s*章(?:有没有问题|写得[怎怎]么样|质量[怎怎]么样|检查一下)/,
     intent: 'audit_chapter',
-    extractParams: (m) => ({ chapterNumber: parseNumber(m[1]) }),
+    extractParams: (m) => ({ chapterNumber: parseNumber(m[1]!) }),
   },
 
   // audit_all: 审计所有章节
@@ -210,70 +210,70 @@ const REGEX_PATTERNS: RegexPattern[] = [
   {
     pattern: /创建(?:角色|人物|实体|人物卡)[：:]\s*(.+)/,
     intent: 'create_entity',
-    extractParams: (m) => ({ entityName: m[1].trim() }),
+    extractParams: (m) => ({ entityName: m[1]!.trim() }),
   },
   {
     pattern: /创建(?:一个|新的)?(?:角色|人物|实体)[叫名叫]\s*(.+)/,
     intent: 'create_entity',
-    extractParams: (m) => ({ entityName: m[1].trim() }),
+    extractParams: (m) => ({ entityName: m[1]!.trim() }),
   },
   {
     pattern: /(?:添加|新增|新建)(?:一个)?(?:角色|人物|实体|地点|物品)[：:]\s*(.+)/,
     intent: 'create_entity',
-    extractParams: (m) => ({ entityName: m[1].trim() }),
+    extractParams: (m) => ({ entityName: m[1]!.trim() }),
   },
   {
     pattern: /(?:添加|新增|新建)(?:一个)?(?:角色|人物|实体)[叫名叫]\s*(.+)/,
     intent: 'create_entity',
-    extractParams: (m) => ({ entityName: m[1].trim() }),
+    extractParams: (m) => ({ entityName: m[1]!.trim() }),
   },
 
   // update_entity: 更新实体
   {
     pattern: /(?:更新|修改|编辑)(?:角色|人物|实体)?[：:]\s*(.+)/,
     intent: 'update_entity',
-    extractParams: (m) => ({ entityName: m[1].trim() }),
+    extractParams: (m) => ({ entityName: m[1]!.trim() }),
   },
   {
     pattern: /(?:给|为)\s*(.+?)\s*(?:添加|加上|增加|更新)(?:属性|描述|设定)/,
     intent: 'update_entity',
-    extractParams: (m) => ({ entityName: m[1].trim() }),
+    extractParams: (m) => ({ entityName: m[1]!.trim() }),
   },
 
   // rename_entity: 重命名实体
   {
     pattern: /(?:把|将)\s*(.+?)\s*(?:改[名称为叫]|重命名[为成]?|更名为?|改为|改叫)\s*(.+)/,
     intent: 'rename_entity',
-    extractParams: (m) => ({ entityName: m[1].trim(), content: m[2].trim() }),
+    extractParams: (m) => ({ entityName: m[1]!.trim(), content: m[2]!.trim() }),
   },
   {
     pattern: /(?:角色|人物)\s*(.+?)\s*(?:改[名称为叫]|重命名[为成]?)\s*(.+)/,
     intent: 'rename_entity',
-    extractParams: (m) => ({ entityName: m[1].trim(), content: m[2].trim() }),
+    extractParams: (m) => ({ entityName: m[1]!.trim(), content: m[2]!.trim() }),
   },
 
   // delete_entity: 删除实体
   {
     pattern: /(?:删除|移除|去掉)(?:角色|人物|实体)[：:]\s*(.+)/,
     intent: 'delete_entity',
-    extractParams: (m) => ({ entityName: m[1].trim() }),
+    extractParams: (m) => ({ entityName: m[1]!.trim() }),
   },
   {
     pattern: /(?:删除|移除|去掉)(?:角色|人物|实体)\s*(.+)/,
     intent: 'delete_entity',
-    extractParams: (m) => ({ entityName: m[1].trim() }),
+    extractParams: (m) => ({ entityName: m[1]!.trim() }),
   },
 
   // query_entity: 查询实体
   {
     pattern: /(?:查询|查看|搜索|找)(?:角色|人物|实体)[：:]\s*(.+)/,
     intent: 'query_entity',
-    extractParams: (m) => ({ entityName: m[1].trim() }),
+    extractParams: (m) => ({ entityName: m[1]!.trim() }),
   },
   {
     pattern: /(.+?)(?:是谁|什么人|什么身份|什么来头)/,
     intent: 'query_entity',
-    extractParams: (m) => ({ entityName: m[1].trim() }),
+    extractParams: (m) => ({ entityName: m[1]!.trim() }),
   },
   {
     pattern: /(?:查看|列出|显示)(?:所有|全部)(?:角色|人物|实体)/,
@@ -290,7 +290,7 @@ const REGEX_PATTERNS: RegexPattern[] = [
   {
     pattern: /大纲(?:扩展|扩充)到?\s*${CH}\s*(?:章|节)/,
     intent: 'extend_outline',
-    extractParams: (m) => ({ count: parseNumber(m[1]) }),
+    extractParams: (m) => ({ count: parseNumber(m[1]!) }),
   },
 
   // modify_outline: 修改大纲
@@ -298,7 +298,7 @@ const REGEX_PATTERNS: RegexPattern[] = [
   {
     pattern: /(?:修改|调整)第\s*${CH}\s*章(?:的)?大纲/,
     intent: 'modify_outline',
-    extractParams: (m) => ({ chapterNumber: parseNumber(m[1]) }),
+    extractParams: (m) => ({ chapterNumber: parseNumber(m[1]!) }),
   },
 
   // query_outline: 查询大纲
@@ -306,7 +306,7 @@ const REGEX_PATTERNS: RegexPattern[] = [
   {
     pattern: /第\s*${CH}\s*章(?:到|至|~)第\s*${CH}\s*章(?:的)?大纲/,
     intent: 'query_outline',
-    extractParams: (m) => ({ chapterRange: [parseNumber(m[1])!, parseNumber(m[2])!] }),
+    extractParams: (m) => ({ chapterRange: [parseNumber(m[1]!)!, parseNumber(m[2]!)!] }),
   },
   { pattern: /(?:整体|全局|当前)(?:故事)?结构/, intent: 'query_outline' },
 
@@ -318,19 +318,19 @@ const REGEX_PATTERNS: RegexPattern[] = [
   {
     pattern: /批量(?:生成|写作|创作)\s*${CH}\s*(?:章|节)/,
     intent: 'batch_generate',
-    extractParams: (m) => ({ count: parseNumber(m[1]) }),
+    extractParams: (m) => ({ count: parseNumber(m[1]!) }),
   },
   {
     pattern: /(?:一次性|连续|一口气)(?:写|生成|创作)\s*${CH}\s*(?:章|节)/,
     intent: 'batch_generate',
-    extractParams: (m) => ({ count: parseNumber(m[1]) }),
+    extractParams: (m) => ({ count: parseNumber(m[1]!) }),
   },
   {
     pattern: /(?:生成|写)(?:完)?(?:第\s*${CH}\s*章)?\s*(?:到|至|~)\s*(?:第\s*${CH}\s*章)/,
     intent: 'batch_generate',
     extractParams: (m) => ({
-      chapterRange: [parseNumber(m[1])!, parseNumber(m[2])!],
-      count: parseNumber(m[2])! - parseNumber(m[1])! + 1,
+      chapterRange: [parseNumber(m[1]!)!, parseNumber(m[2]!)!],
+      count: parseNumber(m[2]!)! - parseNumber(m[1]!)! + 1,
     }),
   },
   { pattern: /(?:把|将)(?:剩余|剩下|后面)(?:的)?(?:章节|内容)(?:全部|都)?(?:生成|写完)/, intent: 'batch_generate' },
@@ -339,12 +339,12 @@ const REGEX_PATTERNS: RegexPattern[] = [
   {
     pattern: /(?:批量|连续|一起)(?:检查|审计|审核|质检)\s*(?:第\s*${CH}\s*章)?\s*(?:到|至|~)\s*(?:第\s*${CH}\s*章)/,
     intent: 'batch_audit',
-    extractParams: (m) => ({ chapterRange: [parseNumber(m[1])!, parseNumber(m[2])!] }),
+    extractParams: (m) => ({ chapterRange: [parseNumber(m[1]!)!, parseNumber(m[2]!)!] }),
   },
   {
     pattern: /(?:审计|检查|质检)(?:第\s*${CH}\s*章)?\s*(?:到|至|~)\s*(?:第\s*${CH}\s*章)/,
     intent: 'batch_audit',
-    extractParams: (m) => ({ chapterRange: [parseNumber(m[1])!, parseNumber(m[2])!] }),
+    extractParams: (m) => ({ chapterRange: [parseNumber(m[1]!)!, parseNumber(m[2]!)!] }),
   },
 
   // ========================================================================
@@ -395,7 +395,7 @@ function parseChineseNumber(text: string): number | undefined {
   let current = 0
 
   for (let i = 0; i < text.length; i++) {
-    const char = text[i]
+    const char = text[i]!
     const value = CHINESE_NUMBERS[char]
 
     if (value === undefined) continue
@@ -449,7 +449,7 @@ function buildLLMSystemPrompt(): string {
     if (!categories[meta.category]) {
       categories[meta.category] = []
     }
-    categories[meta.category].push(meta)
+    categories[meta.category]!.push(meta)
   }
 
   let prompt = `你是一个意图分类系统。你的任务是分析用户的自然语言输入，并将其分类为以下预定义意图之一。
@@ -729,7 +729,7 @@ export class NaturalLanguageRouter {
       if (!categories[meta.category]) {
         categories[meta.category] = []
       }
-      categories[meta.category].push(meta)
+      categories[meta.category]!.push(meta)
     }
 
     const categoryLabels: Record<string, string> = {

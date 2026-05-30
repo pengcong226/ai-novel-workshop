@@ -122,7 +122,7 @@ export const useNotificationsStore = defineStore('notifications', () => {
     if (item.group) {
       const existingIndex = active.value.findIndex(n => n.group === item.group)
       if (existingIndex !== -1) {
-        const existing = active.value[existingIndex]
+        const existing = active.value[existingIndex]!
         active.value.splice(existingIndex, 1)
         addToHistory(existing)
       }
@@ -178,7 +178,7 @@ export const useNotificationsStore = defineStore('notifications', () => {
     if (index === -1) return
 
     const [item] = active.value.splice(index, 1)
-    addToHistory(item)
+    if (item) addToHistory(item)
   }
 
   /**

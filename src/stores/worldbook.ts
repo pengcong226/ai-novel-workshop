@@ -338,13 +338,13 @@ export const useWorldbookStore = defineStore('worldbook', () => {
     }
 
     // 保存旧条目用于回滚
-    const previousEntry: WorldbookEntry = { ...worldbook.value.entries[index] }
+    const previousEntry: WorldbookEntry = { ...worldbook.value.entries[index]! }
 
     const updatedEntry: WorldbookEntry = {
-      ...worldbook.value.entries[index],
+      ...worldbook.value.entries[index]!,
       ...updates,
       novelWorkshop: {
-        ...worldbook.value.entries[index].novelWorkshop,
+        ...worldbook.value.entries[index]!.novelWorkshop,
         ...updates.novelWorkshop,
         updatedAt: new Date()
       }
@@ -399,7 +399,7 @@ export const useWorldbookStore = defineStore('worldbook', () => {
     }
 
     // 保存被删除的条目用于回滚
-    const deletedEntry = worldbook.value.entries[index]
+    const deletedEntry = worldbook.value.entries[index]!
 
     worldbook.value.entries.splice(index, 1)
 
@@ -573,7 +573,7 @@ export const useWorldbookStore = defineStore('worldbook', () => {
     }
 
     const updatedGroup: WorldbookGroup = {
-      ...worldbook.value.metadata.groups[index],
+      ...worldbook.value.metadata.groups[index]!,
       ...updates
     }
 
