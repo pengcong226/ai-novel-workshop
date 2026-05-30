@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
-import { ref, nextTick, defineComponent, h } from 'vue'
+import { nextTick, defineComponent, h } from 'vue'
 import { mount } from '@vue/test-utils'
 import { useLocalStorage } from './useLocalStorage'
 

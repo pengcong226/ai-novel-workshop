@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { mount, flushPromises } from '@vue/test-utils'
+import { mount } from '@vue/test-utils'
 import { ref, nextTick, type Ref } from 'vue'
 import { createTestPinia } from '@/test/helpers'
 import SearchDialog from '@/components/SearchDialog.vue'

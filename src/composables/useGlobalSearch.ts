@@ -21,7 +21,7 @@ import { useRouter } from 'vue-router'
 import { useProjectStore } from '@/stores/project'
 import { useSandboxStore } from '@/stores/sandbox'
 import type { SearchEntityType } from '@/utils/eventTypeLabels'
-import { SearchEngine, highlightText, type SearchableDocument, type ScoredResult } from '@/utils/searchEngine'
+import { SearchEngine, type SearchableDocument, type ScoredResult } from '@/utils/searchEngine'
 
 export interface SearchResult {
   type: SearchEntityType

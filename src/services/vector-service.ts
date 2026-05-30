@@ -1,7 +1,7 @@
 import type { Project, Chapter } from '@/types';
 import { invoke } from '@tauri-apps/api/core';
 import { getLogger } from '@/utils/logger'
-import { AIError, NetworkError, toAppError, ErrorCode } from '@/utils/errors';
+import { AIError, NetworkError, ErrorCode } from '@/utils/errors';
 import { getVectorDimensionByModel } from '@/utils/vector-dimension';
 
 /**

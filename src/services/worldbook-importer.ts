@@ -5,7 +5,6 @@
  * 复用 tavern-parser 的解析能力
  */
 
-import { v4 as uuidv4 } from 'uuid'
 import { parsePngCard } from './png-parser'
 import { getLogger } from '@/utils/logger'
 import type {

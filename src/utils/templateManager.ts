@@ -6,7 +6,6 @@ import { useSandboxStore } from '@/stores/sandbox'
 import { getBuiltInTemplates } from './builtInTemplates'
 import { createStyleProfileFromTemplate } from '@/data/stylePresets'
 import { getLogger } from '@/utils/logger'
-import { isWebRuntime } from '@/utils/anthropic-guard'
 const logger = getLogger('utils:templateManager')
 
 const STORAGE_KEY = 'ai-novel-templates'

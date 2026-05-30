@@ -27,7 +27,7 @@ import type {
 import { createCharacterCardImporter } from '@/services/character-card-importer'
 import { createCharacterCardExporter } from '@/services/character-card-exporter'
 import { getLogger } from '@/utils/logger'
-import { StorageError, toAppError, ErrorCode } from '@/utils/errors'
+import { StorageError, ErrorCode } from '@/utils/errors'
 import { useSandboxStore } from './sandbox'
 import { v4 as uuidv4 } from 'uuid'
 

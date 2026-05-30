@@ -9,7 +9,7 @@
  *   eventBus.emit('chapter:saved', { chapter })
  *   eventBus.off('chapter:saved', handler)
  */
-import type { AppEventMap, AppEventName, AppEventPayload } from '@/types/events'
+import type { AppEventName, AppEventPayload } from '@/types/events'
 
 // ============================================================================
 // Listener type helpers
@@ -245,5 +245,5 @@ export const eventBus = new EventBus({ debug: isDev() })
  */
 export function setEventBusDebug(enabled: boolean): void {
   // Intentional cast: we own the class and need to toggle private field.
-  ;(eventBus as unknown as { debugEnabled: boolean }).debugEnabled = enabled
+  (eventBus as unknown as { debugEnabled: boolean }).debugEnabled = enabled
 }

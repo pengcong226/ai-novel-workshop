@@ -14,8 +14,7 @@ import { syncCompletedChapter } from '@/services/outline-sync'
 import type { ChatMessage } from '@/types/ai'
 import { useAuditLog } from '@/composables/useAuditLog'
 import { getLogger } from '@/utils/logger'
-import { AIError, toAppError, ErrorCode } from '@/utils/errors'
-import type { AgentConfig } from '@/agents/types'
+import { toAppError } from '@/utils/errors'
 import { measureAsync } from '@/utils/performance'
 import {
   BatchGenerationOptions,

@@ -16,7 +16,7 @@
  * @module composables/useAnalytics
  */
 
-import { ref, computed, onMounted, onUnmounted, type Ref } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
 import {
   trackEvent,
   trackPageView,

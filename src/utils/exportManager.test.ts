@@ -1,4 +1,4 @@
-import { describe, expect, it, vi, beforeEach } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import type { Chapter, Project } from '@/types'
 
 // Mock all exporter modules before importing the module under test.
@@ -61,7 +61,6 @@ import {
   exportForPlatform,
   AVAILABLE_FORMATS,
   type ExportFormat,
-  type ExportScope,
 } from '@/utils/exportManager'
 
 // ---------------------------------------------------------------------------

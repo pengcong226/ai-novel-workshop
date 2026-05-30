@@ -10,7 +10,7 @@ import { safeParseAIJson } from '@/utils/safeParseAIJson'
 import { sanitizeForPrompt } from '@/utils/inputSanitizer'
 import { analyzeHookHealth } from '@/utils/hookHealthAnalyzer'
 import { withRetry } from '@/utils/llmRetry'
-import type { HookHealthInput, HookDiagnostics } from '@/utils/hookHealthAnalyzer'
+import type { HookHealthInput } from '@/utils/hookHealthAnalyzer'
 import type { Project } from '@/types'
 import type { Entity, StateEvent } from '@/types/sandbox'
 import type { ChatResponse } from '@/types/ai'
@@ -21,7 +21,6 @@ import type {
   RuleStack,
   ComposeTrace,
   HookEntry,
-  PlanChapterOutput,
 } from '@/services/pipeline/types'
 
 const logger = getLogger('agent:composer')

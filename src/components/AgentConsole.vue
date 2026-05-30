@@ -164,7 +164,7 @@ import { normalizeProjectConfig } from '@/utils/project-config-normalizer'
 import { ElMessage } from 'element-plus'
 import { CaretRight, CloseBold, Select, Loading, Compass, EditPen, View, Filter, Document, Management, Connection } from '@element-plus/icons-vue'
 import type { AgentPhase, AgentRole, AgentConfig } from '@/agents/types'
-import { ACTIVE_AGENT_ROLES, AGENT_ROLE_LABELS } from '@/agents/types'
+import { ACTIVE_AGENT_ROLES } from '@/agents/types'
 import { getLogger } from '@/utils/logger'
 import { getFriendlyMessage } from '@/utils/errorHandler'
 

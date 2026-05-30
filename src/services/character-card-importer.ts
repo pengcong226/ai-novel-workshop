@@ -18,7 +18,7 @@ import type {
   CharacterCardImportOptions,
   CharacterCardImportResult} from '@/types/character-card'
 import { getLogger } from '@/utils/logger'
-import { ValidationError, toAppError, ErrorCode } from '@/utils/errors'
+import { ValidationError } from '@/utils/errors'
 import { parsePngCard } from './png-parser'
 
 const logger = getLogger('character-card-importer')

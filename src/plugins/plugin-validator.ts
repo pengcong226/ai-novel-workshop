@@ -18,7 +18,6 @@
 
 import type {
   PluginManifest,
-  PluginContributions,
   PluginPermission
 } from './types'
 

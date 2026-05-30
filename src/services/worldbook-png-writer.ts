@@ -16,7 +16,6 @@
 import type { Worldbook } from '@/types/worldbook'
 import { getLogger } from '@/utils/logger'
 import {
-  prepareEntry,
   prepareWorldbookData
 } from '@/services/worldbook-common'
 

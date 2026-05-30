@@ -16,7 +16,7 @@ import type {
   KnowledgeStatistics
 } from '@/types/knowledge-base'
 import { getLogger } from '@/utils/logger'
-import { StorageError, toAppError, ErrorCode } from '@/utils/errors'
+import { StorageError, ErrorCode } from '@/utils/errors'
 
 const logger = getLogger('knowledge-base')
 

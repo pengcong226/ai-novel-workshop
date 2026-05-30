@@ -12,7 +12,7 @@ import { safeParseAIJson } from '@/utils/safeParseAIJson'
 import { ObserverAgent } from './ObserverAgent'
 import type { ObservedFact } from './ObserverAgent'
 import { StateEventSchema } from '@/schemas/stateEventSchema'
-import type { Project, Chapter } from '@/types'
+import type { Project } from '@/types'
 import type { Entity, StateEvent } from '@/types/sandbox'
 import type { StateChange, TokenUsage } from '@/services/pipeline/types'
 

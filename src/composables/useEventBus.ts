@@ -23,7 +23,6 @@
 import { onUnmounted } from 'vue'
 import { eventBus } from '@/utils/eventBus'
 import type {
-  AppEventMap,
   AppEventName,
   AppEventPayload,
 } from '@/types/events'

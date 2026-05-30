@@ -3,7 +3,7 @@
  * 覆盖用例：TC-C.1 ~ TC-C.6
  * 优先级：P1
  */
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { builtinCommandRegistry } from '@/assistant/commands/builtinCommands'
 import { routeAssistantInput } from '@/assistant/commands/inputRouter'
 

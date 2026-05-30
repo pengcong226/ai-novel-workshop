@@ -67,7 +67,7 @@ export function usePerformance(componentName: string): UsePerformanceReturn {
   const measurements: PerformanceMetric[] = []
 
   // Track mount time
-  let mountEnd: (() => void) | null = null
+  const mountEnd: (() => void) | null = null
 
   onMounted(() => {
     // measureRender already placed the start mark at call time;

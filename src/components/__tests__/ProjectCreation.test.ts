@@ -1,7 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { createPinia, setActivePinia } from 'pinia'
-import { mount } from '@vue/test-utils'
-import { nextTick } from 'vue'
 
 // Mock dependencies before importing stores
 vi.mock('@/utils/anthropic-guard', () => ({
@@ -86,7 +84,6 @@ vi.mock('@tauri-apps/api/core', () => ({
 }))
 
 import { useProjectStore } from '@/stores/project'
-import type { Project, ProjectConfig } from '@/types'
 
 describe('Project Creation Integration', () => {
   beforeEach(() => {

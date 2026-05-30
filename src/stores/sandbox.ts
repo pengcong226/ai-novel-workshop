@@ -16,7 +16,7 @@
  */
 
 import { defineStore } from 'pinia';
-import { ref, computed, shallowRef, type Ref, type ComputedRef } from 'vue';
+import { ref, computed, shallowRef } from 'vue';
 import { v4 as uuidv4 } from 'uuid';
 import type { Entity, StateEvent, EntityRelation } from '../types/sandbox';
 import type { EntityStateSnapshot } from '../types/rewrite-continuation';

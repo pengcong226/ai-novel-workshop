@@ -246,7 +246,7 @@ export function storeDevtoolsPlugin({ store }: PiniaPluginContext): void {
   }
 
   // Provide a lightweight meta object for devtools
-  ;(store as any).__devtoolsMeta = {
+  (store as any).__devtoolsMeta = {
     label,
     storeId: store.$id,
     registeredAt: Date.now(),

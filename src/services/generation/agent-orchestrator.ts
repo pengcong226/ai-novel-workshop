@@ -9,7 +9,6 @@ import type { Entity, StateEvent, EntityType, EntityImportance } from '@/types/s
 import { extractEntitiesWithAI, analyzeRelationships } from '@/utils/characterExtractor'
 import { mergeSystemPrompts } from '@/utils/systemPrompts'
 import { normalizeProjectConfig } from '@/utils/project-config-normalizer'
-import { useAuditLog } from '@/composables/useAuditLog'
 import { getLogger } from '@/utils/logger'
 import { AgentOrchestrator } from '@/agents/AgentOrchestrator'
 import { PlannerAgent } from '@/agents/PlannerAgent'

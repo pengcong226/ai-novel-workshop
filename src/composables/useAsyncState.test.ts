@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { nextTick, defineComponent, h } from 'vue'
+import { defineComponent, h } from 'vue'
 import { mount } from '@vue/test-utils'
-import { useAsyncState, type AsyncStatus } from './useAsyncState'
+import { useAsyncState } from './useAsyncState'
 
 /**
  * Helper: mount a component that uses useAsyncState and exposes the result.

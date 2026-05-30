@@ -10,7 +10,6 @@
 
 import { getLogger } from '@/utils/logger'
 import { AIError, ErrorCode } from '@/utils/errors'
-import type { TokenUsage } from '@/services/pipeline/types'
 
 const logger = getLogger('service:fanfic')
 

@@ -120,13 +120,12 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, type PropType } from 'vue'
+import { ref, computed } from 'vue'
 import { useVirtualizer } from '@tanstack/vue-virtual'
 import type { Chapter } from '@/types'
 import { ArrowDown, Clock, DataAnalysis, Delete, Document, RefreshRight } from '@element-plus/icons-vue'
 import { buildReadingPreview } from '@/utils/readingPreview'
 import { getChapterStatusType, getChapterStatusText } from '@/utils/formatters'
-import { getFriendlyMessage } from '@/utils/errorHandler'
 import ChapterStats from '@/components/ChapterStats.vue'
 
 interface PluginToolbarButton {

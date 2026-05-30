@@ -5,7 +5,7 @@
  */
 import { describe, expect, it, vi } from 'vitest'
 import { AgentOrchestrator } from '@/agents/AgentOrchestrator'
-import type { Agent, AgentContext, AgentResult, AgentPhase, AgentRole, AgentConfig } from '@/agents/types'
+import type { Agent, AgentContext, AgentResult, AgentPhase, AgentRole } from '@/agents/types'
 import type { Chapter, Project } from '@/types'
 
 // ---------------------------------------------------------------------------

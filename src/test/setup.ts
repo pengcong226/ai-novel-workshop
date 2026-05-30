@@ -141,6 +141,7 @@ if (typeof globalThis.indexedDB === 'undefined') {
       cmp: noop,
     },
     writable: true,
+    configurable: true,
   })
 }
 

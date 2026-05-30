@@ -7,9 +7,8 @@
 
 import { getLogger } from '@/utils/logger'
 import { safeParseAIJson } from '@/utils/safeParseAIJson'
-import { sanitizeForPrompt } from '@/utils/inputSanitizer'
 import { getGenreProfile, matchGenreFromText } from '@/types/genreProfile'
-import type { GenreProfile, GenreAuditDimension } from '@/types/genreProfile'
+import type { GenreAuditDimension } from '@/types/genreProfile'
 import { analyzeHookHealth } from '@/utils/hookHealthAnalyzer'
 import type { HookHealthInput, HookHealthResult } from '@/utils/hookHealthAnalyzer'
 import { analyzeChapterCadence } from '@/utils/chapterCadence'

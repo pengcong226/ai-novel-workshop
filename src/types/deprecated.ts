@@ -16,7 +16,6 @@
  * - CharacterDevelopment → StateEvent 序列
  */
 
-import type { Worldbook } from './worldbook'
 
 // ============================================================================
 // 世界观设定（V1 废弃）

@@ -1,4 +1,4 @@
-import { describe, expect, it, vi, beforeEach } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import type { Chapter } from '@/types'
 
 // Mock external dependencies before importing the module under test

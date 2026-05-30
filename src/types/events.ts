@@ -4,7 +4,7 @@
  * All application-level events are declared here as a single map type.
  * Add new event families by extending `AppEventMap`.
  */
-import type { Chapter, Project } from './index'
+import type { Chapter } from './index'
 import type { Entity, EntityType } from './sandbox'
 
 // ============================================================================

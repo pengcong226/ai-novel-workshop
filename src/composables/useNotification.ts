@@ -9,7 +9,7 @@
  *   notify({ type: 'warning', message: '磁盘空间不足', actions: [{ label: '清理', handler: () => ... }] })
  */
 
-import { useNotificationsStore, type NotificationOptions, type NotificationType, type NotificationPosition } from '@/stores/notifications'
+import { useNotificationsStore, type NotificationOptions, type NotificationPosition } from '@/stores/notifications'
 
 export function useNotification() {
   const store = useNotificationsStore()

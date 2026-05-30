@@ -6,7 +6,6 @@
  */
 
 import { getLogger } from '@/utils/logger'
-import { safeParseAIJson } from '@/utils/safeParseAIJson'
 import { withRetry, REVISER_RETRY_CONFIG } from '@/utils/llmRetry'
 import { verifyRevision } from '@/services/pipeline/RevisionVerifier'
 import type { ChatResponse } from '@/types/ai'

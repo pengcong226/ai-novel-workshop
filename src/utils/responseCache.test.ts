@@ -1,4 +1,4 @@
-import { describe, expect, it, vi, beforeAll, beforeEach } from 'vitest'
+import { describe, expect, it, beforeAll, beforeEach } from 'vitest'
 
 // Mock localStorage on globalThis BEFORE the module is dynamically imported.
 // The module-level `responseCache = new ResponseCache()` singleton runs during

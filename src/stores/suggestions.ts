@@ -20,7 +20,7 @@
  */
 
 import { defineStore } from 'pinia'
-import { ref, computed, type Ref, type ComputedRef } from 'vue'
+import { ref, computed } from 'vue'
 import { v4 as uuidv4 } from 'uuid'
 import { getLogger } from '@/utils/logger'
 import { toAppError } from '@/utils/errors'

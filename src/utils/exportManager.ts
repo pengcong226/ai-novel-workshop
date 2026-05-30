@@ -17,7 +17,6 @@ import {
 import {
   exportAllChaptersToPdf,
   exportChapterToPdf,
-  generatePrintableHtml,
   type PdfExportOptions,
   DEFAULT_PDF_OPTIONS
 } from '@/utils/pdfExporter'

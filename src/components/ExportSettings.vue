@@ -266,7 +266,7 @@ import {
   DEFAULT_DOCX_OPTIONS,
   type DocxExportOptions
 } from '@/utils/docxExporter'
-import { exportToPlatformFormat, DEFAULT_PLATFORM_OPTIONS, type PlatformExportOptions, PLATFORM_CONFIGS } from '@/utils/exporters/platformExporter'
+import { exportToPlatformFormat, DEFAULT_PLATFORM_OPTIONS, type PlatformExportOptions } from '@/utils/exporters/platformExporter'
 
 const logger = getLogger('components:ExportSettings')
 

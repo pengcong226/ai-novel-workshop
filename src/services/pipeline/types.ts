@@ -5,7 +5,7 @@
  * 定义 PipelineRunner 及各 Agent 的输入输出接口
  */
 
-import type { Project, Chapter, ChapterOutline } from '@/types'
+import type { Project, ChapterOutline } from '@/types'
 import type { Entity, StateEvent } from '@/types/sandbox'
 
 // ============================================================================

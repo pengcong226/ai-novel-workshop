@@ -3,8 +3,8 @@
  * 支持 TXT/DOCX/MD 文件导入，含文件验证、预览和冲突处理
  */
 
-import type { Project, Chapter } from '@/types'
-import type { ImportOptions, ImportResult, ImportProgress, ProgressCallback } from '@/utils/novelImporter'
+import type { Chapter } from '@/types'
+import type { ImportOptions, ImportResult, ProgressCallback } from '@/utils/novelImporter'
 import { importNovel, importMultipleFiles } from '@/utils/novelImporter'
 import { parseNovelText, type ParsedChapter } from '@/utils/chapterParser'
 import { getLogger } from '@/utils/logger'

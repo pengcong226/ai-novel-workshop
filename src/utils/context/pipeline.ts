@@ -1,6 +1,6 @@
 import type { Project, Chapter, VectorServiceConfig } from '@/types';
 import type { VectorService } from '@/services/vector-service';
-import { countTokens as countLLMTokens, estimateTokens } from '../llm/tokenizer';
+import { estimateTokens } from '../llm/tokenizer';
 
 /**
  * 管道负载，在中间件之间流转的上下文对象

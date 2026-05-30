@@ -22,7 +22,7 @@
  * ```
  */
 
-import { ref, readonly, watch, onMounted, onUnmounted } from 'vue'
+import { ref, readonly, onUnmounted } from 'vue'
 import { getLogger } from '@/utils/logger'
 
 const logger = getLogger('composable:pipeline-persist')

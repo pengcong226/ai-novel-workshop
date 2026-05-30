@@ -25,7 +25,7 @@ import { useProjectStore } from './project'
 import { useTokenUsageStore } from './tokenUsage'
 import { pluginManager } from '@/plugins/manager'
 import type { PipelineConfig } from '@/services/pipeline/types'
-import type { IntentType, IntentMatch } from '@/types/interactionIntents'
+import type { IntentMatch } from '@/types/interactionIntents'
 import type { DaemonConfig, DaemonState, DaemonEvent } from '@/services/DaemonService'
 import { SlidingWindowRateLimiter } from '@/utils/rateLimiter'
 

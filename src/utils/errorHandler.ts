@@ -4,7 +4,7 @@
  */
 
 import { getLogger } from '@/utils/logger'
-import { AppError as AppErrorClass, ErrorCode } from '@/utils/errors'
+import { AppError as AppErrorClass } from '@/utils/errors'
 import { trackError } from '@/utils/analytics'
 
 const logger = getLogger('utils:errorHandler')

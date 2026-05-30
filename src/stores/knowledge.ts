@@ -19,7 +19,7 @@ import { ref, computed, type Ref, type ComputedRef } from 'vue'
 import type { KnowledgeEntry, KnowledgeMetadata } from '@/types/knowledge-base'
 import { KnowledgeCategory } from '@/types/knowledge-base'
 import { getLogger } from '@/utils/logger'
-import { StorageError, toAppError, ErrorCode } from '@/utils/errors'
+import { StorageError, ErrorCode } from '@/utils/errors'
 import { v4 as uuidv4 } from 'uuid'
 
 const logger = getLogger('knowledge:store')

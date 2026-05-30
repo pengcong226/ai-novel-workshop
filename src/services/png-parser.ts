@@ -4,7 +4,7 @@
  */
 
 import { getLogger } from '@/utils/logger'
-import { ValidationError, StorageError, ErrorCode } from '@/utils/errors'
+import { ValidationError } from '@/utils/errors'
 
 const logger = getLogger('png-parser')
 

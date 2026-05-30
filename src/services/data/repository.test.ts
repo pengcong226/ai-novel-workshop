@@ -19,158 +19,27 @@ vi.mock('@tauri-apps/api/core', () => ({
 }))
 
 // -----------------------------------------------------------------------
-// Minimal in-memory IndexedDB mock
-// -----------------------------------------------------------------------
-
-interface MockStore {
-  records: Map<string, Entity>
-}
-
-interface MockDB {
-  stores: Map<string, MockStore>
-  version: number
-}
-
-let mockDBs: Map<string, MockDB> = new Map()
-
-function getOrCreateMockDB(name: string, version: number, storeNames: string[]): MockDB {
-  let db = mockDBs.get(name)
-  if (!db) {
-    db = { stores: new Map(), version }
-    mockDBs.set(name, db)
-  }
-  for (const sn of storeNames) {
-    if (!db.stores.has(sn)) {
-      db.stores.set(sn, { records: new Map() })
-    }
-  }
-  return db
-}
-
-function setupIndexedDBMock(): void {
-  mockDBs = new Map()
-
-  const mockIndexedDB = {
-    open(dbName: string, version?: number) {
-      const request: Record<string, unknown> = {}
-      const storeNames: string[] = []
-
-      // Queue microtask to fire onsuccess
-      setTimeout(() => {
-        const db = getOrCreateMockDB(dbName, version ?? 1, storeNames)
-
-        const dbHandle = {
-          objectStoreNames: {
-            contains(name: string) {
-              return db.stores.has(name)
-            },
-          } as DOMStringList,
-          close() {},
-          transaction(storeName: string, _mode?: string) {
-            const mockStore = db.stores.get(storeName)
-            if (!mockStore) throw new Error(`Store ${storeName} not found`)
-            const tx = {
-              objectStore() {
-                return {
-                  get(id: string) {
-                    const req: Record<string, unknown> = {}
-                    setTimeout(() => {
-                      req.result = mockStore.records.get(id) ?? undefined
-                      if (req.onsuccess) req.onsuccess({})
-                    }, 0)
-                    return req
-                  },
-                  put(entity: Entity) {
-                    mockStore.records.set(entity.id, { ...entity })
-                    const req: Record<string, unknown> = {}
-                    setTimeout(() => {
-                      if (req.onsuccess) req.onsuccess({})
-                    }, 0)
-                    return req
-                  },
-                  delete(id: string) {
-                    mockStore.records.delete(id)
-                    const req: Record<string, unknown> = {}
-                    setTimeout(() => {
-                      if (req.onsuccess) req.onsuccess({})
-                    }, 0)
-                    return req
-                  },
-                  openCursor() {
-                    const req: Record<string, unknown> = {}
-                    const entries = Array.from(mockStore.records.values())
-                    let idx = 0
-                    setTimeout(() => {
-                      function advance() {
-                        if (idx < entries.length) {
-                          const val = entries[idx++]
-                          req.result = {
-                            value: val,
-                            continue() {
-                              setTimeout(advance, 0)
-                            },
-                          }
-                        } else {
-                          req.result = undefined
-                        }
-                        if (req.onsuccess) req.onsuccess({})
-                      }
-                      advance()
-                    }, 0)
-                    return req
-                  },
-                }
-              },
-              complete: undefined as (() => void) | undefined,
-              oncomplete: undefined as ((e: unknown) => void) | null,
-              onerror: undefined as ((e: unknown) => void) | null,
-              error: null,
-            }
-            // Wire up tx.oncomplete for put/delete
-            setTimeout(() => {
-              if (tx.oncomplete) tx.oncomplete({})
-            }, 10)
-            return tx
-          },
-        }
-
-        // Capture onupgradeneeded for store creation
-        if (request.onupgradeneeded) {
-          request.onupgradeneeded({ target: { result: dbHandle } })
-        }
-        request.result = dbHandle
-        if (request.onsuccess) request.onsuccess({})
-      }, 0)
-
-      return request
-    },
-  }
-
-  vi.stubGlobal('indexedDB', mockIndexedDB)
-}
-
-// -----------------------------------------------------------------------
-// Tests
+// IndexedDBRepository tests (using fake-indexeddb polyfill)
 // -----------------------------------------------------------------------
 
 describe('IndexedDBRepository', () => {
   let IndexedDBRepository: new (opts: Record<string, unknown>) => Repository<Entity> & Record<string, unknown>
+  let dbCounter = 0
 
   beforeEach(async () => {
-    setupIndexedDBMock()
-    // Dynamic import so the mock is in place before module evaluation
+    // Install fake-indexeddb polyfill (overrides globalThis.indexedDB)
+    await import('fake-indexeddb/auto')
+
     const mod = await import('./repository')
     IndexedDBRepository = mod.IndexedDBRepository as unknown as typeof IndexedDBRepository
+    dbCounter++
   })
 
-  afterEach(() => {
-    vi.unstubAllGlobals()
-    mockDBs = new Map()
-  })
-
-  function createRepo(storeName = 'test-store') {
+  function createRepo(storeName = `test-store-${dbCounter}`) {
     return new IndexedDBRepository({
       storeName,
+      dbName: `test-db-${dbCounter}-${Math.random().toString(36).slice(2)}`,
+      dbVersion: 1,
       requiredStores: [storeName],
     })
   }
@@ -242,189 +111,55 @@ describe('IndexedDBRepository', () => {
       await repo.create({ id: 'y' })
       expect(await repo.count()).toBe(2)
     })
-  })
-})
 
-// -----------------------------------------------------------------------
-// Query logic (via a testable subclass that exposes internal helpers)
-// -----------------------------------------------------------------------
+    it('findAll with filters returns matching entities', async () => {
+      const repo = createRepo()
+      await repo.create({ id: 'a', status: 'active' })
+      await repo.create({ id: 'b', status: 'inactive' })
+      await repo.create({ id: 'c', status: 'active' })
 
-describe('QueryOptions filtering and sorting', () => {
-  // We test query logic by directly exercising the private helpers through
-  // a thin wrapper. This avoids needing a full IndexedDB instance.
-
-  // Minimal reimplementation that mirrors IndexedDBRepository.applyQueryOptions
-  // and matchesFilters logic for deterministic in-process testing.
-
-  interface QueryFilter {
-    field: string
-    op: '=' | '!=' | '>' | '<' | '>=' | '<='
-    value: unknown
-  }
-
-  interface TestQueryOptions {
-    filters?: QueryFilter[]
-    sort?: { field: string; direction?: 'asc' | 'desc' }
-    offset?: number
-    limit?: number
-  }
-
-  function matchesFilters(record: Entity, filters: QueryFilter[]): boolean {
-    return filters.every(({ field, op, value }) => {
-      const actual = (record as Record<string, unknown>)[field]
-      switch (op) {
-        case '=': return actual === value
-        case '!=': return actual !== value
-        case '>': return (actual as number) > (value as number)
-        case '<': return (actual as number) < (value as number)
-        case '>=': return (actual as number) >= (value as number)
-        case '<=': return (actual as number) <= (value as number)
-        default: return true
-      }
-    })
-  }
-
-  function applyQueryOptions(records: Entity[], options?: TestQueryOptions): Entity[] {
-    let result = records
-    if (options?.filters?.length) {
-      result = result.filter(r => matchesFilters(r, options.filters!))
-    }
-    if (options?.sort) {
-      const { field, direction = 'asc' } = options.sort
-      const mult = direction === 'desc' ? -1 : 1
-      result = [...result].sort((a, b) => {
-        const av = (a as Record<string, unknown>)[field]
-        const bv = (b as Record<string, unknown>)[field]
-        if (av == null && bv == null) return 0
-        if (av == null) return 1
-        if (bv == null) return -1
-        return av < bv ? -mult : av > bv ? mult : 0
-      })
-    }
-    const offset = options?.offset ?? 0
-    if (offset > 0) result = result.slice(offset)
-    if (options?.limit != null) result = result.slice(0, options.limit)
-    return result
-  }
-
-  const data: Entity[] = [
-    { id: '1', name: 'Alice', age: 30, status: 'active' },
-    { id: '2', name: 'Bob', age: 25, status: 'inactive' },
-    { id: '3', name: 'Charlie', age: 35, status: 'active' },
-    { id: '4', name: 'Diana', age: 28, status: 'active' },
-    { id: '5', name: 'Eve', age: 22, status: 'inactive' },
-  ]
-
-  describe('filters', () => {
-    it('= filter selects exact matches', () => {
-      const result = applyQueryOptions(data, {
+      const active = await repo.findAll({
         filters: [{ field: 'status', op: '=', value: 'active' }],
       })
-      expect(result).toHaveLength(3)
-      expect(result.every(r => r.status === 'active')).toBe(true)
+      expect(active).toHaveLength(2)
     })
 
-    it('!= filter excludes matching values', () => {
-      const result = applyQueryOptions(data, {
-        filters: [{ field: 'status', op: '!=', value: 'active' }],
+    it('findAll with sort returns entities in order', async () => {
+      const repo = createRepo()
+      await repo.create({ id: 'a', age: 30 })
+      await repo.create({ id: 'b', age: 20 })
+      await repo.create({ id: 'c', age: 25 })
+
+      const sorted = await repo.findAll({ sort: { field: 'age' } })
+      expect(sorted.map(r => r.age)).toEqual([20, 25, 30])
+    })
+
+    it('findAll with limit returns capped results', async () => {
+      const repo = createRepo()
+      await repo.create({ id: 'a' })
+      await repo.create({ id: 'b' })
+      await repo.create({ id: 'c' })
+
+      const limited = await repo.findAll({ limit: 2 })
+      expect(limited).toHaveLength(2)
+    })
+
+    it('count with filters returns filtered count', async () => {
+      const repo = createRepo()
+      await repo.create({ id: 'a', active: true })
+      await repo.create({ id: 'b', active: false })
+      await repo.create({ id: 'c', active: true })
+
+      const count = await repo.count({
+        filters: [{ field: 'active', op: '=', value: true }],
       })
-      expect(result).toHaveLength(2)
-    })
-
-    it('> filter works on numeric fields', () => {
-      const result = applyQueryOptions(data, {
-        filters: [{ field: 'age', op: '>', value: 28 }],
-      })
-      expect(result).toHaveLength(2) // Alice (30) and Charlie (35)
-    })
-
-    it('< filter works on numeric fields', () => {
-      const result = applyQueryOptions(data, {
-        filters: [{ field: 'age', op: '<', value: 28 }],
-      })
-      expect(result).toHaveLength(2) // Bob (25) and Eve (22)
-    })
-
-    it('>= and <= filters work on numeric fields', () => {
-      const result = applyQueryOptions(data, {
-        filters: [{ field: 'age', op: '>=', value: 25 }],
-      })
-      expect(result).toHaveLength(4) // all except Eve
-
-      const result2 = applyQueryOptions(data, {
-        filters: [{ field: 'age', op: '<=', value: 25 }],
-      })
-      expect(result2).toHaveLength(2) // Bob (25) and Eve (22)
-    })
-
-    it('multiple filters are combined with AND logic', () => {
-      const result = applyQueryOptions(data, {
-        filters: [
-          { field: 'status', op: '=', value: 'active' },
-          { field: 'age', op: '>', value: 29 },
-        ],
-      })
-      expect(result).toHaveLength(2) // Alice (30) and Charlie (35)
-    })
-  })
-
-  describe('sort', () => {
-    it('sorts ascending by default', () => {
-      const result = applyQueryOptions(data, { sort: { field: 'age' } })
-      expect(result.map(r => r.age)).toEqual([22, 25, 28, 30, 35])
-    })
-
-    it('sorts descending when direction is "desc"', () => {
-      const result = applyQueryOptions(data, { sort: { field: 'age', direction: 'desc' } })
-      expect(result.map(r => r.age)).toEqual([35, 30, 28, 25, 22])
-    })
-
-    it('handles null values by pushing them to the end', () => {
-      const withNull: Entity[] = [
-        { id: 'a', val: 3 },
-        { id: 'b', val: null },
-        { id: 'c', val: 1 },
-      ]
-      const result = applyQueryOptions(withNull, { sort: { field: 'val' } })
-      expect(result.map(r => r.id)).toEqual(['c', 'a', 'b'])
-    })
-  })
-
-  describe('offset and limit', () => {
-    it('offset skips the first N results', () => {
-      const result = applyQueryOptions(data, { offset: 2 })
-      expect(result).toHaveLength(3)
-      expect(result[0].id).toBe('3')
-    })
-
-    it('limit caps the number of results', () => {
-      const result = applyQueryOptions(data, { limit: 2 })
-      expect(result).toHaveLength(2)
-    })
-
-    it('offset and limit work together', () => {
-      const sorted = applyQueryOptions(data, {
-        sort: { field: 'age' },
-        offset: 1,
-        limit: 2,
-      })
-      expect(sorted.map(r => r.age)).toEqual([25, 28])
-    })
-
-    it('offset beyond data length returns empty array', () => {
-      const result = applyQueryOptions(data, { offset: 100 })
-      expect(result).toHaveLength(0)
-    })
-
-    it('no options returns all records unchanged', () => {
-      const result = applyQueryOptions(data)
-      expect(result).toHaveLength(5)
+      expect(count).toBe(2)
     })
   })
 })
 
 // -----------------------------------------------------------------------
-// TauriTemplateRepository (uses localStorage — easy to test)
+// TauriTemplateRepository (uses localStorage -- easy to test)
 // -----------------------------------------------------------------------
 
 describe('TauriTemplateRepository', () => {

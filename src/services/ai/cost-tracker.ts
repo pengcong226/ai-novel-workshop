@@ -13,7 +13,7 @@ import type {
   ModelConfig,
 } from './types';
 import { USD_TO_CNY_RATE } from './types';
-import type { TaskType, BudgetConfig, UsageStatistics, AIProvider } from '../../types/ai';
+import type { TaskType, BudgetConfig, UsageStatistics } from '../../types/ai';
 import { BudgetExceededError } from './errors';
 import { getLogger } from '@/utils/logger';
 

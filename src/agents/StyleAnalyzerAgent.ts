@@ -137,7 +137,7 @@ export class StyleAnalyzerAgent {
 
     // 2. LLM深度分析
     let llmResult: Partial<StyleFingerprint> = {}
-    let tokenUsage: TokenUsage = { inputTokens: 0, outputTokens: 0, totalTokens: 0 }
+    const tokenUsage: TokenUsage = { inputTokens: 0, outputTokens: 0, totalTokens: 0 }
 
     if (input.analysisDepth !== 'quick') {
       logger.info('执行LLM深度分析...')

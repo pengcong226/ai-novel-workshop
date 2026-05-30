@@ -16,7 +16,7 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
 import { getLogger } from '@/utils/logger'
-import { StorageError, toAppError, ErrorCode } from '@/utils/errors'
+import { toAppError } from '@/utils/errors'
 import { isWebRuntime } from '@/utils/anthropic-guard'
 import type { ChapterSnapshot } from '@/types/chapter-version'
 

@@ -10,16 +10,16 @@
 
 import { getLogger } from '@/utils/logger'
 import { trackGenerationStart, trackGenerationComplete, trackGenerationFail } from '@/utils/analytics'
-import { ComposerAgent, buildLengthSpec as composerBuildLengthSpec } from '@/agents/ComposerAgent'
-import { ContinuityAuditor, AUDIT_DIMENSIONS } from '@/agents/ContinuityAuditor'
+import { ComposerAgent } from '@/agents/ComposerAgent'
+import { ContinuityAuditor } from '@/agents/ContinuityAuditor'
 import { ReviserAgent } from '@/agents/ReviserAgent'
 import { LengthNormalizerAgent, countChars, buildLengthSpec } from '@/agents/LengthNormalizerAgent'
 import { analyzeHookHealth, type HookHealthInput } from '@/utils/hookHealthAnalyzer'
 import { buildWritingMethodologySection } from '@/utils/writingMethodology'
 import { renderNarrativeControl } from '@/utils/narrativeControl'
-import { withRetry, WRITER_RETRY_CONFIG, AUDITOR_RETRY_CONFIG } from '@/utils/llmRetry'
+import { withRetry, WRITER_RETRY_CONFIG } from '@/utils/llmRetry'
 import { detectLongSpanFatigue } from '@/utils/longSpanFatigue'
-import { analyzeTensionCurve, formatTensionCurveReport, type TensionCurveReport } from '@/utils/tensionCurvePlanner'
+import { analyzeTensionCurve, type TensionCurveReport } from '@/utils/tensionCurvePlanner'
 import { StateSettler } from '@/agents/StateSettler'
 import { ChapterAnalyzer } from '@/agents/ChapterAnalyzer'
 import { HookPromoter } from '@/agents/HookPromoter'
@@ -34,18 +34,12 @@ import type {
   ChapterPipelineResult,
   PlanChapterOutput,
   ComposeChapterOutput,
-  ContextPackage,
-  RuleStack,
   ChapterMemo,
-  AuditResult,
-  AuditIssue,
   LengthSpec,
-  ReviewSnapshot,
   TokenUsage,
   TokenUsageSummary,
   HookEntry,
   AgentTraceEvent,
-  PipelineStage,
 } from './types'
 import { emptyTokenUsageSummary } from './types'
 
@@ -362,7 +356,7 @@ export class PipelineRunner {
       }
 
       // 应用审阅结果
-      let auditResult = reviewResult.auditResult
+      const auditResult = reviewResult.auditResult
       const revised = reviewResult.iterations > 0
       currentContent = reviewResult.finalContent
       currentWordCount = reviewResult.finalWordCount

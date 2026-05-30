@@ -11,7 +11,6 @@ import type {
   PipelineConfig,
   ChapterPipelineResult,
   WriteNextChapterOptions,
-  TokenUsageSummary,
 } from './types'
 import { emptyTokenUsageSummary } from './types'
 import { getLogger } from '@/utils/logger'

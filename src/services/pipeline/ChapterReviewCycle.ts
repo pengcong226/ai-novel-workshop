@@ -2,7 +2,6 @@ import {
   AuditResult,
   AuditIssue,
   AuditChapterInput,
-  ReviewSnapshot,
   TokenUsage,
   ContextPackage,
   RuleStack,

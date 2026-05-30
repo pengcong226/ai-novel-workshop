@@ -93,7 +93,7 @@ export function filterContextByPOV(input: POVFilterInput): POVFilterResult {
   }
 
   // 伏笔快照：第一人称下过滤角色不知道的伏笔
-  let filteredHooks = hookSnapshot
+  const filteredHooks = hookSnapshot
   if (povMode === 'first-person') {
     // 标记所有未在POV角色视野中提及的伏笔为"未知"
     // 这是一个轻量级处理，不做激进过滤

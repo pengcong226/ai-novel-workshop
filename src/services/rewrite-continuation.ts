@@ -21,7 +21,7 @@ import type {
 } from '@/types/rewrite-continuation'
 import type { ExtractedPlotEvent } from '@/types/deep-import'
 import { getLogger } from '@/utils/logger'
-import { AIError, toAppError, ErrorCode } from '@/utils/errors'
+import { AIError, ErrorCode } from '@/utils/errors'
 import { writeEncryptedLocalStorage, readEncryptedLocalStorage } from '@/utils/crypto'
 
 const logger = getLogger('rewrite-continuation')
