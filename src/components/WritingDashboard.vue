@@ -717,13 +717,13 @@ function getChapterPreview(chapter: Chapter): string {
 .daemon-panel {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: var(--ds-space-3);
 }
 
 .daemon-info {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: var(--ds-space-2);
 }
 
 .daemon-stat {
@@ -748,8 +748,8 @@ function getChapterPreview(chapter: Chapter): string {
 
 .daemon-actions {
   display: flex;
-  gap: 8px;
-  padding-top: 4px;
+  gap: var(--ds-space-2);
+  padding-top: var(--ds-space-1);
 }
 
 /* breakpoint: md (768px) */

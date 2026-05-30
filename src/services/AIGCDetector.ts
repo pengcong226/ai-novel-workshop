@@ -5,6 +5,7 @@
  */
 
 import { getLogger } from '@/utils/logger'
+import { NetworkError, AIError, ErrorCode } from '@/utils/errors'
 
 const logger = getLogger('service:aigc-detector')
 
@@ -127,7 +128,7 @@ export class AIGCDetector {
     const startTime = Date.now()
 
     if (!this.config.apiKey) {
-      throw new Error('GPTZero API密钥未配置')
+      throw new AIError('GPTZero API密钥未配置', { code: ErrorCode.AI_NOT_INITIALIZED })
     }
 
     const apiUrl = this.config.apiUrl || 'https://api.gptzero.me/v2/predict/text'
@@ -154,7 +155,7 @@ export class AIGCDetector {
 
       if (!response.ok) {
         const errorText = await response.text().catch(() => '未知错误')
-        throw new Error(`GPTZero API返回错误 (${response.status}): ${errorText}`)
+        throw new NetworkError(`GPTZero API返回错误 (${response.status})`, { statusCode: response.status, code: ErrorCode.API_ERROR, context: { errorText } })
       }
 
       const data = await response.json() as {
@@ -212,7 +213,7 @@ export class AIGCDetector {
     } catch (error) {
       clearTimeout(timeoutId)
       if (error instanceof Error && error.name === 'AbortError') {
-        throw new Error('GPTZero API请求超时')
+        throw new NetworkError('GPTZero API请求超时', { code: ErrorCode.REQUEST_TIMEOUT })
       }
       throw error
     }
@@ -226,7 +227,7 @@ export class AIGCDetector {
     const startTime = Date.now()
 
     if (!this.config.apiKey) {
-      throw new Error('Originality.ai API密钥未配置')
+      throw new AIError('Originality.ai API密钥未配置', { code: ErrorCode.AI_NOT_INITIALIZED })
     }
 
     const apiUrl = this.config.apiUrl || 'https://api.originality.ai/api/v1/scan/ai'
@@ -254,7 +255,7 @@ export class AIGCDetector {
 
       if (!response.ok) {
         const errorText = await response.text().catch(() => '未知错误')
-        throw new Error(`Originality.ai API返回错误 (${response.status}): ${errorText}`)
+        throw new NetworkError(`Originality.ai API返回错误 (${response.status})`, { statusCode: response.status, code: ErrorCode.API_ERROR, context: { errorText } })
       }
 
       const data = await response.json() as {
@@ -311,7 +312,7 @@ export class AIGCDetector {
     } catch (error) {
       clearTimeout(timeoutId)
       if (error instanceof Error && error.name === 'AbortError') {
-        throw new Error('Originality.ai API请求超时')
+        throw new NetworkError('Originality.ai API请求超时', { code: ErrorCode.REQUEST_TIMEOUT })
       }
       throw error
     }

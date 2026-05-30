@@ -19,6 +19,7 @@ import { ref, computed, type Ref, type ComputedRef } from 'vue'
 import type { KnowledgeEntry, KnowledgeMetadata } from '@/types/knowledge-base'
 import { KnowledgeCategory } from '@/types/knowledge-base'
 import { getLogger } from '@/utils/logger'
+import { StorageError, toAppError, ErrorCode } from '@/utils/errors'
 import { v4 as uuidv4 } from 'uuid'
 
 const logger = getLogger('knowledge:store')
@@ -148,7 +149,7 @@ export const useKnowledgeStore = defineStore('knowledge', () => {
       const projectData = await storage.loadProject(pid)
 
       if (!projectData) {
-        throw new Error('项目不存在')
+        throw new StorageError('项目不存在', { code: ErrorCode.STORAGE_NOT_FOUND })
       }
 
       // 初始化知识库（通过 project store 避免竞态）
@@ -319,7 +320,7 @@ export const useKnowledgeStore = defineStore('knowledge', () => {
     const index = entries.value.findIndex(e => e.uid === uid)
 
     if (index === -1) {
-      throw new Error(`条目不存在: ${uid}`)
+      throw new StorageError(`条目不存在: ${uid}`, { code: ErrorCode.STORAGE_NOT_FOUND, context: { uid } })
     }
 
     const updatedEntry: KnowledgeEntry = {

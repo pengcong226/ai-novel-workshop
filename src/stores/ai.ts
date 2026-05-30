@@ -20,12 +20,14 @@ import { AIService } from '@/services/ai-service'
 import type { AIServiceConfig, BudgetConfig, ChatMessage, ChatRequest, TaskContext, ChatResponse, StreamEvent } from '@/types/ai'
 import { getAIMockEnabled } from '@/utils/devFlags'
 import { getLogger } from '@/utils/logger'
+import { AIError, toAppError, ErrorCode } from '@/utils/errors'
 import { useProjectStore } from './project'
 import { useTokenUsageStore } from './tokenUsage'
 import { pluginManager } from '@/plugins/manager'
 import type { PipelineConfig } from '@/services/pipeline/types'
 import type { IntentType, IntentMatch } from '@/types/interactionIntents'
 import type { DaemonConfig, DaemonState, DaemonEvent } from '@/services/DaemonService'
+import { SlidingWindowRateLimiter } from '@/utils/rateLimiter'
 
 export const useAIStore = defineStore('ai', () => {
   const aiService: Ref<AIService | null> = shallowRef(null)
@@ -40,7 +42,11 @@ export const useAIStore = defineStore('ai', () => {
   // Key: hash of messages + context, Value: in-flight promise
   const inflightChatRequests = new Map<string, Promise<ChatResponse>>()
 
+  // ── Rate limiter for AI API calls (30 req / 60s sliding window) ──
+  const aiRateLimiter = new SlidingWindowRateLimiter({ maxRequests: 30, windowMs: 60_000 })
+
   // ── Model resolution cache (invalidated on config/override change) ──
+  const MODEL_CACHE_MAX_SIZE = 200
   let modelResolutionCacheVersion = 0
   let lastOverrideSnapshot = ''
   const modelResolutionCache = new Map<string, { version: number; model: string | null }>()
@@ -333,8 +339,12 @@ export const useAIStore = defineStore('ai', () => {
         configuredModel: configuredModel.value
       })
     } catch (e) {
-      logger.error('AI 服务初始化失败', e)
-      error.value = e instanceof Error ? e.message : 'AI服务初始化失败'
+      const err = new AIError('AI服务初始化失败', {
+        code: ErrorCode.AI_NOT_INITIALIZED,
+        cause: e instanceof Error ? e : undefined,
+      });
+      logger.error(`[${err.code}] AI 服务初始化失败:`, err.toJSON());
+      error.value = err.message
     }
   }
 
@@ -388,6 +398,13 @@ export const useAIStore = defineStore('ai', () => {
       return existing
     }
 
+    // Rate limit check
+    const rateLimitResult = aiRateLimiter.tryAcquire()
+    if (!rateLimitResult.allowed) {
+      const waitSec = Math.ceil(rateLimitResult.retryAfterMs / 1000)
+      throw new Error(`AI 请求频率超限，请在 ${waitSec} 秒后重试`)
+    }
+
     const requestContext = buildRequestContext(context, 'ai-store')
     const requestPromise = (async () => {
       try {
@@ -430,6 +447,13 @@ export const useAIStore = defineStore('ai', () => {
       if (!aiService.value) {
         throw new Error(error.value || 'AI服务未初始化')
       }
+    }
+
+    // Rate limit check
+    const rateLimitResult = aiRateLimiter.tryAcquire()
+    if (!rateLimitResult.allowed) {
+      const waitSec = Math.ceil(rateLimitResult.retryAfterMs / 1000)
+      throw new Error(`AI 请求频率超限，请在 ${waitSec} 秒后重试`)
     }
 
     const requestContext = buildRequestContext(context, 'ai-store-stream')
@@ -538,7 +562,7 @@ export const useAIStore = defineStore('ai', () => {
     // 1. 先检查 Agent 独立配置
     const override = agentModelOverrides.value[agentRole]
     if (override?.model) {
-      modelResolutionCache.set(cacheKey, { version: modelResolutionCacheVersion, model: override.model })
+      setModelCache(cacheKey, override.model)
       return override.model
     }
 
@@ -546,15 +570,26 @@ export const useAIStore = defineStore('ai', () => {
     if (config) {
       const agentConfig = config.agentConfigs?.find(c => c.role === agentRole)
       if (agentConfig?.model) {
-        modelResolutionCache.set(cacheKey, { version: modelResolutionCacheVersion, model: agentConfig.model })
+        setModelCache(cacheKey, agentConfig.model)
         return agentConfig.model
       }
     }
 
     // 3. 按角色映射到传统的模型配置
     const result = resolvePreferredModel(config, contextType, configuredModel.value)
-    modelResolutionCache.set(cacheKey, { version: modelResolutionCacheVersion, model: result })
+    setModelCache(cacheKey, result)
     return result
+  }
+
+  /** Set a cache entry with size cap enforcement (LRU eviction). */
+  function setModelCache(key: string, model: string | null): void {
+    if (modelResolutionCache.size >= MODEL_CACHE_MAX_SIZE) {
+      const firstKey = modelResolutionCache.keys().next().value
+      if (firstKey !== undefined) {
+        modelResolutionCache.delete(firstKey)
+      }
+    }
+    modelResolutionCache.set(key, { version: modelResolutionCacheVersion, model })
   }
 
   // ============================================================================
@@ -666,9 +701,9 @@ export const useAIStore = defineStore('ai', () => {
       onSuccess?.(result)
       return result
     } catch (e) {
-      const err = e instanceof Error ? e : new Error(String(e))
-      logger.error('Intent 执行失败', { intent: intent.intent, error: err.message })
-      onError?.(err)
+      const err = toAppError(e, 'Intent 执行失败', { intent: intent.intent });
+      logger.error(`[${err.code}] Intent 执行失败:`, err.toJSON());
+      onError?.(err instanceof Error ? err : new Error(err.message))
       throw err
     }
   }
@@ -679,6 +714,8 @@ export const useAIStore = defineStore('ai', () => {
 
   /** 懒加载的 DaemonService 单例 */
   let daemonServiceInstance: any = null
+  /** Tracks the daemon event subscription for cleanup */
+  let daemonEventUnsubscribe: (() => void) | null = null
 
   /**
    * 获取或创建 DaemonService 实例
@@ -708,7 +745,14 @@ export const useAIStore = defineStore('ai', () => {
   async function startDaemon(config?: Partial<DaemonConfig>): Promise<void> {
     logger.info('启动守护进程', config)
     const service = await getDaemonService()
-    service.onEvent((event: DaemonEvent) => {
+
+    // Unsubscribe previous event listener to prevent accumulation
+    if (daemonEventUnsubscribe) {
+      daemonEventUnsubscribe()
+      daemonEventUnsubscribe = null
+    }
+
+    daemonEventUnsubscribe = service.onEvent((event: DaemonEvent) => {
       daemonState.value = { ...event.state }
     })
     await service.start(config)
@@ -720,6 +764,10 @@ export const useAIStore = defineStore('ai', () => {
    */
   function stopDaemon(): void {
     logger.info('停止守护进程')
+    if (daemonEventUnsubscribe) {
+      daemonEventUnsubscribe()
+      daemonEventUnsubscribe = null
+    }
     if (daemonServiceInstance) {
       daemonServiceInstance.stop()
       daemonState.value = daemonServiceInstance.getState()
@@ -783,6 +831,14 @@ export const useAIStore = defineStore('ai', () => {
       enableHookPromotion: true,
     }
     agentModelOverrides.value = {}
+
+    // Clear growing caches and dangling references
+    modelResolutionCache.clear()
+    modelResolutionCacheVersion = 0
+    lastOverrideSnapshot = ''
+    inflightChatRequests.clear()
+    daemonServiceInstance = null
+    daemonEventUnsubscribe = null
   }
 
   return {

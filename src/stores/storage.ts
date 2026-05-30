@@ -1,6 +1,22 @@
+/**
+ * Storage service store.
+ *
+ * Provides persistence abstraction over IndexedDB (web) and Tauri IPC (desktop).
+ *
+ * ### storeToRefs usage
+ * ```ts
+ * import { useStorage } from '@/stores/storage'
+ * import { storeToRefs } from 'pinia'
+ * const { isInitialized } = storeToRefs(useStorage())
+ * ```
+ *
+ * @module stores/storage
+ */
+
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
 import { getLogger } from '@/utils/logger'
+import { StorageError, toAppError, ErrorCode } from '@/utils/errors'
 import { isWebRuntime } from '@/utils/anthropic-guard'
 import type { ChapterSnapshot } from '@/types/chapter-version'
 
@@ -734,7 +750,8 @@ class TauriStorage {
       const data: string = await invoke('load_projects_list');
       return JSON.parse(data);
     } catch (e) {
-      logger.error('加载项目列表失败:', e);
+      const err = toAppError(e, '加载项目列表失败');
+      logger.error(`[${err.code}] 加载项目列表失败:`, err.toJSON());
       return [];
     }
   }
@@ -754,7 +771,7 @@ class TauriStorage {
     try {
       await invoke('save_projects_list', { data: JSON.stringify(projectsList) });
     } catch (e) {
-      logger.error('保存项目列表失败:', e);
+      const err = toAppError(e, '保存项目列表失败'); logger.error(`[${err.code}] 保存项目列表失败:`, err.toJSON());
     }
   }
 

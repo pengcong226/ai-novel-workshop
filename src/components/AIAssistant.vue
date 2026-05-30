@@ -451,7 +451,10 @@ function deleteSuggestion(id: string): void {
 function handleSuggestionAction(suggestion: Suggestion, action: SuggestionAction): void {
   switch (action.type) {
     case 'navigate':
-      if (action.navigateTarget) window.location.hash = action.navigateTarget
+      // Validate: only allow hash-path navigations (no javascript: or data: URIs)
+      if (action.navigateTarget && !/^(javascript|data|vbscript):/i.test(action.navigateTarget)) {
+        window.location.hash = action.navigateTarget
+      }
       break
     case 'auto_fix':
       if (action.autoFixCommand) void processCommand(action.autoFixCommand)

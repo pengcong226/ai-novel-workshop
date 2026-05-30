@@ -4,6 +4,7 @@
  */
 
 import { getLogger } from '@/utils/logger'
+import { ValidationError, StorageError, ErrorCode } from '@/utils/errors'
 
 const logger = getLogger('png-parser')
 
@@ -73,12 +74,12 @@ export async function parsePngCard(input: ArrayBuffer): Promise<PngParseResult> 
  */
 function validatePngSignature(buffer: Uint8Array): void {
   if (buffer.length < 8) {
-    throw new Error('PNG文件过小')
+    throw new ValidationError('PNG文件过小', { field: 'file' })
   }
 
   for (let i = 0; i < PNG_SIGNATURE.length; i++) {
     if (buffer[i] !== PNG_SIGNATURE[i]) {
-      throw new Error('不是有效的PNG文件（签名不匹配）')
+      throw new ValidationError('不是有效的PNG文件（签名不匹配）', { field: 'file' })
     }
   }
 }
@@ -102,7 +103,7 @@ async function extractPngMetadata(buffer: Uint8Array): Promise<PngMetadata> {
 
     // 检查块是否完整
     if (dataEnd + 4 > buffer.length) {
-      throw new Error('PNG块不完整或已损坏')
+      throw new ValidationError('PNG块不完整或已损坏', { field: 'file' })
     }
 
     // IEND块表示结束

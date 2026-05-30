@@ -56,6 +56,13 @@ function xorBytes(input: Uint8Array, seed: string): Uint8Array {
 async function deriveAESKey(seed: string): Promise<CryptoKey> {
   const encoder = new TextEncoder()
   // 使用 PBKDF2 进行标准密钥派生，替代直接截取种子字符串
+  //
+  // SECURITY NOTE: The salt is APP_SECRET_SEED (a static string compiled into
+  // the bundle).  This means all deployments derive the same key for the same
+  // seed, which is acceptable because (a) the key is never transmitted over the
+  // network and (b) the seed already includes runtime-specific components via
+  // getEnvironmentSeed().  Changing the salt would break decryption of existing
+  // encrypted API keys stored in localStorage.
   const keyMaterial = await crypto.subtle.importKey(
     'raw',
     encoder.encode(seed),

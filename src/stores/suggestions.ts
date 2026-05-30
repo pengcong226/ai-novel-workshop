@@ -23,6 +23,7 @@ import { defineStore } from 'pinia'
 import { ref, computed, type Ref, type ComputedRef } from 'vue'
 import { v4 as uuidv4 } from 'uuid'
 import { getLogger } from '@/utils/logger'
+import { toAppError } from '@/utils/errors'
 import type {
   Suggestion,
   SuggestionStatus,
@@ -40,11 +41,10 @@ import type {
 const STORAGE_KEY = 'ai-novel-suggestions'
 const logger = getLogger('suggestions:store')
 
-let periodicCheckInterval: ReturnType<typeof setInterval> | null = null
-let saveTimer: ReturnType<typeof setTimeout> | null = null
-const SAVE_DEBOUNCE_MS = 500
-
 export const useSuggestionsStore = defineStore('suggestions', () => {
+  let periodicCheckInterval: ReturnType<typeof setInterval> | null = null
+  let saveTimer: ReturnType<typeof setTimeout> | null = null
+  const SAVE_DEBOUNCE_MS = 500
   // 状态
   const suggestions = ref<Suggestion[]>([])
   const queue = ref<SuggestionQueueItem[]>([])
@@ -210,7 +210,8 @@ export const useSuggestionsStore = defineStore('suggestions', () => {
         }
       }
     } catch (e) {
-      logger.error('加载存储失败:', e)
+      const err = toAppError(e, '加载建议存储失败');
+      logger.error(`[${err.code}] 加载存储失败:`, err.toJSON());
     }
   }
 
@@ -268,14 +269,20 @@ export const useSuggestionsStore = defineStore('suggestions', () => {
     }
   }
 
-  // 清理过期建议
+  // 清理过期建议和孤立队列项
   function cleanExpiredSuggestions() {
     const now = new Date()
     const before = suggestions.value.length
     suggestions.value = suggestions.value.filter(s =>
       !s.expiresAt || s.expiresAt > now
     )
-    if (suggestions.value.length < before) {
+
+    // Also prune queue items whose suggestions no longer exist
+    const suggestionIds = new Set(suggestions.value.map(s => s.id))
+    const beforeQueue = queue.value.length
+    queue.value = queue.value.filter(item => suggestionIds.has(item.id))
+
+    if (suggestions.value.length < before || queue.value.length < beforeQueue) {
       saveToStorage()
     }
   }

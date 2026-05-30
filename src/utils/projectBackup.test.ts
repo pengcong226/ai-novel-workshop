@@ -89,8 +89,8 @@ describe('projectBackup utilities', () => {
       '备份缺少 V5 沙盒数据',
     ]))
 
-    const invalid = createProjectBackup(project(), [entity('hero')], [stateEvent('event-1', 1)]) as any
-    invalid.sandbox.entities[0].type = 'INVALID'
+    const invalid = structuredClone(createProjectBackup(project(), [entity('hero')], [stateEvent('event-1', 1)]))
+    ;(invalid.sandbox.entities[0] as Record<string, unknown>).type = 'INVALID'
     expect(parseProjectBackupJson(JSON.stringify(invalid)).errors).toEqual(['备份实体数据无效'])
   })
 
@@ -119,11 +119,11 @@ describe('projectBackup utilities', () => {
     const duplicateEvent = createProjectBackup(project(), [entity('hero')], [stateEvent('event-1', 1), stateEvent('event-1', 2)])
     expect(parseProjectBackupJson(JSON.stringify(duplicateEvent)).errors).toContain('备份状态事件 ID 重复')
 
-    const mismatchedProject = createProjectBackup(project(), [entity('hero')], [stateEvent('event-1', 1)]) as any
+    const mismatchedProject = structuredClone(createProjectBackup(project(), [entity('hero')], [stateEvent('event-1', 1)]))
     mismatchedProject.sandbox.entities[0].projectId = 'other-project'
     expect(parseProjectBackupJson(JSON.stringify(mismatchedProject)).errors).toContain('备份项目 ID 不一致')
 
-    const missingEntityReference = createProjectBackup(project(), [entity('hero')], [stateEvent('event-1', 1)]) as any
+    const missingEntityReference = structuredClone(createProjectBackup(project(), [entity('hero')], [stateEvent('event-1', 1)]))
     missingEntityReference.sandbox.stateEvents[0].entityId = 'missing-entity'
     expect(parseProjectBackupJson(JSON.stringify(missingEntityReference)).errors).toContain('备份状态事件引用了不存在的实体')
   })

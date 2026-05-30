@@ -206,7 +206,7 @@ function exposeLoggerDebugTools(): void {
   }
 }
 
-export function initLogger(config?: Partial<LoggerConfig>) {
+export function initLogger(config?: Partial<LoggerConfig>): LoggerManager {
   if (config) {
     loggerManager.configure(config)
   }

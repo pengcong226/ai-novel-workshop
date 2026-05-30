@@ -25,15 +25,42 @@ function replaceControlChars(input: string, replacement: string): string {
 }
 
 const SUSPICIOUS_PATTERNS: Array<{ pattern: RegExp; message: string }> = [
+  // Chinese prompt injection
   { pattern: /忽略(?:上面|之前|上述|以上)?(?:所有)?(?:指令|要求|规则)/gi, message: '检测到疑似绕过系统指令的中文注入语句' },
   { pattern: /请无视(?:上面|之前|上述|以上)?(?:所有)?(?:指令|要求|规则)/gi, message: '检测到疑似绕过系统指令的中文注入语句' },
-  { pattern: /ignore\s+(?:all\s+)?(?:previous|above|prior)\s+(?:instructions?|rules?|prompts?)/gi, message: '检测到疑似绕过系统指令的英文注入语句' },
-  { pattern: /disregard\s+(?:all\s+)?(?:previous|above|prior)\s+(?:instructions?|rules?|prompts?)/gi, message: '检测到疑似绕过系统指令的英文注入语句' },
+  { pattern: /不要(?:遵循|遵守|执行)(?:上面|之前|上述|以上)?(?:所有)?(?:指令|要求|规则)/gi, message: '检测到疑似绕过系统指令的中文注入语句' },
+  { pattern: /你(?:现在)?(?:是|扮演)(?:一个)?(?:(?:没有|不受)(?:任何)?(?:限制|约束|规则))/gi, message: '检测到疑似角色劫持的中文注入语句' },
+  // English prompt injection
+  { pattern: /ignore\s+(?:all\s+)?(?:previous|above|prior|earlier)\s+(?:instructions?|rules?|prompts?|directives?)/gi, message: '检测到疑似绕过系统指令的英文注入语句' },
+  { pattern: /disregard\s+(?:all\s+)?(?:previous|above|prior|earlier)\s+(?:instructions?|rules?|prompts?|directives?)/gi, message: '检测到疑似绕过系统指令的英文注入语句' },
+  { pattern: /forget\s+(?:all\s+)?(?:previous|above|prior|earlier)\s+(?:instructions?|rules?|prompts?)/gi, message: '检测到疑似绕过系统指令的英文注入语句' },
+  { pattern: /override\s+(?:your\s+)?(?:instructions?|programming|rules?|safety)/gi, message: '检测到疑似绕过系统指令的英文注入语句' },
+  { pattern: /you\s+(?:are|now)\s+(?:a|an)\s+(?:unrestricted|uncensored|unfiltered)/gi, message: '检测到疑似角色劫持的英文注入语句' },
+  // System prompt probing
   { pattern: /system\s*prompt/gi, message: '检测到疑似探测系统提示词的语句' },
   { pattern: /developer\s*message/gi, message: '检测到疑似探测开发者消息的语句' },
+  { pattern: /(?:show|reveal|print|output|repeat)\s+(?:your|the)\s+(?:system|initial|original)\s+(?:prompt|instructions?)/gi, message: '检测到疑似探测系统提示词的语句' },
+  // Role tag spoofing
   { pattern: /<\/?(?:system|assistant|user|instructions?|prompt)>/gi, message: '检测到疑似伪造角色标签的语句' },
-  { pattern: /```(?:system|assistant|user|prompt)?/gi, message: '检测到疑似利用代码块注入的语句' }
+  // Code block injection
+  { pattern: /```(?:system|assistant|user|prompt)?/gi, message: '检测到疑似利用代码块注入的语句' },
+  // Encoded instruction bypass attempts
+  { pattern: /(?:decode|execute|run)\s+(?:this|the)?\s*(?:base64|hex|encoded)/gi, message: '检测到疑似编码绕过指令' },
+  { pattern: /\bDAN\b.*(?:jailbreak|mode|prompt)/gi, message: '检测到疑似DAN越狱注入语句' },
 ]
+
+/**
+ * Normalize confusable Unicode characters to their ASCII equivalents
+ * to prevent homoglyph-based prompt injection bypasses.
+ */
+function normalizeConfusables(input: string): string {
+  return input
+    // Fullwidth Latin -> ASCII (U+FF01..U+FF5E -> U+0021..U+007E)
+    .replace(/[！-～]/g, ch => String.fromCharCode(ch.charCodeAt(0) - 0xFEE0))
+    .replace(/‘|’/g, "'")   // smart single quotes -> straight
+    .replace(/“|”/g, '"')   // smart double quotes -> straight
+    .replace(/–|—/g, '-')   // en/em dash -> hyphen
+}
 
 function normalizeWhitespace(input: string, preserveLineBreaks: boolean): string {
   const cleaned = replaceControlChars(input, ' ')
@@ -54,9 +81,11 @@ function normalizeWhitespace(input: string, preserveLineBreaks: boolean): string
 
 export function validateInput(input: string): InputValidationResult {
   const warnings: string[] = []
+  // Normalize confusables before pattern matching to prevent homoglyph bypasses
+  const normalized = normalizeConfusables(input)
 
   for (const rule of SUSPICIOUS_PATTERNS) {
-    if (rule.pattern.test(input)) {
+    if (rule.pattern.test(normalized)) {
       warnings.push(rule.message)
     }
   }
@@ -80,6 +109,8 @@ export function sanitizeForPrompt(input: string, options: SanitizeOptions = {}):
   } = options
 
   let sanitized = normalizeWhitespace(input, preserveLineBreaks)
+  // Normalize confusables first, then validate against normalized text
+  sanitized = normalizeConfusables(sanitized)
   const validation = validateInput(sanitized)
 
   for (const rule of SUSPICIOUS_PATTERNS) {

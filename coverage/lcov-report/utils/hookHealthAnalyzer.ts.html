@@ -1,0 +1,1084 @@
+
+<!doctype html>
+<html lang="en">
+
+<head>
+    <title>Code coverage report for utils/hookHealthAnalyzer.ts</title>
+    <meta charset="utf-8" />
+    <link rel="stylesheet" href="../prettify.css" />
+    <link rel="stylesheet" href="../base.css" />
+    <link rel="shortcut icon" type="image/x-icon" href="../favicon.png" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <style type='text/css'>
+        .coverage-summary .sorter {
+            background-image: url(../sort-arrow-sprite.png);
+        }
+    </style>
+</head>
+    
+<body>
+<div class='wrapper'>
+    <div class='pad1'>
+        <h1><a href="../index.html">All files</a> / <a href="index.html">utils</a> hookHealthAnalyzer.ts</h1>
+        <div class='clearfix'>
+            
+            <div class='fl pad1y space-right2'>
+                <span class="strong">0% </span>
+                <span class="quiet">Statements</span>
+                <span class='fraction'>0/333</span>
+            </div>
+        
+            
+            <div class='fl pad1y space-right2'>
+                <span class="strong">0% </span>
+                <span class="quiet">Branches</span>
+                <span class='fraction'>0/1</span>
+            </div>
+        
+            
+            <div class='fl pad1y space-right2'>
+                <span class="strong">0% </span>
+                <span class="quiet">Functions</span>
+                <span class='fraction'>0/1</span>
+            </div>
+        
+            
+            <div class='fl pad1y space-right2'>
+                <span class="strong">0% </span>
+                <span class="quiet">Lines</span>
+                <span class='fraction'>0/333</span>
+            </div>
+        
+            
+        </div>
+        <p class="quiet">
+            Press <em>n</em> or <em>j</em> to go to the next uncovered block, <em>b</em>, <em>p</em> or <em>k</em> for the previous block.
+        </p>
+        <template id="filterTemplate">
+            <div class="quiet">
+                Filter:
+                <input type="search" id="fileSearch">
+            </div>
+        </template>
+    </div>
+    <div class='status-line low'></div>
+    <pre><table class="coverage">
+<tr><td class="line-count quiet"><a name='L1'></a><a href='#L1'>1</a>
+<a name='L2'></a><a href='#L2'>2</a>
+<a name='L3'></a><a href='#L3'>3</a>
+<a name='L4'></a><a href='#L4'>4</a>
+<a name='L5'></a><a href='#L5'>5</a>
+<a name='L6'></a><a href='#L6'>6</a>
+<a name='L7'></a><a href='#L7'>7</a>
+<a name='L8'></a><a href='#L8'>8</a>
+<a name='L9'></a><a href='#L9'>9</a>
+<a name='L10'></a><a href='#L10'>10</a>
+<a name='L11'></a><a href='#L11'>11</a>
+<a name='L12'></a><a href='#L12'>12</a>
+<a name='L13'></a><a href='#L13'>13</a>
+<a name='L14'></a><a href='#L14'>14</a>
+<a name='L15'></a><a href='#L15'>15</a>
+<a name='L16'></a><a href='#L16'>16</a>
+<a name='L17'></a><a href='#L17'>17</a>
+<a name='L18'></a><a href='#L18'>18</a>
+<a name='L19'></a><a href='#L19'>19</a>
+<a name='L20'></a><a href='#L20'>20</a>
+<a name='L21'></a><a href='#L21'>21</a>
+<a name='L22'></a><a href='#L22'>22</a>
+<a name='L23'></a><a href='#L23'>23</a>
+<a name='L24'></a><a href='#L24'>24</a>
+<a name='L25'></a><a href='#L25'>25</a>
+<a name='L26'></a><a href='#L26'>26</a>
+<a name='L27'></a><a href='#L27'>27</a>
+<a name='L28'></a><a href='#L28'>28</a>
+<a name='L29'></a><a href='#L29'>29</a>
+<a name='L30'></a><a href='#L30'>30</a>
+<a name='L31'></a><a href='#L31'>31</a>
+<a name='L32'></a><a href='#L32'>32</a>
+<a name='L33'></a><a href='#L33'>33</a>
+<a name='L34'></a><a href='#L34'>34</a>
+<a name='L35'></a><a href='#L35'>35</a>
+<a name='L36'></a><a href='#L36'>36</a>
+<a name='L37'></a><a href='#L37'>37</a>
+<a name='L38'></a><a href='#L38'>38</a>
+<a name='L39'></a><a href='#L39'>39</a>
+<a name='L40'></a><a href='#L40'>40</a>
+<a name='L41'></a><a href='#L41'>41</a>
+<a name='L42'></a><a href='#L42'>42</a>
+<a name='L43'></a><a href='#L43'>43</a>
+<a name='L44'></a><a href='#L44'>44</a>
+<a name='L45'></a><a href='#L45'>45</a>
+<a name='L46'></a><a href='#L46'>46</a>
+<a name='L47'></a><a href='#L47'>47</a>
+<a name='L48'></a><a href='#L48'>48</a>
+<a name='L49'></a><a href='#L49'>49</a>
+<a name='L50'></a><a href='#L50'>50</a>
+<a name='L51'></a><a href='#L51'>51</a>
+<a name='L52'></a><a href='#L52'>52</a>
+<a name='L53'></a><a href='#L53'>53</a>
+<a name='L54'></a><a href='#L54'>54</a>
+<a name='L55'></a><a href='#L55'>55</a>
+<a name='L56'></a><a href='#L56'>56</a>
+<a name='L57'></a><a href='#L57'>57</a>
+<a name='L58'></a><a href='#L58'>58</a>
+<a name='L59'></a><a href='#L59'>59</a>
+<a name='L60'></a><a href='#L60'>60</a>
+<a name='L61'></a><a href='#L61'>61</a>
+<a name='L62'></a><a href='#L62'>62</a>
+<a name='L63'></a><a href='#L63'>63</a>
+<a name='L64'></a><a href='#L64'>64</a>
+<a name='L65'></a><a href='#L65'>65</a>
+<a name='L66'></a><a href='#L66'>66</a>
+<a name='L67'></a><a href='#L67'>67</a>
+<a name='L68'></a><a href='#L68'>68</a>
+<a name='L69'></a><a href='#L69'>69</a>
+<a name='L70'></a><a href='#L70'>70</a>
+<a name='L71'></a><a href='#L71'>71</a>
+<a name='L72'></a><a href='#L72'>72</a>
+<a name='L73'></a><a href='#L73'>73</a>
+<a name='L74'></a><a href='#L74'>74</a>
+<a name='L75'></a><a href='#L75'>75</a>
+<a name='L76'></a><a href='#L76'>76</a>
+<a name='L77'></a><a href='#L77'>77</a>
+<a name='L78'></a><a href='#L78'>78</a>
+<a name='L79'></a><a href='#L79'>79</a>
+<a name='L80'></a><a href='#L80'>80</a>
+<a name='L81'></a><a href='#L81'>81</a>
+<a name='L82'></a><a href='#L82'>82</a>
+<a name='L83'></a><a href='#L83'>83</a>
+<a name='L84'></a><a href='#L84'>84</a>
+<a name='L85'></a><a href='#L85'>85</a>
+<a name='L86'></a><a href='#L86'>86</a>
+<a name='L87'></a><a href='#L87'>87</a>
+<a name='L88'></a><a href='#L88'>88</a>
+<a name='L89'></a><a href='#L89'>89</a>
+<a name='L90'></a><a href='#L90'>90</a>
+<a name='L91'></a><a href='#L91'>91</a>
+<a name='L92'></a><a href='#L92'>92</a>
+<a name='L93'></a><a href='#L93'>93</a>
+<a name='L94'></a><a href='#L94'>94</a>
+<a name='L95'></a><a href='#L95'>95</a>
+<a name='L96'></a><a href='#L96'>96</a>
+<a name='L97'></a><a href='#L97'>97</a>
+<a name='L98'></a><a href='#L98'>98</a>
+<a name='L99'></a><a href='#L99'>99</a>
+<a name='L100'></a><a href='#L100'>100</a>
+<a name='L101'></a><a href='#L101'>101</a>
+<a name='L102'></a><a href='#L102'>102</a>
+<a name='L103'></a><a href='#L103'>103</a>
+<a name='L104'></a><a href='#L104'>104</a>
+<a name='L105'></a><a href='#L105'>105</a>
+<a name='L106'></a><a href='#L106'>106</a>
+<a name='L107'></a><a href='#L107'>107</a>
+<a name='L108'></a><a href='#L108'>108</a>
+<a name='L109'></a><a href='#L109'>109</a>
+<a name='L110'></a><a href='#L110'>110</a>
+<a name='L111'></a><a href='#L111'>111</a>
+<a name='L112'></a><a href='#L112'>112</a>
+<a name='L113'></a><a href='#L113'>113</a>
+<a name='L114'></a><a href='#L114'>114</a>
+<a name='L115'></a><a href='#L115'>115</a>
+<a name='L116'></a><a href='#L116'>116</a>
+<a name='L117'></a><a href='#L117'>117</a>
+<a name='L118'></a><a href='#L118'>118</a>
+<a name='L119'></a><a href='#L119'>119</a>
+<a name='L120'></a><a href='#L120'>120</a>
+<a name='L121'></a><a href='#L121'>121</a>
+<a name='L122'></a><a href='#L122'>122</a>
+<a name='L123'></a><a href='#L123'>123</a>
+<a name='L124'></a><a href='#L124'>124</a>
+<a name='L125'></a><a href='#L125'>125</a>
+<a name='L126'></a><a href='#L126'>126</a>
+<a name='L127'></a><a href='#L127'>127</a>
+<a name='L128'></a><a href='#L128'>128</a>
+<a name='L129'></a><a href='#L129'>129</a>
+<a name='L130'></a><a href='#L130'>130</a>
+<a name='L131'></a><a href='#L131'>131</a>
+<a name='L132'></a><a href='#L132'>132</a>
+<a name='L133'></a><a href='#L133'>133</a>
+<a name='L134'></a><a href='#L134'>134</a>
+<a name='L135'></a><a href='#L135'>135</a>
+<a name='L136'></a><a href='#L136'>136</a>
+<a name='L137'></a><a href='#L137'>137</a>
+<a name='L138'></a><a href='#L138'>138</a>
+<a name='L139'></a><a href='#L139'>139</a>
+<a name='L140'></a><a href='#L140'>140</a>
+<a name='L141'></a><a href='#L141'>141</a>
+<a name='L142'></a><a href='#L142'>142</a>
+<a name='L143'></a><a href='#L143'>143</a>
+<a name='L144'></a><a href='#L144'>144</a>
+<a name='L145'></a><a href='#L145'>145</a>
+<a name='L146'></a><a href='#L146'>146</a>
+<a name='L147'></a><a href='#L147'>147</a>
+<a name='L148'></a><a href='#L148'>148</a>
+<a name='L149'></a><a href='#L149'>149</a>
+<a name='L150'></a><a href='#L150'>150</a>
+<a name='L151'></a><a href='#L151'>151</a>
+<a name='L152'></a><a href='#L152'>152</a>
+<a name='L153'></a><a href='#L153'>153</a>
+<a name='L154'></a><a href='#L154'>154</a>
+<a name='L155'></a><a href='#L155'>155</a>
+<a name='L156'></a><a href='#L156'>156</a>
+<a name='L157'></a><a href='#L157'>157</a>
+<a name='L158'></a><a href='#L158'>158</a>
+<a name='L159'></a><a href='#L159'>159</a>
+<a name='L160'></a><a href='#L160'>160</a>
+<a name='L161'></a><a href='#L161'>161</a>
+<a name='L162'></a><a href='#L162'>162</a>
+<a name='L163'></a><a href='#L163'>163</a>
+<a name='L164'></a><a href='#L164'>164</a>
+<a name='L165'></a><a href='#L165'>165</a>
+<a name='L166'></a><a href='#L166'>166</a>
+<a name='L167'></a><a href='#L167'>167</a>
+<a name='L168'></a><a href='#L168'>168</a>
+<a name='L169'></a><a href='#L169'>169</a>
+<a name='L170'></a><a href='#L170'>170</a>
+<a name='L171'></a><a href='#L171'>171</a>
+<a name='L172'></a><a href='#L172'>172</a>
+<a name='L173'></a><a href='#L173'>173</a>
+<a name='L174'></a><a href='#L174'>174</a>
+<a name='L175'></a><a href='#L175'>175</a>
+<a name='L176'></a><a href='#L176'>176</a>
+<a name='L177'></a><a href='#L177'>177</a>
+<a name='L178'></a><a href='#L178'>178</a>
+<a name='L179'></a><a href='#L179'>179</a>
+<a name='L180'></a><a href='#L180'>180</a>
+<a name='L181'></a><a href='#L181'>181</a>
+<a name='L182'></a><a href='#L182'>182</a>
+<a name='L183'></a><a href='#L183'>183</a>
+<a name='L184'></a><a href='#L184'>184</a>
+<a name='L185'></a><a href='#L185'>185</a>
+<a name='L186'></a><a href='#L186'>186</a>
+<a name='L187'></a><a href='#L187'>187</a>
+<a name='L188'></a><a href='#L188'>188</a>
+<a name='L189'></a><a href='#L189'>189</a>
+<a name='L190'></a><a href='#L190'>190</a>
+<a name='L191'></a><a href='#L191'>191</a>
+<a name='L192'></a><a href='#L192'>192</a>
+<a name='L193'></a><a href='#L193'>193</a>
+<a name='L194'></a><a href='#L194'>194</a>
+<a name='L195'></a><a href='#L195'>195</a>
+<a name='L196'></a><a href='#L196'>196</a>
+<a name='L197'></a><a href='#L197'>197</a>
+<a name='L198'></a><a href='#L198'>198</a>
+<a name='L199'></a><a href='#L199'>199</a>
+<a name='L200'></a><a href='#L200'>200</a>
+<a name='L201'></a><a href='#L201'>201</a>
+<a name='L202'></a><a href='#L202'>202</a>
+<a name='L203'></a><a href='#L203'>203</a>
+<a name='L204'></a><a href='#L204'>204</a>
+<a name='L205'></a><a href='#L205'>205</a>
+<a name='L206'></a><a href='#L206'>206</a>
+<a name='L207'></a><a href='#L207'>207</a>
+<a name='L208'></a><a href='#L208'>208</a>
+<a name='L209'></a><a href='#L209'>209</a>
+<a name='L210'></a><a href='#L210'>210</a>
+<a name='L211'></a><a href='#L211'>211</a>
+<a name='L212'></a><a href='#L212'>212</a>
+<a name='L213'></a><a href='#L213'>213</a>
+<a name='L214'></a><a href='#L214'>214</a>
+<a name='L215'></a><a href='#L215'>215</a>
+<a name='L216'></a><a href='#L216'>216</a>
+<a name='L217'></a><a href='#L217'>217</a>
+<a name='L218'></a><a href='#L218'>218</a>
+<a name='L219'></a><a href='#L219'>219</a>
+<a name='L220'></a><a href='#L220'>220</a>
+<a name='L221'></a><a href='#L221'>221</a>
+<a name='L222'></a><a href='#L222'>222</a>
+<a name='L223'></a><a href='#L223'>223</a>
+<a name='L224'></a><a href='#L224'>224</a>
+<a name='L225'></a><a href='#L225'>225</a>
+<a name='L226'></a><a href='#L226'>226</a>
+<a name='L227'></a><a href='#L227'>227</a>
+<a name='L228'></a><a href='#L228'>228</a>
+<a name='L229'></a><a href='#L229'>229</a>
+<a name='L230'></a><a href='#L230'>230</a>
+<a name='L231'></a><a href='#L231'>231</a>
+<a name='L232'></a><a href='#L232'>232</a>
+<a name='L233'></a><a href='#L233'>233</a>
+<a name='L234'></a><a href='#L234'>234</a>
+<a name='L235'></a><a href='#L235'>235</a>
+<a name='L236'></a><a href='#L236'>236</a>
+<a name='L237'></a><a href='#L237'>237</a>
+<a name='L238'></a><a href='#L238'>238</a>
+<a name='L239'></a><a href='#L239'>239</a>
+<a name='L240'></a><a href='#L240'>240</a>
+<a name='L241'></a><a href='#L241'>241</a>
+<a name='L242'></a><a href='#L242'>242</a>
+<a name='L243'></a><a href='#L243'>243</a>
+<a name='L244'></a><a href='#L244'>244</a>
+<a name='L245'></a><a href='#L245'>245</a>
+<a name='L246'></a><a href='#L246'>246</a>
+<a name='L247'></a><a href='#L247'>247</a>
+<a name='L248'></a><a href='#L248'>248</a>
+<a name='L249'></a><a href='#L249'>249</a>
+<a name='L250'></a><a href='#L250'>250</a>
+<a name='L251'></a><a href='#L251'>251</a>
+<a name='L252'></a><a href='#L252'>252</a>
+<a name='L253'></a><a href='#L253'>253</a>
+<a name='L254'></a><a href='#L254'>254</a>
+<a name='L255'></a><a href='#L255'>255</a>
+<a name='L256'></a><a href='#L256'>256</a>
+<a name='L257'></a><a href='#L257'>257</a>
+<a name='L258'></a><a href='#L258'>258</a>
+<a name='L259'></a><a href='#L259'>259</a>
+<a name='L260'></a><a href='#L260'>260</a>
+<a name='L261'></a><a href='#L261'>261</a>
+<a name='L262'></a><a href='#L262'>262</a>
+<a name='L263'></a><a href='#L263'>263</a>
+<a name='L264'></a><a href='#L264'>264</a>
+<a name='L265'></a><a href='#L265'>265</a>
+<a name='L266'></a><a href='#L266'>266</a>
+<a name='L267'></a><a href='#L267'>267</a>
+<a name='L268'></a><a href='#L268'>268</a>
+<a name='L269'></a><a href='#L269'>269</a>
+<a name='L270'></a><a href='#L270'>270</a>
+<a name='L271'></a><a href='#L271'>271</a>
+<a name='L272'></a><a href='#L272'>272</a>
+<a name='L273'></a><a href='#L273'>273</a>
+<a name='L274'></a><a href='#L274'>274</a>
+<a name='L275'></a><a href='#L275'>275</a>
+<a name='L276'></a><a href='#L276'>276</a>
+<a name='L277'></a><a href='#L277'>277</a>
+<a name='L278'></a><a href='#L278'>278</a>
+<a name='L279'></a><a href='#L279'>279</a>
+<a name='L280'></a><a href='#L280'>280</a>
+<a name='L281'></a><a href='#L281'>281</a>
+<a name='L282'></a><a href='#L282'>282</a>
+<a name='L283'></a><a href='#L283'>283</a>
+<a name='L284'></a><a href='#L284'>284</a>
+<a name='L285'></a><a href='#L285'>285</a>
+<a name='L286'></a><a href='#L286'>286</a>
+<a name='L287'></a><a href='#L287'>287</a>
+<a name='L288'></a><a href='#L288'>288</a>
+<a name='L289'></a><a href='#L289'>289</a>
+<a name='L290'></a><a href='#L290'>290</a>
+<a name='L291'></a><a href='#L291'>291</a>
+<a name='L292'></a><a href='#L292'>292</a>
+<a name='L293'></a><a href='#L293'>293</a>
+<a name='L294'></a><a href='#L294'>294</a>
+<a name='L295'></a><a href='#L295'>295</a>
+<a name='L296'></a><a href='#L296'>296</a>
+<a name='L297'></a><a href='#L297'>297</a>
+<a name='L298'></a><a href='#L298'>298</a>
+<a name='L299'></a><a href='#L299'>299</a>
+<a name='L300'></a><a href='#L300'>300</a>
+<a name='L301'></a><a href='#L301'>301</a>
+<a name='L302'></a><a href='#L302'>302</a>
+<a name='L303'></a><a href='#L303'>303</a>
+<a name='L304'></a><a href='#L304'>304</a>
+<a name='L305'></a><a href='#L305'>305</a>
+<a name='L306'></a><a href='#L306'>306</a>
+<a name='L307'></a><a href='#L307'>307</a>
+<a name='L308'></a><a href='#L308'>308</a>
+<a name='L309'></a><a href='#L309'>309</a>
+<a name='L310'></a><a href='#L310'>310</a>
+<a name='L311'></a><a href='#L311'>311</a>
+<a name='L312'></a><a href='#L312'>312</a>
+<a name='L313'></a><a href='#L313'>313</a>
+<a name='L314'></a><a href='#L314'>314</a>
+<a name='L315'></a><a href='#L315'>315</a>
+<a name='L316'></a><a href='#L316'>316</a>
+<a name='L317'></a><a href='#L317'>317</a>
+<a name='L318'></a><a href='#L318'>318</a>
+<a name='L319'></a><a href='#L319'>319</a>
+<a name='L320'></a><a href='#L320'>320</a>
+<a name='L321'></a><a href='#L321'>321</a>
+<a name='L322'></a><a href='#L322'>322</a>
+<a name='L323'></a><a href='#L323'>323</a>
+<a name='L324'></a><a href='#L324'>324</a>
+<a name='L325'></a><a href='#L325'>325</a>
+<a name='L326'></a><a href='#L326'>326</a>
+<a name='L327'></a><a href='#L327'>327</a>
+<a name='L328'></a><a href='#L328'>328</a>
+<a name='L329'></a><a href='#L329'>329</a>
+<a name='L330'></a><a href='#L330'>330</a>
+<a name='L331'></a><a href='#L331'>331</a>
+<a name='L332'></a><a href='#L332'>332</a>
+<a name='L333'></a><a href='#L333'>333</a>
+<a name='L334'></a><a href='#L334'>334</a></td><td class="line-coverage quiet"><span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span></td><td class="text"><pre class="prettyprint lang-js"><span class="cstat-no" title="statement not covered" >/**<span class="fstat-no" title="function not covered" ><span class="branch-0 cbranch-no" title="branch not covered" ></span></span></span>
+<span class="cstat-no" title="statement not covered" > * 伏笔健康分析器 (Hook Health Analyzer)</span>
+<span class="cstat-no" title="statement not covered" > *</span>
+<span class="cstat-no" title="statement not covered" > * 借鉴 InkOS 的伏笔健康系统，为 Pipeline 增加伏笔追踪能力：</span>
+<span class="cstat-no" title="statement not covered" > * - 过期检测（stale）：伏笔埋设超过半衰期未推进</span>
+<span class="cstat-no" title="statement not covered" > * - 阻塞检测（blocked）：上游依赖伏笔未解决</span>
+<span class="cstat-no" title="statement not covered" > * - 生命周期追踪：planted → advanced → stale/blocked → resolved</span>
+<span class="cstat-no" title="statement not covered" > * - 健康评分：活跃伏笔上限、新开伏笔速率控制</span>
+<span class="cstat-no" title="statement not covered" > */</span>
+<span class="cstat-no" title="statement not covered" ></span>
+<span class="cstat-no" title="statement not covered" >import { getLogger } from '@/utils/logger'</span>
+<span class="cstat-no" title="statement not covered" ></span>
+<span class="cstat-no" title="statement not covered" >const logger = getLogger('utils:hook-health')</span>
+<span class="cstat-no" title="statement not covered" ></span>
+<span class="cstat-no" title="statement not covered" >// ============================================================================</span>
+<span class="cstat-no" title="statement not covered" >// 配置常量</span>
+<span class="cstat-no" title="statement not covered" >// ============================================================================</span>
+<span class="cstat-no" title="statement not covered" ></span>
+<span class="cstat-no" title="statement not covered" >/** 活跃伏笔建议上限 */</span>
+<span class="cstat-no" title="statement not covered" >const MAX_ACTIVE_HOOKS = 15</span>
+<span class="cstat-no" title="statement not covered" ></span>
+<span class="cstat-no" title="statement not covered" >/** 伏笔超过此章数未推进则标记为 stale */</span>
+<span class="cstat-no" title="statement not covered" >const STALE_AFTER_CHAPTERS = 10</span>
+<span class="cstat-no" title="statement not covered" ></span>
+<span class="cstat-no" title="statement not covered" >/** 连续 N 章无真实推进则告警 */</span>
+<span class="cstat-no" title="statement not covered" >const NO_ADVANCE_WINDOW = 5</span>
+<span class="cstat-no" title="statement not covered" ></span>
+<span class="cstat-no" title="statement not covered" >/** 单章新开伏笔爆发阈值 */</span>
+<span class="cstat-no" title="statement not covered" >const NEW_HOOK_BURST_THRESHOLD = 3</span>
+<span class="cstat-no" title="statement not covered" ></span>
+<span class="cstat-no" title="statement not covered" >/** 不同生命周期阶段对应的半衰期（章数） */</span>
+<span class="cstat-no" title="statement not covered" >const HALF_LIFE_BY_TIMING: Record&lt;string, number&gt; = {</span>
+<span class="cstat-no" title="statement not covered" >  immediate: 3,</span>
+<span class="cstat-no" title="statement not covered" >  'near-term': 8,</span>
+<span class="cstat-no" title="statement not covered" >  'mid-arc': 15,</span>
+<span class="cstat-no" title="statement not covered" >  'slow-burn': 25,</span>
+<span class="cstat-no" title="statement not covered" >  endgame: 40,</span>
+<span class="cstat-no" title="statement not covered" >  default: 12,</span>
+<span class="cstat-no" title="statement not covered" >}</span>
+<span class="cstat-no" title="statement not covered" ></span>
+<span class="cstat-no" title="statement not covered" >// ============================================================================</span>
+<span class="cstat-no" title="statement not covered" >// 类型定义</span>
+<span class="cstat-no" title="statement not covered" >// ============================================================================</span>
+<span class="cstat-no" title="statement not covered" ></span>
+<span class="cstat-no" title="statement not covered" >export interface HookHealthInput {</span>
+<span class="cstat-no" title="statement not covered" >  hookId: string</span>
+<span class="cstat-no" title="statement not covered" >  content: string</span>
+<span class="cstat-no" title="statement not covered" >  status: string</span>
+<span class="cstat-no" title="statement not covered" >  startChapter: number</span>
+<span class="cstat-no" title="statement not covered" >  lastAdvancedChapter: number</span>
+<span class="cstat-no" title="statement not covered" >  advanceCount: number</span>
+<span class="cstat-no" title="statement not covered" >  payoffTiming?: string</span>
+<span class="cstat-no" title="statement not covered" >  dependsOn?: string[]</span>
+<span class="cstat-no" title="statement not covered" >  coreHook?: boolean</span>
+<span class="cstat-no" title="statement not covered" >}</span>
+<span class="cstat-no" title="statement not covered" ></span>
+<span class="cstat-no" title="statement not covered" >export interface HookDiagnostics {</span>
+<span class="cstat-no" title="statement not covered" >  hookId: string</span>
+<span class="cstat-no" title="statement not covered" >  stale: boolean</span>
+<span class="cstat-no" title="statement not covered" >  blocked: boolean</span>
+<span class="cstat-no" title="statement not covered" >  missingUpstream: string[]</span>
+<span class="cstat-no" title="statement not covered" >  distance: number</span>
+<span class="cstat-no" title="statement not covered" >  halfLife: number</span>
+<span class="cstat-no" title="statement not covered" >  blockedDistance: number</span>
+<span class="cstat-no" title="statement not covered" >  phase: 'opening' | 'middle' | 'late'</span>
+<span class="cstat-no" title="statement not covered" >  age: number</span>
+<span class="cstat-no" title="statement not covered" >  dormancy: number</span>
+<span class="cstat-no" title="statement not covered" >  readyToResolve: boolean</span>
+<span class="cstat-no" title="statement not covered" >  overdue: boolean</span>
+<span class="cstat-no" title="statement not covered" >  advancePressure: number</span>
+<span class="cstat-no" title="statement not covered" >  resolvePressure: number</span>
+<span class="cstat-no" title="statement not covered" >}</span>
+<span class="cstat-no" title="statement not covered" ></span>
+<span class="cstat-no" title="statement not covered" >export interface HookHealthResult {</span>
+<span class="cstat-no" title="statement not covered" >  diagnostics: Map&lt;string, HookDiagnostics&gt;</span>
+<span class="cstat-no" title="statement not covered" >  issues: HookHealthIssue[]</span>
+<span class="cstat-no" title="statement not covered" >  stats: {</span>
+<span class="cstat-no" title="statement not covered" >    activeCount: number</span>
+<span class="cstat-no" title="statement not covered" >    staleCount: number</span>
+<span class="cstat-no" title="statement not covered" >    blockedCount: number</span>
+<span class="cstat-no" title="statement not covered" >    readyToResolveCount: number</span>
+<span class="cstat-no" title="statement not covered" >    overdueCount: number</span>
+<span class="cstat-no" title="statement not covered" >    healthScore: number  // 0-100</span>
+<span class="cstat-no" title="statement not covered" >  }</span>
+<span class="cstat-no" title="statement not covered" >}</span>
+<span class="cstat-no" title="statement not covered" ></span>
+<span class="cstat-no" title="statement not covered" >export interface HookHealthIssue {</span>
+<span class="cstat-no" title="statement not covered" >  severity: 'critical' | 'warning' | 'info'</span>
+<span class="cstat-no" title="statement not covered" >  category: string</span>
+<span class="cstat-no" title="statement not covered" >  description: string</span>
+<span class="cstat-no" title="statement not covered" >  suggestion: string</span>
+<span class="cstat-no" title="statement not covered" >}</span>
+<span class="cstat-no" title="statement not covered" ></span>
+<span class="cstat-no" title="statement not covered" >// ============================================================================</span>
+<span class="cstat-no" title="statement not covered" >// 核心分析函数</span>
+<span class="cstat-no" title="statement not covered" >// ============================================================================</span>
+<span class="cstat-no" title="statement not covered" ></span>
+<span class="cstat-no" title="statement not covered" >/**</span>
+<span class="cstat-no" title="statement not covered" > * 分析伏笔健康状态</span>
+<span class="cstat-no" title="statement not covered" > */</span>
+<span class="cstat-no" title="statement not covered" >export function analyzeHookHealth(params: {</span>
+<span class="cstat-no" title="statement not covered" >  hooks: HookHealthInput[]</span>
+<span class="cstat-no" title="statement not covered" >  currentChapter: number</span>
+<span class="cstat-no" title="statement not covered" >  targetChapters?: number</span>
+<span class="cstat-no" title="statement not covered" >  newHooksThisChapter?: number</span>
+<span class="cstat-no" title="statement not covered" >  resolvedHooksThisChapter?: number</span>
+<span class="cstat-no" title="statement not covered" >}): HookHealthResult {</span>
+<span class="cstat-no" title="statement not covered" >  const {</span>
+<span class="cstat-no" title="statement not covered" >    hooks,</span>
+<span class="cstat-no" title="statement not covered" >    currentChapter,</span>
+<span class="cstat-no" title="statement not covered" >    targetChapters,</span>
+<span class="cstat-no" title="statement not covered" >    newHooksThisChapter = 0,</span>
+<span class="cstat-no" title="statement not covered" >    resolvedHooksThisChapter = 0,</span>
+<span class="cstat-no" title="statement not covered" >  } = params</span>
+<span class="cstat-no" title="statement not covered" ></span>
+<span class="cstat-no" title="statement not covered" >  const issues: HookHealthIssue[] = []</span>
+<span class="cstat-no" title="statement not covered" >  const diagnostics = new Map&lt;string, HookDiagnostics&gt;()</span>
+<span class="cstat-no" title="statement not covered" ></span>
+<span class="cstat-no" title="statement not covered" >  // 建立 hookId 索引</span>
+<span class="cstat-no" title="statement not covered" >  const byId = new Map&lt;string, HookHealthInput&gt;()</span>
+<span class="cstat-no" title="statement not covered" >  for (const hook of hooks) {</span>
+<span class="cstat-no" title="statement not covered" >    byId.set(hook.hookId, hook)</span>
+<span class="cstat-no" title="statement not covered" >  }</span>
+<span class="cstat-no" title="statement not covered" ></span>
+<span class="cstat-no" title="statement not covered" >  // 计算每个伏笔的诊断信息</span>
+<span class="cstat-no" title="statement not covered" >  for (const hook of hooks) {</span>
+<span class="cstat-no" title="statement not covered" >    const diag = computeSingleDiagnostics(hook, currentChapter, targetChapters, byId)</span>
+<span class="cstat-no" title="statement not covered" >    diagnostics.set(hook.hookId, diag)</span>
+<span class="cstat-no" title="statement not covered" >  }</span>
+<span class="cstat-no" title="statement not covered" ></span>
+<span class="cstat-no" title="statement not covered" >  // 统计</span>
+<span class="cstat-no" title="statement not covered" >  const activeHooks = hooks.filter(h =&gt; !isResolved(h.status))</span>
+<span class="cstat-no" title="statement not covered" >  const activeCount = activeHooks.length</span>
+<span class="cstat-no" title="statement not covered" >  let staleCount = 0</span>
+<span class="cstat-no" title="statement not covered" >  let blockedCount = 0</span>
+<span class="cstat-no" title="statement not covered" >  let readyToResolveCount = 0</span>
+<span class="cstat-no" title="statement not covered" >  let overdueCount = 0</span>
+<span class="cstat-no" title="statement not covered" ></span>
+<span class="cstat-no" title="statement not covered" >  for (const diag of diagnostics.values()) {</span>
+<span class="cstat-no" title="statement not covered" >    if (diag.stale) staleCount++</span>
+<span class="cstat-no" title="statement not covered" >    if (diag.blocked) blockedCount++</span>
+<span class="cstat-no" title="statement not covered" >    if (diag.readyToResolve) readyToResolveCount++</span>
+<span class="cstat-no" title="statement not covered" >    if (diag.overdue) overdueCount++</span>
+<span class="cstat-no" title="statement not covered" >  }</span>
+<span class="cstat-no" title="statement not covered" ></span>
+<span class="cstat-no" title="statement not covered" >  // ---- 检查 1：活跃伏笔超限 ----</span>
+<span class="cstat-no" title="statement not covered" >  if (activeCount &gt; MAX_ACTIVE_HOOKS) {</span>
+<span class="cstat-no" title="statement not covered" >    issues.push({</span>
+<span class="cstat-no" title="statement not covered" >      severity: 'warning',</span>
+<span class="cstat-no" title="statement not covered" >      category: '伏笔债务',</span>
+<span class="cstat-no" title="statement not covered" >      description: `当前有 ${activeCount} 个活跃伏笔，超过建议上限 ${MAX_ACTIVE_HOOKS} 个。`,</span>
+<span class="cstat-no" title="statement not covered" >      suggestion: '优先推进、回收或延后已有伏笔，再继续开新伏笔。',</span>
+<span class="cstat-no" title="statement not covered" >    })</span>
+<span class="cstat-no" title="statement not covered" >  }</span>
+<span class="cstat-no" title="statement not covered" ></span>
+<span class="cstat-no" title="statement not covered" >  // ---- 检查 2：过期伏笔压力 ----</span>
+<span class="cstat-no" title="statement not covered" >  const staleHooks = activeHooks.filter(h =&gt; {</span>
+<span class="cstat-no" title="statement not covered" >    const diag = diagnostics.get(h.hookId)</span>
+<span class="cstat-no" title="statement not covered" >    return diag?.stale || diag?.overdue || diag?.readyToResolve</span>
+<span class="cstat-no" title="statement not covered" >  })</span>
+<span class="cstat-no" title="statement not covered" >  if (staleHooks.length &gt; 0) {</span>
+<span class="cstat-no" title="statement not covered" >    const summaries = staleHooks.slice(0, 3).map(h =&gt; {</span>
+<span class="cstat-no" title="statement not covered" >      const diag = diagnostics.get(h.hookId)!</span>
+<span class="cstat-no" title="statement not covered" >      const label = diag.overdue ? '已逾期' : diag.readyToResolve ? '可回收' : '陈旧'</span>
+<span class="cstat-no" title="statement not covered" >      return `${h.content.slice(0, 20)}…（距=${diag.distance}/半衰=${diag.halfLife}，${label}）`</span>
+<span class="cstat-no" title="statement not covered" >    })</span>
+<span class="cstat-no" title="statement not covered" >    const suffix = staleHooks.length &gt; 3 ? `，另有 ${staleHooks.length - 3} 条` : ''</span>
+<span class="cstat-no" title="statement not covered" >    issues.push({</span>
+<span class="cstat-no" title="statement not covered" >      severity: 'warning',</span>
+<span class="cstat-no" title="statement not covered" >      category: '伏笔债务',</span>
+<span class="cstat-no" title="statement not covered" >      description: `这些伏笔已进入回收/推进压力：${summaries.join('、')}${suffix}。`,</span>
+<span class="cstat-no" title="statement not covered" >      suggestion: '先让一个已进入压力区的伏笔发生真实推进、回收或明确延后。',</span>
+<span class="cstat-no" title="statement not covered" >    })</span>
+<span class="cstat-no" title="statement not covered" >  }</span>
+<span class="cstat-no" title="statement not covered" ></span>
+<span class="cstat-no" title="statement not covered" >  // ---- 检查 3：连续无推进 ----</span>
+<span class="cstat-no" title="statement not covered" >  if (activeHooks.length &gt; 0) {</span>
+<span class="cstat-no" title="statement not covered" >    const latestAdvance = activeHooks.reduce(</span>
+<span class="cstat-no" title="statement not covered" >      (max, h) =&gt; Math.max(max, h.lastAdvancedChapter),</span>
+<span class="cstat-no" title="statement not covered" >      0,</span>
+<span class="cstat-no" title="statement not covered" >    )</span>
+<span class="cstat-no" title="statement not covered" >    const noAdvanceGap = currentChapter - latestAdvance</span>
+<span class="cstat-no" title="statement not covered" >    if (noAdvanceGap &gt;= NO_ADVANCE_WINDOW) {</span>
+<span class="cstat-no" title="statement not covered" >      issues.push({</span>
+<span class="cstat-no" title="statement not covered" >        severity: 'warning',</span>
+<span class="cstat-no" title="statement not covered" >        category: '伏笔债务',</span>
+<span class="cstat-no" title="statement not covered" >        description: `已经连续 ${noAdvanceGap} 章没有真实伏笔推进。`,</span>
+<span class="cstat-no" title="statement not covered" >        suggestion: '下一章优先让一个旧伏笔发生真实推进。',</span>
+<span class="cstat-no" title="statement not covered" >      })</span>
+<span class="cstat-no" title="statement not covered" >    }</span>
+<span class="cstat-no" title="statement not covered" >  }</span>
+<span class="cstat-no" title="statement not covered" ></span>
+<span class="cstat-no" title="statement not covered" >  // ---- 检查 4：新开伏笔爆发 ----</span>
+<span class="cstat-no" title="statement not covered" >  if (newHooksThisChapter &gt;= NEW_HOOK_BURST_THRESHOLD &amp;&amp; resolvedHooksThisChapter === 0) {</span>
+<span class="cstat-no" title="statement not covered" >    issues.push({</span>
+<span class="cstat-no" title="statement not covered" >      severity: 'info',</span>
+<span class="cstat-no" title="statement not covered" >      category: '伏笔债务',</span>
+<span class="cstat-no" title="statement not covered" >      description: `本章新开了 ${newHooksThisChapter} 个伏笔，但没有回收任何旧债。`,</span>
+<span class="cstat-no" title="statement not covered" >      suggestion: '控制伏笔膨胀，新开伏笔时尽量配套回收旧伏笔。',</span>
+<span class="cstat-no" title="statement not covered" >    })</span>
+<span class="cstat-no" title="statement not covered" >  }</span>
+<span class="cstat-no" title="statement not covered" ></span>
+<span class="cstat-no" title="statement not covered" >  // ---- 检查 5：阻塞伏笔 ----</span>
+<span class="cstat-no" title="statement not covered" >  const blockedHooks = activeHooks.filter(h =&gt; diagnostics.get(h.hookId)?.blocked)</span>
+<span class="cstat-no" title="statement not covered" >  if (blockedHooks.length &gt; 0) {</span>
+<span class="cstat-no" title="statement not covered" >    for (const h of blockedHooks.slice(0, 2)) {</span>
+<span class="cstat-no" title="statement not covered" >      const diag = diagnostics.get(h.hookId)!</span>
+<span class="cstat-no" title="statement not covered" >      if (diag.blockedDistance &gt;= 5) {</span>
+<span class="cstat-no" title="statement not covered" >        issues.push({</span>
+<span class="cstat-no" title="statement not covered" >          severity: 'warning',</span>
+<span class="cstat-no" title="statement not covered" >          category: '伏笔阻塞',</span>
+<span class="cstat-no" title="statement not covered" >          description: `伏笔「${h.content.slice(0, 30)}」受阻于上游 [${diag.missingUpstream.join(', ')}]，已阻塞 ${diag.blockedDistance} 章。`,</span>
+<span class="cstat-no" title="statement not covered" >          suggestion: '优先解决上游伏笔，或标记下游伏笔为延后。',</span>
+<span class="cstat-no" title="statement not covered" >        })</span>
+<span class="cstat-no" title="statement not covered" >      }</span>
+<span class="cstat-no" title="statement not covered" >    }</span>
+<span class="cstat-no" title="statement not covered" >  }</span>
+<span class="cstat-no" title="statement not covered" ></span>
+<span class="cstat-no" title="statement not covered" >  // ---- 健康评分 ----</span>
+<span class="cstat-no" title="statement not covered" >  let healthScore = 100</span>
+<span class="cstat-no" title="statement not covered" >  if (activeCount &gt; MAX_ACTIVE_HOOKS) healthScore -= (activeCount - MAX_ACTIVE_HOOKS) * 3</span>
+<span class="cstat-no" title="statement not covered" >  healthScore -= staleCount * 5</span>
+<span class="cstat-no" title="statement not covered" >  healthScore -= blockedCount * 3</span>
+<span class="cstat-no" title="statement not covered" >  healthScore -= overdueCount * 8</span>
+<span class="cstat-no" title="statement not covered" >  healthScore = Math.max(0, Math.min(100, healthScore))</span>
+<span class="cstat-no" title="statement not covered" ></span>
+<span class="cstat-no" title="statement not covered" >  logger.info(`伏笔健康分析完成: 活跃${activeCount}, 过期${staleCount}, 阻塞${blockedCount}, 待回收${readyToResolveCount}, 健康评分${healthScore}`)</span>
+<span class="cstat-no" title="statement not covered" ></span>
+<span class="cstat-no" title="statement not covered" >  return {</span>
+<span class="cstat-no" title="statement not covered" >    diagnostics,</span>
+<span class="cstat-no" title="statement not covered" >    issues,</span>
+<span class="cstat-no" title="statement not covered" >    stats: {</span>
+<span class="cstat-no" title="statement not covered" >      activeCount,</span>
+<span class="cstat-no" title="statement not covered" >      staleCount,</span>
+<span class="cstat-no" title="statement not covered" >      blockedCount,</span>
+<span class="cstat-no" title="statement not covered" >      readyToResolveCount,</span>
+<span class="cstat-no" title="statement not covered" >      overdueCount,</span>
+<span class="cstat-no" title="statement not covered" >      healthScore,</span>
+<span class="cstat-no" title="statement not covered" >    },</span>
+<span class="cstat-no" title="statement not covered" >  }</span>
+<span class="cstat-no" title="statement not covered" >}</span>
+<span class="cstat-no" title="statement not covered" ></span>
+<span class="cstat-no" title="statement not covered" >// ============================================================================</span>
+<span class="cstat-no" title="statement not covered" >// 辅助函数</span>
+<span class="cstat-no" title="statement not covered" >// ============================================================================</span>
+<span class="cstat-no" title="statement not covered" ></span>
+<span class="cstat-no" title="statement not covered" >function isResolved(status: string): boolean {</span>
+<span class="cstat-no" title="statement not covered" >  return /^(resolved|closed|done|已回收|已解决)$/i.test(status.trim())</span>
+<span class="cstat-no" title="statement not covered" >}</span>
+<span class="cstat-no" title="statement not covered" ></span>
+<span class="cstat-no" title="statement not covered" >function resolveHalfLife(hook: HookHealthInput): number {</span>
+<span class="cstat-no" title="statement not covered" >  const timing = hook.payoffTiming?.trim().toLowerCase() || 'default'</span>
+<span class="cstat-no" title="statement not covered" >  return HALF_LIFE_BY_TIMING[timing] || HALF_LIFE_BY_TIMING.default</span>
+<span class="cstat-no" title="statement not covered" >}</span>
+<span class="cstat-no" title="statement not covered" ></span>
+<span class="cstat-no" title="statement not covered" >function computeSingleDiagnostics(</span>
+<span class="cstat-no" title="statement not covered" >  hook: HookHealthInput,</span>
+<span class="cstat-no" title="statement not covered" >  currentChapter: number,</span>
+<span class="cstat-no" title="statement not covered" >  targetChapters: number | undefined,</span>
+<span class="cstat-no" title="statement not covered" >  byId: Map&lt;string, HookHealthInput&gt;,</span>
+<span class="cstat-no" title="statement not covered" >): HookDiagnostics {</span>
+<span class="cstat-no" title="statement not covered" >  const halfLife = resolveHalfLife(hook)</span>
+<span class="cstat-no" title="statement not covered" >  const startChapter = Math.max(1, hook.startChapter)</span>
+<span class="cstat-no" title="statement not covered" >  const age = Math.max(0, currentChapter - startChapter)</span>
+<span class="cstat-no" title="statement not covered" >  const lastTouchChapter = Math.max(startChapter, hook.lastAdvancedChapter)</span>
+<span class="cstat-no" title="statement not covered" >  const dormancy = Math.max(0, currentChapter - lastTouchChapter)</span>
+<span class="cstat-no" title="statement not covered" ></span>
+<span class="cstat-no" title="statement not covered" >  // Stale: 超过半衰期且未解决</span>
+<span class="cstat-no" title="statement not covered" >  const stale = !isResolved(hook.status) &amp;&amp; hook.startChapter &gt; 0 &amp;&amp; age &gt; halfLife</span>
+<span class="cstat-no" title="statement not covered" ></span>
+<span class="cstat-no" title="statement not covered" >  // Phase 判定</span>
+<span class="cstat-no" title="statement not covered" >  const phase = resolvePhase(currentChapter, targetChapters)</span>
+<span class="cstat-no" title="statement not covered" ></span>
+<span class="cstat-no" title="statement not covered" >  // Overdue / readyToResolve</span>
+<span class="cstat-no" title="statement not covered" >  const overdue = age &gt;= halfLife * 1.5 &amp;&amp; !isResolved(hook.status)</span>
+<span class="cstat-no" title="statement not covered" >  const readyToResolve = hook.advanceCount &gt;= 2 &amp;&amp; age &gt;= halfLife * 0.8 &amp;&amp; !isResolved(hook.status)</span>
+<span class="cstat-no" title="statement not covered" ></span>
+<span class="cstat-no" title="statement not covered" >  // Blocked: 上游依赖未解决</span>
+<span class="cstat-no" title="statement not covered" >  const missingUpstream: string[] = []</span>
+<span class="cstat-no" title="statement not covered" >  const upstreamReferenceChapters: number[] = []</span>
+<span class="cstat-no" title="statement not covered" >  for (const upstreamId of hook.dependsOn || []) {</span>
+<span class="cstat-no" title="statement not covered" >    const upstream = byId.get(upstreamId)</span>
+<span class="cstat-no" title="statement not covered" >    if (!upstream) {</span>
+<span class="cstat-no" title="statement not covered" >      missingUpstream.push(upstreamId)</span>
+<span class="cstat-no" title="statement not covered" >      upstreamReferenceChapters.push(startChapter)</span>
+<span class="cstat-no" title="statement not covered" >      continue</span>
+<span class="cstat-no" title="statement not covered" >    }</span>
+<span class="cstat-no" title="statement not covered" >    if (!isResolved(upstream.status)) {</span>
+<span class="cstat-no" title="statement not covered" >      missingUpstream.push(upstreamId)</span>
+<span class="cstat-no" title="statement not covered" >      const refChapter = upstream.startChapter &gt; 0 ? upstream.startChapter : startChapter</span>
+<span class="cstat-no" title="statement not covered" >      upstreamReferenceChapters.push(refChapter)</span>
+<span class="cstat-no" title="statement not covered" >    }</span>
+<span class="cstat-no" title="statement not covered" >  }</span>
+<span class="cstat-no" title="statement not covered" >  const blocked = missingUpstream.length &gt; 0 &amp;&amp; !isResolved(hook.status)</span>
+<span class="cstat-no" title="statement not covered" >  const blockedDistance = blocked &amp;&amp; upstreamReferenceChapters.length &gt; 0</span>
+<span class="cstat-no" title="statement not covered" >    ? currentChapter - Math.min(...upstreamReferenceChapters)</span>
+<span class="cstat-no" title="statement not covered" >    : 0</span>
+<span class="cstat-no" title="statement not covered" ></span>
+<span class="cstat-no" title="statement not covered" >  // 压力分</span>
+<span class="cstat-no" title="statement not covered" >  const advancePressure = age + dormancy + (stale ? 5 : 0) + (overdue ? 10 : 0)</span>
+<span class="cstat-no" title="statement not covered" >  const resolvePressure = readyToResolve</span>
+<span class="cstat-no" title="statement not covered" >    ? (hook.coreHook ? 15 : 8) + Math.min(10, dormancy * 2) + (overdue ? 10 : 0)</span>
+<span class="cstat-no" title="statement not covered" >    : 0</span>
+<span class="cstat-no" title="statement not covered" ></span>
+<span class="cstat-no" title="statement not covered" >  return {</span>
+<span class="cstat-no" title="statement not covered" >    hookId: hook.hookId,</span>
+<span class="cstat-no" title="statement not covered" >    stale,</span>
+<span class="cstat-no" title="statement not covered" >    blocked,</span>
+<span class="cstat-no" title="statement not covered" >    missingUpstream,</span>
+<span class="cstat-no" title="statement not covered" >    distance: age,</span>
+<span class="cstat-no" title="statement not covered" >    halfLife,</span>
+<span class="cstat-no" title="statement not covered" >    blockedDistance,</span>
+<span class="cstat-no" title="statement not covered" >    phase,</span>
+<span class="cstat-no" title="statement not covered" >    age,</span>
+<span class="cstat-no" title="statement not covered" >    dormancy,</span>
+<span class="cstat-no" title="statement not covered" >    readyToResolve,</span>
+<span class="cstat-no" title="statement not covered" >    overdue,</span>
+<span class="cstat-no" title="statement not covered" >    advancePressure,</span>
+<span class="cstat-no" title="statement not covered" >    resolvePressure,</span>
+<span class="cstat-no" title="statement not covered" >  }</span>
+<span class="cstat-no" title="statement not covered" >}</span>
+<span class="cstat-no" title="statement not covered" ></span>
+<span class="cstat-no" title="statement not covered" >function resolvePhase(chapterNumber: number, targetChapters?: number): 'opening' | 'middle' | 'late' {</span>
+<span class="cstat-no" title="statement not covered" >  if (targetChapters &amp;&amp; targetChapters &gt; 0) {</span>
+<span class="cstat-no" title="statement not covered" >    const progress = chapterNumber / targetChapters</span>
+<span class="cstat-no" title="statement not covered" >    if (progress &gt;= 0.7) return 'late'</span>
+<span class="cstat-no" title="statement not covered" >    if (progress &gt;= 0.3) return 'middle'</span>
+<span class="cstat-no" title="statement not covered" >    return 'opening'</span>
+<span class="cstat-no" title="statement not covered" >  }</span>
+<span class="cstat-no" title="statement not covered" >  if (chapterNumber &gt;= 40) return 'late'</span>
+<span class="cstat-no" title="statement not covered" >  if (chapterNumber &gt;= 15) return 'middle'</span>
+<span class="cstat-no" title="statement not covered" >  return 'opening'</span>
+<span class="cstat-no" title="statement not covered" >}</span>
+&nbsp;</pre></td></tr></table></pre>
+
+                <div class='push'></div><!-- for sticky footer -->
+            </div><!-- /wrapper -->
+            <div class='footer quiet pad2 space-top1 center small'>
+                Code coverage generated by
+                <a href="https://istanbul.js.org/" target="_blank" rel="noopener noreferrer">istanbul</a>
+                at 2026-05-30T14:56:52.422Z
+            </div>
+        <script src="../prettify.js"></script>
+        <script>
+            window.onload = function () {
+                prettyPrint();
+            };
+        </script>
+        <script src="../sorter.js"></script>
+        <script src="../block-navigation.js"></script>
+    </body>
+</html>
+    

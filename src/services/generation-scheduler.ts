@@ -14,7 +14,9 @@ import { syncCompletedChapter } from '@/services/outline-sync'
 import type { ChatMessage } from '@/types/ai'
 import { useAuditLog } from '@/composables/useAuditLog'
 import { getLogger } from '@/utils/logger'
+import { AIError, toAppError, ErrorCode } from '@/utils/errors'
 import type { AgentConfig } from '@/agents/types'
+import { measureAsync } from '@/utils/performance'
 import {
   BatchGenerationOptions,
   buildGenerationOptions,
@@ -88,7 +90,7 @@ export class GenerationScheduler {
     if (!this.pipeline) {
       throw new Error('Pipeline 未启用，请先调用 enablePipeline()')
     }
-    return this.pipeline.writeNextChapter(options)
+    return measureAsync("generation:writeChapterWithPipeline", () => this.pipeline!.writeNextChapter(options))
   }
 
   /**
@@ -582,7 +584,8 @@ export class GenerationScheduler {
             const report = await checker.checkChapter(chapterData)
             chapterData.qualityScore = report.overallScore
           } catch(e) {
-            logger.warn('质量检查失败:', e)
+            const err = toAppError(e, '质量检查失败');
+            logger.warn(`[${err.code}] 质量检查失败:`, err.message);
           }
         }
 

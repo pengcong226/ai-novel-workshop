@@ -19,6 +19,7 @@ import { useKnowledgeStore } from '@/stores/knowledge'
 import { useProjectStore } from '@/stores/project'
 import { useWorldbookStore } from '@/stores/worldbook'
 import { getLogger } from '@/utils/logger'
+import { ValidationError, StorageError, ErrorCode } from '@/utils/errors'
 import { applyTraceReviewItems } from './conversation-trace-apply'
 import { buildTraceReviewQueue } from './conversation-trace-conflict'
 import { extractTraceArtifacts } from './conversation-trace-extractor'
@@ -162,7 +163,7 @@ export class UnifiedImporter {
         file.type === 'application/jsonl'
 
       if (!isPNG && !isJSON && !isJSONL) {
-        throw new Error('不支持的文件格式，仅支持 PNG、JSON 和 JSONL 文件')
+        throw new ValidationError('不支持的文件格式，仅支持 PNG、JSON 和 JSONL 文件', { field: 'file' })
       }
 
       if (isPNG) return this.importFromPNG(file, options)
@@ -453,7 +454,7 @@ export class UnifiedImporter {
         return result
       }
 
-      throw new Error('PNG文件不包含角色卡或世界书数据')
+      throw new ValidationError('PNG文件不包含角色卡或世界书数据', { field: 'file' })
     } catch (error) {
       const errorMsg = error instanceof Error ? error.message : String(error)
       logger.error('PNG统一导入失败', error)

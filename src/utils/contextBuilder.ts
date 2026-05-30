@@ -17,6 +17,7 @@ import { getVectorService, type VectorService } from '@/services/vector-service'
 import { ContextPipeline, type ContextPayload, estimateTokens, truncateToTokens } from './context/pipeline'
 import { getLogger } from '@/utils/logger'
 import { formatEntityLocation } from '@/utils/entityHelpers'
+import { measureAsync } from '@/utils/performance'
 
 const logger = getLogger('contextBuilder')
 import {
@@ -721,6 +722,7 @@ export async function buildChapterContext(
   modelContextWindow: number = 128000,
   rewriteDirectionPrompt?: string
 ): Promise<BuildContext> {
+  return measureAsync('context:buildChapterContext', async () => {
   const budget = createTokenBudget(modelContextWindow)
 
   // 初始化向量服务
@@ -891,6 +893,7 @@ export async function buildChapterContext(
     totalTokens: payload.totalTokensUsed,
     warnings: payload.warnings
   }
+  }) // measureAsync
 }
 
 /**

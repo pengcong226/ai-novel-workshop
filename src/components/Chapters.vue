@@ -470,6 +470,7 @@ import { getLogger } from '@/utils/logger'
 import { buildReadingPreview, truncateReadingPreviewText } from '@/utils/readingPreview'
 import { getChapterStatusType, getChapterStatusText, formatDate } from '@/utils/formatters'
 import { getFriendlyMessage } from '@/utils/errorHandler'
+import { measureSync } from '@/utils/performance';
 import ErrorBoundary from '@/components/ErrorBoundary.vue'
 import LoadingSkeleton from '@/components/LoadingSkeleton.vue'
 const ExportSettings = defineAsyncComponent(() => import('./ExportSettings.vue'))
@@ -509,6 +510,7 @@ watch(
 )
 
 const filteredChapters = computed(() => {
+  return measureSync('Chapters:filteredChapters', () => {
   let result = chapters.value
   const q = chapterSearchQuery.value.trim().toLowerCase()
   if (q) {
@@ -545,6 +547,7 @@ const filteredChapters = computed(() => {
     })
   }
   return result
+  }) // measureSync
 })
 
 const isChapterFilterActive = computed(() =>

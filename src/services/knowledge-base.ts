@@ -16,6 +16,7 @@ import type {
   KnowledgeStatistics
 } from '@/types/knowledge-base'
 import { getLogger } from '@/utils/logger'
+import { StorageError, toAppError, ErrorCode } from '@/utils/errors'
 
 const logger = getLogger('knowledge-base')
 
@@ -110,7 +111,7 @@ export class KnowledgeBaseManager {
       }
 
       if (entries.length === 0) {
-        throw new Error('未找到有效的条目数据')
+        throw new StorageError('未找到有效的条目数据', { code: ErrorCode.STORAGE_READ_FAILED })
       }
 
       // 创建知识库
@@ -224,7 +225,7 @@ export class KnowledgeBaseManager {
   ): KnowledgeSearchResult[] {
     const kb = this.knowledgeBases.get(knowledgeBaseId)
     if (!kb) {
-      throw new Error(`知识库不存在: ${knowledgeBaseId}`)
+      throw new StorageError(`知识库不存在: ${knowledgeBaseId}`, { code: ErrorCode.STORAGE_NOT_FOUND, context: { knowledgeBaseId } })
     }
 
     let entries = [...kb.entries]

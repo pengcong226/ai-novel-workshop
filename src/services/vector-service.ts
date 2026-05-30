@@ -1,6 +1,7 @@
 import type { Project, Chapter } from '@/types';
 import { invoke } from '@tauri-apps/api/core';
-import { getLogger } from '@/utils/logger';
+import { getLogger } from '@/utils/logger'
+import { AIError, NetworkError, toAppError, ErrorCode } from '@/utils/errors';
 import { getVectorDimensionByModel } from '@/utils/vector-dimension';
 
 /**
@@ -130,7 +131,10 @@ class LocalEmbeddingModel extends EmbeddingModel {
       this.initialized = true;
     } catch (error) {
       getLogger('vector:service').error('本地嵌入模型初始化失败', error);
-      throw new Error(`本地模型下载或加载失败。详细错误: ${error instanceof Error ? error.message : String(error)}`);
+      throw new AIError(`本地模型下载或加载失败: ${error instanceof Error ? error.message : String(error)}`, {
+        code: ErrorCode.AI_PROVIDER_ERROR,
+        cause: error instanceof Error ? error : undefined,
+      });
     }
   }
 
@@ -165,7 +169,7 @@ class OpenAIEmbeddingModel extends EmbeddingModel {
   constructor(config: EmbeddingConfig) {
     super(config);
     if (!config.apiKey) {
-      throw new Error('OpenAI API密钥未配置');
+      throw new AIError('OpenAI API密钥未配置', { code: ErrorCode.AI_NOT_INITIALIZED });
     }
   }
 
@@ -184,7 +188,11 @@ class OpenAIEmbeddingModel extends EmbeddingModel {
 
     if (!response.ok) {
       const error = await response.json().catch(() => ({}));
-      throw new Error(`OpenAI Embedding API错误: ${response.status} ${JSON.stringify(error)}`);
+      throw new NetworkError(`OpenAI Embedding API错误: ${response.status}`, {
+        statusCode: response.status,
+        code: ErrorCode.API_ERROR,
+        context: { error },
+      });
     }
 
     const data = await response.json();

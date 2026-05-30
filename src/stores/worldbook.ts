@@ -1,15 +1,17 @@
 /**
- * 世界书状态管理
+ * Worldbook state store (deprecated facade).
  *
- * @deprecated This store is being phased out in favor of the V5 Sandbox Store.
+ * @deprecated Being phased out in favor of the V5 Sandbox Store.
  * Worldbook entries are being migrated to Entity(type='LORE') + StateEvent.
- * This store is kept as a thin facade for backward compatibility during the transition.
- * After all consumers are migrated, this store will be deleted.
  *
- * Migration notes:
- * - `addEntry`/`updateEntry`/`deleteEntry` now also dispatch to sandboxStore.addEntity/updateEntity with type: 'LORE'
- * - `loadWorldbook` delegates to `sandboxStore.loadData`
- * - `injectEntries` logic should be replaced by `useEntityContextInjector` composable
+ * ### storeToRefs usage
+ * ```ts
+ * import { useWorldbookStore } from '@/stores/worldbook'
+ * import { storeToRefs } from 'pinia'
+ * const { worldbook, entries, entryCount } = storeToRefs(useWorldbookStore())
+ * ```
+ *
+ * @module stores/worldbook
  */
 
 import { defineStore } from 'pinia'
@@ -22,6 +24,7 @@ import { WorldbookAIAssistant } from '@/services/worldbook-ai'
 import { useStorage } from './storage'
 import { useSandboxStore } from './sandbox'
 import { getLogger } from '@/utils/logger'
+import { StorageError, toAppError, ErrorCode } from '@/utils/errors'
 import { v4 as uuidv4 } from 'uuid'
 
 const logger = getLogger('worldbook:store')
@@ -177,10 +180,10 @@ export const useWorldbookStore = defineStore('worldbook', () => {
         entryCount: entries.value.length
       })
     } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : '加载世界书失败'
-      error.value = errorMessage
-      logger.error('加载世界书失败', err)
-      throw err
+      const appErr = toAppError(err, '加载世界书失败', { projectId: projectId.value });
+      error.value = appErr.message
+      logger.error(`[${appErr.code}] 加载世界书失败:`, appErr.toJSON());
+      throw appErr
     } finally {
       loading.value = false
     }
@@ -230,10 +233,13 @@ export const useWorldbookStore = defineStore('worldbook', () => {
         entryCount: entries.value.length
       })
     } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : '保存世界书失败'
-      error.value = errorMessage
-      logger.error('保存世界书失败', err)
-      throw err
+      const appErr = new StorageError('保存世界书失败', {
+        code: ErrorCode.STORAGE_WRITE_FAILED,
+        cause: err instanceof Error ? err : undefined,
+      });
+      error.value = appErr.message
+      logger.error(`[${appErr.code}] 保存世界书失败:`, appErr.toJSON());
+      throw appErr
     } finally {
       loading.value = false
     }
@@ -882,10 +888,10 @@ export const useWorldbookStore = defineStore('worldbook', () => {
         total: entries.value.length
       })
     } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : '导入条目失败'
-      error.value = errorMessage
-      logger.error('导入条目失败', err)
-      throw err
+      const appErr = toAppError(err, '导入条目失败');
+      error.value = appErr.message
+      logger.error(`[${appErr.code}] 导入条目失败:`, appErr.toJSON());
+      throw appErr
     } finally {
       loading.value = false
     }
@@ -955,10 +961,10 @@ export const useWorldbookStore = defineStore('worldbook', () => {
         merge
       })
     } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : '导入世界书失败'
-      error.value = errorMessage
-      logger.error('导入世界书失败', err)
-      throw err
+      const appErr = toAppError(err, '导入世界书失败');
+      error.value = appErr.message
+      logger.error(`[${appErr.code}] 导入世界书失败:`, appErr.toJSON());
+      throw appErr
     } finally {
       loading.value = false
     }
@@ -1027,6 +1033,18 @@ export const useWorldbookStore = defineStore('worldbook', () => {
     importEntries,
 
     // 统计方法
-    getStats
+    getStats,
+    $reset
+  }
+
+  /** Reset the worldbook store to its initial state. */
+  function $reset(): void {
+    worldbook.value = null
+    loading.value = false
+    error.value = null
+    projectId.value = null
+    bridgeError.value = null
+    injector.value = null
+    aiAssistant.value = null
   }
 })

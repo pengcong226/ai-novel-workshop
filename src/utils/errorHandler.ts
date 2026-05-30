@@ -4,6 +4,7 @@
  */
 
 import { getLogger } from '@/utils/logger'
+import { AppError, ErrorCode } from '@/utils/errors'
 
 const logger = getLogger('utils:errorHandler')
 
@@ -30,7 +31,7 @@ export interface AppError {
   severity: ErrorSeverity
   category: ErrorCategory
   timestamp: Date
-  context?: Record<string, any>
+  context?: Record<string, unknown>
   stack?: string
   userAction?: string
   recoverable: boolean
@@ -69,7 +70,7 @@ class ErrorHandler {
     options: {
       severity?: ErrorSeverity
       category?: ErrorCategory
-      context?: Record<string, any>
+      context?: Record<string, unknown>
       userAction?: string
       recoverable?: boolean
       recoveryActions?: ErrorRecoveryAction[]
@@ -108,7 +109,7 @@ class ErrorHandler {
     options: {
       severity?: ErrorSeverity
       category?: ErrorCategory
-      context?: Record<string, any>
+      context?: Record<string, unknown>
       userAction?: string
       recoverable?: boolean
       recoveryActions?: ErrorRecoveryAction[]
@@ -214,9 +215,20 @@ export const errorHandler = new ErrorHandler()
 export function setupGlobalErrorHandler() {
   // 处理未捕获的Promise错误
   window.addEventListener('unhandledrejection', (event) => {
-    errorHandler.handleError(event.reason, {
+    const reason = event.reason
+    // If the reason is an AppError, preserve its code and context
+    if (reason instanceof AppError) {
+      logger.error(`[unhandledrejection] [${reason.code}] ${reason.message}`, reason.toJSON())
+    }
+    errorHandler.handleError(reason, {
       severity: ErrorSeverity.HIGH,
-      category: ErrorCategory.RUNTIME,
+      category: reason instanceof AppError
+        ? (reason.code.startsWith('AI_') ? ErrorCategory.API
+          : reason.code.startsWith('STORAGE_') ? ErrorCategory.STORAGE
+          : reason.code.startsWith('NETWORK_') ? ErrorCategory.NETWORK
+          : ErrorCategory.RUNTIME)
+        : ErrorCategory.RUNTIME,
+      context: reason instanceof AppError ? reason.context : undefined,
       userAction: '异步操作',
       recoverable: false
     })
@@ -225,7 +237,11 @@ export function setupGlobalErrorHandler() {
 
   // 处理全局错误
   window.addEventListener('error', (event) => {
-    errorHandler.handleError(event.error || event.message, {
+    const error = event.error || event.message
+    if (error instanceof AppError) {
+      logger.error(`[global error] [${error.code}] ${error.message}`, error.toJSON())
+    }
+    errorHandler.handleError(error, {
       severity: ErrorSeverity.HIGH,
       category: ErrorCategory.RUNTIME,
       userAction: '页面操作',
@@ -422,7 +438,7 @@ export function getStageFriendlyMessage(stage: string, rawError: string): string
   return stageTips.default || getFriendlyMessage(rawError)
 }
 
-export function handleNetworkError(error: Error | string, context?: Record<string, any>): AppError {
+export function handleNetworkError(error: Error | string, context?: Record<string, unknown>): AppError {
   return errorHandler.handleError(error, {
     severity: ErrorSeverity.MEDIUM,
     category: ErrorCategory.NETWORK,
@@ -438,7 +454,7 @@ export function handleNetworkError(error: Error | string, context?: Record<strin
   })
 }
 
-export function handleAPIError(error: Error | string, context?: Record<string, any>): AppError {
+export function handleAPIError(error: Error | string, context?: Record<string, unknown>): AppError {
   return errorHandler.handleError(error, {
     severity: ErrorSeverity.MEDIUM,
     category: ErrorCategory.API,
@@ -447,7 +463,7 @@ export function handleAPIError(error: Error | string, context?: Record<string, a
   })
 }
 
-export function handleStorageError(error: Error | string, context?: Record<string, any>): AppError {
+export function handleStorageError(error: Error | string, context?: Record<string, unknown>): AppError {
   return errorHandler.handleError(error, {
     severity: ErrorSeverity.HIGH,
     category: ErrorCategory.STORAGE,
@@ -467,7 +483,7 @@ export function handleStorageError(error: Error | string, context?: Record<strin
   })
 }
 
-export function handleValidationError(error: Error | string, context?: Record<string, any>): AppError {
+export function handleValidationError(error: Error | string, context?: Record<string, unknown>): AppError {
   return errorHandler.handleError(error, {
     severity: ErrorSeverity.LOW,
     category: ErrorCategory.VALIDATION,

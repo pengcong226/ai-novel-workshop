@@ -162,6 +162,9 @@ export default defineConfig({
     exclude: ['@xenova/transformers']
   },
   test: {
+    environment: 'jsdom',
+    globals: true,
+    setupFiles: ['./src/test/setup.ts'],
     exclude: [
       '**/node_modules/**',
       '**/dist/**',
@@ -170,6 +173,32 @@ export default defineConfig({
       '**/{karma,rollup,webpack,vite,vitest,jest,ava,babel,nyc,cypress,tsup,build}.config.*',
       '**/.claude/worktrees/**',
       '**/.worktrees/**'
-    ]
+    ],
+    coverage: {
+      provider: 'v8',
+      reporter: ['text', 'text-summary', 'lcov', 'json-summary'],
+      reportsDirectory: './coverage',
+      include: [
+        'src/stores/**/*.ts',
+        'src/utils/**/*.ts',
+        'src/services/**/*.ts',
+        'src/composables/**/*.ts',
+      ],
+      exclude: [
+        'src/**/*.test.ts',
+        'src/**/*.spec.ts',
+        'src/**/__tests__/**',
+        'src/test/**',
+        'src/types/**',
+        'src/**/*.d.ts',
+        'src/main.ts',
+      ],
+      thresholds: {
+        statements: 0,
+        branches: 0,
+        functions: 0,
+        lines: 0,
+      },
+    },
   }
 })

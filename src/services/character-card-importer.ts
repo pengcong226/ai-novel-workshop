@@ -18,6 +18,7 @@ import type {
   CharacterCardImportOptions,
   CharacterCardImportResult} from '@/types/character-card'
 import { getLogger } from '@/utils/logger'
+import { ValidationError, toAppError, ErrorCode } from '@/utils/errors'
 import { parsePngCard } from './png-parser'
 
 const logger = getLogger('character-card-importer')
@@ -104,7 +105,7 @@ export class CharacterCardImporter {
       return 'v1'
     }
 
-    throw new Error('无法识别的角色卡格式')
+    throw new ValidationError('无法识别的角色卡格式', { field: 'format' })
   }
 
   /**

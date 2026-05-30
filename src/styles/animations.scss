@@ -1,0 +1,242 @@
+/* ==========================================================================
+ * Animation Classes
+ *
+ * Shared keyframe animations and utility classes for fade, slide, scale,
+ * and pulse effects. All animations use GPU-composited properties
+ * (transform + opacity) and respect prefers-reduced-motion.
+ *
+ * Companion to src/styles/transitions.scss which covers Vue <Transition>.
+ * ========================================================================== */
+
+/* ---------- Reduced-motion safeguard ---------- */
+@media (prefers-reduced-motion: reduce) {
+  .anim-fade-enter,
+  .anim-fade-exit,
+  .anim-slide-up-enter,
+  .anim-slide-up-exit,
+  .anim-slide-down-enter,
+  .anim-slide-down-exit,
+  .anim-slide-left-enter,
+  .anim-slide-left-exit,
+  .anim-slide-right-enter,
+  .anim-slide-right-exit,
+  .anim-scale-enter,
+  .anim-scale-exit,
+  .anim-scale-up,
+  .anim-bounce-in,
+  .anim-pulse-ring,
+  .anim-spin {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+  }
+}
+
+/* ==========================================================================
+ * 1. Fade
+ * ========================================================================== */
+
+/* Fade enter (0 -> 1) */
+.anim-fade-enter {
+  animation: ds-fade-in var(--ds-transition-normal) forwards;
+}
+
+@keyframes ds-fade-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+/* Fade exit (1 -> 0) */
+.anim-fade-exit {
+  animation: ds-fade-out var(--ds-transition-normal) forwards;
+}
+
+@keyframes ds-fade-out {
+  from { opacity: 1; }
+  to   { opacity: 0; }
+}
+
+/* ==========================================================================
+ * 2. Slide
+ * ========================================================================== */
+
+/* Slide up */
+.anim-slide-up-enter {
+  animation: ds-slide-up-in 300ms cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+
+@keyframes ds-slide-up-in {
+  from { opacity: 0; transform: translateY(16px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.anim-slide-up-exit {
+  animation: ds-slide-up-out 220ms ease forwards;
+}
+
+@keyframes ds-slide-up-out {
+  from { opacity: 1; transform: translateY(0); }
+  to   { opacity: 0; transform: translateY(-12px); }
+}
+
+/* Slide down */
+.anim-slide-down-enter {
+  animation: ds-slide-down-in 300ms cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+
+@keyframes ds-slide-down-in {
+  from { opacity: 0; transform: translateY(-16px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.anim-slide-down-exit {
+  animation: ds-slide-down-out 220ms ease forwards;
+}
+
+@keyframes ds-slide-down-out {
+  from { opacity: 1; transform: translateY(0); }
+  to   { opacity: 0; transform: translateY(16px); }
+}
+
+/* Slide left */
+.anim-slide-left-enter {
+  animation: ds-slide-left-in 280ms cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+
+@keyframes ds-slide-left-in {
+  from { opacity: 0; transform: translateX(20px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+
+.anim-slide-left-exit {
+  animation: ds-slide-left-out 200ms ease forwards;
+}
+
+@keyframes ds-slide-left-out {
+  from { opacity: 1; transform: translateX(0); }
+  to   { opacity: 0; transform: translateX(-16px); }
+}
+
+/* Slide right */
+.anim-slide-right-enter {
+  animation: ds-slide-right-in 280ms cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+
+@keyframes ds-slide-right-in {
+  from { opacity: 0; transform: translateX(-20px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+
+.anim-slide-right-exit {
+  animation: ds-slide-right-out 200ms ease forwards;
+}
+
+@keyframes ds-slide-right-out {
+  from { opacity: 1; transform: translateX(0); }
+  to   { opacity: 0; transform: translateX(20px); }
+}
+
+/* ==========================================================================
+ * 3. Scale
+ * ========================================================================== */
+
+/* Scale in (grow from 92%) */
+.anim-scale-enter {
+  animation: ds-scale-in 260ms cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+
+@keyframes ds-scale-in {
+  from { opacity: 0; transform: scale(0.92); }
+  to   { opacity: 1; transform: scale(1); }
+}
+
+/* Scale out */
+.anim-scale-exit {
+  animation: ds-scale-out 200ms ease forwards;
+}
+
+@keyframes ds-scale-out {
+  from { opacity: 1; transform: scale(1); }
+  to   { opacity: 0; transform: scale(0.95); }
+}
+
+/* Scale up (for emphasis, grows beyond 100%) */
+.anim-scale-up {
+  animation: ds-scale-up 350ms cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+}
+
+@keyframes ds-scale-up {
+  0%   { transform: scale(0.9); opacity: 0; }
+  60%  { transform: scale(1.03); }
+  100% { transform: scale(1); opacity: 1; }
+}
+
+/* ==========================================================================
+ * 4. Pulse
+ * ========================================================================== */
+
+/* Standard pulse (opacity breathing) */
+.anim-pulse {
+  animation: ds-pulse 2s ease-in-out infinite;
+}
+
+@keyframes ds-pulse {
+  0%, 100% { opacity: 1; }
+  50%      { opacity: 0.5; }
+}
+
+/* Ring pulse (grows outward) */
+.anim-pulse-ring {
+  animation: ds-pulse-ring 1.5s ease-out infinite;
+}
+
+@keyframes ds-pulse-ring {
+  0%   { box-shadow: 0 0 0 0 rgba(108, 92, 231, 0.4); }
+  100% { box-shadow: 0 0 0 12px rgba(108, 92, 231, 0); }
+}
+
+/* Accent glow pulse */
+.anim-glow {
+  animation: ds-glow 2.5s ease-in-out infinite;
+}
+
+@keyframes ds-glow {
+  0%, 100% { box-shadow: 0 0 8px rgba(108, 92, 231, 0.25); }
+  50%      { box-shadow: 0 0 20px rgba(108, 92, 231, 0.55); }
+}
+
+/* ==========================================================================
+ * 5. Bounce
+ * ========================================================================== */
+.anim-bounce-in {
+  animation: ds-bounce-in 500ms cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+}
+
+@keyframes ds-bounce-in {
+  0%   { transform: scale(0.5); opacity: 0; }
+  60%  { transform: scale(1.08); }
+  80%  { transform: scale(0.97); }
+  100% { transform: scale(1); opacity: 1; }
+}
+
+/* ==========================================================================
+ * 6. Spin (loader)
+ * ========================================================================== */
+.anim-spin {
+  animation: ds-spin 0.8s linear infinite;
+}
+
+@keyframes ds-spin {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
+}
+
+/* ==========================================================================
+ * 7. Stagger helpers
+ *    Apply .anim-stagger-child to each item, set --stagger index via
+ *    :style="{ '--stagger': idx }" on each element.
+ * ========================================================================== */
+.anim-stagger-child {
+  opacity: 0;
+  animation: ds-slide-up-in 300ms cubic-bezier(0.22, 1, 0.36, 1) forwards;
+  animation-delay: calc(var(--stagger, 0) * 60ms);
+}

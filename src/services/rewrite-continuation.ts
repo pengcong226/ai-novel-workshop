@@ -21,6 +21,7 @@ import type {
 } from '@/types/rewrite-continuation'
 import type { ExtractedPlotEvent } from '@/types/deep-import'
 import { getLogger } from '@/utils/logger'
+import { AIError, toAppError, ErrorCode } from '@/utils/errors'
 import { writeEncryptedLocalStorage, readEncryptedLocalStorage } from '@/utils/crypto'
 
 const logger = getLogger('rewrite-continuation')
@@ -65,7 +66,7 @@ export class RewriteContinuationService {
     const sandboxStore = useSandboxStore()
     const projectStore = useProjectStore()
     const project = projectStore.currentProject
-    if (!project) throw new Error('No project selected')
+    if (!project) throw new AIError('No project selected', { code: ErrorCode.NOT_FOUND })
 
     const { range } = options
 

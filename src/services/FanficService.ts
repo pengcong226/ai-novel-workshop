@@ -9,6 +9,7 @@
  */
 
 import { getLogger } from '@/utils/logger'
+import { AIError, ErrorCode } from '@/utils/errors'
 import type { TokenUsage } from '@/services/pipeline/types'
 
 const logger = getLogger('service:fanfic')
@@ -137,7 +138,7 @@ export class FanficService {
         this.aiStore = useAIStore()
       } catch (error) {
         logger.error('获取AI Store失败:', error)
-        throw new Error('AI服务不可用，请检查配置')
+        throw new AIError('AI服务不可用，请检查配置', { code: ErrorCode.AI_NOT_INITIALIZED })
       }
     }
     return this.aiStore

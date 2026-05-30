@@ -1,7 +1,8 @@
 import type { ModelConfig, TaskContext } from '@/types/ai';
 import { CircuitBreaker } from './CircuitBreaker';
 import type { ModelRouter } from './ModelRouter';
-import { getLogger } from '@/utils/logger';
+import { getLogger } from '@/utils/logger'
+import { AIError, ErrorCode } from '@/utils/errors';
 
 const logger = getLogger('FailoverManager')
 
@@ -43,7 +44,7 @@ export class FailoverManager {
     const candidates = this.modelRouter.getRankedCandidates(context);
 
     if (!candidates || candidates.length === 0) {
-      throw new Error('没有可用的模型候选列表，请检查模型配置是否均已禁用。');
+      throw new AIError('没有可用的模型候选列表，请检查模型配置是否均已禁用。', { code: ErrorCode.AI_MODEL_NOT_FOUND });
     }
 
     let lastError: Error | null = null;
@@ -85,6 +86,6 @@ export class FailoverManager {
     }
 
     // 当所有候选队列都尝试失败时，抛出错误
-    throw new Error(`所有可用模型均已瘫痪，最后错误: ${lastError?.message}`);
+    throw new AIError(`所有可用模型均已瘫痪: ${lastError?.message}`, { code: ErrorCode.AI_ALL_MODELS_FAILED, cause: lastError instanceof Error ? lastError : undefined });
   }
 }

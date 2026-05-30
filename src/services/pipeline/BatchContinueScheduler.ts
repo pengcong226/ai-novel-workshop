@@ -15,6 +15,7 @@ import type {
 } from './types'
 import { emptyTokenUsageSummary } from './types'
 import { getLogger } from '@/utils/logger'
+import { AIError, ErrorCode } from '@/utils/errors'
 import { acquireProjectLock, releaseProjectLock, getLockConflictMessage } from '@/utils/pipelineLock'
 
 const logger = getLogger('pipeline:batch-scheduler')
@@ -148,7 +149,7 @@ export class BatchContinueScheduler {
     if (!acquireProjectLock(projectId, 'batch-continue', startChapter)) {
       const conflictMsg = getLockConflictMessage(projectId)
       logger.warn(`[BatchScheduler] 锁冲突，无法启动: ${conflictMsg}`)
-      throw new Error(conflictMsg || '项目正在被其他任务使用，请稍后再试')
+      throw new AIError(conflictMsg || '项目正在被其他任务使用，请稍后再试', { code: ErrorCode.CONFLICT })
     }
 
     this.emitProgress(options.onProgress, {

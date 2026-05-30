@@ -42,9 +42,16 @@ export interface PipelineRuntimeState {
 }
 
 /**
+ * Cached database connection to prevent connection leaks.
+ */
+let cachedDb: IDBDatabase | null = null
+
+/**
  * 打开 IndexedDB 并确保 pipeline-runtime-state store 存在
  */
 function openDB(): Promise<IDBDatabase> {
+  if (cachedDb) return Promise.resolve(cachedDb)
+
   return new Promise((resolve, reject) => {
     if (typeof indexedDB === 'undefined') {
       reject(new Error('IndexedDB not available'))
@@ -67,9 +74,13 @@ function openDB(): Promise<IDBDatabase> {
             upgradedDb.createObjectStore(STORE_NAME, { keyPath: 'projectId' })
           }
         }
-        upgradeReq.onsuccess = () => resolve(upgradeReq.result)
+        upgradeReq.onsuccess = () => {
+          cachedDb = upgradeReq.result
+          resolve(cachedDb)
+        }
         upgradeReq.onerror = () => reject(upgradeReq.error)
       } else {
+        cachedDb = db
         resolve(db)
       }
     }
@@ -147,6 +158,11 @@ export function usePipelineStatePersistence(projectId: () => string | undefined)
     if (saveTimer !== null) {
       clearTimeout(saveTimer)
       saveTimer = null
+    }
+    // Close cached DB connection to prevent leaks
+    if (cachedDb) {
+      cachedDb.close()
+      cachedDb = null
     }
   })
 

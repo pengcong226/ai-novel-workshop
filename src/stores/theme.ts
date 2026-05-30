@@ -17,6 +17,7 @@
 import { defineStore } from 'pinia'
 import { ref, watch, type Ref } from 'vue'
 import { usePluginStore } from './plugin'
+import { sanitizeThemeCss } from '@/utils/cssSanitizer'
 
 const DEFAULT_THEME_ID = 'builtin-classic-light-theme'
 
@@ -70,7 +71,7 @@ export const useThemeStore = defineStore('theme', () => {
       styleTag.id = 'plugin-theme-css'
       document.head.appendChild(styleTag)
     }
-    styleTag.innerHTML = theme.globalCss || ''
+    styleTag.innerHTML = sanitizeThemeCss(theme.globalCss || '')
   }
 
   /**

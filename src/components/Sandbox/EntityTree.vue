@@ -75,6 +75,7 @@ import { useProjectStore } from '@/stores/project'
 import { generateId } from '@/utils/generateId'
 import { ElMessage } from 'element-plus'
 import type { EntityType, EntityImportance, Entity } from '@/types/sandbox'
+import { measureSync } from '@/utils/performance';
 
 const emit = defineEmits<{
   (e: 'select', entityId: string): void
@@ -144,6 +145,7 @@ const entityGroups = computed<EntityGroup[]>(() => {
 })
 
 const filteredGroups = computed<EntityGroup[]>(() => {
+  return measureSync('EntityTree:filteredGroups', () => {
   if (!searchQuery.value.trim()) return entityGroups.value
   const query = searchQuery.value.trim().toLowerCase()
   return entityGroups.value
@@ -155,6 +157,7 @@ const filteredGroups = computed<EntityGroup[]>(() => {
       )
     }))
     .filter(group => group.entities.length > 0)
+  }) // measureSync
 })
 
 function toggleGroup(type: EntityType) {

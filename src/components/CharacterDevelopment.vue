@@ -669,7 +669,7 @@ watch(characterEntitiesWithEvents, (newEntities) => {
 .character-development {
   display: flex;
   flex-direction: column;
-  gap: 20px;
+  gap: var(--ds-space-5);
 }
 
 .selector-card {
@@ -679,7 +679,7 @@ watch(characterEntitiesWithEvents, (newEntities) => {
 .selector-header {
   display: flex;
   align-items: center;
-  gap: 20px;
+  gap: var(--ds-space-5);
 }
 
 .selector-header .title {
@@ -699,18 +699,18 @@ watch(characterEntitiesWithEvents, (newEntities) => {
 }
 
 .info-main h3 {
-  margin: 0 0 10px 0;
+  margin: 0 0 var(--ds-space-3) 0;
   font-size: 20px;
 }
 
 .info-tags {
   display: flex;
-  gap: 8px;
+  gap: var(--ds-space-2);
 }
 
 .info-stats {
   display: flex;
-  gap: 30px;
+  gap: var(--ds-space-8);
 }
 
 .stat-item {
@@ -739,11 +739,11 @@ watch(characterEntitiesWithEvents, (newEntities) => {
 }
 
 .empty-state {
-  padding: 40px 0;
+  padding: var(--ds-space-10) 0;
 }
 
 .timeline-container {
-  padding: 20px 0;
+  padding: var(--ds-space-5) 0;
 }
 
 .timeline-card-item {
@@ -754,13 +754,13 @@ watch(characterEntitiesWithEvents, (newEntities) => {
   display: flex;
   justify-content: space-between;
   align-items: flex-start;
-  margin-bottom: 15px;
+  margin-bottom: var(--ds-space-4);
 }
 
 .development-title {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: var(--ds-space-3);
 }
 
 .development-title h4 {
@@ -770,20 +770,20 @@ watch(characterEntitiesWithEvents, (newEntities) => {
 
 .development-actions {
   display: flex;
-  gap: 5px;
+  gap: var(--ds-space-1);
 }
 
 .development-content {
   display: flex;
   flex-direction: column;
-  gap: 15px;
+  gap: var(--ds-space-4);
 }
 
 .section-label {
   font-size: 13px;
   font-weight: 600;
   color: var(--ds-text-tertiary);
-  margin-bottom: 8px;
+  margin-bottom: var(--ds-space-2);
 }
 
 .growth-section p {
@@ -793,7 +793,7 @@ watch(characterEntitiesWithEvents, (newEntities) => {
 }
 
 .changes-section {
-  padding-top: 10px;
+  padding-top: var(--ds-space-3);
   border-top: 1px dashed var(--ds-surface-border);
 }
 
@@ -801,13 +801,13 @@ watch(characterEntitiesWithEvents, (newEntities) => {
 .relationship-changes {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
+  gap: var(--ds-space-2);
 }
 
 .relationship-change {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--ds-space-2);
 }
 
 .change-arrow {
@@ -817,7 +817,7 @@ watch(characterEntitiesWithEvents, (newEntities) => {
 .state-change {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: var(--ds-space-2);
 }
 
 .state-item {
@@ -846,7 +846,7 @@ watch(characterEntitiesWithEvents, (newEntities) => {
 
 .stat-box {
   text-align: center;
-  padding: 20px;
+  padding: var(--ds-space-5);
   background: var(--ds-bg-tertiary);
   border-radius: 8px;
 }
@@ -860,14 +860,14 @@ watch(characterEntitiesWithEvents, (newEntities) => {
 .stat-box .stat-label {
   font-size: 14px;
   color: var(--ds-text-tertiary);
-  margin-top: 5px;
+  margin-top: var(--ds-space-1);
 }
 
 .ability-changes-editor,
 .relationship-changes-editor {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: var(--ds-space-3);
 }
 
 .change-item {

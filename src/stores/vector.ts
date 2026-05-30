@@ -17,6 +17,7 @@
 import { defineStore } from 'pinia'
 import { ref, shallowRef, computed, type Ref, type ComputedRef } from 'vue'
 import { getLogger } from '@/utils/logger'
+import { AIError, toAppError, ErrorCode } from '@/utils/errors'
 
 const logger = getLogger('vector')
 import {
@@ -59,9 +60,13 @@ export const useVectorStore = defineStore('vector', () => {
       service.value = await createVectorService(config)
       isInitialized.value = true
     } catch (e) {
-      error.value = e instanceof Error ? e.message : String(e)
-      logger.error('Failed to initialize vector service:', e)
-      throw e
+      const err = new AIError('Failed to initialize vector service', {
+        code: ErrorCode.AI_PROVIDER_ERROR,
+        cause: e instanceof Error ? e : undefined,
+      });
+      error.value = err.message
+      logger.error(`[${err.code}] Failed to initialize vector service:`, err.toJSON());
+      throw err
     } finally {
       isLoading.value = false
     }
@@ -185,7 +190,8 @@ export const useVectorStore = defineStore('vector', () => {
     try {
       documentCount.value = await service.value.getDocumentCount(currentProjectId.value || undefined)
     } catch (e) {
-      logger.debug('Vector stats refresh failed:', e)
+      const err = toAppError(e, 'Vector stats refresh failed');
+      logger.debug(`[${err.code}] Vector stats refresh failed:`, err.message)
     }
   }
 

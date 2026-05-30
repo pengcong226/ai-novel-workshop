@@ -23,9 +23,11 @@ import type { EntityStateSnapshot } from '../types/rewrite-continuation';
 import { captureSnapshot, replayReducer } from '@/utils/stateDiff';
 import { buildNameToIdMapFromEntities } from '@/utils/entityHelpers';
 import { getLogger } from '@/utils/logger';
+import { StorageError, toAppError, ErrorCode } from '@/utils/errors';
 import { isWebRuntime } from '@/utils/anthropic-guard';
 import { buildStateEventIndexes, sortStateEventsByChapter } from '@/utils/stateEventIndexes';
 import { StateEventSchema } from '@/schemas/stateEventSchema';
+import { measureSync } from '@/utils/performance';
 
 const logger = getLogger('sandbox:store');
 
@@ -300,7 +302,8 @@ export const useSandboxStore = defineStore('sandbox', () => {
       stateEvents.value = sortStateEventsByChapter(parsedStateEvents);
       isLoaded.value = true;
     } catch (e) {
-      logger.error('Failed to load sandbox data:', e);
+      const err = toAppError(e, 'Failed to load sandbox data', { projectId });
+      logger.error(`[${err.code}] Failed to load sandbox data:`, err.toJSON());
       entities.value = [];
       stateEvents.value = [];
       isLoaded.value = false;
@@ -328,8 +331,13 @@ export const useSandboxStore = defineStore('sandbox', () => {
       });
       entities.value.push(entity);
     } catch (e) {
-      logger.error('Failed to add entity:', e);
-      throw e;
+      const err = new StorageError('Failed to add entity', {
+        code: ErrorCode.STORAGE_WRITE_FAILED,
+        context: { entityId: entity.id, projectId: entity.projectId },
+        cause: e instanceof Error ? e : undefined,
+      });
+      logger.error(`[${err.code}] Failed to add entity:`, err.toJSON());
+      throw err;
     }
   }
 
@@ -357,8 +365,13 @@ export const useSandboxStore = defineStore('sandbox', () => {
       });
       entities.value[index] = updated;
     } catch (e) {
-      logger.error('Failed to update entity:', e);
-      throw e;
+      const err = new StorageError('Failed to update entity', {
+        code: ErrorCode.STORAGE_WRITE_FAILED,
+        context: { entityId: id },
+        cause: e instanceof Error ? e : undefined,
+      });
+      logger.error(`[${err.code}] Failed to update entity:`, err.toJSON());
+      throw err;
     }
   }
 
@@ -381,8 +394,13 @@ export const useSandboxStore = defineStore('sandbox', () => {
       stateEvents.value.push(event);
       stateEvents.value = sortStateEventsByChapter(stateEvents.value);
     } catch (e) {
-      logger.error('Failed to add state event:', e);
-      throw e;
+      const err = new StorageError('Failed to add state event', {
+        code: ErrorCode.STORAGE_WRITE_FAILED,
+        context: { eventId: event.id, entityId: event.entityId, projectId: event.projectId },
+        cause: e instanceof Error ? e : undefined,
+      });
+      logger.error(`[${err.code}] Failed to add state event:`, err.toJSON());
+      throw err;
     }
   }
   async function deleteEntity(id: string) {
@@ -408,8 +426,13 @@ export const useSandboxStore = defineStore('sandbox', () => {
       entities.value = entities.value.filter(e => e.id !== id);
       stateEvents.value = stateEvents.value.filter(e => e.entityId !== id);
     } catch (e) {
-      logger.error('Failed to delete entity:', e);
-      throw e;
+      const err = new StorageError('Failed to delete entity', {
+        code: ErrorCode.STORAGE_WRITE_FAILED,
+        context: { entityId: id, projectId: entity.projectId },
+        cause: e instanceof Error ? e : undefined,
+      });
+      logger.error(`[${err.code}] Failed to delete entity:`, err.toJSON());
+      throw err;
     }
   }
 
@@ -432,13 +455,19 @@ export const useSandboxStore = defineStore('sandbox', () => {
       });
       stateEvents.value = stateEvents.value.filter(e => e.id !== id);
     } catch (e) {
-      logger.error('Failed to delete state event:', e);
-      throw e;
+      const err = new StorageError('Failed to delete state event', {
+        code: ErrorCode.STORAGE_WRITE_FAILED,
+        context: { eventId: id, projectId: event.projectId },
+        cause: e instanceof Error ? e : undefined,
+      });
+      logger.error(`[${err.code}] Failed to delete state event:`, err.toJSON());
+      throw err;
     }
   }
 
   // Computed state reducer — delegates to the canonical replayReducer in stateDiff.ts
   const activeEntitiesState = computed(() => {
+    return measureSync('sandbox:activeEntitiesState', () => {
     const combinedEvents = [...stateEvents.value, ...pendingStateEvents.value];
     const reduced = replayReducer(entities.value, combinedEvents, currentChapter.value);
 
@@ -459,6 +488,7 @@ export const useSandboxStore = defineStore('sandbox', () => {
         abilities: r.abilities.map(a => ({ name: a.name, status: a.status as AbilityRecord['status'], acquiredChapter: a.acquiredChapter }))
       };
     }
+    }) // measureSync
     return result;
   });
 
@@ -558,8 +588,13 @@ export const useSandboxStore = defineStore('sandbox', () => {
       isLoaded.value = false;
       await loadData(projectId);
     } catch (e) {
-      logger.error("Failed to commit some drafts:", e);
-      throw e;
+      const err = new StorageError('Failed to commit some drafts', {
+        code: ErrorCode.STORAGE_WRITE_FAILED,
+        context: { draftCount: draftEntities.value.length },
+        cause: e instanceof Error ? e : undefined,
+      });
+      logger.error(`[${err.code}] Failed to commit some drafts:`, err.toJSON());
+      throw err;
     }
   }
 
@@ -594,8 +629,13 @@ export const useSandboxStore = defineStore('sandbox', () => {
       }
       entities.value = [...merged.values()];
     } catch (e) {
-      logger.error('Failed to batch add entities:', e);
-      throw e;
+      const err = new StorageError('Failed to batch add entities', {
+        code: ErrorCode.STORAGE_WRITE_FAILED,
+        context: { entityCount: newEntities.length, projectId },
+        cause: e instanceof Error ? e : undefined,
+      });
+      logger.error(`[${err.code}] Failed to batch add entities:`, err.toJSON());
+      throw err;
     }
   }
 
@@ -630,8 +670,13 @@ export const useSandboxStore = defineStore('sandbox', () => {
       }
       stateEvents.value = sortStateEventsByChapter([...merged.values()]);
     } catch (e) {
-      logger.error('Failed to batch add state events:', e);
-      throw e;
+      const err = new StorageError('Failed to batch add state events', {
+        code: ErrorCode.STORAGE_WRITE_FAILED,
+        context: { eventCount: events.length, projectId },
+        cause: e instanceof Error ? e : undefined,
+      });
+      logger.error(`[${err.code}] Failed to batch add state events:`, err.toJSON());
+      throw err;
     }
   }
 
@@ -656,8 +701,13 @@ export const useSandboxStore = defineStore('sandbox', () => {
         e => e.chapterNumber < startChapter || e.chapterNumber > endChapter
       );
     } catch (e) {
-      logger.error('Failed to delete state events by range:', e);
-      throw e;
+      const err = new StorageError('Failed to delete state events by range', {
+        code: ErrorCode.STORAGE_WRITE_FAILED,
+        context: { projectId, startChapter, endChapter },
+        cause: e instanceof Error ? e : undefined,
+      });
+      logger.error(`[${err.code}] Failed to delete state events by range:`, err.toJSON());
+      throw err;
     }
   }
 
@@ -781,8 +831,13 @@ export const useSandboxStore = defineStore('sandbox', () => {
       isLoaded.value = true;
       loadedProjectId.value = projectId;
     } catch (e) {
-      logger.error('Failed to replace sandbox data:', e);
-      throw e;
+      const err = new StorageError('Failed to replace sandbox data', {
+        code: ErrorCode.STORAGE_WRITE_FAILED,
+        context: { projectId },
+        cause: e instanceof Error ? e : undefined,
+      });
+      logger.error(`[${err.code}] Failed to replace sandbox data:`, err.toJSON());
+      throw err;
     }
   }
 
@@ -928,6 +983,25 @@ export const useSandboxStore = defineStore('sandbox', () => {
     batchAddEntities, batchAddStateEvents,
     replaceProjectData,
     deleteStateEventsByChapterRange, deleteEntitiesByIds, getStateSnapshotAt, buildNameToIdMap,
-    deltaRollbackMap, applyDelta, rollbackDelta
+    deltaRollbackMap, applyDelta, rollbackDelta,
+    $reset
   };
+
+  /**
+   * Reset the sandbox store to its initial state, clearing all entities,
+   * state events, drafts, and rollback data.
+   */
+  function $reset(): void {
+    entities.value = [];
+    stateEvents.value = [];
+    pendingStateEvents.value = [];
+    isLoading.value = false;
+    isLoaded.value = false;
+    loadedProjectId.value = null;
+    currentChapter.value = 1;
+    draftEntities.value = [];
+    draftRelations.value = [];
+    isWizardMode.value = false;
+    deltaRollbackMap.value = new Map();
+  }
 });

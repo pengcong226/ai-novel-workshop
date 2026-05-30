@@ -7,7 +7,7 @@
  * @module services/worldbook-common
  */
 
-import type { Worldbook, WorldbookEntry } from '@/types/worldbook'
+import type { Worldbook, WorldbookEntry, NovelWorkshopWorldbookExtensions } from '@/types/worldbook'
 
 /**
  * 条目准备选项
@@ -39,11 +39,11 @@ export interface PrepareWorldbookDataOptions {
 export function prepareEntry(
   entry: WorldbookEntry,
   options: PrepareEntryOptions = {}
-): any {
+): Record<string, unknown> {
   const { includeExtensions = false, includeAiMetadata = false } = options
 
   // SillyTavern 标准字段
-  const prepared: any = {
+  const prepared: Record<string, unknown> = {
     uid: entry.uid,
     key: entry.key,
     keysecondary: entry.keysecondary,
@@ -62,11 +62,11 @@ export function prepareEntry(
   }
 
   // 移除 undefined 字段
-  Object.keys(prepared).forEach((key) => {
+  for (const key of Object.keys(prepared)) {
     if (prepared[key] === undefined) {
       delete prepared[key]
     }
-  })
+  }
 
   // 包含扩展字段
   if (includeExtensions && entry.novelWorkshop) {
@@ -94,10 +94,10 @@ export function prepareEntry(
  * @returns 过滤后的扩展字段
  */
 export function filterNovelWorkshopExtensions(
-  extensions: any,
+  extensions: NovelWorkshopWorldbookExtensions,
   includeAiMetadata: boolean
-): any {
-  const filtered: any = {}
+): Record<string, unknown> {
+  const filtered: Record<string, unknown> = {}
 
   // 基本信息
   if (extensions.category) filtered.category = extensions.category
@@ -144,7 +144,7 @@ export function filterNovelWorkshopExtensions(
 export function prepareWorldbookData(
   worldbook: Worldbook,
   options: PrepareWorldbookDataOptions = {}
-): any {
+): Record<string, unknown> {
   const {
     includeExtensions = false,
     includeAiMetadata = false,
@@ -155,7 +155,7 @@ export function prepareWorldbookData(
     prepareEntry(entry, { includeExtensions, includeAiMetadata })
   )
 
-  const data: any = {
+  const data: Record<string, unknown> = {
     entries,
     name: worldbook.name
   }

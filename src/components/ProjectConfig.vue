@@ -1414,7 +1414,7 @@ onUnmounted(() => {
 }
 
 .header-card {
-  margin-bottom: 20px;
+  margin-bottom: var(--ds-space-5);
 }
 
 .header {
@@ -1431,7 +1431,7 @@ onUnmounted(() => {
 .content {
   display: flex;
   flex-direction: column;
-  gap: 20px;
+  gap: var(--ds-space-5);
 }
 
 .config-card {
@@ -1449,7 +1449,7 @@ onUnmounted(() => {
 .radio-label {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: var(--ds-space-1);
 }
 
 .label-title {
@@ -1463,7 +1463,7 @@ onUnmounted(() => {
 }
 
 .form-tip {
-  margin-top: 8px;
+  margin-top: var(--ds-space-2);
   font-size: 12px;
   color: var(--ds-text-tertiary);
   line-height: 1.5;
@@ -1472,12 +1472,12 @@ onUnmounted(() => {
 
 
 .prompt-editor {
-  margin-top: 16px;
+  margin-top: var(--ds-space-4);
 }
 
 .prompt-tips {
-  margin-top: 12px;
-  padding: 12px;
+  margin-top: var(--ds-space-3);
+  padding: var(--ds-space-3);
   background-color: var(--ds-bg-tertiary);
   border-radius: 4px;
 }
@@ -1486,13 +1486,13 @@ onUnmounted(() => {
   font-size: 13px;
   font-weight: 500;
   color: var(--ds-text-secondary);
-  margin-bottom: 8px;
+  margin-bottom: var(--ds-space-2);
 }
 
 :deep(.el-radio-group) {
   display: flex;
   flex-direction: column;
-  gap: 15px;
+  gap: var(--ds-space-4);
 }
 
 :deep(.el-radio) {
@@ -1502,7 +1502,7 @@ onUnmounted(() => {
 
 .plugin-actions {
   display: flex;
-  gap: 10px;
+  gap: var(--ds-space-3);
 }
 
 /* breakpoint: md (768px) */

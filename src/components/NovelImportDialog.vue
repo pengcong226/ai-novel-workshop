@@ -1365,7 +1365,7 @@ function getRoleName(role: string): string {
 
 <style scoped>
 .step-content {
-  margin-top: 30px;
+  margin-top: var(--ds-space-8);
   min-height: 300px;
 }
 
@@ -1384,14 +1384,14 @@ function getRoleName(role: string): string {
   display: block;
   font-size: 12px;
   color: var(--ds-text-tertiary);
-  margin-top: 4px;
+  margin-top: var(--ds-space-1);
 }
 
 .processing-section {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 20px;
+  gap: var(--ds-space-5);
 }
 
 .progress-message {
@@ -1402,7 +1402,7 @@ function getRoleName(role: string): string {
 .stats-card {
   width: 100%;
   max-width: 600px;
-  margin-top: 20px;
+  margin-top: var(--ds-space-5);
 }
 
 .preview-section {
@@ -1411,13 +1411,13 @@ function getRoleName(role: string): string {
 
 .more-hint {
   text-align: center;
-  padding: 10px;
+  padding: var(--ds-space-3);
   color: var(--ds-text-tertiary);
   font-size: 14px;
 }
 
 .pattern-info {
-  margin-bottom: 20px;
+  margin-bottom: var(--ds-space-5);
 }
 
 :deep(.el-upload-dragger) {

@@ -42,6 +42,20 @@ html.dark {
   --ds-text-2xl: 28px;
   --ds-text-3xl: 36px;
 
+  --ds-font-weight-normal: 400;
+  --ds-font-weight-medium: 500;
+  --ds-font-weight-semibold: 600;
+  --ds-font-weight-bold: 700;
+
+  --ds-leading-tight: 1.25;
+  --ds-leading-snug: 1.375;
+  --ds-leading-normal: 1.5;
+  --ds-leading-relaxed: 1.625;
+  --ds-leading-loose: 2;
+
+  --ds-space-0: 0;
+  --ds-space-px: 1px;
+  --ds-space-0-5: 2px;
   --ds-space-1: 4px;
   --ds-space-2: 8px;
   --ds-space-3: 12px;
@@ -51,12 +65,23 @@ html.dark {
   --ds-space-8: 32px;
   --ds-space-10: 40px;
   --ds-space-12: 48px;
+  --ds-space-14: 56px;
+  --ds-space-16: 64px;
 
   --ds-radius-sm: 6px;
   --ds-radius-md: 10px;
   --ds-radius-lg: 14px;
   --ds-radius-xl: 20px;
   --ds-radius-full: 9999px;
+
+  --ds-border-none: 0;
+  --ds-border-thin: 1px;
+  --ds-border-medium: 2px;
+  --ds-border-thick: 3px;
+
+  --ds-opacity-disabled: 0.5;
+  --ds-opacity-muted: 0.65;
+  --ds-opacity-hover: 0.9;
 
   --ds-shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
   --ds-shadow-md: 0 4px 12px rgba(0, 0, 0, 0.4);
@@ -153,6 +178,28 @@ html.light {
 
   --ds-glass-bg: rgba(255, 255, 255, 0.8);
   --ds-glass-border: rgba(0, 0, 0, 0.06);
+
+  --el-color-primary: var(--ds-accent);
+  --el-color-primary-light-3: var(--ds-accent-hover);
+  --el-color-primary-light-5: #8b7eeb;
+  --el-color-primary-light-7: rgba(91, 75, 214, 0.2);
+  --el-color-primary-light-8: rgba(91, 75, 214, 0.14);
+  --el-color-primary-light-9: var(--ds-accent-subtle);
+  --el-color-primary-dark-2: #4a3cc5;
+  --el-bg-color: var(--ds-bg-secondary);
+  --el-bg-color-page: var(--ds-bg-primary);
+  --el-bg-color-overlay: var(--ds-bg-elevated);
+  --el-text-color-primary: var(--ds-text-primary);
+  --el-text-color-regular: var(--ds-text-secondary);
+  --el-text-color-secondary: var(--ds-text-tertiary);
+  --el-text-color-placeholder: var(--ds-text-tertiary);
+  --el-border-color: var(--ds-surface-border);
+  --el-border-color-light: var(--ds-surface-border);
+  --el-border-color-lighter: var(--ds-surface-border);
+  --el-fill-color: var(--ds-bg-tertiary);
+  --el-fill-color-light: var(--ds-bg-secondary);
+  --el-fill-color-lighter: var(--ds-bg-hover);
+  --el-fill-color-blank: var(--ds-bg-primary);
 
   --el-mask-color: rgba(0, 0, 0, 0.45);
 }

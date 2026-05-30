@@ -1,11 +1,15 @@
 /**
- * 角色卡状态管理
+ * Character card state store (deprecated adapter).
  *
  * @deprecated This store is retained as an adapter for SillyTavern character card
  * import/export only. Internal data should use the V5 Sandbox Store (Entity + StateEvent).
- * - Import functions should dispatch Entity+StateEvent to sandbox store after parsing
- * - Export functions should read from sandbox store, not from local state
- * - The `worldbookEntries` field will be removed (worldbook entries now live as LORE entities)
+ *
+ * ### storeToRefs usage
+ * ```ts
+ * import { useCharacterCardStore } from '@/stores/character-card'
+ * import { storeToRefs } from 'pinia'
+ * const { character, worldbookEntries, loading } = storeToRefs(useCharacterCardStore())
+ * ```
  * @module stores/character-card
  */
 
@@ -23,6 +27,7 @@ import type {
 import { createCharacterCardImporter } from '@/services/character-card-importer'
 import { createCharacterCardExporter } from '@/services/character-card-exporter'
 import { getLogger } from '@/utils/logger'
+import { StorageError, toAppError, ErrorCode } from '@/utils/errors'
 import { useSandboxStore } from './sandbox'
 import { v4 as uuidv4 } from 'uuid'
 
@@ -278,7 +283,7 @@ export const useCharacterCardStore = defineStore('characterCard', () => {
       )
 
       if (!result.success) {
-        throw new Error('导出失败')
+        throw new StorageError('导出失败', { code: ErrorCode.STORAGE_WRITE_FAILED })
       }
 
       logger.info('角色卡导出成功', { format: options.format })
@@ -634,9 +639,36 @@ export const useCharacterCardStore = defineStore('characterCard', () => {
     updateRegexScript,
     deleteRegexScript,
     clear,
+    $reset,
 
     // V5 Bridge
     syncFromSandbox,
     dispatchToSandbox
+  }
+
+  /**
+   * Reset the character card store to its initial state.
+   */
+  function $reset(): void {
+    character.value = {}
+    aiSettings.value = {
+      temperature: 1,
+      frequency_penalty: 0,
+      presence_penalty: 0,
+      top_p: 0.9,
+      top_k: 500,
+      top_a: 0,
+      min_p: 0,
+      repetition_penalty: 1,
+      stream_openai: false,
+      function_calling: true
+    }
+    prompts.value = []
+    regexScripts.value = []
+    worldbookEntries.value = []
+    loading.value = false
+    error.value = null
+    bridgeError.value = null
+    projectId.value = null
   }
 })

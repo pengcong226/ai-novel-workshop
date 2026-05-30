@@ -3,6 +3,8 @@ import { createPinia } from 'pinia'
 import { storeLoggingMiddleware, storeDevtoolsPlugin } from './stores/middleware'
 import 'element-plus/theme-chalk/dark/css-vars.css'
 import '@/assets/styles/design-system.css'
+import '@/styles/utilities.scss'
+import '@/styles/animations.scss'
 import VueKonva from 'vue-konva'
 
 // ECharts 配置

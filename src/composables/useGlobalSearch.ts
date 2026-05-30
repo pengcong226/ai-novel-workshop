@@ -137,6 +137,13 @@ export function useGlobalSearch() {
       clearTimeout(searchTimer)
       searchTimer = null
     }
+    // Clear the module-scope SearchEngine to release indexed project data.
+    // It will be re-created on next open().
+    if (engine) {
+      engine.clear()
+      engine = null
+    }
+    docMeta.clear()
   })
 
   // ---- indexing ----

@@ -35,6 +35,7 @@
     "build:analyze": "ANALYZE=true vite build",
     "preview": "vite preview",
     "test": "vitest",
+    "test:coverage": "vitest --run --coverage",
     "test:run": "vitest --run",
     "lint": "eslint . --ext .vue,.js,.jsx,.cjs,.mjs,.ts,.tsx,.cts,.mts",
     "lint:fix": "eslint . --ext .vue,.js,.jsx,.cjs,.mjs,.ts,.tsx,.cts,.mts --fix",

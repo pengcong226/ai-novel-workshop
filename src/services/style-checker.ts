@@ -71,7 +71,7 @@ ${req.text.slice(0, 8000)}`
 
   const parsed = safeParseAIJson<unknown>(response.content)
   if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
-    throw new Error('AI 未返回可解析的风格检查 JSON')
+    throw new AIError('AI 未返回可解析的风格检查 JSON', { code: ErrorCode.AI_GENERATION_FAILED })
   }
 
   const result = parsed as Partial<Record<keyof StyleCheckResult, unknown>>
