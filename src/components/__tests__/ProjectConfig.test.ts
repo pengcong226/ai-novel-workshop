@@ -1199,4 +1199,378 @@ describe('ProjectConfig.vue', () => {
     expect(vm.advancedConfig.presencePenalty).toBe(0.2)
     expect(vm.advancedConfig.stopSequences).toEqual(['<END>'])
   })
+
+  // ---- New tests for uncovered functionality ----
+
+  // 58. handleRestoreBackup restores data and shows success message
+  it('handleRestoreBackup calls restoreFromBackup and shows success on valid backup', async () => {
+    const { wrapper, projectStore } = mountConfig({ withProject: true })
+    const vm = wrapper.vm as any
+
+    const mockBackup = { id: 'b-1', timestamp: Date.now(), chaptersCount: 3, wordCount: 5000 }
+    const mockRestoredData = { project: { id: 'proj-1' } }
+
+    const autoBackupModule = await import('@/utils/autoBackup')
+    vi.mocked(autoBackupModule.restoreAutoBackup).mockResolvedValueOnce(mockRestoredData as any)
+    const restoreSpy = vi.spyOn(projectStore, 'restoreFromBackup').mockResolvedValue(undefined as any)
+
+    await vm.handleRestoreBackup(mockBackup)
+    await flushPromises()
+
+    expect(autoBackupModule.restoreAutoBackup).toHaveBeenCalledWith('b-1')
+    expect(restoreSpy).toHaveBeenCalledWith(mockRestoredData)
+    expect(ElMessage.success).toHaveBeenCalledWith(expect.stringContaining('已恢复到'))
+  })
+
+  // 59. handleRestoreBackup shows error when backup returns null (corrupted)
+  it('handleRestoreBackup shows error when backup data is null (corrupted)', async () => {
+    const { wrapper } = mountConfig({ withProject: true })
+    const vm = wrapper.vm as any
+
+    const mockBackup = { id: 'b-bad', timestamp: Date.now(), chaptersCount: 0, wordCount: 0 }
+
+    const autoBackupModule = await import('@/utils/autoBackup')
+    vi.mocked(autoBackupModule.restoreAutoBackup).mockResolvedValueOnce(null)
+
+    await vm.handleRestoreBackup(mockBackup)
+    await flushPromises()
+
+    expect(ElMessage.error).toHaveBeenCalledWith('备份数据损坏，恢复失败')
+  })
+
+  // 60. handleRestoreBackup shows error when restore throws
+  it('handleRestoreBackup shows error when restoreAutoBackup throws', async () => {
+    const { wrapper } = mountConfig({ withProject: true })
+    const vm = wrapper.vm as any
+
+    const mockBackup = { id: 'b-err', timestamp: Date.now(), chaptersCount: 3, wordCount: 5000 }
+
+    const autoBackupModule = await import('@/utils/autoBackup')
+    vi.mocked(autoBackupModule.restoreAutoBackup).mockRejectedValueOnce(new Error('IO error'))
+
+    await vm.handleRestoreBackup(mockBackup)
+    await flushPromises()
+
+    expect(ElMessage.error).toHaveBeenCalledWith(expect.stringContaining('恢复失败'))
+    expect(ElMessage.error).toHaveBeenCalledWith(expect.stringContaining('IO error'))
+  })
+
+  // 61. exportConfig creates a download link and shows success message
+  it('exportConfig triggers file download and shows success', async () => {
+    const { wrapper } = mountConfig()
+    const vm = wrapper.vm as any
+
+    // Mock DOM methods for download
+    const mockClick = vi.fn()
+    const mockRevoke = vi.fn()
+    const createObjectURLSpy = vi.spyOn(URL, 'createObjectURL').mockReturnValue('blob:mock-url')
+    const revokeObjectURLSpy = vi.spyOn(URL, 'revokeObjectURL').mockImplementation(mockRevoke)
+    const createElementSpy = vi.spyOn(document, 'createElement').mockReturnValue({ click: mockClick, href: '', download: '' } as any)
+
+    try {
+      vm.exportConfig()
+      await wrapper.vm.$nextTick()
+
+      expect(createObjectURLSpy).toHaveBeenCalled()
+      expect(mockClick).toHaveBeenCalled()
+      expect(mockRevoke).toHaveBeenCalledWith('blob:mock-url')
+      expect(ElMessage.success).toHaveBeenCalledWith('配置已导出')
+    } finally {
+      // Restore all mocked DOM methods to prevent breaking subsequent tests
+      createObjectURLSpy.mockRestore()
+      revokeObjectURLSpy.mockRestore()
+      createElementSpy.mockRestore()
+    }
+  })
+
+  // 62. importConfig parses valid JSON and applies config
+  it('importConfig applies config from a valid JSON file', async () => {
+    const { wrapper } = mountConfig()
+    const vm = wrapper.vm as any
+
+    const importData = {
+      preset: 'quality',
+      advancedSettings: { temperature: 1.0 },
+      providers: [{ id: 'p1', name: 'Test Provider' }],
+    }
+    const jsonContent = JSON.stringify(importData)
+
+    // Mock FileReader
+    const mockReader = {
+      readAsText: vi.fn(),
+      onload: null as ((e: ProgressEvent<FileReader>) => void) | null,
+      onerror: null as (() => void) | null,
+    }
+    const fileReaderSpy = vi.spyOn(global, 'FileReader').mockImplementation(() => mockReader as any)
+
+    try {
+      const result = vm.importConfig(new File([jsonContent], 'config.json'))
+      expect(result).toBe(false) // Should return false to prevent auto-upload
+
+      // Simulate FileReader onload
+      mockReader.onload!({ target: { result: jsonContent } } as any)
+      await flushPromises()
+
+      expect(ElMessage.success).toHaveBeenCalledWith(expect.stringContaining('配置已导入'))
+    } finally {
+      fileReaderSpy.mockRestore()
+    }
+  })
+
+  // 63. importConfig shows error for invalid JSON
+  it('importConfig shows error for malformed JSON file', async () => {
+    const { wrapper } = mountConfig()
+    const vm = wrapper.vm as any
+
+    const mockReader = {
+      readAsText: vi.fn(),
+      onload: null as ((e: ProgressEvent<FileReader>) => void) | null,
+      onerror: null as (() => void) | null,
+    }
+    const fileReaderSpy = vi.spyOn(global, 'FileReader').mockImplementation(() => mockReader as any)
+
+    try {
+      vm.importConfig(new File(['not-json'], 'bad.json'))
+
+      // Simulate FileReader onload with invalid JSON
+      mockReader.onload!({ target: { result: 'not-json' } } as any)
+      await flushPromises()
+
+      expect(ElMessage.error).toHaveBeenCalledWith('配置文件格式错误，请检查文件内容')
+    } finally {
+      fileReaderSpy.mockRestore()
+    }
+  })
+
+  // 64. rebuildVectorIndex shows warning when no project is open
+  it('rebuildVectorIndex shows warning when no project is open', async () => {
+    const { wrapper } = mountConfig()
+    const vm = wrapper.vm as any
+
+    await vm.rebuildVectorIndex()
+    await flushPromises()
+
+    expect(ElMessage.warning).toHaveBeenCalledWith('请先打开项目')
+  })
+
+  // 65. rebuildVectorIndex rebuilds index when project is open
+  it('rebuildVectorIndex clears and reindexes when project is open', async () => {
+    const { wrapper } = mountConfig({ withProject: true })
+    const vm = wrapper.vm as any
+
+    const vectorServiceModule = await import('@/services/vector-service')
+    const mockService = {
+      clear: vi.fn().mockResolvedValue(undefined),
+      indexProject: vi.fn().mockResolvedValue(undefined),
+      getDocumentCount: vi.fn().mockResolvedValue(42),
+    }
+    vi.mocked(vectorServiceModule.getVectorService).mockResolvedValueOnce(mockService as any)
+
+    await vm.rebuildVectorIndex()
+    await flushPromises()
+
+    expect(mockService.clear).toHaveBeenCalled()
+    expect(mockService.indexProject).toHaveBeenCalled()
+    expect(mockService.getDocumentCount).toHaveBeenCalled()
+    expect(vm.vectorIndexStatus).toEqual({ indexed: true, documentCount: 42 })
+    expect(ElMessage.success).toHaveBeenCalledWith(expect.stringContaining('索引重建完成'))
+    expect(vm.rebuildingIndex).toBe(false)
+  })
+
+  // 66. rebuildVectorIndex shows error and resets loading on failure
+  it('rebuildVectorIndex shows error and resets loading flag on failure', async () => {
+    const { wrapper } = mountConfig({ withProject: true })
+    const vm = wrapper.vm as any
+
+    const vectorServiceModule = await import('@/services/vector-service')
+    vi.mocked(vectorServiceModule.getVectorService).mockRejectedValueOnce(new Error('network timeout'))
+
+    await vm.rebuildVectorIndex()
+    await flushPromises()
+
+    expect(ElMessage.error).toHaveBeenCalledWith(expect.stringContaining('重建索引失败'))
+    expect(ElMessage.error).toHaveBeenCalledWith(expect.stringContaining('network timeout'))
+    expect(vm.rebuildingIndex).toBe(false)
+  })
+
+  // 67. clearVectorIndex shows warning when no project is open
+  it('clearVectorIndex shows warning when no project is open', async () => {
+    const { wrapper } = mountConfig()
+    const vm = wrapper.vm as any
+
+    await vm.clearVectorIndex()
+    await flushPromises()
+
+    expect(ElMessage.warning).toHaveBeenCalledWith('请先打开项目')
+  })
+
+  // 68. clearVectorIndex clears index after confirmation
+  it('clearVectorIndex clears the index after user confirms', async () => {
+    const { wrapper } = mountConfig({ withProject: true })
+    const vm = wrapper.vm as any
+
+    // Pre-set index status
+    vm.vectorIndexStatus = { indexed: true, documentCount: 50 }
+
+    const vectorServiceModule = await import('@/services/vector-service')
+    const mockService = {
+      clear: vi.fn().mockResolvedValue(undefined),
+    }
+    vi.mocked(vectorServiceModule.getVectorService).mockResolvedValueOnce(mockService as any)
+
+    await vm.clearVectorIndex()
+    await flushPromises()
+
+    expect(ElMessageBox.confirm).toHaveBeenCalled()
+    expect(mockService.clear).toHaveBeenCalled()
+    expect(vm.vectorIndexStatus).toEqual({ indexed: false, documentCount: 0 })
+    expect(ElMessage.success).toHaveBeenCalledWith('索引已清空')
+  })
+
+  // 69. clearVectorIndex does nothing when user cancels
+  it('clearVectorIndex does not clear index when user cancels confirmation', async () => {
+    const { wrapper } = mountConfig({ withProject: true })
+    const vm = wrapper.vm as any
+
+    vm.vectorIndexStatus = { indexed: true, documentCount: 50 }
+
+    vi.mocked(ElMessageBox.confirm).mockRejectedValueOnce('cancel')
+
+    await vm.clearVectorIndex()
+    await flushPromises()
+
+    // Index status should remain unchanged
+    expect(vm.vectorIndexStatus).toEqual({ indexed: true, documentCount: 50 })
+    expect(ElMessage.success).not.toHaveBeenCalled()
+  })
+
+  // 70. showInstallPluginDialog opens the plugin manager dialog
+  it('showInstallPluginDialog opens the plugin manager dialog', async () => {
+    const { wrapper } = mountConfig()
+    const vm = wrapper.vm as any
+
+    expect(vm.showPluginManagerDialog).toBe(false)
+
+    vm.showInstallPluginDialog()
+    await wrapper.vm.$nextTick()
+
+    expect(vm.showPluginManagerDialog).toBe(true)
+  })
+
+  // 71. resetConfig shows success message after resetting
+  it('resetConfig shows success message after applying defaults', async () => {
+    const { wrapper } = mountConfig()
+    const vm = wrapper.vm as any
+
+    vm.configForm.preset = 'quality'
+    await wrapper.vm.$nextTick()
+
+    vm.resetConfig()
+    await wrapper.vm.$nextTick()
+
+    expect(vm.configForm.preset).toBe('standard')
+    expect(ElMessage.success).toHaveBeenCalledWith('配置已重置')
+  })
+
+  // 72. getNormalizedConfigWithOverrides merges overrides with current config
+  it('getNormalizedConfigWithOverrides merges partial overrides into current config', async () => {
+    const { wrapper } = mountConfig()
+    const vm = wrapper.vm as any
+
+    vm.configForm.preset = 'fast'
+    vm.systemPrompts.planner = 'custom planner'
+
+    const result = vm.getNormalizedConfigWithOverrides({ enableQualityCheck: false })
+
+    expect(result.enableQualityCheck).toBe(false)
+    // The system prompts should reflect the local systemPrompts ref
+    expect(result.systemPrompts?.planner).toBe('custom planner')
+    // Config form should be synced
+    expect(vm.configForm.preset).toBeDefined()
+  })
+
+  // 73. sensitive word check toggle is rendered and reactive
+  it('renders sensitive word check toggle and is reactive', async () => {
+    const { wrapper } = mountConfig()
+    const vm = wrapper.vm as any
+
+    expect(wrapper.text()).toContain('敏感词检测')
+    expect(vm.configForm.enableSensitiveWordCheck).toBe(false)
+
+    vm.configForm.enableSensitiveWordCheck = true
+    await wrapper.vm.$nextTick()
+
+    expect(vm.configForm.enableSensitiveWordCheck).toBe(true)
+  })
+
+  // 74. estimatedCost returns 0 when targetWords or targetWordCount is zero
+  it('estimatedCost returns 0 when project targetWords is 0', async () => {
+    const { wrapper, projectStore } = mountConfig()
+    const vm = wrapper.vm as any
+
+    projectStore.currentProject = {
+      id: 'proj-zero',
+      name: 'Zero Project',
+      targetWords: 0,
+      config: normalizeProjectConfig(undefined),
+      chapters: [],
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+    } as any
+    await wrapper.vm.$nextTick()
+
+    expect(vm.estimatedCost).toBe(0)
+  })
+
+  // 75. applyConfigToEditorState syncs systemPrompts from provided config
+  it('applyConfigToEditorState syncs systemPrompts from provided config', async () => {
+    const { wrapper } = mountConfig()
+    const vm = wrapper.vm as any
+
+    const customConfig = normalizeProjectConfig({
+      systemPrompts: {
+        planner: 'custom planner prompt override',
+        writer: 'custom writer prompt override',
+      },
+    })
+
+    vm.applyConfigToEditorState(customConfig)
+    await wrapper.vm.$nextTick()
+
+    // Custom prompts should be applied
+    expect(vm.systemPrompts.planner).toBe('custom planner prompt override')
+    expect(vm.systemPrompts.writer).toBe('custom writer prompt override')
+    // Non-overridden prompts should fall back to defaults
+    expect(vm.systemPrompts.sentinel).toContain('防吃书审查')
+    expect(vm.systemPrompts.extractor).toContain('沙盘状态提取')
+  })
+
+  // 76. applyConfigToEditorState syncs vectorConfig from provided config
+  it('applyConfigToEditorState syncs vectorConfig from provided config', async () => {
+    const { wrapper } = mountConfig()
+    const vm = wrapper.vm as any
+
+    const customConfig = normalizeProjectConfig({
+      enableVectorRetrieval: true,
+      vectorConfig: {
+        provider: 'openai',
+        model: 'text-embedding-3-large',
+        apiKey: 'sk-test-key',
+        topK: 10,
+        minScore: 0.8,
+        vectorWeight: 0.5,
+      },
+    })
+
+    vm.applyConfigToEditorState(customConfig)
+    await wrapper.vm.$nextTick()
+
+    expect(vm.vectorConfig.enabled).toBe(true)
+    expect(vm.vectorConfig.provider).toBe('openai')
+    expect(vm.vectorConfig.model).toBe('text-embedding-3-large')
+    expect(vm.vectorConfig.apiKey).toBe('sk-test-key')
+    expect(vm.vectorConfig.topK).toBe(10)
+    expect(vm.vectorConfig.minScore).toBe(0.8)
+    expect(vm.vectorConfig.vectorWeight).toBe(0.5)
+  })
 })

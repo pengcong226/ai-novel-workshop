@@ -621,4 +621,202 @@ describe('AppTour', () => {
     expect(document.querySelector('.app-tour-overlay')).toBeNull()
     wrapper.unmount()
   })
+
+  // ---------------------------------------------------------------
+  // 24. Single-step tour shows only finish button (no next/skip/prev)
+  // ---------------------------------------------------------------
+
+  it('shows only the finish button on a single-step tour', async () => {
+    createTargetElement('step-1')
+    const { wrapper, openTour } = mountTour(true, [
+      { target: '#step-1', title: '唯一', description: '单步' },
+    ])
+    await openTour()
+
+    const buttons = Array.from(document.querySelectorAll('.el-button-stub'))
+    const texts = buttons.map((b) => b.textContent?.trim())
+
+    expect(texts).toContain('完成')
+    expect(texts).not.toContain('下一步')
+    expect(texts).not.toContain('跳过')
+    expect(texts).not.toContain('上一步')
+
+    expect(document.querySelector('.app-tour-progress')!.textContent).toBe('1 / 1')
+    wrapper.unmount()
+  })
+
+  // ---------------------------------------------------------------
+  // 25. ArrowLeft on first step does not change step
+  // ---------------------------------------------------------------
+
+  it('does not navigate when ArrowLeft is pressed on the first step', async () => {
+    createTargetElement('step-1')
+    const { wrapper, openTour } = mountTour()
+    await openTour()
+
+    expect(document.querySelector('.app-tour-progress')!.textContent).toBe('1 / 3')
+
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowLeft' }))
+    await nextTick()
+    await nextTick()
+
+    // Still on step 1
+    expect(document.querySelector('.app-tour-card')!.textContent).toContain('第一步标题')
+    expect(document.querySelector('.app-tour-progress')!.textContent).toBe('1 / 3')
+    wrapper.unmount()
+  })
+
+  // ---------------------------------------------------------------
+  // 26. Enter key on last step does not error (nextStep is no-op)
+  // ---------------------------------------------------------------
+
+  it('does not advance beyond the last step when Enter is pressed', async () => {
+    createTargetElement('step-1')
+    createTargetElement('step-2')
+    createTargetElement('step-3')
+    const { wrapper, openTour } = mountTour()
+    await openTour()
+
+    // Navigate to last step
+    const buttons = () => Array.from(document.querySelectorAll('.el-button-stub'))
+    ;(buttons().find((b) => b.textContent?.trim() === '下一步')! as HTMLElement).click()
+    await nextTick()
+    await nextTick()
+    ;(buttons().find((b) => b.textContent?.trim() === '下一步')! as HTMLElement).click()
+    await nextTick()
+    await nextTick()
+
+    expect(document.querySelector('.app-tour-progress')!.textContent).toBe('3 / 3')
+
+    // Press Enter on last step -- should be a no-op in nextStep()
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter' }))
+    await nextTick()
+    await nextTick()
+
+    // Still on step 3
+    expect(document.querySelector('.app-tour-card')!.textContent).toContain('第三步标题')
+    expect(document.querySelector('.app-tour-progress')!.textContent).toBe('3 / 3')
+    wrapper.unmount()
+  })
+
+  // ---------------------------------------------------------------
+  // 27. Ref target with undefined value does not render card
+  // ---------------------------------------------------------------
+
+  it('does not render the card when Ref target value is undefined', async () => {
+    const refTarget = { value: undefined }
+    const { wrapper, openTour } = mountTour(true, [
+      { target: refTarget, title: '空 Ref', description: '不会显示' },
+    ])
+    await openTour()
+
+    expect(document.querySelector('.app-tour-card')).toBeNull()
+    wrapper.unmount()
+  })
+
+  // ---------------------------------------------------------------
+  // 28. Skip button is not shown on the last step
+  // ---------------------------------------------------------------
+
+  it('does not show skip button on the last step', async () => {
+    createTargetElement('step-1')
+    createTargetElement('step-2')
+    createTargetElement('step-3')
+    const { wrapper, openTour } = mountTour()
+    await openTour()
+
+    const buttons = () => Array.from(document.querySelectorAll('.el-button-stub'))
+
+    // Navigate to step 2
+    ;(buttons().find((b) => b.textContent?.trim() === '下一步')! as HTMLElement).click()
+    await nextTick()
+    await nextTick()
+
+    // Navigate to step 3 (last)
+    ;(buttons().find((b) => b.textContent?.trim() === '下一步')! as HTMLElement).click()
+    await nextTick()
+    await nextTick()
+
+    // On last step: skip button should be absent
+    const skipBtn = buttons().find((b) => b.textContent?.trim() === '跳过')
+    expect(skipBtn).toBeUndefined()
+
+    // Finish button should be present
+    const finishBtn = buttons().find((b) => b.textContent?.trim() === '完成')
+    expect(finishBtn).toBeDefined()
+    wrapper.unmount()
+  })
+
+  // ---------------------------------------------------------------
+  // 29. Card is clamped horizontally when target is near left edge
+  // ---------------------------------------------------------------
+
+  it('clamps card position horizontally so it does not overflow viewport', async () => {
+    // Target near the left edge of the viewport -- card would overflow left
+    createTargetElement('step-1', {
+      top: 100,
+      bottom: 180,
+      left: 0,
+      right: 50,
+      width: 50,
+      height: 80,
+    })
+    const { wrapper, openTour } = mountTour()
+    await openTour()
+
+    const card = document.querySelector('.app-tour-card') as HTMLElement
+    expect(card).not.toBeNull()
+
+    // left should be clamped to gap (12px) instead of a negative value
+    const leftValue = parseInt(card.style.left, 10)
+    expect(leftValue).toBeGreaterThanOrEqual(12)
+    wrapper.unmount()
+  })
+
+  // ---------------------------------------------------------------
+  // 30. Highlight element is not rendered when target is missing
+  // ---------------------------------------------------------------
+
+  it('does not render highlight when target element is missing', async () => {
+    const { wrapper, openTour } = mountTour(true, [
+      { target: '#does-not-exist', title: 'Ghost', description: 'No target' },
+    ])
+    await openTour()
+
+    expect(document.querySelector('.app-tour-highlight')).toBeNull()
+    wrapper.unmount()
+  })
+
+  // ---------------------------------------------------------------
+  // 31. ArrowRight on last step is a no-op (no error, no step change)
+  // ---------------------------------------------------------------
+
+  it('does not navigate when ArrowRight is pressed on the last step', async () => {
+    createTargetElement('step-1')
+    createTargetElement('step-2')
+    createTargetElement('step-3')
+    const { wrapper, openTour } = mountTour()
+    await openTour()
+
+    const buttons = () => Array.from(document.querySelectorAll('.el-button-stub'))
+
+    // Navigate to last step
+    ;(buttons().find((b) => b.textContent?.trim() === '下一步')! as HTMLElement).click()
+    await nextTick()
+    await nextTick()
+    ;(buttons().find((b) => b.textContent?.trim() === '下一步')! as HTMLElement).click()
+    await nextTick()
+    await nextTick()
+
+    expect(document.querySelector('.app-tour-progress')!.textContent).toBe('3 / 3')
+
+    // ArrowRight on last step
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight' }))
+    await nextTick()
+    await nextTick()
+
+    expect(document.querySelector('.app-tour-card')!.textContent).toContain('第三步标题')
+    expect(document.querySelector('.app-tour-progress')!.textContent).toBe('3 / 3')
+    wrapper.unmount()
+  })
 })

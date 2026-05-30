@@ -176,6 +176,9 @@ function mountWithChapters(chapters: Chapter[] = []) {
   const store = useProjectStore()
   store.currentProject = project
 
+  // Spy on saveCurrentProject to prevent IndexedDB errors in test environment
+  vi.spyOn(store, 'saveCurrentProject').mockResolvedValue(undefined)
+
   const wrapper = mount(SummaryManager, {
     global: {
       plugins: [pinia],
@@ -595,5 +598,258 @@ describe('SummaryManager', () => {
     const statusTag = wrapper.findAll('.stub-tag')
       .find((t) => t.text().includes('未生成'))
     expect(statusTag?.attributes('data-type')).toBe('info')
+  })
+
+  // ---- saveSummary flow ----
+
+  it('saves edited summary to project and calls saveCurrentProject', async () => {
+    const chapters = [
+      createMockChapter({
+        id: 'ch-1',
+        number: 1,
+        title: '开端',
+        summaryData: createMockSummaryData({ summary: '原始摘要' }),
+      }),
+    ]
+    const { wrapper, project } = mountWithChapters(chapters)
+
+    // Open edit dialog
+    const editBtn = wrapper.findAll('.summary-actions .stub-button')
+      .find((b) => b.text().includes('编辑'))
+    await editBtn!.trigger('click')
+    await flushPromises()
+
+    // Click save button in dialog footer
+    const dialogFooter = wrapper.find('.stub-dialog')
+    const saveBtn = dialogFooter.findAll('.stub-button')
+      .find((b) => b.text().includes('保存'))
+    await saveBtn!.trigger('click')
+    await flushPromises()
+
+    // saveCurrentProject should have been called
+    const store = useProjectStore()
+    expect(store.saveCurrentProject).toHaveBeenCalled()
+  })
+
+  it('shows success message after saving summary', async () => {
+    const chapters = [
+      createMockChapter({
+        id: 'ch-1',
+        number: 1,
+        title: '开端',
+        summaryData: createMockSummaryData({ summary: '原始摘要' }),
+      }),
+    ]
+    const { wrapper } = mountWithChapters(chapters)
+
+    const editBtn = wrapper.findAll('.summary-actions .stub-button')
+      .find((b) => b.text().includes('编辑'))
+    await editBtn!.trigger('click')
+    await flushPromises()
+
+    const dialogFooter = wrapper.find('.stub-dialog')
+    const saveBtn = dialogFooter.findAll('.stub-button')
+      .find((b) => b.text().includes('保存'))
+    await saveBtn!.trigger('click')
+    await flushPromises()
+
+    expect(ElMessage.success).toHaveBeenCalledWith('摘要已保存')
+  })
+
+  it('closes edit dialog after saving', async () => {
+    const chapters = [
+      createMockChapter({
+        id: 'ch-1',
+        number: 1,
+        title: '开端',
+        summaryData: createMockSummaryData({ summary: '原始摘要' }),
+      }),
+    ]
+    const { wrapper } = mountWithChapters(chapters)
+
+    const editBtn = wrapper.findAll('.summary-actions .stub-button')
+      .find((b) => b.text().includes('编辑'))
+    await editBtn!.trigger('click')
+    await flushPromises()
+
+    // Dialog should be visible
+    expect(wrapper.find('.stub-dialog').exists()).toBe(true)
+
+    const dialogFooter = wrapper.find('.stub-dialog')
+    const saveBtn = dialogFooter.findAll('.stub-button')
+      .find((b) => b.text().includes('保存'))
+    await saveBtn!.trigger('click')
+    await flushPromises()
+
+    // Dialog should be hidden after save (v-model becomes false)
+    expect(wrapper.find('.stub-dialog').exists()).toBe(false)
+  })
+
+  // ---- Cancel edit dialog ----
+
+  it('closes edit dialog when cancel button is clicked', async () => {
+    const chapters = [
+      createMockChapter({
+        id: 'ch-1',
+        number: 1,
+        title: '开端',
+        summaryData: createMockSummaryData({ summary: '原始摘要' }),
+      }),
+    ]
+    const { wrapper } = mountWithChapters(chapters)
+
+    const editBtn = wrapper.findAll('.summary-actions .stub-button')
+      .find((b) => b.text().includes('编辑'))
+    await editBtn!.trigger('click')
+    await flushPromises()
+
+    expect(wrapper.find('.stub-dialog').exists()).toBe(true)
+
+    const dialogFooter = wrapper.find('.stub-dialog')
+    const cancelBtn = dialogFooter.findAll('.stub-button')
+      .find((b) => b.text().includes('取消'))
+    await cancelBtn!.trigger('click')
+    await flushPromises()
+
+    expect(wrapper.find('.stub-dialog').exists()).toBe(false)
+  })
+
+  // ---- generateSummaryForChapter error handling ----
+
+  it('shows error message when generateChapterSummary throws', async () => {
+    vi.mocked(generateChapterSummary).mockRejectedValueOnce(new Error('API限流'))
+
+    const chapters = [
+      createMockChapter({ id: 'ch-1', number: 1, title: '开端' }),
+    ]
+    const { wrapper } = mountWithChapters(chapters)
+
+    const generateBtn = wrapper.find('.no-summary .stub-button')
+    await generateBtn.trigger('click')
+    await flushPromises()
+
+    expect(ElMessage.error).toHaveBeenCalledWith(
+      expect.stringContaining('生成失败')
+    )
+    expect(ElMessage.error).toHaveBeenCalledWith(
+      expect.stringContaining('API限流')
+    )
+  })
+
+  // ---- regenerateSummary cancellation ----
+
+  it('does not call generateChapterSummary when user cancels regeneration', async () => {
+    vi.mocked(ElMessageBox.confirm).mockRejectedValueOnce('cancel')
+
+    const chapters = [
+      createMockChapter({ id: 'ch-1', number: 1, summaryData: createMockSummaryData() }),
+    ]
+    const { wrapper } = mountWithChapters(chapters)
+
+    vi.mocked(generateChapterSummary).mockClear()
+
+    const regenBtn = wrapper.findAll('.summary-actions .stub-button')
+      .find((b) => b.text().includes('重新生成'))
+    await regenBtn!.trigger('click')
+    await flushPromises()
+
+    expect(generateChapterSummary).not.toHaveBeenCalled()
+  })
+
+  // ---- Batch generate: recent chapters skip ----
+
+  it('shows info message when all chapters are in the last 3', async () => {
+    // 3 chapters: max = 3, filter ch.number < 3 - 3 = 0 -> none qualify
+    const chapters = [
+      createMockChapter({ id: 'ch-1', number: 1, title: '第一章' }),
+      createMockChapter({ id: 'ch-2', number: 2, title: '第二章' }),
+      createMockChapter({ id: 'ch-3', number: 3, title: '第三章' }),
+    ]
+    const { wrapper } = mountWithChapters(chapters)
+
+    const generateAllBtn = wrapper.findAll('.stub-button')
+      .find((b) => b.text().includes('生成所有摘要'))
+    await generateAllBtn!.trigger('click')
+    await flushPromises()
+
+    expect(ElMessage.info).toHaveBeenCalledWith('最近的3章不需要生成摘要')
+    expect(batchGenerateSummaries).not.toHaveBeenCalled()
+  })
+
+  // ---- Progress dialog during batch generate ----
+
+  it('shows progress dialog during batch generation', async () => {
+    // Make batchGenerateSummaries return after a short delay so we can check dialog visibility
+    let batchResolve: (value: any[]) => void
+    vi.mocked(batchGenerateSummaries).mockImplementationOnce(
+      () => new Promise((resolve) => { batchResolve = resolve })
+    )
+
+    // 6 chapters: max = 6, filter ch.number < 6 - 3 = 3 -> chapters 1,2 qualify
+    const chapters = Array.from({ length: 6 }, (_, i) =>
+      createMockChapter({ id: `ch-${i + 1}`, number: i + 1, title: `第${i + 1}章` })
+    )
+    const { wrapper } = mountWithChapters(chapters)
+
+    const generateAllBtn = wrapper.findAll('.stub-button')
+      .find((b) => b.text().includes('生成所有摘要'))
+    await generateAllBtn!.trigger('click')
+
+    // Progress dialog should be visible while batch is in progress
+    expect(wrapper.find('.progress-content').exists()).toBe(true)
+    expect(wrapper.text()).toContain('正在生成第')
+
+    // Resolve the batch to clean up
+    batchResolve!([])
+    await flushPromises()
+  })
+
+  // ---- Batch generate error handling ----
+
+  it('shows error message when batchGenerateSummaries fails', async () => {
+    vi.mocked(batchGenerateSummaries).mockRejectedValueOnce(new Error('网络超时'))
+
+    const chapters = Array.from({ length: 6 }, (_, i) =>
+      createMockChapter({ id: `ch-${i + 1}`, number: i + 1, title: `第${i + 1}章` })
+    )
+    const { wrapper } = mountWithChapters(chapters)
+
+    const generateAllBtn = wrapper.findAll('.stub-button')
+      .find((b) => b.text().includes('生成所有摘要'))
+    await generateAllBtn!.trigger('click')
+    await flushPromises()
+
+    expect(ElMessage.error).toHaveBeenCalledWith(
+      expect.stringContaining('批量生成失败')
+    )
+    expect(ElMessage.error).toHaveBeenCalledWith(
+      expect.stringContaining('网络超时')
+    )
+  })
+
+  // ---- Edit summary initializes form with empty defaults ----
+
+  it('initializes edit form with empty defaults when summaryData fields are empty', async () => {
+    const summaryData = createMockSummaryData({
+      summary: '',
+      keyEvents: [],
+      characters: [],
+      locations: [],
+      plotProgression: '',
+    })
+    const chapters = [
+      createMockChapter({ id: 'ch-1', number: 1, title: '开端', summaryData }),
+    ]
+    const { wrapper } = mountWithChapters(chapters)
+
+    const editBtn = wrapper.findAll('.summary-actions .stub-button')
+      .find((b) => b.text().includes('编辑'))
+    await editBtn!.trigger('click')
+    await flushPromises()
+
+    // Dialog should open with the form labels
+    const dialog = wrapper.find('.stub-dialog')
+    expect(dialog.exists()).toBe(true)
+    expect(dialog.text()).toContain('摘要内容')
   })
 })

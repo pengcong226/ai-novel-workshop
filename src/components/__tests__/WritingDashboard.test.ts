@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { mount } from '@vue/test-utils'
+import { nextTick } from 'vue'
 import { createTestPinia } from '@/test/helpers'
 import { createMockProject, createMockChapter, createMockProjectConfig, resetMockIdCounter } from '@/test/mocks'
 import WritingDashboard from '@/components/WritingDashboard.vue'
@@ -578,5 +579,249 @@ describe('WritingDashboard', () => {
 
     await createBtn.trigger('click')
     expect(wrapper.emitted('create-chapter')).toBeTruthy()
+  })
+
+  // -----------------------------------------------------------------------
+  // 15. Batch generate emit from quick actions
+  // -----------------------------------------------------------------------
+
+  it('emits batch-generate when batch generate button is clicked', async () => {
+    const { wrapper } = mountDashboard()
+
+    const quickSection = wrapper.find('.quick-actions')
+    const buttons = quickSection.findAll('.stub-btn')
+    const batchBtn = buttons.find(b => b.text().includes('批量生成'))
+
+    expect(batchBtn).toBeDefined()
+    await batchBtn!.trigger('click')
+    expect(wrapper.emitted('batch-generate')).toHaveLength(1)
+  })
+
+  // -----------------------------------------------------------------------
+  // 16. Open chapters emit from quick actions
+  // -----------------------------------------------------------------------
+
+  it('emits open-chapters when chapters management button is clicked', async () => {
+    const { wrapper } = mountDashboard()
+
+    const quickSection = wrapper.find('.quick-actions')
+    const buttons = quickSection.findAll('.stub-btn')
+    const chaptersBtn = buttons.find(b => b.text().includes('章节管理'))
+
+    expect(chaptersBtn).toBeDefined()
+    await chaptersBtn!.trigger('click')
+    expect(wrapper.emitted('open-chapters')).toHaveLength(1)
+  })
+
+  // -----------------------------------------------------------------------
+  // 17. Daemon state: pause button when running
+  // -----------------------------------------------------------------------
+
+  it('shows pause and stop buttons when daemon is running', async () => {
+    const { wrapper } = mountDashboard()
+
+    // Set daemon status to running
+    const vm = wrapper.vm as any
+    vm.daemonStateRef.status = 'running'
+    await nextTick()
+
+    expect(wrapper.text()).toContain('运行中')
+
+    const buttons = wrapper.findAll('.daemon-actions .stub-btn')
+    const buttonTexts = buttons.map(b => b.text())
+
+    expect(buttonTexts.some(t => t.includes('暂停'))).toBe(true)
+    expect(buttonTexts.some(t => t.includes('停止'))).toBe(true)
+    // Should not show start button
+    expect(buttonTexts.some(t => t.includes('启动'))).toBe(false)
+  })
+
+  // -----------------------------------------------------------------------
+  // 18. Daemon state: resume and stop buttons when paused
+  // -----------------------------------------------------------------------
+
+  it('shows resume and stop buttons when daemon is paused', async () => {
+    const { wrapper } = mountDashboard()
+
+    const vm = wrapper.vm as any
+    vm.daemonStateRef.status = 'paused'
+    await nextTick()
+
+    expect(wrapper.text()).toContain('已暂停')
+
+    const buttons = wrapper.findAll('.daemon-actions .stub-btn')
+    const buttonTexts = buttons.map(b => b.text())
+
+    expect(buttonTexts.some(t => t.includes('恢复'))).toBe(true)
+    expect(buttonTexts.some(t => t.includes('停止'))).toBe(true)
+    // Should not show start or pause buttons
+    expect(buttonTexts.some(t => t.includes('启动'))).toBe(false)
+    expect(buttonTexts.some(t => t.includes('暂停'))).toBe(false)
+  })
+
+  // -----------------------------------------------------------------------
+  // 19. Daemon state: start button when stopped
+  // -----------------------------------------------------------------------
+
+  it('shows start button when daemon is stopped', async () => {
+    const { wrapper } = mountDashboard()
+
+    const vm = wrapper.vm as any
+    vm.daemonStateRef.status = 'stopped'
+    await nextTick()
+
+    expect(wrapper.text()).toContain('已停止')
+
+    const buttons = wrapper.findAll('.daemon-actions .stub-btn')
+    const buttonTexts = buttons.map(b => b.text())
+
+    expect(buttonTexts.some(t => t.includes('启动'))).toBe(true)
+    expect(buttonTexts.some(t => t.includes('暂停'))).toBe(false)
+    expect(buttonTexts.some(t => t.includes('停止'))).toBe(false)
+  })
+
+  // -----------------------------------------------------------------------
+  // 20. Daemon mode change triggers ElMessage
+  // -----------------------------------------------------------------------
+
+  it('shows message when daemon mode is changed', async () => {
+    const { wrapper } = mountDashboard()
+
+    // Access the onDaemonModeChange function via the component's exposed methods
+    // We test it indirectly by changing the select value
+    const vm = wrapper.vm as any
+    vm.onDaemonModeChange('auto')
+    await nextTick()
+
+    // ElMessage.info is mocked; verify it was called
+    const { ElMessage } = await import('element-plus')
+    expect(ElMessage.info).toHaveBeenCalledWith(
+      expect.stringContaining('全自动'),
+    )
+  })
+
+  // -----------------------------------------------------------------------
+  // 21. Pipeline "查看控制台" button emits open-agents
+  // -----------------------------------------------------------------------
+
+  it('emits open-agents from pipeline 查看控制台 button', async () => {
+    const { wrapper } = mountDashboard()
+
+    // The pipeline section has a button with text "查看控制台"
+    const pipelineCard = wrapper.find('.pipeline-status-card')
+    expect(pipelineCard.exists()).toBe(true)
+
+    const buttons = pipelineCard.findAll('.stub-btn')
+    const consoleBtn = buttons.find(b => b.text().includes('查看控制台'))
+
+    expect(consoleBtn).toBeDefined()
+    await consoleBtn!.trigger('click')
+    expect(wrapper.emitted('open-agents')).toBeTruthy()
+  })
+
+  // -----------------------------------------------------------------------
+  // 22. AI model shows 未配置 when providers are disabled
+  // -----------------------------------------------------------------------
+
+  it('shows AI model as 未配置 when all providers are disabled', () => {
+    const pinia = createTestPinia()
+    const projectStore = useProjectStore()
+    const aiStore = useAIStore()
+
+    const project = createMockProject({
+      title: 'Test Novel',
+      chapters: [],
+      config: createMockProjectConfig({
+        providers: [
+          // Provider exists but is disabled
+          { id: 'p1', name: 'OpenAI', type: 'openai' as const, baseUrl: '', apiKey: '', isEnabled: false, models: [{ id: 'm1', name: 'gpt-4', type: 'all' as const, maxTokens: 4096, costPerInputToken: 0, costPerOutputToken: 0, isEnabled: true }] },
+        ],
+      }),
+    })
+    ;(projectStore as any).currentProject = project
+    ;(projectStore as any).globalConfig = project.config
+    ;(aiStore as any).pipelineRunning = false
+
+    const wrapper = mount(WritingDashboard, {
+      global: { plugins: [pinia], stubs },
+    })
+
+    expect(wrapper.text()).toContain('未配置')
+    expect(wrapper.text()).not.toContain('已配置')
+  })
+
+  // -----------------------------------------------------------------------
+  // 23. AI warning alert shown when no providers
+  // -----------------------------------------------------------------------
+
+  it('shows AI configuration warning when no providers are configured', () => {
+    const pinia = createTestPinia()
+    const projectStore = useProjectStore()
+    const aiStore = useAIStore()
+
+    const project = createMockProject({
+      title: 'Test Novel',
+      chapters: [],
+      config: createMockProjectConfig({ providers: [] }),
+    })
+    ;(projectStore as any).currentProject = project
+    ;(projectStore as any).globalConfig = project.config
+    ;(aiStore as any).pipelineRunning = false
+
+    const wrapper = mount(WritingDashboard, {
+      global: { plugins: [pinia], stubs },
+    })
+
+    // The el-alert stub renders title as a prop (not visible in text()),
+    // but the slot content (button) is rendered. Check for the "前往配置" button.
+    const alertStub = wrapper.find('.stub-alert')
+    expect(alertStub.exists()).toBe(true)
+    // Verify the "前往配置" button inside the alert
+    const configBtn = alertStub.find('.stub-btn')
+    expect(configBtn.exists()).toBe(true)
+    expect(configBtn.text()).toContain('前往配置')
+  })
+
+  // -----------------------------------------------------------------------
+  // 24. Recent chapters display word count and date
+  // -----------------------------------------------------------------------
+
+  it('displays word count and date for recent chapters', () => {
+    const recent = [
+      { id: 'r1', number: 1, title: '开端', wordCount: 12345, generationTime: new Date('2025-06-01'), status: 'draft', generatedBy: 'manual' },
+    ]
+
+    buildWritingDashboardMock.mockReturnValue(makeSummary({ recentChapters: recent }))
+
+    const { wrapper } = mountDashboard()
+
+    expect(wrapper.text()).toContain('最近章节')
+    // formatNumber mock converts 12345 to "1.2万"
+    expect(wrapper.text()).toContain('1.2万')
+    // formatDate mock returns '2025-01-01'
+    expect(wrapper.text()).toContain('2025-01-01')
+  })
+
+  // -----------------------------------------------------------------------
+  // 25. Chapter status progress bars display correct counts
+  // -----------------------------------------------------------------------
+
+  it('displays correct counts for each chapter status', () => {
+    buildWritingDashboardMock.mockReturnValue(makeSummary({
+      chapterCount: 10,
+      statusCounts: { draft: 7, revised: 2, final: 1 },
+    }))
+
+    const { wrapper } = mountDashboard()
+
+    const statusSection = wrapper.find('.status-list')
+    expect(statusSection.exists()).toBe(true)
+
+    const statusItems = statusSection.findAll('.status-item')
+    expect(statusItems).toHaveLength(3)
+
+    // Each status item has a <strong> with the count
+    const counts = statusItems.map(item => item.find('strong').text())
+    expect(counts).toEqual(['7', '2', '1'])
   })
 })
