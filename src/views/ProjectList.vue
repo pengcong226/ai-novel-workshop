@@ -769,25 +769,31 @@ function getAccentGradient(genre?: string) {
 }
 </script>
 
-<style scoped>
+<style scoped lang="scss">
 .project-list {
   min-height: 100vh;
   background:
     radial-gradient(circle at top left, color-mix(in srgb, var(--ds-accent) 16%, transparent), transparent 34%),
     var(--ds-bg-primary);
-  padding: var(--ds-space-8);
+  @include responsive-padding(var(--ds-space-8), var(--ds-space-5));
   color: var(--ds-text-primary);
   overflow-y: auto;
 }
 
 .hero-section {
   display: flex;
-  justify-content: space-between;
-  align-items: flex-end;
+  flex-direction: column;
+  align-items: flex-start;
   gap: var(--ds-space-6);
   margin-bottom: var(--ds-space-10);
   padding-bottom: var(--ds-space-6);
   border-bottom: 1px solid var(--ds-surface-border);
+
+  @include tablet {
+    flex-direction: row;
+    justify-content: space-between;
+    align-items: flex-end;
+  }
 }
 
 .hero-kicker {
@@ -801,7 +807,7 @@ function getAccentGradient(genre?: string) {
 
 .hero-title {
   margin: 0;
-  font-size: var(--ds-text-3xl);
+  @include responsive-font(var(--ds-text-3xl), var(--ds-text-2xl));
   font-weight: 700;
   letter-spacing: -0.02em;
   line-height: 1.1;
@@ -822,6 +828,11 @@ function getAccentGradient(genre?: string) {
   display: flex;
   gap: var(--ds-space-3);
   flex-wrap: wrap;
+  width: 100%;
+
+  @include tablet {
+    width: auto;
+  }
 }
 
 .main {
@@ -861,8 +872,12 @@ function getAccentGradient(genre?: string) {
 
 .project-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
   gap: var(--ds-space-5);
+  grid-template-columns: 1fr;
+
+  @include tablet {
+    grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  }
 }
 
 .project-card {
@@ -873,12 +888,14 @@ function getAccentGradient(genre?: string) {
   cursor: pointer;
   transition: all var(--ds-transition-normal);
   opacity: 0;
-}
 
-.project-card:hover {
-  border-color: var(--ds-accent);
-  transform: translateY(-3px);
-  box-shadow: var(--ds-shadow-lg), var(--ds-shadow-glow);
+  @include can-hover {
+    &:hover {
+      border-color: var(--ds-accent);
+      transform: translateY(-3px);
+      box-shadow: var(--ds-shadow-lg), var(--ds-shadow-glow);
+    }
+  }
 }
 
 .card-accent {
@@ -914,11 +931,13 @@ function getAccentGradient(genre?: string) {
   padding: var(--ds-space-1);
   border-radius: var(--ds-radius-sm);
   transition: all var(--ds-transition-fast);
-}
 
-.more-btn:hover {
-  background: var(--ds-bg-hover);
-  color: var(--ds-text-primary);
+  @include can-hover {
+    &:hover {
+      background: var(--ds-bg-hover);
+      color: var(--ds-text-primary);
+    }
+  }
 }
 
 .card-meta {
@@ -1010,27 +1029,7 @@ function getAccentGradient(genre?: string) {
   margin-bottom: var(--ds-space-4);
 }
 
-/* breakpoint: md (768px) */
-@media (max-width: 768px) {
-  .project-list {
-    padding: var(--ds-space-5);
-  }
-
-  .hero-section {
-    flex-direction: column;
-    align-items: flex-start;
-  }
-
-  .hero-title {
-    font-size: var(--ds-text-2xl);
-  }
-
-  .project-grid {
-    grid-template-columns: 1fr;
-  }
-
-  .hero-actions {
-    width: 100%;
-  }
+:deep(.el-dialog) {
+  @include responsive-dialog(500px, 92vw);
 }
 </style>
