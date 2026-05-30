@@ -163,7 +163,7 @@ export const useProjectStore = defineStore('project', () => {
 
     trackProjectCreate({ genre, targetWords })
 
-    projects.value.push(newProject)
+    projects.value = [...projects.value, newProject]
 
     // 保存项目列表到localStorage
     await storage.saveProjects(projects.value)
@@ -180,6 +180,8 @@ export const useProjectStore = defineStore('project', () => {
     loading.value = true
     error.value = null
     try {
+      // Clean up any prior project state (timers, event listeners)
+      cleanup()
       logger.info('开始加载项目', { projectId })
       const projectData = await storage.loadProject(projectId)
       logger.debug('项目加载结果', { found: Boolean(projectData), projectId })
@@ -188,6 +190,11 @@ export const useProjectStore = defineStore('project', () => {
         projectData.config = normalizeProjectConfig(projectData.config)
         currentProject.value = projectData
         logger.info('项目加载成功', { projectId: projectData.id, title: projectData.title })
+
+        // Attach beforeunload listener to flush pending saves on tab close
+        if (beforeUnloadHandler && typeof window !== 'undefined') {
+          window.addEventListener('beforeunload', beforeUnloadHandler)
+        }
 
         // 加载 sandbox 数据并执行 V5 迁移（如果需要）
         const sandboxStore = useSandboxStore()
@@ -408,7 +415,11 @@ export const useProjectStore = defineStore('project', () => {
         // 更新项目列表
         const index = projects.value.findIndex(p => p.id === project.id)
         if (index !== -1) {
-          projects.value[index] = { ...project }
+          projects.value = [
+            ...projects.value.slice(0, index),
+            { ...project },
+            ...projects.value.slice(index + 1),
+          ]
           await storage.saveProjects(projects.value)
           logger.debug('项目列表已更新', { id: project.id })
         }
@@ -695,7 +706,7 @@ export const useProjectStore = defineStore('project', () => {
 
     // 保存项目
     await storage.saveProject(project)
-    projects.value.push(project)
+    projects.value = [...projects.value, project]
     await storage.saveProjects(projects.value)
 
     return project
@@ -724,6 +735,7 @@ export const useProjectStore = defineStore('project', () => {
     loading.value = false
     error.value = null
     globalConfig.value = null
+    globalConfigLoaded = false
   }
 
   return {

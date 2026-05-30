@@ -91,7 +91,6 @@ const MagicStickStub = { name: 'MagicStick', template: '<span class="icon-magic-
 
 import SandboxTimeline from '@/components/Sandbox/SandboxTimeline.vue'
 import { useProjectStore } from '@/stores/project'
-import { useSandboxStore } from '@/stores/sandbox'
 import { ElMessage } from 'element-plus'
 
 // --- Mount helper ---

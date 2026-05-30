@@ -160,7 +160,7 @@ const ElTableStub = {
     TableRowWrapper: {
       props: ['row'],
       provide() {
-        return { elTableRow: () => this.row }
+        return { elTableRow: () => (this as any).row }
       },
       template: '<div class="el-table-row-stub"><slot /></div>',
     },
@@ -177,8 +177,8 @@ const ElTableColumnStub = {
     getTableRow: { from: 'elTableRow', default: null },
   },
   computed: {
-    row() {
-      return this.getTableRow ? this.getTableRow() : null
+    row(): any {
+      return (this as any).getTableRow ? (this as any).getTableRow() : null
     },
   },
   template: `

@@ -12,7 +12,6 @@ const localStorageMock: Storage = {
   get length() { return Object.keys(store).length },
   key: (index: number) => Object.keys(store)[index] ?? null,
 }
-// @ts-expect-error -- injecting mock into globalThis for Node test env
 globalThis.localStorage = localStorageMock
 
 // Use dynamic import so the module is loaded AFTER the localStorage mock is in place.

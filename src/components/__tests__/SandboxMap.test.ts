@@ -1,8 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { mount } from '@vue/test-utils'
-import { nextTick } from 'vue'
 import { createTestPinia } from '@/test/helpers'
-import { resetMockIdCounter, createMockEntity } from '@/test/mocks'
+import { resetMockIdCounter } from '@/test/mocks'
 
 // --- Mocks (must precede component imports) ---
 
@@ -69,10 +68,10 @@ function mountMap() {
  */
 function seedMapEntities(
   store: ReturnType<typeof useSandboxStore>,
-  resolvedEntities: Record<string, Record<string, unknown>>,
+  resolvedEntities: Record<string, any>,
 ) {
-  store.entities = Object.values(resolvedEntities) as ReturnType<typeof store.entities>
-  vi.mocked(replayReducer).mockReturnValue(resolvedEntities)
+  store.entities = Object.values(resolvedEntities) as any
+  vi.mocked(replayReducer).mockReturnValue(resolvedEntities as any)
 }
 
 /** Create a LOCATION_MOVE state event for avatar path tests. */

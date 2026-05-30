@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { mount, flushPromises } from '@vue/test-utils'
 import { createTestPinia } from '@/test/helpers'
-import { h, ref, defineComponent, provide, inject, type PropType, type InjectionKey } from 'vue'
+import { h, defineComponent, provide, inject, type PropType, type InjectionKey } from 'vue'
 import type { Pinia } from 'pinia'
 
 // ---- Mock heavy dependencies before importing SUT ----
@@ -108,7 +108,7 @@ vi.mock('@/components/PluginManager.vue', () => ({
 import ProjectConfig from '@/components/ProjectConfig.vue'
 import { useProjectStore } from '@/stores/project'
 import { usePluginStore } from '@/stores/plugin'
-import { normalizeProjectConfig, getDefaultProjectConfig } from '@/utils/project-config-normalizer'
+import { normalizeProjectConfig } from '@/utils/project-config-normalizer'
 
 const TABLE_ROW_KEY: InjectionKey<{ row: unknown; $index: number }> = Symbol('table-row')
 
@@ -133,7 +133,7 @@ const ElTableStub = defineComponent({
       })
 
       const rows = (props.data || []).map((row, idx) =>
-        h(ElTableRowStub, { key: idx, row, index: idx }, { default: defaultSlot })
+        h(ElTableRowStub as any, { key: idx, row, index: idx }, { default: () => defaultSlot({ row, $index: idx }) })
       )
       return h('table', { class: 'el-table-stub' }, [
         h('thead', [h('tr', headerCells)]),
@@ -410,7 +410,7 @@ describe('ProjectConfig.vue', () => {
     // ProviderManager should be hidden (v-show=false => display:none)
     const providerManager = wrapper.find('[data-testid="provider-manager"]')
     expect(
-      providerManager.exists() && providerManager.element.style.display === 'none'
+      providerManager.exists() && (providerManager.element as HTMLElement).style.display === 'none'
     ).toBe(true)
   })
 
@@ -671,7 +671,7 @@ describe('ProjectConfig.vue', () => {
 
   // 25. estimatedCost computes based on project targetWords and maxCostPerChapter
   it('computes estimated cost based on project targetWords and maxCostPerChapter', async () => {
-    const { wrapper, projectStore } = mountConfig({ withProject: true })
+    const { wrapper, projectStore: _projectStore } = mountConfig({ withProject: true })
     const vm = wrapper.vm as any
 
     // projectStore.currentProject.targetWords = 100000, default targetWordCount = 2000
@@ -820,7 +820,7 @@ describe('ProjectConfig.vue', () => {
 
   // 37. onMounted loads global config when no project is open
   it('initializes config from global config when no project is open', async () => {
-    const { wrapper, projectStore } = mountConfig()
+    const { wrapper: _wrapper, projectStore } = mountConfig()
     await flushPromises()
 
     // The component's onMounted calls loadGlobalConfig; since no project is open,

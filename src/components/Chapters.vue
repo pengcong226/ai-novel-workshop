@@ -472,6 +472,7 @@ import { getLogger } from '@/utils/logger'
 import { buildReadingPreview, truncateReadingPreviewText } from '@/utils/readingPreview'
 import { getChapterStatusType, getChapterStatusText, formatDate } from '@/utils/formatters'
 import { getFriendlyMessage } from '@/utils/errorHandler'
+import { getErrorMessage } from '@/utils/getErrorMessage'
 import { measureSync } from '@/utils/performance';
 import ErrorBoundary from '@/components/ErrorBoundary.vue'
 import LoadingSkeleton from '@/components/LoadingSkeleton.vue'
@@ -713,7 +714,7 @@ async function validateChapters() {
       ElMessage.warning(`发现${validationIssues.value.length}个问题`)
     }
   } catch (error) {
-    ElMessage.error('验证失败：' + getFriendlyMessage((error as Error).message))
+    ElMessage.error('验证失败：' + getFriendlyMessage(getErrorMessage(error)))
   } finally {
     validating.value = false
   }
@@ -928,7 +929,7 @@ async function executeBatchGeneration() {
     })
   } catch (error) {
     logger.error('批量生成失败', error)
-    ElMessage.error('批量生成失败：' + getFriendlyMessage((error as Error).message))
+    ElMessage.error('批量生成失败：' + getFriendlyMessage(getErrorMessage(error)))
   }
 }
 
@@ -1049,7 +1050,7 @@ async function handleWriteNextStart(options: {
     logger.error('一键续写失败', error)
     await finishPipeline()
     if (project.value) releaseProjectLock(project.value.id, 'batch-continue')
-    ElMessage.error('一键续写失败：' + getFriendlyMessage((error as Error).message))
+    ElMessage.error('一键续写失败：' + getFriendlyMessage(getErrorMessage(error)))
   }
 }
 

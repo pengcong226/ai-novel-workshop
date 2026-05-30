@@ -70,9 +70,6 @@ describe('useLogger', () => {
     expect(logger).toHaveProperty('infoWithContext')
     expect(logger).toHaveProperty('warnWithContext')
     expect(logger).toHaveProperty('errorWithContext')
-    expect(logger).toHaveProperty('time')
-    expect(logger).toHaveProperty('timeEnd')
-    expect(logger).toHaveProperty('child')
   })
 
   it('delegates info() to the base logger', () => {
@@ -121,24 +118,6 @@ describe('useLogger', () => {
     expect(mockBaseLogger.debugWithContext).toHaveBeenCalledWith('debug ctx', ctx)
     expect(mockBaseLogger.warnWithContext).toHaveBeenCalledWith('warn ctx', ctx)
     expect(mockBaseLogger.errorWithContext).toHaveBeenCalledWith('error ctx', ctx)
-  })
-
-  it('delegates time() and timeEnd() to the base logger', () => {
-    const { logger } = mountWithLogger('TimerComp')
-
-    logger.time('operation')
-    logger.timeEnd('operation')
-
-    expect(mockBaseLogger.time).toHaveBeenCalledWith('operation')
-    expect(mockBaseLogger.timeEnd).toHaveBeenCalledWith('operation')
-  })
-
-  it('delegates child() to the base logger', () => {
-    const { logger } = mountWithLogger('ParentComp')
-
-    logger.child('sub-module', { extra: true })
-
-    expect(mockBaseLogger.child).toHaveBeenCalledWith('sub-module', { extra: true })
   })
 
   it('resolves projectId from project store when available', () => {

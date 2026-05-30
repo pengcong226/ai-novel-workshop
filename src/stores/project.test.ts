@@ -229,11 +229,11 @@ describe('project store', () => {
     })
 
     it('sets error on failure', async () => {
-      mockStorage.deleteProject.mockRejectedValueOnce(new Error('删除失败'))
+      mockStorage.deleteProject.mockRejectedValueOnce(new Error('删除项目失败'))
       const store = useProjectStore()
 
-      await expect(store.deleteProject('x')).rejects.toThrow('删除失败')
-      expect(store.error).toBe('删除失败')
+      await expect(store.deleteProject('x')).rejects.toThrow('删除项目失败')
+      expect(store.error).toBe('删除项目失败')
     })
   })
 
@@ -318,7 +318,7 @@ describe('project store', () => {
       // content should be stripped from the in-memory chapter
       const savedChapter = store.currentProject!.chapters.find((c: any) => c.id === 'ch1')
       expect(savedChapter).toBeDefined()
-      expect((savedChapter as unknown).wordCount).toBe(120)
+      expect((savedChapter as any).wordCount).toBe(120)
     })
   })
 
@@ -363,7 +363,7 @@ describe('project store', () => {
       await store.saveGlobalConfig({
         aiProvider: 'openai',
         aiModel: 'gpt-4',
-      } as unknown)
+      } as any)
 
       expect(store.globalConfig).not.toBeNull()
       expect(localStorage.getItem('global-config')).toBeTruthy()

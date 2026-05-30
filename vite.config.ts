@@ -169,6 +169,9 @@ export default defineConfig({
     environment: 'jsdom',
     globals: true,
     setupFiles: ['./src/test/setup.ts'],
+    alias: {
+      mammoth: resolve(__dirname, 'src/test/__mocks__/mammoth.ts'),
+    },
     exclude: [
       '**/node_modules/**',
       '**/dist/**',

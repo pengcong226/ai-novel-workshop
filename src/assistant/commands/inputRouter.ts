@@ -1,4 +1,5 @@
 import { builtinCommandRegistry } from './builtinCommands';
+import { getErrorMessage } from '@/utils/getErrorMessage';
 
 export type RouteResult =
   | { type: 'command'; output: string | void }
@@ -10,8 +11,8 @@ export async function routeAssistantInput(text: string, context?: any): Promise<
     try {
       const output = await builtinCommandRegistry.executeCommand(text, context);
       return { type: 'command', output };
-    } catch (e: any) {
-      return { type: 'error', error: e.message };
+    } catch (e: unknown) {
+      return { type: 'error', error: getErrorMessage(e) };
     }
   }
 

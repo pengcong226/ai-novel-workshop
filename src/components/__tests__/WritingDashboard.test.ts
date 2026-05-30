@@ -103,7 +103,7 @@ function mountDashboard(piniaOptions?: any) {
     ],
     config: createMockProjectConfig({
       providers: [
-        { id: 'p1', name: 'OpenAI', isEnabled: true, models: [{ id: 'm1', name: 'gpt-4', isEnabled: true }] },
+        { id: 'p1', name: 'OpenAI', type: 'openai' as const, baseUrl: 'https://api.openai.com', apiKey: '', isEnabled: true, models: [{ id: 'm1', name: 'gpt-4', type: 'all' as const, maxTokens: 4096, costPerInputToken: 0.01, costPerOutputToken: 0.03, isEnabled: true }] },
       ],
     }),
   })
@@ -309,7 +309,7 @@ describe('WritingDashboard', () => {
     ;(projectStore as any).globalConfig = createMockProjectConfig({ providers: [] })
 
     // Trigger re-computation by re-mounting
-    const wrapper2 = mount(WritingDashboard, {
+    const _wrapper2 = mount(WritingDashboard, {
       global: {
         plugins: [createTestPinia()],
         stubs,

@@ -850,6 +850,7 @@ import { useProjectStore } from '@/stores/project'
 import { usePluginStore } from '@/stores/plugin'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Refresh, Grid, Setting, Download, Clock, RefreshRight } from '@element-plus/icons-vue'
+import { getErrorMessage } from '@/utils/getErrorMessage'
 import type { ProjectConfig, VectorServiceConfig } from '@/types'
 import {
   AGENT_PHASE_LABELS,
@@ -1173,7 +1174,7 @@ async function saveConfig() {
     await _updateVectorIndexStatus()
   } catch (error) {
     logger.error('保存配置失败', error)
-    ElMessage.error('保存配置失败：' + (error as Error).message)
+    ElMessage.error('保存配置失败：' + getErrorMessage(error))
   }
 }
 
@@ -1307,7 +1308,7 @@ async function rebuildVectorIndex() {
     ElMessage.success(`索引重建完成，共 ${docCount} 个文档`)
   } catch (error) {
     logger.error('重建索引失败', error)
-    ElMessage.error('重建索引失败：' + (error as Error).message)
+    ElMessage.error('重建索引失败：' + getErrorMessage(error))
   } finally {
     rebuildingIndex.value = false
   }
@@ -1348,7 +1349,7 @@ async function clearVectorIndex() {
   } catch (error) {
     if (error !== 'cancel') {
       logger.error('清空索引失败', error)
-      ElMessage.error('清空索引失败：' + (error as Error).message)
+      ElMessage.error('清空索引失败：' + getErrorMessage(error))
     }
   }
 }

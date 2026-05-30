@@ -521,12 +521,16 @@ onMounted(() => {
 
 <style scoped>
 .automaton-chat-container {
+  --action-border: rgba(103, 194, 58, 0.35);
+  --action-bg: rgba(103, 194, 58, 0.08);
+  --intent-border: rgba(64, 158, 255, 0.35);
+  --intent-bg: rgba(64, 158, 255, 0.08);
   display: flex;
   flex-direction: column;
   height: 100%;
 }
 .panel-header {
-  padding-bottom: 16px;
+  padding-bottom: var(--ds-space-4);
   border-bottom: 1px solid var(--border-color);
   display: flex;
   align-items: center;
@@ -537,7 +541,7 @@ onMounted(() => {
   font-weight: bold;
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--ds-space-2);
 }
 .chat-container {
   flex: 1;
@@ -548,15 +552,16 @@ onMounted(() => {
 .chat-messages {
   flex: 1;
   overflow-y: auto;
-  padding: 16px 0;
+  padding-top: var(--ds-space-4);
+  padding-bottom: var(--ds-space-4);
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: var(--ds-space-3);
 }
 .msg {
-  padding: 12px;
-  border-radius: 8px;
-  font-size: 13px;
+  padding: var(--ds-space-3);
+  border-radius: var(--ds-radius-sm);
+  font-size: var(--ds-text-sm);
   line-height: 1.5;
   color: var(--el-text-color-primary);
 }
@@ -575,9 +580,9 @@ onMounted(() => {
   text-align: center;
 }
 .msg-meta {
-  font-size: 11px;
+  font-size: var(--ds-text-xs);
   opacity: 0.7;
-  margin-bottom: 6px;
+  margin-bottom: var(--ds-space-1);
 }
 .msg-content :deep(p) {
   margin: 0 0 8px;
@@ -593,15 +598,15 @@ onMounted(() => {
   opacity: 0.75;
 }
 .action-card {
-  margin-top: 10px;
-  padding: 10px;
-  border: 1px solid rgba(103, 194, 58, 0.35);
-  border-radius: 8px;
-  background: rgba(103, 194, 58, 0.08);
+  margin-top: var(--ds-space-3);
+  padding: var(--ds-space-3);
+  border: 1px solid var(--action-border);
+  border-radius: var(--ds-radius-sm);
+  background: var(--action-bg);
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
-  gap: 8px;
+  gap: var(--ds-space-2);
 }
 .action-body {
   min-width: 0;
@@ -609,35 +614,35 @@ onMounted(() => {
 }
 .action-title {
   color: var(--accent-success);
-  font-size: 12px;
+  font-size: var(--ds-text-xs);
 }
 .action-preview {
-  margin: 8px 0 0;
+  margin-top: var(--ds-space-2);
   white-space: pre-wrap;
   word-break: break-word;
   max-height: 160px;
   overflow-y: auto;
   color: var(--el-text-color-regular);
-  font-size: 12px;
+  font-size: var(--ds-text-xs);
 }
 .intent-card {
-  margin-top: 10px;
-  padding: 10px;
-  border: 1px solid rgba(64, 158, 255, 0.35);
-  border-radius: 8px;
-  background: rgba(64, 158, 255, 0.08);
+  margin-top: var(--ds-space-3);
+  padding: var(--ds-space-3);
+  border: 1px solid var(--intent-border);
+  border-radius: var(--ds-radius-sm);
+  background: var(--intent-bg);
 }
 .intent-header {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: var(--ds-space-1);
   color: var(--el-color-primary);
-  font-size: 12px;
+  font-size: var(--ds-text-xs);
   font-weight: 500;
-  margin-bottom: 8px;
+  margin-bottom: var(--ds-space-2);
 }
 .intent-params {
-  margin-bottom: 8px;
+  margin-bottom: var(--ds-space-2);
 }
 .intent-params pre {
   margin: 0;
@@ -646,38 +651,38 @@ onMounted(() => {
   max-height: 120px;
   overflow-y: auto;
   color: var(--el-text-color-regular);
-  font-size: 12px;
+  font-size: var(--ds-text-xs);
   background: var(--el-bg-color-overlay);
-  padding: 6px 8px;
-  border-radius: 4px;
+  padding: var(--ds-space-1) var(--ds-space-2);
+  border-radius: var(--ds-radius-sm);
 }
 .intent-actions {
   display: flex;
-  gap: 8px;
+  gap: var(--ds-space-2);
 }
 .quick-actions {
   display: flex;
   flex-wrap: wrap;
-  gap: 6px;
-  margin-bottom: 10px;
+  gap: var(--ds-space-1);
+  margin-bottom: var(--ds-space-3);
 }
 .agent-status-grid {
   display: flex;
   flex-wrap: wrap;
-  gap: 4px;
-  margin-bottom: 8px;
-  padding: 6px 8px;
+  gap: var(--ds-space-1);
+  margin-bottom: var(--ds-space-2);
+  padding: var(--ds-space-1) var(--ds-space-2);
   background: var(--el-bg-color-overlay);
   border: 1px solid var(--el-border-color-lighter);
-  border-radius: 6px;
+  border-radius: var(--ds-radius-sm);
 }
 .agent-chip {
   display: flex;
   align-items: center;
-  gap: 3px;
-  padding: 2px 8px;
-  border-radius: 12px;
-  font-size: 11px;
+  gap: var(--ds-space-0-5);
+  padding: var(--ds-space-0-5) var(--ds-space-2);
+  border-radius: var(--ds-radius-xl);
+  font-size: var(--ds-text-xs);
   background: var(--el-fill-color-light);
   border: 1px solid var(--el-border-color-lighter);
   transition: all 0.2s;
@@ -695,7 +700,7 @@ onMounted(() => {
   border-color: var(--el-color-danger-light-5);
 }
 .agent-icon {
-  font-size: 12px;
+  font-size: var(--ds-text-xs);
 }
 .agent-name {
   color: var(--el-text-color-regular);
@@ -725,7 +730,7 @@ onMounted(() => {
 }
 .chat-input-wrapper {
   display: flex;
-  gap: 8px;
+  gap: var(--ds-space-2);
   align-items: flex-end;
 }
 .chat-input textarea {
@@ -734,8 +739,8 @@ onMounted(() => {
   background: var(--el-bg-color);
   border: 1px solid var(--el-border-color);
   color: var(--el-text-color-primary);
-  padding: 12px;
-  border-radius: 8px;
+  padding: var(--ds-space-3);
+  border-radius: var(--ds-radius-sm);
   outline: none;
   resize: none;
   height: 80px;

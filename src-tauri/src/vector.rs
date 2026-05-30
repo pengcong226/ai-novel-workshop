@@ -87,6 +87,18 @@ impl VectorIndex {
     }
 }
 
+/// Validate that a metadata key contains only safe characters (alphanumeric + underscore).
+/// This prevents SQL injection when interpolating keys into json_extract() calls.
+fn validate_metadata_key(key: &str) -> std::result::Result<(), String> {
+    if key.is_empty() {
+        return Err("Metadata key must not be empty".to_string());
+    }
+    if !key.chars().all(|c| c.is_alphanumeric() || c == '_') {
+        return Err(format!("Invalid metadata key: {}", key));
+    }
+    Ok(())
+}
+
 pub fn init_vector_table(conn: &Connection) -> Result<()> {
     conn.execute(
         "CREATE TABLE IF NOT EXISTS vectors (
@@ -196,24 +208,28 @@ pub fn delete_vector_document(
     state: State<'_, crate::AppState>,
     id: String,
 ) -> std::result::Result<(), String> {
-    let db = lock_db!(state);
+    let mut db = lock_db!(state);
 
-    let result = db.query_row(
+    let tx = db.transaction().map_err(|e| format!("Failed to start transaction: {}", e))?;
+
+    let result = tx.query_row(
         "SELECT collection, project_id FROM vectors WHERE id = ?1",
         rusqlite::params![id],
         |row| Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?)),
     );
 
     if let Ok((collection, project_id)) = result {
-        db.execute("DELETE FROM vectors WHERE id = ?1", rusqlite::params![id])
+        tx.execute("DELETE FROM vectors WHERE id = ?1", rusqlite::params![id])
             .map_err(|e| e.to_string())?;
 
-        db.execute(
+        tx.execute(
             "UPDATE vector_index_meta SET doc_count = -1 WHERE collection = ?1 AND project_id = ?2",
             rusqlite::params![collection, project_id],
         )
         .map_err(|e| e.to_string())?;
     }
+
+    tx.commit().map_err(|e| format!("Failed to commit transaction: {}", e))?;
 
     // Invalidate vector index cache
     if let Ok(mut cache) = state.vector_index_cache.write() {
@@ -257,6 +273,7 @@ pub fn delete_vector_documents(
 
     if let Some(ref filter_obj) = parsed_filter {
         for (key, value) in filter_obj {
+            validate_metadata_key(key)?;
             match value {
                 Value::String(s) => params.push(Box::new(s.clone())),
                 Value::Number(n) => {
@@ -356,17 +373,22 @@ pub fn clear_vector_collection(
     state: State<'_, crate::AppState>,
     collection: String,
 ) -> std::result::Result<(), String> {
-    let db = lock_db!(state);
-    db.execute(
+    let mut db = lock_db!(state);
+
+    let tx = db.transaction().map_err(|e| format!("Failed to start transaction: {}", e))?;
+
+    tx.execute(
         "DELETE FROM vectors WHERE collection = ?1",
         rusqlite::params![collection],
     )
     .map_err(|e| e.to_string())?;
-    db.execute(
+    tx.execute(
         "DELETE FROM vector_index_meta WHERE collection = ?1",
         rusqlite::params![collection],
     )
     .map_err(|e| e.to_string())?;
+
+    tx.commit().map_err(|e| format!("Failed to commit transaction: {}", e))?;
 
     // Invalidate vector index cache
     if let Ok(mut cache) = state.vector_index_cache.write() {

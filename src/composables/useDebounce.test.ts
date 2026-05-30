@@ -14,7 +14,7 @@ function mountWithDebounce<T>(initialValue: T, delayMs?: number) {
   const wrapper = mount(
     defineComponent({
       setup() {
-        result = useDebounce(source, delayMs)
+        result = useDebounce(source, delayMs) as any
         return { ...result, source }
       },
       render: () => h('div'),

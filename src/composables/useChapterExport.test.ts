@@ -187,7 +187,7 @@ describe('useChapterExport', () => {
     handleExportCommand('exportAllJson')
 
     expect(saveAs).toHaveBeenCalledTimes(1)
-    const [blob, filename] = (saveAs as ReturnType<typeof vi.fn>).mock.calls[0]
+    const [blob, filename] = (saveAs as unknown as ReturnType<typeof vi.fn>).mock.calls[0]
     expect(blob).toBeInstanceOf(Blob)
     expect(filename).toMatch(/^Test Novel_章节_/)
     expect(filename).toMatch(/\.json$/)
@@ -202,10 +202,10 @@ describe('useChapterExport', () => {
   })
 
   it('handleExportAllMarkdown sets exporting to true during operation', async () => {
-    let progressCb: ((current: number, total: number) => void) | undefined
+    let _progressCb: ((current: number, total: number) => void) | undefined
     ;(exportAllChaptersToMarkdown as ReturnType<typeof vi.fn>).mockImplementation(
       (_chapters: unknown, _title: unknown, _opts: unknown, cb: (current: number, total: number) => void) => {
-        progressCb = cb
+        _progressCb = cb
       },
     )
 

@@ -144,6 +144,9 @@ export class StateConstraintsMiddleware implements ContextMiddleware {
     payload.builtSections.stateConstraints = constraints;
     if (constraints) {
       payload.systemParts.push(constraints);
+      const tokens = estimateTokens(constraints);
+      payload.budget.remaining -= tokens;
+      payload.totalTokensUsed += tokens;
     }
   }
 }

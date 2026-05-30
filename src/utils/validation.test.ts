@@ -192,7 +192,8 @@ describe('validateApiKey', () => {
   it('rejects key with whitespace characters', () => {
     const result = validateApiKey('sk-abc def ghi', 'openai')
     expect(result.valid).toBe(false)
-    expect(result.errors[0]).toContain('非法字符')
+    // Pattern check runs before whitespace check for known providers
+    expect(result.errors[0]).toContain('应以 sk- 开头')
   })
 
   it('rejects key with HTML characters', () => {

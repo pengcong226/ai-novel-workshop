@@ -118,7 +118,7 @@
           <el-table-column prop="chapter" label="章节" width="80" />
           <el-table-column prop="humanProb" label="人类概率" width="100">
             <template #default="{ row }">
-              <el-progress :percentage="row.humanProb" :color="row.humanProb >= 70 ? '#67c23a' : row.humanProb >= 40 ? '#e6a23c' : '#f56c6c'" :stroke-width="10" />
+              <el-progress :percentage="row.humanProb" :color="row.humanProb >= 70 ? 'var(--ds-success)' : row.humanProb >= 40 ? 'var(--ds-warning)' : 'var(--ds-danger)'" :stroke-width="10" />
             </template>
           </el-table-column>
           <el-table-column prop="classification" label="判定" width="100">
@@ -163,7 +163,7 @@
             >
               <el-card shadow="hover">
                 <h4 style="margin: 0 0 10px 0; color: var(--ds-warning);">{{ log.title }}</h4>
-                <p style="margin: 0; font-size: 13px;">{{ log.description }}</p>
+                <p style="margin: 0; font-size: var(--ds-text-sm);">{{ log.description }}</p>
                 <div v-if="log.metadata?.violations" style="margin-top: 10px;">
                   <el-tag
                     v-for="(v, idx) in getViolations(log.metadata)"
@@ -444,6 +444,7 @@ import { marked } from 'marked'
 import DOMPurify from 'dompurify'
 import { getLogger } from '@/utils/logger'
 import { formatDate } from '@/utils/formatters'
+import { getErrorMessage } from '@/utils/getErrorMessage'
 import { AIGCDetector } from '@/services/AIGCDetector'
 import type { AIGCDetectionResult } from '@/services/AIGCDetector'
 import { validateSensitiveWords } from '@/agents/PostWriteValidator'
@@ -931,7 +932,7 @@ async function checkAllChapters() {
     updateCharts()
   } catch (error) {
     logger.error('质量检查失败:', error)
-    ElMessage.error('质量检查失败：' + (error as Error).message)
+    ElMessage.error('质量检查失败：' + getErrorMessage(error))
   } finally {
     checking.value = false
     setTimeout(() => {
@@ -1010,9 +1011,9 @@ function getTrendText(trend: string) {
 }
 
 function getScoreColor(score: number) {
-  if (score >= 8) return '#67c23a'
-  if (score >= 6) return '#e6a23c'
-  return '#f56c6c'
+  if (score >= 8) return getComputedStyle(document.documentElement).getPropertyValue('--ds-success').trim() || '#10b981'
+  if (score >= 6) return getComputedStyle(document.documentElement).getPropertyValue('--ds-warning').trim() || '#f59e0b'
+  return getComputedStyle(document.documentElement).getPropertyValue('--ds-danger').trim() || '#ef4444'
 }
 
 function getScoreTagType(score: number) {
@@ -1054,22 +1055,23 @@ watch(() => [trendChartRef.value, radarChartRef.value], () => {
 
 .header h2 {
   margin: 0;
-  font-size: 20px;
+  font-size: var(--ds-text-xl);
 }
 
 .actions {
   display: flex;
-  gap: 10px;
+  gap: var(--ds-space-3);
 }
 
 .empty-state {
-  padding: 80px 0;
+  padding-top: var(--ds-space-16);
+  padding-bottom: var(--ds-space-16);
 }
 
 .content {
   display: flex;
   flex-direction: column;
-  gap: 20px;
+  gap: var(--ds-space-5);
 }
 
 .overview-card,
@@ -1096,7 +1098,7 @@ watch(() => [trendChartRef.value, radarChartRef.value], () => {
 
 .dimension-card {
   text-align: center;
-  padding: 10px;
+  padding: var(--ds-space-3);
   cursor: pointer;
   transition: all 0.3s;
 }
@@ -1106,16 +1108,16 @@ watch(() => [trendChartRef.value, radarChartRef.value], () => {
 }
 
 .dimension-name {
-  font-size: 14px;
+  font-size: var(--ds-text-base);
   color: var(--ds-text-secondary);
-  margin-bottom: 10px;
+  margin-bottom: var(--ds-space-3);
 }
 
 .dimension-score {
-  font-size: 24px;
+  font-size: var(--ds-text-2xl);
   font-weight: bold;
   color: var(--ds-info);
-  margin-bottom: 10px;
+  margin-bottom: var(--ds-space-3);
 }
 
 .dimension-scores {
@@ -1124,37 +1126,37 @@ watch(() => [trendChartRef.value, radarChartRef.value], () => {
 }
 
 .dimension-detail-card {
-  margin-bottom: 20px;
+  margin-bottom: var(--ds-space-5);
 }
 
 .dimension-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 15px;
+  margin-bottom: var(--ds-space-4);
 }
 
 .dimension-header .dimension-name {
-  font-size: 16px;
+  font-size: var(--ds-text-lg);
   font-weight: 600;
   margin: 0;
 }
 
 .issues-section,
 .suggestions-section {
-  margin-top: 20px;
+  margin-top: var(--ds-space-5);
 }
 
 .issues-section h4,
 .suggestions-section h4 {
-  margin-bottom: 15px;
+  margin-bottom: var(--ds-space-4);
   color: var(--ds-text-primary);
 }
 
 .issue-content {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: var(--ds-space-3);
 }
 
 .issue-message {
@@ -1170,13 +1172,13 @@ watch(() => [trendChartRef.value, radarChartRef.value], () => {
 .recommendations-list {
   display: flex;
   flex-direction: column;
-  gap: 15px;
+  gap: var(--ds-space-4);
 }
 
 .recommendation-item {
   display: flex;
   align-items: flex-start;
-  gap: 15px;
+  gap: var(--ds-space-4);
 }
 
 .recommendation-number {
@@ -1184,7 +1186,7 @@ watch(() => [trendChartRef.value, radarChartRef.value], () => {
   height: 32px;
   border-radius: 50%;
   background: var(--ds-info);
-  color: white;
+  color: var(--ds-text-inverse);
   display: flex;
   align-items: center;
   justify-content: center;

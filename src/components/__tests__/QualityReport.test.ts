@@ -317,7 +317,7 @@ describe('QualityReport.vue', () => {
 
     // Verify chapter count
     const chapterCountStat = overviewCard.findAllComponents({ name: 'ElStatistic' }).find(
-      (c) => c.props('title') === '检查章节数'
+      (c: any) => c.props('title') === '检查章节数'
     )
     expect(chapterCountStat).toBeDefined()
     expect(chapterCountStat!.props('value')).toBe(2)

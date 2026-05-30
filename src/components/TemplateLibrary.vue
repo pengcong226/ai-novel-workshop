@@ -233,7 +233,7 @@
                   :key="index"
                   type="primary"
                   effect="plain"
-                  style="margin: 5px;"
+                  style="margin: var(--ds-space-1);"
                 >
                   {{ level.name }}：{{ level.description }}
                 </el-tag>
@@ -399,6 +399,7 @@ import { templateManager } from '@/utils/templateManager'
 import type { NovelTemplate, TemplateCategory } from '@/types'
 import { v4 as uuidv4 } from 'uuid'
 import { getLogger } from '@/utils/logger'
+import { getErrorMessage } from '@/utils/getErrorMessage'
 
 const logger = getLogger('template-library')
 
@@ -633,7 +634,7 @@ ${aiGenForm.value.extraPrompt ? '附加要求：' + aiGenForm.value.extraPrompt 
     aiGenForm.value.genre = ''
   } catch (error) {
     logger.error('AI生成模板失败:', error)
-    ElMessage.error('生成失败：' + (error as Error).message)
+    ElMessage.error('生成失败：' + getErrorMessage(error))
   } finally {
     aiGenerating.value = false
   }
@@ -697,7 +698,7 @@ async function handleImport() {
         ElMessage.error('导入失败，文件格式错误')
       }
     } catch (error) {
-      ElMessage.error('导入失败：' + (error as Error).message)
+      ElMessage.error('导入失败：' + getErrorMessage(error))
     }
   }
 
@@ -735,41 +736,41 @@ function handleExportAll() {
 }
 
 .header {
-  background: white;
+  background: var(--ds-bg-elevated);
   border-bottom: 1px solid var(--ds-surface-border);
-  padding: 20px 40px;
+  padding: var(--ds-space-5) var(--ds-space-10);
   display: flex;
   justify-content: space-between;
   align-items: center;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+  box-shadow: var(--ds-shadow-sm);
 }
 
 .header-content h2 {
   margin: 0;
-  font-size: 20px;
+  font-size: var(--ds-text-xl);
   color: var(--ds-text-primary);
 }
 
 .header-content .subtitle {
-  margin: 5px 0 0;
-  font-size: 14px;
+  margin-top: var(--ds-space-1);
+  font-size: var(--ds-text-base);
   color: var(--ds-text-tertiary);
 }
 
 .header-actions {
   display: flex;
-  gap: 10px;
+  gap: var(--ds-space-3);
   align-items: center;
 }
 
 .main {
   flex: 1;
-  padding: 20px 40px;
+  padding: var(--ds-space-5) var(--ds-space-10);
   overflow-y: auto;
 }
 
 .category-tabs {
-  margin-bottom: 20px;
+  margin-bottom: var(--ds-space-5);
   display: flex;
   justify-content: center;
 }
@@ -784,7 +785,7 @@ function handleExportAll() {
 .template-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
-  gap: 20px;
+  gap: var(--ds-space-5);
 }
 
 .template-card {
@@ -799,7 +800,7 @@ function handleExportAll() {
 .card-header {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: var(--ds-space-2);
 }
 
 .title-row {
@@ -809,7 +810,7 @@ function handleExportAll() {
 }
 
 .title-row .title {
-  font-size: 16px;
+  font-size: var(--ds-text-lg);
   font-weight: 600;
   color: var(--ds-text-primary);
 }
@@ -820,14 +821,14 @@ function handleExportAll() {
 }
 
 .card-content {
-  padding: 10px 0;
+  padding: var(--ds-space-3) 0;
 }
 
 .description {
   color: var(--ds-text-secondary);
-  font-size: 14px;
+  font-size: var(--ds-text-base);
   line-height: 1.6;
-  margin-bottom: 15px;
+  margin-bottom: var(--ds-space-4);
   display: -webkit-box;
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
@@ -837,29 +838,29 @@ function handleExportAll() {
 .tags {
   display: flex;
   flex-wrap: wrap;
-  gap: 5px;
-  margin-bottom: 15px;
+  gap: var(--ds-space-1);
+  margin-bottom: var(--ds-space-4);
 }
 
 .stats {
   display: flex;
-  gap: 20px;
-  margin-bottom: 15px;
-  padding: 10px;
+  gap: var(--ds-space-5);
+  margin-bottom: var(--ds-space-4);
+  padding: var(--ds-space-3);
   background: var(--ds-bg-tertiary);
-  border-radius: 4px;
+  border-radius: var(--ds-radius-sm);
 }
 
 .stat-item {
   display: flex;
   align-items: center;
-  gap: 5px;
-  font-size: 14px;
+  gap: var(--ds-space-1);
+  font-size: var(--ds-text-base);
   color: var(--ds-text-secondary);
 }
 
 .style-info {
-  font-size: 14px;
+  font-size: var(--ds-text-base);
   color: var(--ds-text-tertiary);
 }
 
@@ -870,7 +871,7 @@ function handleExportAll() {
 .card-footer {
   display: flex;
   justify-content: flex-end;
-  gap: 5px;
+  gap: var(--ds-space-1);
 }
 
 /* 预览对话框样式 */
@@ -880,11 +881,11 @@ function handleExportAll() {
 }
 
 .preview-section {
-  margin-top: 20px;
+  margin-top: var(--ds-space-5);
 }
 
 .preview-section h4 {
-  margin-bottom: 10px;
+  margin-bottom: var(--ds-space-3);
   color: var(--ds-text-primary);
 }
 
@@ -896,7 +897,7 @@ function handleExportAll() {
 .characters-list {
   display: flex;
   flex-direction: column;
-  gap: 15px;
+  gap: var(--ds-space-4);
 }
 
 .character-card {
@@ -911,46 +912,48 @@ function handleExportAll() {
 
 .char-name {
   font-weight: 600;
-  font-size: 16px;
+  font-size: var(--ds-text-lg);
 }
 
 .char-desc {
   color: var(--ds-text-secondary);
-  margin-bottom: 10px;
+  margin-bottom: var(--ds-space-3);
 }
 
 .char-details p {
-  margin: 8px 0;
-  font-size: 14px;
+  margin: var(--ds-space-2) 0;
+  font-size: var(--ds-text-base);
   color: var(--ds-text-secondary);
 }
 
 .outline-info {
   display: flex;
   flex-direction: column;
-  gap: 20px;
+  gap: var(--ds-space-5);
 }
 
 .volumes-section h4 {
-  margin-bottom: 15px;
+  margin-bottom: var(--ds-space-4);
 }
 
 .volume-theme {
   color: var(--ds-text-tertiary);
-  margin: 5px 0;
+  margin-top: var(--ds-space-1);
+  margin-bottom: var(--ds-space-1);
 }
 
 .volume-events {
-  margin-top: 10px;
+  margin-top: var(--ds-space-3);
 }
 
 .volume-events ul {
-  margin: 5px 0 0;
+  margin-top: var(--ds-space-1);
   padding-left: 20px;
 }
 
 .volume-events li {
-  margin: 5px 0;
+  margin-top: var(--ds-space-1);
+  margin-bottom: var(--ds-space-1);
   color: var(--ds-text-secondary);
 }
 

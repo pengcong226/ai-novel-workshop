@@ -110,7 +110,7 @@ function makeProject(overrides: Partial<Project> = {}): Project {
       id: 'outline-1',
       synopsis: '',
       theme: '',
-      mainPlot: { id: 'plot-1', name: '', description: '', events: [] },
+      mainPlot: { id: 'plot-1', name: '', description: '' },
       subPlots: [],
       volumes: [],
       chapters: [],
@@ -258,7 +258,7 @@ describe('getExportStats', () => {
 
   it('defaults status to "draft" when status is undefined', () => {
     const ch = makeChapter()
-    delete (ch as Record<string, unknown>).status
+    delete (ch as unknown as Record<string, unknown>).status
     const stats = getExportStats([ch])
     expect(stats.statusBreakdown.draft).toBe(1)
   })

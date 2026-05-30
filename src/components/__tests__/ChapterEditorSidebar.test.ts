@@ -4,6 +4,7 @@ import { ref } from 'vue'
 import { createTestPinia } from '@/test/helpers'
 import ChapterEditorSidebar from '@/components/ChapterEditorSidebar.vue'
 import type { Chapter } from '@/types'
+import type { ResolvedEntity } from '@/stores/sandbox'
 
 // Mock the child components to isolate the sidebar
 const mockGlassContextPanel = {
@@ -79,8 +80,8 @@ function createMockChapter(overrides: Partial<Chapter> = {}): Chapter {
 function mountSidebar(propsOverrides: Partial<{
   activeTab: string
   chapterForm: Chapter
-  characters: unknown[]
-  worldbook: unknown[]
+  characters: ResolvedEntity[]
+  worldbook: ResolvedEntity[]
   showReviewPanel: boolean
   projectId: string
 }> = {}) {

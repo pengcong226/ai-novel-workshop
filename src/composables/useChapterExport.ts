@@ -28,6 +28,7 @@ import {
   DEFAULT_MD_OPTIONS,
 } from '@/utils/markdownExporter'
 import { getLogger } from '@/utils/logger'
+import { getErrorMessage } from '@/utils/getErrorMessage'
 import {
   exportChapterToPdf,
   exportAllChaptersToPdf,
@@ -100,7 +101,7 @@ export function useChapterExport(projectRef: Ref<Project | null | undefined>, ch
       ElMessage.success('导出成功！')
     } catch (error) {
       logger.error('导出失败:', error)
-      ElMessage.error('导出失败：' + (error as Error).message)
+      ElMessage.error('导出失败：' + getErrorMessage(error))
     } finally {
       exporting.value = false
     }
@@ -129,7 +130,7 @@ export function useChapterExport(projectRef: Ref<Project | null | undefined>, ch
       ElMessage.success('请在打印对话框中选择"保存为PDF"')
     } catch (error) {
       logger.error('导出失败:', error)
-      ElMessage.error('导出失败：' + (error as Error).message)
+      ElMessage.error('导出失败：' + getErrorMessage(error))
     } finally {
       exporting.value = false
     }
@@ -156,7 +157,7 @@ export function useChapterExport(projectRef: Ref<Project | null | undefined>, ch
       ElMessage.success('导出成功！')
     } catch (error) {
       logger.error('导出失败:', error)
-      ElMessage.error('导出失败：' + (error as Error).message)
+      ElMessage.error('导出失败：' + getErrorMessage(error))
     }
   }
 
@@ -173,7 +174,7 @@ export function useChapterExport(projectRef: Ref<Project | null | undefined>, ch
       ElMessage.success('TXT 导出成功！')
     } catch (error) {
       logger.error('导出失败:', error)
-      ElMessage.error('导出失败：' + (error as Error).message)
+      ElMessage.error('导出失败：' + getErrorMessage(error))
     } finally {
       exporting.value = false
     }
@@ -197,7 +198,7 @@ export function useChapterExport(projectRef: Ref<Project | null | undefined>, ch
       ElMessage.success('EPUB 导出成功！')
     } catch (error) {
       logger.error('导出失败:', error)
-      ElMessage.error('导出失败：' + (error as Error).message)
+      ElMessage.error('导出失败：' + getErrorMessage(error))
     } finally {
       exporting.value = false
     }
@@ -221,7 +222,7 @@ export function useChapterExport(projectRef: Ref<Project | null | undefined>, ch
       ElMessage.success('DOCX 导出成功！')
     } catch (error) {
       logger.error('导出失败:', error)
-      ElMessage.error('导出失败：' + (error as Error).message)
+      ElMessage.error('导出失败：' + getErrorMessage(error))
     } finally {
       exporting.value = false
     }

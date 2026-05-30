@@ -4,7 +4,8 @@
  * 优先级：P0 + P1
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import type { ChapterPipelineResult, PipelineProgressEvent } from '@/services/pipeline/BatchContinueScheduler'
+import type { ChapterPipelineResult } from '@/services/pipeline/types'
+import type { PipelineProgressEvent } from '@/services/pipeline/BatchContinueScheduler'
 import type { Project } from '@/types'
 
 // ---------------------------------------------------------------------------
@@ -154,7 +155,7 @@ describe('BatchContinueScheduler 接口自动化测试', { timeout: 30000 }, () 
   // =========================================================================
   describe('TC-6.4 取消操作', () => {
     it('P0: cancel()终止批量任务', async () => {
-      const scheduler!: BatchContinueScheduler
+      const scheduler: InstanceType<typeof BatchContinueScheduler>
 
       pipelineWriteNextChapterMock.mockImplementation(async (opts: { chapterNumber: number }) => {
         // 在第2章时取消

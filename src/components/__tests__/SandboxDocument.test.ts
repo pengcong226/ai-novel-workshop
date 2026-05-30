@@ -274,8 +274,11 @@ describe('SandboxDocument', () => {
     // Mock replayReducer to return resolved state with relations
     vi.mocked(replayReducer).mockReturnValue({
       e1: {
+        entityId: 'e1',
+        entityName: '张三',
+        entityType: 'CHARACTER',
         properties: {},
-        relations: [{ targetId: 'e2', type: 'friend', attitude: 'warm' }],
+        relations: [{ targetId: 'e2', targetName: '李四', type: 'friend', attitude: 'warm' }],
         location: null,
         vitalStatus: 'alive',
         abilities: [],
@@ -299,6 +302,9 @@ describe('SandboxDocument', () => {
 
     vi.mocked(replayReducer).mockReturnValue({
       e1: {
+        entityId: 'e1',
+        entityName: '张三',
+        entityType: 'CHARACTER',
         properties: {},
         relations: [],
         location: '100,200',
@@ -324,6 +330,9 @@ describe('SandboxDocument', () => {
 
     vi.mocked(replayReducer).mockReturnValue({
       e1: {
+        entityId: 'e1',
+        entityName: '张三',
+        entityType: 'CHARACTER',
         properties: { level: '30', status: 'active' },
         relations: [],
         location: null,
@@ -355,10 +364,13 @@ describe('SandboxDocument', () => {
 
     vi.mocked(replayReducer).mockReturnValue({
       e1: {
+        entityId: 'e1',
+        entityName: '张三',
+        entityType: 'CHARACTER',
         properties: {},
         relations: [
-          { targetId: 'e2', type: 'friend' },
-          { targetId: 'e3', type: 'rival' },
+          { targetId: 'e2', targetName: '李四', type: 'friend' },
+          { targetId: 'e3', targetName: '王五', type: 'rival' },
         ],
         location: null,
         vitalStatus: 'alive',

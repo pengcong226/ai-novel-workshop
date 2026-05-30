@@ -78,7 +78,7 @@ function createTargetElement(id: string, rect?: Partial<DOMRect>): HTMLElement {
  * The component's Teleport renders to document.body, so we use
  * `attachTo: document.body` and query from `document.body` directly.
  */
-function mountTour(open = true, steps?: TourStep[]) {
+function mountTour(_open = true, steps?: TourStep[]) {
   const wrapper = mount(AppTour, {
     attachTo: document.body,
     props: {
@@ -96,10 +96,10 @@ function mountTour(open = true, steps?: TourStep[]) {
     },
   })
 
-  return { wrapper, openTour: () => openTour(wrapper) }
+  return { wrapper, openTour: () => openTour(wrapper as any) }
 }
 
-async function openTour(wrapper: ReturnType<typeof mount> & { setProps: Function }) {
+async function openTour(wrapper: ReturnType<typeof mount> & { setProps: (...args: unknown[]) => unknown }) {
   await wrapper.setProps({ modelValue: true })
   // The watcher fires, schedules nextTick(updateTargetRect).
   // First nextTick: updateTargetRect runs, sets targetRect.value.
@@ -183,7 +183,7 @@ describe('AppTour', () => {
     const nextBtn = buttons().find((b) => b.textContent?.trim() === '下一步')!
     expect(nextBtn).toBeDefined()
 
-    nextBtn.click()
+    ;(nextBtn as HTMLElement).click()
     // nextStep() calls nextTick(updateTargetRect), so two nextTicks needed
     await nextTick()
     await nextTick()
@@ -207,7 +207,7 @@ describe('AppTour', () => {
     const buttons = () => Array.from(document.querySelectorAll('.el-button-stub'))
 
     // Go to step 2
-    buttons().find((b) => b.textContent?.trim() === '下一步')!.click()
+    ;(buttons().find((b) => b.textContent?.trim() === '下一步')! as HTMLElement).click()
     await nextTick()
     await nextTick()
 
@@ -215,7 +215,7 @@ describe('AppTour', () => {
     const prevBtn = buttons().find((b) => b.textContent?.trim() === '上一步')!
     expect(prevBtn).toBeDefined()
 
-    prevBtn.click()
+    ;(prevBtn as HTMLElement).click()
     await nextTick()
     await nextTick()
 
@@ -253,12 +253,12 @@ describe('AppTour', () => {
     const buttons = () => Array.from(document.querySelectorAll('.el-button-stub'))
 
     // Navigate to step 2
-    buttons().find((b) => b.textContent?.trim() === '下一步')!.click()
+    ;(buttons().find((b) => b.textContent?.trim() === '下一步')! as HTMLElement).click()
     await nextTick()
     await nextTick()
 
     // Navigate to step 3 (last)
-    buttons().find((b) => b.textContent?.trim() === '下一步')!.click()
+    ;(buttons().find((b) => b.textContent?.trim() === '下一步')! as HTMLElement).click()
     await nextTick()
     await nextTick()
 
@@ -268,7 +268,7 @@ describe('AppTour', () => {
     expect(finishBtn).toBeDefined()
     expect(nextBtnOnLast).toBeUndefined()
 
-    finishBtn!.click()
+    ;(finishBtn as HTMLElement).click()
     await nextTick()
 
     expect(wrapper.emitted('finish')).toBeTruthy()
@@ -289,7 +289,7 @@ describe('AppTour', () => {
     const skipBtn = buttons.find((b) => b.textContent?.trim() === '跳过')!
     expect(skipBtn).toBeDefined()
 
-    skipBtn.click()
+    ;(skipBtn as HTMLElement).click()
     await nextTick()
 
     expect(wrapper.emitted('close')).toBeTruthy()
@@ -370,7 +370,7 @@ describe('AppTour', () => {
     const buttons = () => Array.from(document.querySelectorAll('.el-button-stub'))
 
     // Navigate to step 2
-    buttons().find((b) => b.textContent?.trim() === '下一步')!.click()
+    ;(buttons().find((b) => b.textContent?.trim() === '下一步')! as HTMLElement).click()
     await nextTick()
     await nextTick()
     expect(document.querySelector('.app-tour-progress')!.textContent).toBe('2 / 3')

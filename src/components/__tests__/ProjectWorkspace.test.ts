@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest'
-import { mount, VueWrapper } from '@vue/test-utils'
+import { mount } from '@vue/test-utils'
 import { nextTick } from 'vue'
 import { createTestPinia } from '@/test/helpers'
 import ProjectWorkspace from '@/components/ProjectWorkspace.vue'
@@ -68,7 +68,7 @@ const defaultProps = {
   isZenMode: false,
   loading: false,
   error: null as string | null,
-  project: { id: 'proj-1' },
+  project: { id: 'proj-1' } as { id?: string } | null | undefined,
   projectId: 'proj-1',
   activeMenu: 'dashboard',
 }
@@ -77,11 +77,11 @@ const defaultProps = {
 // Helpers
 // ---------------------------------------------------------------------------
 
-function mountWorkspace(overrides: Partial<typeof defaultProps> = {}) {
+function mountWorkspace(overrides: Record<string, any> = {}) {
   const props = { ...defaultProps, ...overrides }
 
   return mount(ProjectWorkspace, {
-    props,
+    props: props as any,
     global: {
       stubs: {
         WritingDashboard: WritingDashboardStub,

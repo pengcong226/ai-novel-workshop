@@ -183,6 +183,7 @@ import { useProjectStore } from '@/stores/project'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { MagicStick, Refresh } from '@element-plus/icons-vue'
 import { Chapter, ChapterSummaryData, SummaryDetail } from '@/types'
+import { getErrorMessage } from '@/utils/getErrorMessage'
 import {
   generateChapterSummary,
   batchGenerateSummaries,
@@ -308,7 +309,7 @@ async function generateSummaryForChapter(chapter: Chapter & { regenerating?: boo
 
     ElMessage.success(`第${chapter.number}章摘要生成成功`)
   } catch (error) {
-    ElMessage.error('生成失败：' + (error as Error).message)
+    ElMessage.error('生成失败：' + getErrorMessage(error))
   } finally {
     if (chapter.regenerating !== undefined) {
       chapter.regenerating = false
@@ -367,7 +368,7 @@ async function generateAllSummaries() {
     ElMessage.success(`成功生成 ${summaries.length} 个摘要`)
     showProgressDialog.value = false
   } catch (error) {
-    ElMessage.error('批量生成失败：' + (error as Error).message)
+    ElMessage.error('批量生成失败：' + getErrorMessage(error))
     showProgressDialog.value = false
   } finally {
     generating.value = false

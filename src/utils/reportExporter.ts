@@ -9,6 +9,7 @@ import html2canvas from 'html2canvas'
 import { saveAs } from 'file-saver'
 import { getLogger } from '@/utils/logger'
 import { escapeXml } from '@/utils/escapeXml'
+import { getErrorMessage } from '@/utils/getErrorMessage'
 const logger = getLogger('utils:reportExporter')
 
 /**
@@ -51,7 +52,7 @@ export async function exportQualityReportAsPDF(
     })
   } catch (error) {
     logger.error('导出 PDF 失败:', error)
-    throw new Error('导出 PDF 失败：' + (error as Error).message)
+    throw new Error('导出 PDF 失败：' + getErrorMessage(error))
   }
 }
 

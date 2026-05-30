@@ -27,7 +27,6 @@ import { StorageError, toAppError, ErrorCode } from '@/utils/errors';
 import { isWebRuntime } from '@/utils/anthropic-guard';
 import { buildStateEventIndexes, sortStateEventsByChapter } from '@/utils/stateEventIndexes';
 import { StateEventSchema } from '@/schemas/stateEventSchema';
-import { measureSync } from '@/utils/performance';
 
 const logger = getLogger('sandbox:store');
 
@@ -329,7 +328,7 @@ export const useSandboxStore = defineStore('sandbox', () => {
         projectId: entity.projectId,
         entityJson: JSON.stringify(entity)
       });
-      entities.value.push(entity);
+      entities.value = [...entities.value, entity];
     } catch (e: unknown) {
       const err = new StorageError('Failed to add entity', {
         code: ErrorCode.STORAGE_WRITE_FAILED,
@@ -348,12 +347,13 @@ export const useSandboxStore = defineStore('sandbox', () => {
     const updated = { ...entities.value[index], ...updates };
 
     if (isWebRuntime()) {
-      saveWebSandboxEntities(updated.projectId, [
+      const nextEntities = [
         ...entities.value.slice(0, index),
         updated,
         ...entities.value.slice(index + 1),
-      ]);
-      entities.value[index] = updated;
+      ];
+      saveWebSandboxEntities(updated.projectId, nextEntities);
+      entities.value = nextEntities;
       return;
     }
 
@@ -363,7 +363,11 @@ export const useSandboxStore = defineStore('sandbox', () => {
         projectId: updated.projectId,
         entityJson: JSON.stringify(updated)
       });
-      entities.value[index] = updated;
+      entities.value = [
+        ...entities.value.slice(0, index),
+        updated,
+        ...entities.value.slice(index + 1),
+      ];
     } catch (e: unknown) {
       const err = new StorageError('Failed to update entity', {
         code: ErrorCode.STORAGE_WRITE_FAILED,
@@ -391,8 +395,7 @@ export const useSandboxStore = defineStore('sandbox', () => {
         projectId: event.projectId,
         eventJson: JSON.stringify(event)
       });
-      stateEvents.value.push(event);
-      stateEvents.value = sortStateEventsByChapter(stateEvents.value);
+      stateEvents.value = sortStateEventsByChapter([...stateEvents.value, event]);
     } catch (e: unknown) {
       const err = new StorageError('Failed to add state event', {
         code: ErrorCode.STORAGE_WRITE_FAILED,
@@ -467,11 +470,10 @@ export const useSandboxStore = defineStore('sandbox', () => {
 
   // Computed state reducer — delegates to the canonical replayReducer in stateDiff.ts
   const activeEntitiesState = computed(() => {
-    return measureSync('sandbox:activeEntitiesState', () => {
     const combinedEvents = [...stateEvents.value, ...pendingStateEvents.value];
     const reduced = replayReducer(entities.value, combinedEvents, currentChapter.value);
 
-    // Map ReducedEntity → ResolvedEntity (merge Entity base fields with reducer output)
+    // Map ReducedEntity -> ResolvedEntity (merge Entity base fields with reducer output)
     const result: Record<string, ResolvedEntity> = {};
     for (const entity of entities.value) {
       const r = reduced[entity.id];
@@ -489,7 +491,6 @@ export const useSandboxStore = defineStore('sandbox', () => {
       };
     }
     return result;
-    }) // measureSync
   });
 
   const stateEventIndexes = computed(() => buildStateEventIndexes(stateEvents.value));

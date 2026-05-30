@@ -5,7 +5,7 @@
         <EntityTree @select="handleEntitySelect" />
       </ErrorBoundary>
     </div>
-    <div class="main-view" ref="mainViewRef">
+    <div class="main-view" ref="mainViewRef" role="main" aria-label="沙盘主视图">
       <div style="margin-bottom: 10px;" ref="actionBarRef">
         <el-button type="warning" plain icon="ri-magic-line" @click="sandboxStore.isWizardMode = true">批量世界生成向导</el-button>
         <el-button type="primary" plain @click="showDeepImport = true">深度小说导入</el-button>

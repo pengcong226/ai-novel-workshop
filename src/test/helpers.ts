@@ -8,6 +8,7 @@
 import { createPinia, setActivePinia } from 'pinia'
 import { nextTick } from 'vue'
 import type { Pinia } from 'pinia'
+import { afterEach } from 'vitest'
 
 // ---------------------------------------------------------------------------
 // Pinia

@@ -90,7 +90,7 @@ describe('projectBackup utilities', () => {
     ]))
 
     const invalid = structuredClone(createProjectBackup(project(), [entity('hero')], [stateEvent('event-1', 1)]))
-    ;(invalid.sandbox.entities[0] as Record<string, unknown>).type = 'INVALID'
+    ;(invalid.sandbox.entities[0] as unknown as Record<string, unknown>).type = 'INVALID'
     expect(parseProjectBackupJson(JSON.stringify(invalid)).errors).toEqual(['备份实体数据无效'])
   })
 

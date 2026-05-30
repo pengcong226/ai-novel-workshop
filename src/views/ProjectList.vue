@@ -51,6 +51,7 @@
           tabindex="0"
           @click="openProject(project.id)"
           @keydown.enter="openProject(project.id)"
+          @keydown.space.prevent="openProject(project.id)"
         >
           <div class="card-accent" :style="{ background: getAccentGradient(project.genre) }"></div>
           <div class="card-body">
@@ -323,6 +324,7 @@ import type { NovelTemplate, Project, ProjectConfig, AdvancedSettings } from '@/
 import { getLogger } from '@/utils/logger'
 import { getChapterStatusType, getChapterStatusText, formatNumber, formatRelativeTime } from '@/utils/formatters'
 import { getFriendlyMessage } from '@/utils/errorHandler'
+import { getErrorMessage } from '@/utils/getErrorMessage'
 import { getAllGenreProfiles } from '@/types/genreProfile'
 import { registerAllGenres } from '@/data/genres'
 const logger = getLogger('views:ProjectList')
@@ -617,7 +619,7 @@ const handleImport = async (file: any) => {
   } catch (error) {
     ElMessage.closeAll()
     logger.error('导入失败:', error)
-    ElMessage.error('导入失败: ' + getFriendlyMessage((error as Error).message))
+    ElMessage.error('导入失败: ' + getFriendlyMessage(getErrorMessage(error)))
   }
 }
 
@@ -740,7 +742,7 @@ async function createFromTemplate() {
     router.push(`/project/${project.id}`)
   } catch (error) {
     logger.error('[ProjectList] 从模板创建失败:', error)
-    ElMessage.error('创建失败: ' + getFriendlyMessage((error as Error).message))
+    ElMessage.error('创建失败: ' + getFriendlyMessage(getErrorMessage(error)))
   } finally {
     creatingFromTemplate.value = false
   }

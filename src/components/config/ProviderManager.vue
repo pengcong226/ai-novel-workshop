@@ -226,6 +226,7 @@ import { v4 as uuidv4 } from 'uuid'
 import type { ModelProvider, ModelInfo } from '@/types'
 import { enforceSecureAnthropicAccess } from '@/utils/anthropic-guard'
 import { formatDate } from '@/utils/formatters'
+import { getErrorMessage } from '@/utils/getErrorMessage'
 
 function guardAnthropicProvider(): boolean {
   if (providerForm.value.type === 'anthropic') {
@@ -360,7 +361,7 @@ async function saveProvider() {
     showProviderDialog.value = false
     emit('save')
     ElMessage.success(editingProvider.value ? '提供商已更新' : '提供商已添加')
-  } catch (error) { ElMessage.error('保存失败：' + (error as Error).message) } finally { savingProvider.value = false }
+  } catch (error) { ElMessage.error('保存失败：' + getErrorMessage(error)) } finally { savingProvider.value = false }
 }
 
 async function deleteProvider(providerId: string) {
@@ -382,7 +383,7 @@ async function testProvider() {
     if (providerForm.value.type === 'anthropic') { headers['x-api-key'] = providerForm.value.apiKey; headers['anthropic-version'] = '2023-06-01' } else { headers['Authorization'] = `Bearer ${providerForm.value.apiKey}` }
     const response = await fetch(testUrl, { method: 'POST', headers, body: JSON.stringify({ model: providerForm.value.modelsInput?.split(',')[0].trim() || 'gpt-3.5-turbo', messages: [{ role: 'user', content: 'Hello, this is a test message.' }], max_tokens: 10 }) })
     if (response.ok) { ElMessage.success('连接测试成功！') } else { const error = await response.json().catch(() => ({})); ElMessage.error(`连接失败: ${error.error?.message || error.message || `HTTP ${response.status}`}`) }
-  } catch (error) { ElMessage.error(`连接失败: ${(error as Error).message}`) } finally { testingProvider.value = false }
+  } catch (error) { ElMessage.error(`连接失败: ${getErrorMessage(error)}`) } finally { testingProvider.value = false }
 }
 
 async function syncModels(provider: ModelProvider) {
@@ -429,7 +430,7 @@ async function fetchModelsFromAPI() {
     if (models.length === 0) { ElMessage.warning('未找到任何模型'); return }
     fetchedModelsList.value = models; selectedModels.value = []; fetchModelsSearchText.value = ''; showFetchModelsDialog.value = true
     ElMessage.success(`成功获取 ${models.length} 个模型`)
-  } catch (error) { ElMessage.error(`获取失败: ${(error as Error).message}`) } finally { fetchingModels.value = false }
+  } catch (error) { ElMessage.error(`获取失败: ${getErrorMessage(error)}`) } finally { fetchingModels.value = false }
 }
 
 async function batchImportModels() {

@@ -7,6 +7,7 @@
 import type { Worldbook, WorldbookEntry } from '@/types/worldbook'
 import { getLogger } from '@/utils/logger'
 import { safeParseAIJson } from '@/utils/safeParseAIJson'
+import { getErrorMessage } from '@/utils/getErrorMessage'
 
 const logger = getLogger('worldbook:ai')
 
@@ -194,8 +195,8 @@ ${prompt || '无附加要求'}
         logger.info('条目建议生成完成', { count: 1 })
         return [parsed]
       }
-    } catch (e: any) {
-      logger.error('AI 调用失败:', e.message)
+    } catch (e: unknown) {
+      logger.error('AI 调用失败:', getErrorMessage(e))
     }
 
     return [{
@@ -243,8 +244,8 @@ ${context ? `上下文参考:\n${context}` : ''}
         logger.info('关键词建议生成完成', { count: parsed.suggestions.length })
         return parsed.suggestions
       }
-    } catch (e: any) {
-      logger.error('关键词建议生成失败:', e.message)
+    } catch (e: unknown) {
+      logger.error('关键词建议生成失败:', getErrorMessage(e))
     }
 
     return [{
@@ -296,8 +297,8 @@ ${entry.content}
           comment: (entry.comment || '') + '\n[AI 优化建议: ' + (parsed.comment || '') + ']'
         }
       }
-    } catch (e: any) {
-      logger.error('优化条目失败:', e.message)
+    } catch (e: unknown) {
+      logger.error('优化条目失败:', getErrorMessage(e))
     }
 
     return entry
@@ -349,8 +350,8 @@ ${JSON.stringify(entries.map(e => ({ uid: e.uid, keys: e.key, content: e.content
         logger.info('相似条目合并完成', { mergeCount: results.length })
         return results
       }
-    } catch (e: any) {
-      logger.error('合并相似条目失败:', e.message)
+    } catch (e: unknown) {
+      logger.error('合并相似条目失败:', getErrorMessage(e))
     }
 
     return []
@@ -395,8 +396,8 @@ ${JSON.stringify(entriesData, null, 2)}
         logger.info('条目分类完成', { categoryCount: categories.size })
         return categories
       }
-    } catch (e: any) {
-      logger.error('分类条目失败:', e.message)
+    } catch (e: unknown) {
+      logger.error('分类条目失败:', getErrorMessage(e))
     }
 
     // fallback: 按原有 category 分类
@@ -474,8 +475,8 @@ ${JSON.stringify(sampleEntries, null, 2)}
         logger.info('世界书分析完成', { qualityScore: result.qualityScore, suggestionCount: result.suggestions.length })
         return result
       }
-    } catch (e: any) {
-      logger.error('分析世界书失败:', e.message)
+    } catch (e: unknown) {
+      logger.error('分析世界书失败:', getErrorMessage(e))
     }
 
     return {
@@ -523,8 +524,8 @@ ${JSON.stringify(sampleEntries, null, 2)}
         logger.info('重复条目检测完成', { duplicateGroupCount: duplicates.length })
         return duplicates
       }
-    } catch (e: any) {
-      logger.error('检测重复条目失败:', e.message)
+    } catch (e: unknown) {
+      logger.error('检测重复条目失败:', getErrorMessage(e))
     }
 
     return []
@@ -565,8 +566,8 @@ ${text.substring(0, 5000)}
         logger.info('文本条目提取完成', { count: parsed.suggestions.length })
         return parsed.suggestions
       }
-    } catch (e: any) {
-      logger.error('提取文本条目失败:', e.message)
+    } catch (e: unknown) {
+      logger.error('提取文本条目失败:', getErrorMessage(e))
     }
 
     return []
@@ -623,8 +624,8 @@ ${text.substring(0, 5000)}
           graph.nodes.some(n => n.id === edge.target)
         )
       }
-    } catch (e: any) {
-      logger.error('获取关系图边失败:', e.message)
+    } catch (e: unknown) {
+      logger.error('获取关系图边失败:', getErrorMessage(e))
     }
 
     logger.info('条目关系图生成完成', {
@@ -686,8 +687,8 @@ ${JSON.stringify(entriesData, null, 2)}
         logger.info('相关条目推荐完成', { count: recommendations.length })
         return recommendations
       }
-    } catch (e: any) {
-      logger.error('请求相关推荐失败:', e.message)
+    } catch (e: unknown) {
+      logger.error('请求相关推荐失败:', getErrorMessage(e))
     }
 
     return []

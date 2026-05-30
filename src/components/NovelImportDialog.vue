@@ -523,6 +523,7 @@ import {
 import { v4 as uuidv4 } from 'uuid'
 import { encryptApiKey, decryptApiKey } from '@/utils/crypto'
 import { getLogger } from '@/utils/logger'
+import { getErrorMessage } from '@/utils/getErrorMessage'
 import type { AIAnalysisConfig } from '@/utils/aiAnalyzer'
 import type { ImportResult } from '@/utils/novelImporter'
 import AnalysisProgressComponent from './novel-import/AnalysisProgress.vue'
@@ -972,8 +973,8 @@ async function processImport() {
     }
   } catch (error) {
     const errorMsg = useLLM
-      ? `LLM分析失败: ${(error as Error).message}`
-      : `导入失败: ${(error as Error).message}`
+      ? `LLM分析失败: ${getErrorMessage(error)}`
+      : `导入失败: ${getErrorMessage(error)}`
     ElMessage.error(errorMsg)
 
     if (useLLM) {

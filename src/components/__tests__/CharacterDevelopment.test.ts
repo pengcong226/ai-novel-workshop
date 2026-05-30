@@ -325,6 +325,9 @@ describe('CharacterDevelopment', () => {
     // Provide resolved entity state for the selected character
     vi.mocked(replayReducer).mockReturnValue({
       c1: {
+        entityId: 'c1',
+        entityName: 'test',
+        entityType: 'CHARACTER',
         properties: {},
         relations: [],
         location: null,
@@ -366,6 +369,9 @@ describe('CharacterDevelopment', () => {
 
     vi.mocked(replayReducer).mockReturnValue({
       c1: {
+        entityId: 'c1',
+        entityName: 'test',
+        entityType: 'CHARACTER',
         properties: {},
         relations: [],
         location: null,
@@ -406,6 +412,9 @@ describe('CharacterDevelopment', () => {
 
     vi.mocked(replayReducer).mockReturnValue({
       c1: {
+        entityId: 'c1',
+        entityName: 'test',
+        entityType: 'CHARACTER',
         properties: {},
         relations: [],
         location: null,
@@ -446,6 +455,9 @@ describe('CharacterDevelopment', () => {
 
     vi.mocked(replayReducer).mockReturnValue({
       c1: {
+        entityId: 'c1',
+        entityName: 'test',
+        entityType: 'CHARACTER',
         properties: {},
         relations: [],
         location: null,
@@ -494,6 +506,9 @@ describe('CharacterDevelopment', () => {
 
     vi.mocked(replayReducer).mockReturnValue({
       c1: {
+        entityId: 'c1',
+        entityName: 'test',
+        entityType: 'CHARACTER',
         properties: {},
         relations: [],
         location: null,
@@ -542,6 +557,9 @@ describe('CharacterDevelopment', () => {
 
     vi.mocked(replayReducer).mockReturnValue({
       c1: {
+        entityId: 'c1',
+        entityName: 'test',
+        entityType: 'CHARACTER',
         properties: {},
         relations: [],
         location: null,
@@ -589,6 +607,9 @@ describe('CharacterDevelopment', () => {
 
     vi.mocked(replayReducer).mockReturnValue({
       c1: {
+        entityId: 'c1',
+        entityName: 'test',
+        entityType: 'CHARACTER',
         properties: {},
         relations: [],
         location: null,
@@ -628,6 +649,9 @@ describe('CharacterDevelopment', () => {
 
     vi.mocked(replayReducer).mockReturnValue({
       c1: {
+        entityId: 'c1',
+        entityName: 'test',
+        entityType: 'CHARACTER',
         properties: {},
         relations: [],
         location: null,
@@ -673,6 +697,9 @@ describe('CharacterDevelopment', () => {
 
     vi.mocked(replayReducer).mockReturnValue({
       c1: {
+        entityId: 'c1',
+        entityName: 'test',
+        entityType: 'CHARACTER',
         properties: {},
         relations: [],
         location: null,
@@ -756,6 +783,9 @@ describe('CharacterDevelopment', () => {
 
     vi.mocked(replayReducer).mockReturnValue({
       c1: {
+        entityId: 'c1',
+        entityName: 'test',
+        entityType: 'CHARACTER',
         properties: {},
         relations: [],
         location: null,
@@ -796,6 +826,9 @@ describe('CharacterDevelopment', () => {
 
     vi.mocked(replayReducer).mockReturnValue({
       c1: {
+        entityId: 'c1',
+        entityName: 'test',
+        entityType: 'CHARACTER',
         properties: {},
         relations: [],
         location: null,

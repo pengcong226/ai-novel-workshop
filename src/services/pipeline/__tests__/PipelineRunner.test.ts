@@ -764,7 +764,7 @@ describe('PipelineRunner', () => {
       })
 
       const runner = new PipelineRunner()
-      const result = await runner.writeNextChapter({
+      const _result = await runner.writeNextChapter({
         project: makeMockProject(),
         chapterNumber: 3,
       })
@@ -810,13 +810,13 @@ describe('PipelineRunner', () => {
       await runner.writeNextChapter({ project, chapterNumber: 11 })
 
       // Should use standard compose (not composeWithLLM)
-      const instance = (ComposerAgent as any).mock.results[0]?.value
+      const _instance = (ComposerAgent as any).mock.results[0]?.value
       expect(composerComposeMock).toHaveBeenCalled()
     })
 
     it('should use LLM compose when totalChapters >= 20 and enableLLMCompose is true', async () => {
       const { ComposerAgent } = await import('@/agents/ComposerAgent')
-      const runner = new PipelineRunner({ enableLLMCompose: true })
+      const _runner = new PipelineRunner({ enableLLMCompose: true })
       const project = makeMockProject()
       project.chapters = Array.from({ length: 20 }, (_, i) => ({
         number: i + 1,
@@ -841,7 +841,7 @@ describe('PipelineRunner', () => {
     })
 
     it('should use standard compose when enableLLMCompose is explicitly false even with 20+ chapters', async () => {
-      const { ComposerAgent } = await import('@/agents/ComposerAgent')
+      const { ComposerAgent: _ComposerAgent } = await import('@/agents/ComposerAgent')
       const project = makeMockProject()
       project.chapters = Array.from({ length: 25 }, (_, i) => ({
         number: i + 1,

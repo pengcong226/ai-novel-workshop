@@ -30,7 +30,7 @@ vi.mock('@element-plus/icons-vue', () => ({
 }))
 
 // Stub all el-* components from Element Plus so we do not need the real library
-const elStub = (name: string) => ({
+const _elStub = (name: string) => ({
   name,
   props: Object.fromEntries(
     // accept any attribute without warnings

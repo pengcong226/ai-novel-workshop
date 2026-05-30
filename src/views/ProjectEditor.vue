@@ -564,11 +564,13 @@ onMounted(async () => {
 })
 
 // 组件卸载时，如果 tour 仍在打开状态，持久化完成状态
+// 同时清理 project store 的事件监听器和定时器
 onBeforeUnmount(() => {
   if (pipelineTourOpen.value) {
     markPipelineTourCompleted()
     pipelineTourOpen.value = false
   }
+  projectStore.cleanup()
 })
 
 function handleMenuSelect(index: string) {

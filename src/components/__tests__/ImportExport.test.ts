@@ -61,7 +61,7 @@ function createMockProject(overrides: Partial<Project> = {}): Project {
       writerModel: '',
       sentinelModel: '',
       extractorModel: '',
-      systemPrompts: {},
+      systemPrompts: { planner: '', writer: '', sentinel: '', extractor: '' },
       planningDepth: 'medium',
       writingDepth: 'standard',
       enableQualityCheck: true,
@@ -69,7 +69,8 @@ function createMockProject(overrides: Partial<Project> = {}): Project {
       maxCostPerChapter: 0.15,
       enableAISuggestions: true,
       enableAutoReview: false,
-      advanced: {
+      enableVectorRetrieval: true,
+      advancedSettings: {
         temperature: 0.8,
         topP: 0.9,
         maxTokens: 4096,
@@ -434,8 +435,9 @@ describe('Import/Export Flows', () => {
       const reassigned = reassignProjectBackupIds(backup, 'new-proj')
 
       // Chapter projectId (if it exists) should be updated
-      if (reassigned.project.chapters[0].projectId) {
-        expect(reassigned.project.chapters[0].projectId).toBe('new-proj')
+      const chapter = reassigned.project.chapters[0] as unknown as Record<string, unknown>
+      if (chapter.projectId) {
+        expect(chapter.projectId).toBe('new-proj')
       }
     })
   })

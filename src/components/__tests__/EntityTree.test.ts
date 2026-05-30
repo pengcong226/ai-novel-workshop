@@ -1,9 +1,9 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { mount, flushPromises } from '@vue/test-utils'
-import { ref, nextTick } from 'vue'
+import { nextTick } from 'vue'
 import { createTestPinia } from '@/test/helpers'
 import { resetMockIdCounter, createMockEntity } from '@/test/mocks'
-import type { Entity, EntityType } from '@/types/sandbox'
+import type { Entity } from '@/types/sandbox'
 
 // --- Mock stores before importing component ---
 vi.mock('@/utils/anthropic-guard', () => ({

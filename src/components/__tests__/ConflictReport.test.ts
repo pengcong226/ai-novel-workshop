@@ -1,11 +1,11 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { mount, flushPromises } from '@vue/test-utils'
 import { createTestPinia } from '@/test/helpers'
-import { ref, nextTick } from 'vue'
+import { nextTick } from 'vue'
 import { ElMessage } from 'element-plus'
 import { useProjectStore } from '@/stores/project'
 import { useSandboxStore } from '@/stores/sandbox'
-import type { ConflictDetectionResult, ConflictReport } from '@/types/conflicts'
+import type { ConflictDetectionResult, ConflictReport as ConflictReportType } from '@/types/conflicts'
 
 // ---------------------------------------------------------------------------
 // Mocks
@@ -103,7 +103,7 @@ const globalStubs = {
 // Fixture factories
 // ---------------------------------------------------------------------------
 
-function makeConflict(overrides: Partial<ConflictReport> = {}): ConflictReport {
+function makeConflict(overrides: Partial<ConflictReportType> = {}): ConflictReportType {
   return {
     id: `conflict-${Math.random().toString(36).slice(2, 8)}`,
     type: 'character_personality',
@@ -120,7 +120,7 @@ function makeConflict(overrides: Partial<ConflictReport> = {}): ConflictReport {
   }
 }
 
-function makeResult(conflicts: ConflictReport[]): ConflictDetectionResult {
+function makeResult(conflicts: ConflictReportType[]): ConflictDetectionResult {
   const byType: Record<string, number> = {}
   const byChapter: Record<number, number> = {}
   let critical = 0
@@ -277,8 +277,8 @@ describe('ConflictReport.vue', () => {
     expect(wrapper.findAll('.conflict-card')).toHaveLength(3)
 
     // Set severity filter to 'critical'
-    const filterSeverity = wrapper.vm.filterSeverity as unknown as string
-    wrapper.vm.filterSeverity = 'critical' as any
+    const _filterSeverity = (wrapper.vm as any).filterSeverity as unknown as string
+    ;(wrapper.vm as any).filterSeverity = 'critical'
     await nextTick()
 
     expect(wrapper.findAll('.conflict-card')).toHaveLength(1)

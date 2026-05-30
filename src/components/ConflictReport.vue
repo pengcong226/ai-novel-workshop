@@ -418,6 +418,7 @@ import type { ConflictType, ConflictSeverity, ConflictReport, ConflictDetectionC
 import { ConflictDetector, DEFAULT_CONFIG, exportConflictsAsMarkdown, exportConflictsAsJSON } from '@/utils/conflictDetector'
 import { getLogger } from '@/utils/logger'
 import { getChapterStatusType, getChapterStatusText } from '@/utils/formatters'
+import { getErrorMessage } from '@/utils/getErrorMessage'
 const logger = getLogger('components:ConflictReport')
 
 const projectStore = useProjectStore()
@@ -481,7 +482,7 @@ async function runDetection() {
     ElMessage.success(`检测完成！发现 ${result.value.statistics.total} 个冲突`)
   } catch (error) {
     logger.error('冲突检测失败:', error)
-    ElMessage.error('冲突检测失败：' + (error as Error).message)
+    ElMessage.error('冲突检测失败：' + getErrorMessage(error))
   } finally {
     detecting.value = false
   }

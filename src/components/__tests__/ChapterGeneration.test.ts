@@ -99,7 +99,7 @@ vi.mock('@/utils/contextBuilder', () => ({
 
 vi.mock('@/services/generation-scheduler', () => ({
   generationScheduler: {
-    generateChapter: vi.fn().mockResolvedValue({
+    writeChapterWithPipeline: vi.fn().mockResolvedValue({
       id: 'gen-chapter-1',
       number: 1,
       title: 'AI生成的章节',
@@ -122,7 +122,7 @@ vi.mock('@/services/generation-scheduler', () => ({
       checkpoints: [],
       aiSuggestions: ['建议增加环境描写'],
     }),
-    generateBatch: vi.fn().mockResolvedValue(undefined),
+    executeBatchGeneration: vi.fn().mockResolvedValue(undefined),
     runExtractionInBackground: vi.fn().mockResolvedValue(undefined),
   },
 }))
@@ -464,12 +464,12 @@ describe('Chapter Generation UI Flow', () => {
 
   describe('Generation Trigger via Scheduler', () => {
     it('generationScheduler mock is available and callable', () => {
-      expect(generationScheduler.generateChapter).toBeDefined()
-      expect(typeof generationScheduler.generateChapter).toBe('function')
+      expect(generationScheduler.writeChapterWithPipeline).toBeDefined()
+      expect(typeof generationScheduler.writeChapterWithPipeline).toBe('function')
     })
 
     it('generationScheduler returns a chapter with expected shape', async () => {
-      const result = await generationScheduler.generateChapter({} as any)
+      const result = await (generationScheduler.writeChapterWithPipeline as any)({} as any)
 
       expect(result).toBeDefined()
       expect(result.id).toBeTruthy()
@@ -479,9 +479,9 @@ describe('Chapter Generation UI Flow', () => {
     })
 
     it('generationScheduler handles batch generation', async () => {
-      await generationScheduler.generateBatch({} as any)
+      await (generationScheduler.executeBatchGeneration as any)({} as any)
 
-      expect(generationScheduler.generateBatch).toHaveBeenCalled()
+      expect(generationScheduler.executeBatchGeneration).toHaveBeenCalled()
     })
   })
 

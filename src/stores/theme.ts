@@ -21,18 +21,19 @@ import { sanitizeThemeCss } from '@/utils/cssSanitizer'
 
 const DEFAULT_THEME_ID = 'builtin-classic-light-theme'
 
-/** Snapshot of the default theme state for `$reset()`. */
-const DEFAULT_STATE = {
-  activeThemeId: (typeof window !== 'undefined'
-    ? window.localStorage.getItem('active-theme-id')
-    : null) || DEFAULT_THEME_ID,
-} as const
+/** Read the persisted theme ID from localStorage (or fall back to the default). */
+function readPersistedThemeId(): string {
+  if (typeof window !== 'undefined') {
+    return window.localStorage.getItem('active-theme-id') || DEFAULT_THEME_ID
+  }
+  return DEFAULT_THEME_ID
+}
 
 export const useThemeStore = defineStore('theme', () => {
   const pluginStore = usePluginStore()
 
   /** Currently active theme identifier */
-  const activeThemeId: Ref<string> = ref(DEFAULT_STATE.activeThemeId)
+  const activeThemeId: Ref<string> = ref(readPersistedThemeId())
 
   watch(activeThemeId, (newId) => {
     if (typeof window !== 'undefined') {
@@ -79,7 +80,7 @@ export const useThemeStore = defineStore('theme', () => {
    * default theme.
    */
   function $reset(): void {
-    activeThemeId.value = DEFAULT_STATE.activeThemeId
+    activeThemeId.value = readPersistedThemeId()
     applyTheme()
   }
 

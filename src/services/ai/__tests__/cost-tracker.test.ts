@@ -191,7 +191,7 @@ describe('CostTracker', () => {
   })
 
   it('filters statistics by date range', () => {
-    const now = new Date('2026-05-31T12:00:00Z')
+    const _now = new Date('2026-05-31T12:00:00Z')
     tracker.recordCost(makeRecord({ timestamp: new Date('2026-05-30T10:00:00Z') }))
     tracker.recordCost(makeRecord({ timestamp: new Date('2026-05-31T11:00:00Z') }))
 

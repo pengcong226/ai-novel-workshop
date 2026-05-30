@@ -28,6 +28,7 @@ describe('IndexedDBRepository', () => {
 
   beforeEach(async () => {
     // Install fake-indexeddb polyfill (overrides globalThis.indexedDB)
+    // @ts-ignore - fake-indexeddb has no type declarations
     await import('fake-indexeddb/auto')
 
     const mod = await import('./repository')
@@ -284,7 +285,7 @@ describe('createRepository', () => {
     const repo = createRepository('template')
 
     // IndexedDBRepository instances have dbName / storeName properties
-    expect((repo as Record<string, unknown>).storeName).toBe('templates')
+    expect((repo as unknown as Record<string, unknown>).storeName).toBe('templates')
   })
 
   it('returns TauriProjectRepository in Tauri mode for project type', async () => {

@@ -21,7 +21,7 @@ vi.mock('@/utils/logger', () => ({
  * to `_p` (Pinia's plugin array). In Pinia 2.x, `pinia.use()` defers
  * registration until `install(app)` which never runs in tests.
  */
-function createTestPiniaWithPlugins(...plugins: ((...args: unknown[]) => unknown)[]) {
+function createTestPiniaWithPlugins(...plugins: any[]) {
   const pinia = createPinia()
   for (const plugin of plugins) {
     (pinia as any)._p.push(plugin)

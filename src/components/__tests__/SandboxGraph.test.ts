@@ -103,10 +103,10 @@ function mountGraph() {
  */
 function seedEntities(
   store: ReturnType<typeof useSandboxStore>,
-  resolvedEntities: Record<string, Record<string, unknown>>,
+  resolvedEntities: Record<string, any>,
 ) {
-  store.entities = Object.values(resolvedEntities) as ReturnType<typeof store.entities>
-  vi.mocked(replayReducer).mockReturnValue(resolvedEntities)
+  store.entities = Object.values(resolvedEntities) as any
+  vi.mocked(replayReducer).mockReturnValue(resolvedEntities as any)
 }
 
 // ---------------------------------------------------------------------------

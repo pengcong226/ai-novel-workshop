@@ -118,24 +118,29 @@ export const useTaskManager = defineStore('taskManager', () => {
 
   /**
    * Mark a task as successfully completed at 100% progress.
+   * Clears the onCancel callback to release closure references.
    * @param id - Task ID
    * @param message - Optional completion message
    */
   function completeTask(id: string, message?: string): void {
+    const task = tasks.value.find(t => t.id === id)
+    if (task) task.onCancel = undefined
     updateTask(id, { status: 'success', progress: 100, description: message || '完成' })
     cleanupCompletedTasks()
   }
 
   /**
    * Mark a task as failed with an error message. Automatically shows
-   * an error toast with the failure details.
+   * an error toast with the failure details. Clears the onCancel
+   * callback to release closure references.
    * @param id - Task ID
    * @param error - Error description string
    */
   function failTask(id: string, error: string): void {
+    const task = tasks.value.find(t => t.id === id)
+    if (task) task.onCancel = undefined
     updateTask(id, { status: 'error', description: error })
     // Automatically trigger a toast for failed background tasks
-    const task = tasks.value.find(t => t.id === id)
     if (task) {
       addToast(`任务失败: ${task.title} - ${error}`, 'error')
     }
@@ -153,6 +158,8 @@ export const useTaskManager = defineStore('taskManager', () => {
       if (task.onCancel) {
         task.onCancel()
       }
+      // Clear callback reference to release closure after invocation
+      task.onCancel = undefined
       updateTask(id, { status: 'cancelled', description: '已取消' })
       logger.info(`Task cancelled: ${task.title} [${task.id}]`)
     }

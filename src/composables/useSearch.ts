@@ -72,6 +72,8 @@ export function useSearch(options?: UseSearchOptions): UseSearchReturn {
       clearTimeout(debounceTimer)
       debounceTimer = null
     }
+    // Release indexed document data to free memory
+    engine.clear()
   })
 
   const isEmpty = computed(() => !query.value.trim())

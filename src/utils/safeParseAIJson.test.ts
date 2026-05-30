@@ -1,4 +1,4 @@
-import { describe, expect, it, vi, beforeEach } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 
 // Mock logger so safeParseAIJson doesn't fail on import
 vi.mock('@/utils/logger', () => ({

@@ -81,7 +81,7 @@ describe('useEventBus', () => {
   })
 
   it('unsub returned by on removes the listener', () => {
-    const { on, emit, bus } = mountEventBus()
+    const { on: _on, emit, bus } = mountEventBus()
     const handler = vi.fn()
 
     // Use the unsub function returned by the bus (not the composable on wrapper)
