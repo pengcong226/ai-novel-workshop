@@ -189,7 +189,7 @@ export const useKnowledgeStore = defineStore('knowledge', () => {
       logger.info('知识库加载完成', {
         entryCount: entries.value.length
       })
-    } catch (err) {
+    } catch (err: unknown) {
       const errorMessage = err instanceof Error ? err.message : '加载知识库失败'
       error.value = errorMessage
       logger.error('加载知识库失败', err)
@@ -254,7 +254,7 @@ export const useKnowledgeStore = defineStore('knowledge', () => {
       logger.info('知识库保存完成', {
         entryCount: entries.value.length
       })
-    } catch (err) {
+    } catch (err: unknown) {
       const errorMessage = err instanceof Error ? err.message : '保存知识库失败'
       error.value = errorMessage
       logger.error('保存知识库失败', err)

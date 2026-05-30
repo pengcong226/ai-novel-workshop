@@ -174,7 +174,7 @@ export const useCharacterCardStore = defineStore('characterCard', () => {
         hasRegexScripts: !!result.regexScripts,
         hasPrompts: !!result.prompts
       })
-    } catch (err) {
+    } catch (err: unknown) {
       const errorMsg = err instanceof Error ? err.message : String(err)
       error.value = errorMsg
       logger.error('角色卡导入失败', err)
@@ -239,7 +239,7 @@ export const useCharacterCardStore = defineStore('characterCard', () => {
       }
 
       logger.info('PNG角色卡导入成功')
-    } catch (err) {
+    } catch (err: unknown) {
       const errorMsg = err instanceof Error ? err.message : String(err)
       error.value = errorMsg
       logger.error('PNG导入失败', err)
@@ -289,7 +289,7 @@ export const useCharacterCardStore = defineStore('characterCard', () => {
       logger.info('角色卡导出成功', { format: options.format })
 
       return result.data!
-    } catch (err) {
+    } catch (err: unknown) {
       const errorMsg = err instanceof Error ? err.message : String(err)
       error.value = errorMsg
       logger.error('角色卡导出失败', err)
@@ -335,7 +335,7 @@ export const useCharacterCardStore = defineStore('characterCard', () => {
       exporter.downloadCharacterCard(result, filename)
 
       logger.info('角色卡下载成功', { filename, format: options.format })
-    } catch (err) {
+    } catch (err: unknown) {
       const errorMsg = err instanceof Error ? err.message : String(err)
       error.value = errorMsg
       logger.error('角色卡下载失败', err)
@@ -522,7 +522,7 @@ export const useCharacterCardStore = defineStore('characterCard', () => {
       }))
 
       projectId.value = entity.projectId
-    } catch (e) {
+    } catch (e: unknown) {
       bridgeError.value = e instanceof Error ? e.message : String(e)
       logger.error('syncFromSandbox failed:', e)
     }
@@ -593,7 +593,7 @@ export const useCharacterCardStore = defineStore('characterCard', () => {
           createdAt: Date.now()
         })
       }
-    } catch (e) {
+    } catch (e: unknown) {
       bridgeError.value = e instanceof Error ? e.message : String(e)
       logger.error('dispatchToSandbox failed:', e)
     }

@@ -69,7 +69,7 @@ export const usePluginStore = defineStore('plugin', () => {
       pluginSettings.value = allSettings
 
       logger.info('已加载插件', { count: installedPlugins.length })
-    } catch (err) {
+    } catch (err: unknown) {
       error.value = err instanceof Error ? err.message : '加载插件失败'
       logger.error('加载插件失败', err)
     } finally {
@@ -88,7 +88,7 @@ export const usePluginStore = defineStore('plugin', () => {
       await pluginManager.installPlugin(manifest, entryPoint)
       plugins.value.push(manifest)
       logger.info('插件安装成功', { pluginId: manifest.id })
-    } catch (err) {
+    } catch (err: unknown) {
       error.value = err instanceof Error ? err.message : '安装插件失败'
       logger.error('安装插件失败', err)
       throw err
@@ -124,7 +124,7 @@ export const usePluginStore = defineStore('plugin', () => {
       pluginSettings.value = rest
 
       logger.info('插件卸载成功', { pluginId })
-    } catch (err) {
+    } catch (err: unknown) {
       error.value = err instanceof Error ? err.message : '卸载插件失败'
       logger.error('卸载插件失败', err)
       throw err
@@ -148,7 +148,7 @@ export const usePluginStore = defineStore('plugin', () => {
       }
 
       logger.info('插件激活成功', { pluginId })
-    } catch (err) {
+    } catch (err: unknown) {
       error.value = err instanceof Error ? err.message : '激活插件失败'
       logger.error('激活插件失败', err)
       throw err
@@ -173,7 +173,7 @@ export const usePluginStore = defineStore('plugin', () => {
       }
 
       logger.info('插件停用成功', { pluginId })
-    } catch (err) {
+    } catch (err: unknown) {
       error.value = err instanceof Error ? err.message : '停用插件失败'
       logger.error('停用插件失败', err)
       throw err
@@ -204,7 +204,7 @@ export const usePluginStore = defineStore('plugin', () => {
         ...settings
       } as Record<string, unknown>
       logger.debug('插件设置已更新', { pluginId, keys: Object.keys(settings || {}) })
-    } catch (err) {
+    } catch (err: unknown) {
       error.value = err instanceof Error ? err.message : '更新插件设置失败'
       logger.error('更新插件设置失败', err)
       throw err
@@ -341,7 +341,7 @@ export const usePluginStore = defineStore('plugin', () => {
       pluginSettings.value = {}
 
       logger.warn('所有插件已清除')
-    } catch (err) {
+    } catch (err: unknown) {
       error.value = err instanceof Error ? err.message : '清除插件失败'
       logger.error('清除插件失败', err)
       throw err

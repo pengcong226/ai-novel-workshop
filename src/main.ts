@@ -36,6 +36,7 @@ import { initializePluginSystem } from './plugins/setup'
 import { getLogger, initLogger } from './utils/logger'
 import i18n from './i18n'
 import { errorHandler, ErrorSeverity, ErrorCategory } from './utils/errorHandler'
+import { initAnalytics } from './utils/analytics'
 
 // 屏蔽浏览器偶发的 ResizeObserver 无害错误（常见于复杂表格/图表布局）
 const RESIZE_OBSERVER_BENIGN_ERROR = 'ResizeObserver loop completed with undelivered notifications.'
@@ -71,6 +72,9 @@ const loggerManager = initLogger({
 
 const appLogger = getLogger('app:bootstrap')
 appLogger.info('日志系统初始化完成', loggerManager.getConfig())
+
+// 初始化隐私优先的本地分析
+initAnalytics()
 
 const app = createApp(App)
 

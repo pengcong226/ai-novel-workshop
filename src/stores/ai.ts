@@ -338,7 +338,7 @@ export const useAIStore = defineStore('ai', () => {
         preferredModels,
         configuredModel: configuredModel.value
       })
-    } catch (e) {
+    } catch (e: unknown) {
       const err = new AIError('AI服务初始化失败', {
         code: ErrorCode.AI_NOT_INITIALIZED,
         cause: e instanceof Error ? e : undefined,
@@ -412,7 +412,7 @@ export const useAIStore = defineStore('ai', () => {
         if (error.value) error.value = null
         recordTokenUsage(response, requestContext, 'chat')
         return response
-      } catch (err) {
+      } catch (err: unknown) {
         error.value = err instanceof Error ? err.message : String(err)
         logger.error('chat 请求失败', { error: error.value, type: context?.type })
         throw err
@@ -462,7 +462,7 @@ export const useAIStore = defineStore('ai', () => {
       if (error.value) error.value = null
       recordTokenUsage(response, requestContext, 'chatStream')
       return response
-    } catch (err) {
+    } catch (err: unknown) {
       error.value = err instanceof Error ? err.message : String(err)
       logger.error('chatStream 请求失败', { error: error.value, type: context?.type })
       throw err
@@ -700,10 +700,10 @@ export const useAIStore = defineStore('ai', () => {
 
       onSuccess?.(result)
       return result
-    } catch (e) {
+    } catch (e: unknown) {
       const err = toAppError(e, 'Intent 执行失败', { intent: intent.intent });
       logger.error(`[${err.code}] Intent 执行失败:`, err.toJSON());
-      onError?.(err instanceof Error ? err : new Error(err.message))
+      onError?.(err)
       throw err
     }
   }

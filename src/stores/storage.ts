@@ -213,7 +213,7 @@ class IndexedDBStorage {
 
     try {
       return JSON.parse(data)
-    } catch (error) {
+    } catch (error: unknown) {
       logger.error('Failed to parse projects list from localStorage:', error)
       return []
     }
@@ -227,7 +227,7 @@ class IndexedDBStorage {
     let projectData: StoredProject
     try {
       projectData = JSON.parse(JSON.stringify(project))
-    } catch (error) {
+    } catch (error: unknown) {
       logger.error('Failed to serialize project data:', error)
       throw new Error('Invalid project data: cannot serialize')
     }
@@ -421,7 +421,7 @@ class IndexedDBStorage {
       let transaction: IDBTransaction
       try {
         transaction = this.db!.transaction([CHAPTERS_STORE], 'readwrite')
-      } catch (txError) {
+      } catch (txError: unknown) {
         reject(new Error(`创建事务失败: ${txError instanceof Error ? txError.message : String(txError)}`))
         return
       }
@@ -439,7 +439,7 @@ class IndexedDBStorage {
             ? { ...chapter, projectId: chapter.projectId, number: existingChapter.number }
             : { ...chapter, projectId: chapter.projectId }
           store.put(chapterToSave)
-        } catch (putError) {
+        } catch (putError: unknown) {
           // store.put 可能因 DataCloneError（不可序列化数据）失败
           reject(new Error(`章节数据写入失败: ${putError instanceof Error ? putError.message : String(putError)}`))
         }
@@ -749,7 +749,7 @@ class TauriStorage {
     try {
       const data: string = await invoke('load_projects_list');
       return JSON.parse(data);
-    } catch (e) {
+    } catch (e: unknown) {
       const err = toAppError(e, '加载项目列表失败');
       logger.error(`[${err.code}] 加载项目列表失败:`, err.toJSON());
       return [];
@@ -770,7 +770,7 @@ class TauriStorage {
     }));
     try {
       await invoke('save_projects_list', { data: JSON.stringify(projectsList) });
-    } catch (e) {
+    } catch (e: unknown) {
       const err = toAppError(e, '保存项目列表失败'); logger.error(`[${err.code}] 保存项目列表失败:`, err.toJSON());
     }
   }
@@ -792,7 +792,7 @@ class TauriStorage {
       }
 
       return project;
-    } catch (e) {
+    } catch (e: unknown) {
       logger.warn('Project not found in Tauri storage:', projectId, e);
       return null;
     }
@@ -803,7 +803,7 @@ class TauriStorage {
     try {
       const data: string = await invoke('load_chapter', { projectId, chapterId });
       return JSON.parse(data);
-    } catch (e) {
+    } catch (e: unknown) {
       logger.error(`加载章节 ${chapterId} 失败:`, e);
       return null;
     }
@@ -860,7 +860,7 @@ class TauriStorage {
         chapterId: chapter.id,
         data: JSON.stringify(chapter)
       });
-    } catch (e) {
+    } catch (e: unknown) {
       logger.error('保存章节报错:', e);
       throw e;
     }
@@ -883,7 +883,7 @@ class TauriStorage {
     // Note: Actually we need a 'delete_chapter' in lib.rs. I'll add that backend invocation next.
     try {
       await invoke('delete_single_chapter', { projectId, chapterId });
-    } catch (e) {
+    } catch (e: unknown) {
       logger.error('删除章节失败:', e);
       throw new Error(`桌面端删除章节失败：${e instanceof Error ? e.message : String(e)}`);
     }
@@ -893,7 +893,7 @@ class TauriStorage {
     const { invoke } = await import('@tauri-apps/api/core');
     try {
       await invoke('delete_project', { id: projectId });
-    } catch (e) {
+    } catch (e: unknown) {
       logger.error('删除项目失败:', e);
       throw new Error(`桌面端删除项目失败：${e instanceof Error ? e.message : String(e)}`);
     }
@@ -915,7 +915,7 @@ class TauriStorage {
     const data: string = await invoke('list_chapter_snapshots', { chapterId, projectId })
     try {
       return JSON.parse(data) as ChapterSnapshot[]
-    } catch (error) {
+    } catch (error: unknown) {
       throw new Error(`章节快照列表解析失败：${error instanceof Error ? error.message : String(error)}`)
     }
   }
@@ -926,7 +926,7 @@ class TauriStorage {
     if (!data) return undefined
     try {
       return JSON.parse(data) as ChapterSnapshot
-    } catch (error) {
+    } catch (error: unknown) {
       throw new Error(`章节快照解析失败：${error instanceof Error ? error.message : String(error)}`)
     }
   }

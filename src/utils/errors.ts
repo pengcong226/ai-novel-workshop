@@ -94,8 +94,9 @@ export class AppError extends Error {
     this.context = detail.context ?? {}
     this.timestamp = new Date().toISOString()
 
+    // Store cause separately (ES2020 compatibility)
     if (detail.cause) {
-      this.cause = detail.cause
+      (this as any).cause = detail.cause
     }
 
     // Maintain proper prototype chain for instanceof checks
@@ -113,9 +114,9 @@ export class AppError extends Error {
       context: this.context,
       timestamp: this.timestamp,
       stack: this.stack,
-      cause: this.cause instanceof Error
-        ? { message: this.cause.message, stack: this.cause.stack }
-        : this.cause,
+      cause: (this as any).cause instanceof Error
+        ? { message: ((this as any).cause as Error).message, stack: ((this as any).cause as Error).stack }
+        : (this as any).cause,
     }
   }
 }

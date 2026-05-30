@@ -2,6 +2,7 @@ import type { StyleProfile } from '@/types'
 import { useAIStore } from '@/stores/ai'
 import { getStylePreset, mergeStyleProfile } from '@/data/stylePresets'
 import { safeParseAIJson } from '@/utils/safeParseAIJson'
+import { AIError, ErrorCode } from '@/utils/errors'
 
 export interface StyleExtractionRequest {
   sampleText: string
@@ -51,7 +52,7 @@ ${req.sampleText.slice(0, 6000)}`
 
   const parsed = safeParseAIJson<unknown>(response.content)
   if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
-    throw new AIError('AI 未返回可解析的风格 JSON', { code: ErrorCode.AI_GENERATION_FAILED })
+throw new AIError('AI 未返回可解析的风格 JSON', { code: ErrorCode.AI_GENERATION_FAILED })
   }
 
   const extracted = parsed as Partial<StyleProfile>

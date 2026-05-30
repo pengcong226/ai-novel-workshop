@@ -179,7 +179,7 @@ export const useWorldbookStore = defineStore('worldbook', () => {
       logger.info('世界书加载完成', {
         entryCount: entries.value.length
       })
-    } catch (err) {
+    } catch (err: unknown) {
       const appErr = toAppError(err, '加载世界书失败', { projectId: projectId.value });
       error.value = appErr.message
       logger.error(`[${appErr.code}] 加载世界书失败:`, appErr.toJSON());
@@ -232,7 +232,7 @@ export const useWorldbookStore = defineStore('worldbook', () => {
       logger.info('世界书保存完成', {
         entryCount: entries.value.length
       })
-    } catch (err) {
+    } catch (err: unknown) {
       const appErr = new StorageError('保存世界书失败', {
         code: ErrorCode.STORAGE_WRITE_FAILED,
         cause: err instanceof Error ? err : undefined,
@@ -304,7 +304,7 @@ export const useWorldbookStore = defineStore('worldbook', () => {
           createdAt: Date.now()
         })
       }
-    } catch (e) {
+    } catch (e: unknown) {
       bridgeError.value = e instanceof Error ? e.message : String(e)
       logger.error('V5 bridge: failed to sync entry to sandbox store, rolling back worldbook entry', e)
       // 回滚：移除刚才添加的条目
@@ -371,7 +371,7 @@ export const useWorldbookStore = defineStore('worldbook', () => {
           await sandboxStore.updateEntity(loreEntity.id, entityUpdates)
         }
       }
-    } catch (e) {
+    } catch (e: unknown) {
       bridgeError.value = e instanceof Error ? e.message : String(e)
       logger.error('V5 bridge: failed to sync update to sandbox store, rolling back worldbook entry', e)
       // 回滚：恢复旧条目
@@ -414,7 +414,7 @@ export const useWorldbookStore = defineStore('worldbook', () => {
       if (loreEntity) {
         await sandboxStore.updateEntity(loreEntity.id, { isArchived: true })
       }
-    } catch (e) {
+    } catch (e: unknown) {
       bridgeError.value = e instanceof Error ? e.message : String(e)
       logger.error('V5 bridge: failed to sync delete to sandbox store, rolling back worldbook deletion', e)
       // 回滚：将被删除的条目恢复到原位置
@@ -452,7 +452,7 @@ export const useWorldbookStore = defineStore('worldbook', () => {
           await sandboxStore.deleteEntity(loreEntity.id)
         }
       }
-    } catch (e) {
+    } catch (e: unknown) {
       bridgeError.value = e instanceof Error ? e.message : String(e)
       logger.error('V5 bridge: failed to sync bulk delete to sandbox store, rolling back worldbook entries', e)
       // 回滚：将被删除的条目恢复
@@ -498,7 +498,7 @@ export const useWorldbookStore = defineStore('worldbook', () => {
           await sandboxStore.updateEntity(loreEntity.id, { isArchived: !enabled })
         }
       }
-    } catch (e) {
+    } catch (e: unknown) {
       bridgeError.value = e instanceof Error ? e.message : String(e)
       logger.error('V5 bridge: failed to sync toggle to sandbox store, rolling back worldbook entries', e)
       // 回滚：恢复旧状态
@@ -875,7 +875,7 @@ export const useWorldbookStore = defineStore('worldbook', () => {
             })
           }
         }
-      } catch (e) {
+      } catch (e: unknown) {
         bridgeError.value = e instanceof Error ? e.message : String(e)
         logger.error('V5 bridge: failed to sync imported entries to sandbox store, rolling back worldbook entries', e)
         // 回滚：恢复旧条目列表
@@ -887,7 +887,7 @@ export const useWorldbookStore = defineStore('worldbook', () => {
         imported: entriesToImport.length,
         total: entries.value.length
       })
-    } catch (err) {
+    } catch (err: unknown) {
       const appErr = toAppError(err, '导入条目失败');
       error.value = appErr.message
       logger.error(`[${appErr.code}] 导入条目失败:`, appErr.toJSON());
@@ -946,7 +946,7 @@ export const useWorldbookStore = defineStore('worldbook', () => {
             }
           }
         }
-      } catch (e) {
+      } catch (e: unknown) {
         bridgeError.value = e instanceof Error ? e.message : String(e)
         logger.error('V5 bridge: failed to sync importWorldbook to sandbox store, rolling back worldbook', e)
         // 回滚：恢复旧世界书状态
@@ -960,7 +960,7 @@ export const useWorldbookStore = defineStore('worldbook', () => {
         entryCount: imported.entries.length,
         merge
       })
-    } catch (err) {
+    } catch (err: unknown) {
       const appErr = toAppError(err, '导入世界书失败');
       error.value = appErr.message
       logger.error(`[${appErr.code}] 导入世界书失败:`, appErr.toJSON());

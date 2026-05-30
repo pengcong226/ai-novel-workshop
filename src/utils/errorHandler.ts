@@ -4,7 +4,8 @@
  */
 
 import { getLogger } from '@/utils/logger'
-import { AppError, ErrorCode } from '@/utils/errors'
+import { AppError as AppErrorClass, ErrorCode } from '@/utils/errors'
+import { trackError } from '@/utils/analytics'
 
 const logger = getLogger('utils:errorHandler')
 
@@ -23,6 +24,23 @@ export enum ErrorCategory {
   PERMISSION = 'permission', // 权限错误
   RUNTIME = 'runtime',     // 运行时错误
   UNKNOWN = 'unknown'      // 未知错误
+}
+
+/** Map ErrorCategory to analytics EventCategory for local tracking. */
+function mapErrorCategoryToAnalytics(category?: ErrorCategory): 'navigation' | 'ai' | 'editor' | 'sandbox' {
+  switch (category) {
+    case ErrorCategory.NETWORK:
+    case ErrorCategory.API:
+      return 'ai'
+    case ErrorCategory.VALIDATION:
+      return 'editor'
+    case ErrorCategory.STORAGE:
+    case ErrorCategory.PERMISSION:
+    case ErrorCategory.RUNTIME:
+    case ErrorCategory.UNKNOWN:
+    default:
+      return 'sandbox'
+  }
 }
 
 export interface AppError {
@@ -91,6 +109,10 @@ class ErrorHandler {
 
     // 记录错误
     this.logError(appError)
+
+    // 本地分析追踪（隐私优先，无 PII）
+    const analyticsCategory = mapErrorCategoryToAnalytics(options.category)
+    trackError(analyticsCategory, options.category || 'unknown', appError.recoverable)
 
     // 通知监听器
     this.notifyListeners(appError)
@@ -217,18 +239,18 @@ export function setupGlobalErrorHandler() {
   window.addEventListener('unhandledrejection', (event) => {
     const reason = event.reason
     // If the reason is an AppError, preserve its code and context
-    if (reason instanceof AppError) {
+    if (reason instanceof AppErrorClass) {
       logger.error(`[unhandledrejection] [${reason.code}] ${reason.message}`, reason.toJSON())
     }
     errorHandler.handleError(reason, {
       severity: ErrorSeverity.HIGH,
-      category: reason instanceof AppError
+      category: reason instanceof AppErrorClass
         ? (reason.code.startsWith('AI_') ? ErrorCategory.API
           : reason.code.startsWith('STORAGE_') ? ErrorCategory.STORAGE
           : reason.code.startsWith('NETWORK_') ? ErrorCategory.NETWORK
           : ErrorCategory.RUNTIME)
         : ErrorCategory.RUNTIME,
-      context: reason instanceof AppError ? reason.context : undefined,
+      context: reason instanceof AppErrorClass ? reason.context : undefined,
       userAction: '异步操作',
       recoverable: false
     })
@@ -238,7 +260,7 @@ export function setupGlobalErrorHandler() {
   // 处理全局错误
   window.addEventListener('error', (event) => {
     const error = event.error || event.message
-    if (error instanceof AppError) {
+    if (error instanceof AppErrorClass) {
       logger.error(`[global error] [${error.code}] ${error.message}`, error.toJSON())
     }
     errorHandler.handleError(error, {

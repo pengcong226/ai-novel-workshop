@@ -1,5 +1,6 @@
 import { createRouter, createWebHashHistory } from 'vue-router'
 import { projectExistsGuard, resolvePageTitle } from './guards'
+import { trackPageView } from '@/utils/analytics'
 
 const router = createRouter({
   history: createWebHashHistory(),
@@ -63,6 +64,11 @@ router.beforeEach(projectExistsGuard)
 // Guard: dynamic page title
 router.beforeEach((to) => {
   document.title = resolvePageTitle(to)
+})
+
+// Analytics: track page views
+router.afterEach((to) => {
+  trackPageView(to.name?.toString() || to.path)
 })
 
 // Preload likely next routes on idle

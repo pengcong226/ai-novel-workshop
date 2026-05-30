@@ -209,7 +209,7 @@ export const useSuggestionsStore = defineStore('suggestions', () => {
           }))
         }
       }
-    } catch (e) {
+    } catch (e: unknown) {
       const err = toAppError(e, '加载建议存储失败');
       logger.error(`[${err.code}] 加载存储失败:`, err.toJSON());
     }
@@ -226,7 +226,7 @@ export const useSuggestionsStore = defineStore('suggestions', () => {
           rules: rules.value
         }
         localStorage.setItem(STORAGE_KEY, JSON.stringify(data))
-      } catch (e) {
+      } catch (e: unknown) {
         logger.error('保存存储失败:', e)
       }
       saveTimer = null
@@ -245,7 +245,7 @@ export const useSuggestionsStore = defineStore('suggestions', () => {
           rules: rules.value
         }
         localStorage.setItem(STORAGE_KEY, JSON.stringify(data))
-      } catch (e) {
+      } catch (e: unknown) {
         logger.error('保存存储失败:', e)
       }
     }

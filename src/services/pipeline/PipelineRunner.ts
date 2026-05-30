@@ -9,6 +9,7 @@
  */
 
 import { getLogger } from '@/utils/logger'
+import { trackGenerationStart, trackGenerationComplete, trackGenerationFail } from '@/utils/analytics'
 import { ComposerAgent, buildLengthSpec as composerBuildLengthSpec } from '@/agents/ComposerAgent'
 import { ContinuityAuditor, AUDIT_DIMENSIONS } from '@/agents/ContinuityAuditor'
 import { ReviserAgent } from '@/agents/ReviserAgent'
@@ -120,6 +121,7 @@ export class PipelineRunner {
     const { project, chapterNumber } = options
 
     logger.info(`[Pipeline] ====== 开始第${chapterNumber}章流水线 ======`)
+    trackGenerationStart(chapterNumber)
     this.emitProgress('prepare', `准备第${chapterNumber}章写作`)
 
     try {
@@ -570,6 +572,15 @@ export class PipelineRunner {
       logger.info(`[Pipeline] 评分: ${auditResult.overallScore}，字数: ${currentWordCount}，状态: ${status}，耗时: ${totalDuration}ms`)
       logger.info(`[Pipeline] Token消耗: ${tokenUsage.total.totalTokens} (input: ${tokenUsage.total.inputTokens}, output: ${tokenUsage.total.outputTokens})`)
 
+      trackGenerationComplete({
+        chapterNumber,
+        durationMs: totalDuration,
+        wordCount: currentWordCount,
+        totalTokens: tokenUsage.total.totalTokens,
+        revised,
+        auditScore: auditResult.overallScore,
+      })
+
       return {
         chapterNumber,
         title: chapterOutline?.title || `第${chapterNumber}章`,
@@ -586,6 +597,12 @@ export class PipelineRunner {
     } catch (error) {
       const totalDuration = Math.round(performance.now() - startTime)
       logger.error(`[Pipeline] 第${chapterNumber}章流水线失败:`, error)
+
+      trackGenerationFail({
+        chapterNumber,
+        durationMs: totalDuration,
+        errorCategory: error instanceof Error ? error.constructor.name : 'unknown',
+      })
 
       // 返回失败结果
       return {

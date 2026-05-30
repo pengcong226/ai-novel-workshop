@@ -59,7 +59,7 @@ export const useVectorStore = defineStore('vector', () => {
     try {
       service.value = await createVectorService(config)
       isInitialized.value = true
-    } catch (e) {
+    } catch (e: unknown) {
       const err = new AIError('Failed to initialize vector service', {
         code: ErrorCode.AI_PROVIDER_ERROR,
         cause: e instanceof Error ? e : undefined,
@@ -189,7 +189,7 @@ export const useVectorStore = defineStore('vector', () => {
     if (!service.value) return
     try {
       documentCount.value = await service.value.getDocumentCount(currentProjectId.value || undefined)
-    } catch (e) {
+    } catch (e: unknown) {
       const err = toAppError(e, 'Vector stats refresh failed');
       logger.debug(`[${err.code}] Vector stats refresh failed:`, err.message)
     }

@@ -69,6 +69,8 @@
         <pre class="status-preview">{{ pluginStatusText }}</pre>
       </el-card>
 
+      <AnalyticsDashboard />
+
       <el-card class="card" shadow="never">
         <template #header>
           日志缓冲 ({{ filteredLogs.length }} / {{ logs.length }})
@@ -102,11 +104,13 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, ref } from 'vue'
+import { computed, defineAsyncComponent, onMounted, onUnmounted, ref } from 'vue'
 import { ElMessage } from 'element-plus'
 import { getPluginSystemStatus } from '@/plugins/setup'
 import { getAIMockEnabled, setAIMockEnabled } from '@/utils/devFlags'
 import { getLoggerManager, type LogEntry, type LogLevel } from '@/utils/logger'
+
+const AnalyticsDashboard = defineAsyncComponent(() => import('@/components/AnalyticsDashboard.vue'))
 
 const isDev = import.meta.env.DEV
 

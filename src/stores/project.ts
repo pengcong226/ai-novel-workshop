@@ -20,6 +20,7 @@ import type { Project, ProjectConfig } from '@/types'
 import { v4 as uuidv4 } from 'uuid'
 import { decryptProjectConfig, encryptProjectConfig } from '@/utils/crypto'
 import { getLogger } from '@/utils/logger'
+import { trackProjectCreate } from '@/utils/analytics'
 import { StorageError, toAppError, ErrorCode } from '@/utils/errors'
 import { useStorage } from './storage'
 import { useSandboxStore } from './sandbox'
@@ -83,7 +84,7 @@ export const useProjectStore = defineStore('project', () => {
         globalConfig.value = normalizeProjectConfig(decryptedConfig)
       }
       globalConfigLoaded = true
-    } catch (e) {
+    } catch (e: unknown) {
       const err = toAppError(e, '加载全局配置失败');
       logger.error(`[${err.code}] 加载全局配置失败:`, err.toJSON());
     }
@@ -97,7 +98,7 @@ export const useProjectStore = defineStore('project', () => {
       localStorage.setItem('global-config', JSON.stringify(encryptedConfig))
       globalConfig.value = normalizedConfig
       globalConfigLoaded = true
-    } catch (e) {
+    } catch (e: unknown) {
       const err = new StorageError('保存全局配置失败', {
         code: ErrorCode.STORAGE_WRITE_FAILED,
         cause: e instanceof Error ? e : undefined,
@@ -116,7 +117,7 @@ export const useProjectStore = defineStore('project', () => {
       projects.value = data || []
       // 同时加载全局配置
       await loadGlobalConfig()
-    } catch (e) {
+    } catch (e: unknown) {
       const err = toAppError(e, '加载项目失败');
       logger.error(`[${err.code}] 加载项目失败:`, err.toJSON());
       error.value = err.message;
@@ -159,6 +160,8 @@ export const useProjectStore = defineStore('project', () => {
     }
 
     logger.info('创建新项目', { id: newProject.id, title: newProject.title })
+
+    trackProjectCreate({ genre, targetWords })
 
     projects.value.push(newProject)
 
@@ -217,7 +220,7 @@ export const useProjectStore = defineStore('project', () => {
               entityCount: entities.length,
               eventCount: stateEvents.length 
             })
-          } catch (migrationError) {
+          } catch (migrationError: unknown) {
             logger.error('V5 迁移失败', migrationError)
             // 迁移失败不影响项目打开，但记录错误
           }
@@ -226,7 +229,7 @@ export const useProjectStore = defineStore('project', () => {
         logger.error('项目不存在', { projectId })
         throw new Error('项目不存在')
       }
-    } catch (e) {
+    } catch (e: unknown) {
       const err = toAppError(e, '打开项目失败', { projectId });
       logger.error(`[${err.code}] 打开项目失败:`, err.toJSON());
       error.value = err.message;
@@ -331,7 +334,7 @@ export const useProjectStore = defineStore('project', () => {
       try {
         localStorage.setItem(`backup_${currentProject.value.id}`, JSON.stringify(currentProject.value))
         logger.info('页面卸载，已将未保存更改同步写入 localStorage 备份')
-      } catch (e) {
+      } catch (e: unknown) {
         logger.error('同步备份失败', e)
       }
     }
@@ -409,7 +412,7 @@ export const useProjectStore = defineStore('project', () => {
           await storage.saveProjects(projects.value)
           logger.debug('项目列表已更新', { id: project.id })
         }
-      } catch (e) {
+      } catch (e: unknown) {
         const err = new StorageError('保存项目失败', {
           code: ErrorCode.STORAGE_WRITE_FAILED,
           context: { projectId: project.id },
@@ -503,7 +506,7 @@ export const useProjectStore = defineStore('project', () => {
       currentProject.value.currentWords = currentProject.value.chapters.reduce((sum: number, c: any) => sum + (c.wordCount || 0), 0)
 
       // V3-fix: 移除对 saveCurrentProject 的级联调用。章节保存应该是独立的，不触发全量项目序列化
-    } catch (e) {
+    } catch (e: unknown) {
       const err = new StorageError('保存章节失败', {
         code: ErrorCode.STORAGE_WRITE_FAILED,
         context: { chapterId: chapter.id },
@@ -525,7 +528,7 @@ export const useProjectStore = defineStore('project', () => {
       currentProject.value.chapters = currentProject.value.chapters.filter((c: any) => c.id !== chapterId)
       currentProject.value.currentWords = currentProject.value.chapters.reduce((sum: number, c: any) => sum + (c.wordCount || 0), 0)
       await saveCurrentProject()
-    } catch (e) {
+    } catch (e: unknown) {
       const err = new StorageError('删除章节失败', {
         code: ErrorCode.STORAGE_WRITE_FAILED,
         context: { chapterId },
@@ -555,7 +558,7 @@ export const useProjectStore = defineStore('project', () => {
     try {
       currentProject.value = nextProject
       await storage.reorderChapters(nextProject.id, orderedIds)
-    } catch (e) {
+    } catch (e: unknown) {
       currentProject.value = previousProject
       const err = new StorageError('章节排序保存失败', {
         code: ErrorCode.STORAGE_WRITE_FAILED,
@@ -585,7 +588,7 @@ export const useProjectStore = defineStore('project', () => {
       if (currentProject.value?.id === projectId) {
         currentProject.value = null
       }
-    } catch (e) {
+    } catch (e: unknown) {
       const err = new StorageError('删除项目失败', {
         code: ErrorCode.STORAGE_WRITE_FAILED,
         context: { projectId },
@@ -663,12 +666,12 @@ export const useProjectStore = defineStore('project', () => {
 
         projects.value = [...projects.value, restoredProject]
         await storage.saveProjects(projects.value)
-      } catch (restoreError) {
+      } catch (restoreError: unknown) {
         projects.value = previousProjects
         try {
           await storage.deleteProject(nextProjectId)
           await sandboxStore.replaceProjectData(nextProjectId, [], [])
-        } catch (rollbackError) {
+        } catch (rollbackError: unknown) {
           logger.error('恢复项目回滚失败', rollbackError)
         }
         throw restoreError

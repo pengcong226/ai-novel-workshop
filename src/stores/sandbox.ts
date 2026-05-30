@@ -174,7 +174,7 @@ function saveWebSandboxEntities(projectId: string, nextEntities: Entity[]): void
 
   try {
     localStorage.setItem(key, json)
-  } catch (error) {
+  } catch (error: unknown) {
     if (error instanceof DOMException && error.name === 'QuotaExceededError') {
       logger.error('localStorage quota exceeded when saving sandbox entities. Consider archiving old data.')
       // Try to save a trimmed version - keep only non-archived entities
@@ -202,7 +202,7 @@ function saveWebSandboxStateEvents(projectId: string, nextEvents: StateEvent[]):
 
   try {
     localStorage.setItem(key, json)
-  } catch (error) {
+  } catch (error: unknown) {
     if (error instanceof DOMException && error.name === 'QuotaExceededError') {
       logger.error('localStorage quota exceeded when saving sandbox state events')
       // Try to save only recent events (last 1000)
@@ -301,7 +301,7 @@ export const useSandboxStore = defineStore('sandbox', () => {
       entities.value = parsedEntities;
       stateEvents.value = sortStateEventsByChapter(parsedStateEvents);
       isLoaded.value = true;
-    } catch (e) {
+    } catch (e: unknown) {
       const err = toAppError(e, 'Failed to load sandbox data', { projectId });
       logger.error(`[${err.code}] Failed to load sandbox data:`, err.toJSON());
       entities.value = [];
@@ -330,7 +330,7 @@ export const useSandboxStore = defineStore('sandbox', () => {
         entityJson: JSON.stringify(entity)
       });
       entities.value.push(entity);
-    } catch (e) {
+    } catch (e: unknown) {
       const err = new StorageError('Failed to add entity', {
         code: ErrorCode.STORAGE_WRITE_FAILED,
         context: { entityId: entity.id, projectId: entity.projectId },
@@ -364,7 +364,7 @@ export const useSandboxStore = defineStore('sandbox', () => {
         entityJson: JSON.stringify(updated)
       });
       entities.value[index] = updated;
-    } catch (e) {
+    } catch (e: unknown) {
       const err = new StorageError('Failed to update entity', {
         code: ErrorCode.STORAGE_WRITE_FAILED,
         context: { entityId: id },
@@ -393,7 +393,7 @@ export const useSandboxStore = defineStore('sandbox', () => {
       });
       stateEvents.value.push(event);
       stateEvents.value = sortStateEventsByChapter(stateEvents.value);
-    } catch (e) {
+    } catch (e: unknown) {
       const err = new StorageError('Failed to add state event', {
         code: ErrorCode.STORAGE_WRITE_FAILED,
         context: { eventId: event.id, entityId: event.entityId, projectId: event.projectId },
@@ -425,7 +425,7 @@ export const useSandboxStore = defineStore('sandbox', () => {
       });
       entities.value = entities.value.filter(e => e.id !== id);
       stateEvents.value = stateEvents.value.filter(e => e.entityId !== id);
-    } catch (e) {
+    } catch (e: unknown) {
       const err = new StorageError('Failed to delete entity', {
         code: ErrorCode.STORAGE_WRITE_FAILED,
         context: { entityId: id, projectId: entity.projectId },
@@ -454,7 +454,7 @@ export const useSandboxStore = defineStore('sandbox', () => {
         eventId: id
       });
       stateEvents.value = stateEvents.value.filter(e => e.id !== id);
-    } catch (e) {
+    } catch (e: unknown) {
       const err = new StorageError('Failed to delete state event', {
         code: ErrorCode.STORAGE_WRITE_FAILED,
         context: { eventId: id, projectId: event.projectId },
@@ -488,8 +488,8 @@ export const useSandboxStore = defineStore('sandbox', () => {
         abilities: r.abilities.map(a => ({ name: a.name, status: a.status as AbilityRecord['status'], acquiredChapter: a.acquiredChapter }))
       };
     }
-    }) // measureSync
     return result;
+    }) // measureSync
   });
 
   const stateEventIndexes = computed(() => buildStateEventIndexes(stateEvents.value));
@@ -587,7 +587,7 @@ export const useSandboxStore = defineStore('sandbox', () => {
       clearDrafts();
       isLoaded.value = false;
       await loadData(projectId);
-    } catch (e) {
+    } catch (e: unknown) {
       const err = new StorageError('Failed to commit some drafts', {
         code: ErrorCode.STORAGE_WRITE_FAILED,
         context: { draftCount: draftEntities.value.length },
@@ -628,7 +628,7 @@ export const useSandboxStore = defineStore('sandbox', () => {
         merged.set(entity.id, entity);
       }
       entities.value = [...merged.values()];
-    } catch (e) {
+    } catch (e: unknown) {
       const err = new StorageError('Failed to batch add entities', {
         code: ErrorCode.STORAGE_WRITE_FAILED,
         context: { entityCount: newEntities.length, projectId },
@@ -669,7 +669,7 @@ export const useSandboxStore = defineStore('sandbox', () => {
         merged.set(event.id, event);
       }
       stateEvents.value = sortStateEventsByChapter([...merged.values()]);
-    } catch (e) {
+    } catch (e: unknown) {
       const err = new StorageError('Failed to batch add state events', {
         code: ErrorCode.STORAGE_WRITE_FAILED,
         context: { eventCount: events.length, projectId },
@@ -700,7 +700,7 @@ export const useSandboxStore = defineStore('sandbox', () => {
       stateEvents.value = stateEvents.value.filter(
         e => e.chapterNumber < startChapter || e.chapterNumber > endChapter
       );
-    } catch (e) {
+    } catch (e: unknown) {
       const err = new StorageError('Failed to delete state events by range', {
         code: ErrorCode.STORAGE_WRITE_FAILED,
         context: { projectId, startChapter, endChapter },
@@ -772,7 +772,7 @@ export const useSandboxStore = defineStore('sandbox', () => {
       if (!isLoaded.value) {
         throw new Error('Sandbox reload returned invalid data');
       }
-    } catch (reloadError) {
+    } catch (reloadError: unknown) {
       logger.error('Failed to reload sandbox data after partial deletion:', reloadError);
       if (deletedIds.size > 0) {
         entities.value = entities.value.filter(e => !deletedIds.has(e.id));
@@ -797,7 +797,7 @@ export const useSandboxStore = defineStore('sandbox', () => {
       try {
         saveWebSandboxEntities(projectId, scopedEntities);
         saveWebSandboxStateEvents(projectId, scopedEvents);
-      } catch (error) {
+      } catch (error: unknown) {
         if (previousEntities === null) {
           localStorage.removeItem(webSandboxKey(projectId, 'entities'));
         } else {
@@ -830,7 +830,7 @@ export const useSandboxStore = defineStore('sandbox', () => {
       pendingStateEvents.value = [];
       isLoaded.value = true;
       loadedProjectId.value = projectId;
-    } catch (e) {
+    } catch (e: unknown) {
       const err = new StorageError('Failed to replace sandbox data', {
         code: ErrorCode.STORAGE_WRITE_FAILED,
         context: { projectId },
