@@ -73,7 +73,7 @@ function mountPanel(propsOverride: Partial<InstanceType<typeof PipelineProgressP
         },
         'el-tag': {
           props: ['type', 'size'],
-          template: '<span class="el-tag"><slot /></span>',
+          template: '<span class="el-tag" :data-tag-type="type"><slot /></span>',
         },
         'el-button': {
           props: ['type', 'size', 'icon', 'disabled'],
@@ -523,5 +523,140 @@ describe('PipelineProgressPanel', () => {
     // Timer should have reset
     await nextTick()
     expect(wrapper.find('.status-row').text()).toContain('00:00')
+  })
+
+  // --- 23. stageLabel computed with known stage ---
+
+  it('shows translated stage label for known stages via stageLabelMap', () => {
+    const wrapper = mountPanel({
+      currentEvent: makeEvent({ stage: 'audit', type: 'stage-start' }),
+      isRunning: true,
+    })
+
+    expect(wrapper.find('.status-row').text()).toContain('阶段: 审计')
+  })
+
+  it('falls back to raw stage name for unknown stage keys', () => {
+    const wrapper = mountPanel({
+      currentEvent: makeEvent({ stage: 'custom-unknown' as any, type: 'stage-start' }),
+      isRunning: true,
+    })
+
+    expect(wrapper.find('.status-row').text()).toContain('阶段: custom-unknown')
+  })
+
+  // --- 24. Token display when currentEvent is null ---
+
+  it('displays Token: 0 when currentEvent is null', () => {
+    const wrapper = mountPanel({ currentEvent: null })
+
+    expect(wrapper.find('.token-row').text()).toContain('0')
+  })
+
+  // --- 25. Status row chapter number with active currentEvent ---
+
+  it('displays chapter number from currentEvent in status row', () => {
+    const wrapper = mountPanel({
+      currentEvent: makeEvent({ chapterNumber: 7, stage: 'write', type: 'stage-start' }),
+      isRunning: true,
+    })
+
+    expect(wrapper.find('.status-row').text()).toContain('第7章')
+  })
+
+  // --- 26. In-progress hidden for batch-paused and batch-cancelled ---
+
+  it('does not show in-progress indicator for batch-paused event', () => {
+    const wrapper = mountPanel({
+      currentEvent: makeEvent({ type: 'batch-paused', chapterNumber: 3, progress: 50 }),
+      isRunning: false,
+      isPaused: true,
+    })
+
+    expect(wrapper.find('.in-progress').exists()).toBe(false)
+  })
+
+  it('does not show in-progress indicator for batch-cancelled event', () => {
+    const wrapper = mountPanel({
+      currentEvent: makeEvent({ type: 'batch-cancelled', chapterNumber: 4, progress: 60 }),
+      isRunning: false,
+    })
+
+    expect(wrapper.find('.in-progress').exists()).toBe(false)
+  })
+
+  // --- 27. Status tag type attribute maps correctly ---
+
+  it('sets tag type to warning when running', () => {
+    const wrapper = mountPanel({ isRunning: true, isPaused: false })
+    const tag = wrapper.find('.el-tag')
+    expect(tag.attributes('data-tag-type')).toBe('warning')
+  })
+
+  it('sets tag type to info when paused', () => {
+    const wrapper = mountPanel({ isRunning: false, isPaused: true })
+    const tag = wrapper.find('.el-tag')
+    expect(tag.attributes('data-tag-type')).toBe('info')
+  })
+
+  it('sets tag type to success when completed', () => {
+    const wrapper = mountPanel({ isRunning: false, isPaused: false })
+    const tag = wrapper.find('.el-tag')
+    expect(tag.attributes('data-tag-type')).toBe('success')
+  })
+
+  // --- 28. Multiple stage-complete events mark multiple stages ---
+
+  it('marks all completed stages from multiple stage-complete events', () => {
+    const events: PipelineProgressEvent[] = [
+      makeEvent({ type: 'stage-complete', stage: 'prepare' }),
+      makeEvent({ type: 'stage-complete', stage: 'plan' }),
+      makeEvent({ type: 'stage-complete', stage: 'compose' }),
+      makeEvent({ type: 'stage-complete', stage: 'write' }),
+      makeEvent({ type: 'stage-complete', stage: 'normalize' }),
+    ]
+    const wrapper = mountPanel({ events, isRunning: false })
+
+    const stages = wrapper.findAll('.stage-item')
+    // First 5 stages should be completed
+    for (let i = 0; i < 5; i++) {
+      expect(stages[i].classes()).toContain('stage-completed')
+    }
+    // Remaining should be pending
+    for (let i = 5; i < 10; i++) {
+      expect(stages[i].classes()).toContain('stage-pending')
+    }
+  })
+
+  // --- 29. Stage remains pending when a different stage is running ---
+
+  it('keeps non-running stages as pending when another stage is active', () => {
+    const wrapper = mountPanel({
+      currentEvent: makeEvent({ stage: 'audit', type: 'stage-start' }),
+      isRunning: true,
+    })
+
+    const stages = wrapper.findAll('.stage-item')
+    // 'audit' is index 5 - should be running
+    expect(stages[5].classes()).toContain('stage-running')
+    // All other stages should be pending (no completed/error events)
+    expect(stages[0].classes()).toContain('stage-pending')
+    expect(stages[3].classes()).toContain('stage-pending')
+    expect(stages[9].classes()).toContain('stage-pending')
+  })
+
+  // --- 30. Error stage has CloseBold icon rendered ---
+
+  it('renders icon element for failed stages', () => {
+    const events: PipelineProgressEvent[] = [
+      makeEvent({ type: 'error', stage: 'write', error: 'generation failed' }),
+    ]
+    const wrapper = mountPanel({ events, isRunning: false })
+
+    const stages = wrapper.findAll('.stage-item')
+    // 'write' is index 3 - should be failed with stage-icon
+    expect(stages[3].find('.stage-icon').exists()).toBe(true)
+    expect(stages[3].find('.stage-number').exists()).toBe(false)
+    expect(stages[3].classes()).toContain('stage-failed')
   })
 })

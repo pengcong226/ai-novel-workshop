@@ -500,4 +500,361 @@ describe('NovelImportDialog', () => {
     expect(vm.getRoleType('minor')).toBe('info')
     expect(vm.getRoleType('unknown_role')).toBe('info')
   })
+
+  // =========================================================================
+  // 7. Additional role helpers
+  // =========================================================================
+
+  it('maps "other" role tag to correct display name and type', async () => {
+    const wrapper = mountDialog()
+    const vm = wrapper.vm as any
+
+    expect(vm.getRoleName('other')).toBe('其他')
+    expect(vm.getRoleType('other')).toBe('warning')
+  })
+
+  // =========================================================================
+  // 8. File removal
+  // =========================================================================
+
+  it('clears selectedFile when handleFileRemove is called', async () => {
+    const wrapper = mountDialog()
+    const vm = wrapper.vm as any
+
+    vm.selectedFile = createTestFile('novel.txt')
+    await wrapper.vm.$nextTick()
+
+    vm.handleFileRemove()
+    await wrapper.vm.$nextTick()
+
+    expect(vm.selectedFile).toBeNull()
+  })
+
+  // =========================================================================
+  // 9. canNext computed for later steps
+  // =========================================================================
+
+  it('allows next step without file when on step 1+', async () => {
+    const wrapper = mountDialog()
+    const vm = wrapper.vm as any
+
+    vm.currentStep = 1
+    vm.selectedFile = null
+    await wrapper.vm.$nextTick()
+
+    const nextBtn = wrapper.findAll('.el-button-stub').find(
+      (w) => w.text() === '下一步'
+    )
+    expect(nextBtn).toBeDefined()
+    expect(nextBtn!.attributes('disabled')).toBeUndefined()
+  })
+
+  // =========================================================================
+  // 10. Temporary LLM config save/load/clear via localStorage
+  // =========================================================================
+
+  it('saves temp LLM config to localStorage with encrypted API key', async () => {
+    const wrapper = mountDialog()
+    const vm = wrapper.vm as any
+
+    vm.tempLLMConfig.provider = 'openai'
+    vm.tempLLMConfig.apiKey = 'sk-test-key'
+    vm.tempLLMConfig.model = 'gpt-4-turbo'
+    vm.tempLLMConfig.baseURL = ''
+    await wrapper.vm.$nextTick()
+
+    vm.saveTempConfig()
+
+    const saved = JSON.parse(localStorage.getItem('ai-novel-temp-llm-config') || '{}')
+    expect(saved.provider).toBe('openai')
+    expect(saved.model).toBe('gpt-4-turbo')
+    expect(saved.apiKey).toBe('enc:sk-test-key')
+  })
+
+  it('loads temp LLM config from localStorage with decrypted API key', async () => {
+    const wrapper = mountDialog()
+    const vm = wrapper.vm as any
+
+    // Pre-populate localStorage
+    localStorage.setItem('ai-novel-temp-llm-config', JSON.stringify({
+      provider: 'custom',
+      apiKey: 'enc:my-secret',
+      baseURL: 'https://custom.api/v1',
+      model: 'custom-model'
+    }))
+
+    vm.loadTempConfig()
+    await wrapper.vm.$nextTick()
+
+    expect(vm.tempLLMConfig.provider).toBe('custom')
+    expect(vm.tempLLMConfig.apiKey).toBe('my-secret')
+    expect(vm.tempLLMConfig.baseURL).toBe('https://custom.api/v1')
+    expect(vm.tempLLMConfig.model).toBe('custom-model')
+  })
+
+  it('clears temp LLM config from localStorage and resets form', async () => {
+    const wrapper = mountDialog()
+    const vm = wrapper.vm as any
+
+    localStorage.setItem('ai-novel-temp-llm-config', JSON.stringify({
+      provider: 'openai',
+      apiKey: 'enc:some-key',
+      baseURL: '',
+      model: 'gpt-4'
+    }))
+
+    vm.clearTempConfig()
+    await wrapper.vm.$nextTick()
+
+    expect(localStorage.getItem('ai-novel-temp-llm-config')).toBeNull()
+    expect(vm.tempLLMConfig.provider).toBe('anthropic')
+    expect(vm.tempLLMConfig.apiKey).toBe('')
+    expect(vm.tempLLMConfig.model).toBe('')
+    expect(vm.tempLLMConfig.baseURL).toBe('')
+  })
+
+  // =========================================================================
+  // 11. Auto-fill title guard: does not overwrite existing title
+  // =========================================================================
+
+  it('does not overwrite existing title when a new file is selected', async () => {
+    const wrapper = mountDialog()
+    const vm = wrapper.vm as any
+
+    vm.importForm.title = 'My Custom Title'
+    await wrapper.vm.$nextTick()
+
+    const file = createTestFile('different-name.txt')
+    const uploadFile = { raw: file, name: 'different-name.txt' }
+    vm.handleFileChange(uploadFile)
+    await wrapper.vm.$nextTick()
+
+    // Title should remain unchanged because it was already set
+    expect(vm.importForm.title).toBe('My Custom Title')
+  })
+
+  // =========================================================================
+  // 12. resetForm clears LLM state
+  // =========================================================================
+
+  it('resetForm clears LLM-related state along with general state', async () => {
+    const wrapper = mountDialog()
+    const vm = wrapper.vm as any
+
+    vm.currentStep = 3
+    vm.selectedFile = createTestFile('test.txt')
+    vm.importForm.title = 'Title'
+    vm.importForm.author = 'Author'
+    vm.previewData = { title: 'Test', chapters: [], characters: [], stats: { totalWords: 0, totalChapters: 0, avgWordsPerChapter: 0 } }
+    vm.llmAnalysisStatus = 'completed'
+    vm.llmAnalysisProgress = { stage: 'done', percentage: 100 }
+    vm.llmTokenUsage = { input: 1000, output: 500 }
+    vm.llmEstimatedCost = 0.15
+    vm.llmResult = {
+      chapters: [],
+      characters: [],
+      stats: { totalWords: 0, totalChapters: 0, avgWordsPerChapter: 0, tokenUsage: { input: 0, output: 0 } },
+      outline: { mainPlot: '', subPlots: [], keyEvents: [] }
+    }
+    await wrapper.vm.$nextTick()
+
+    vm.resetForm()
+    await wrapper.vm.$nextTick()
+
+    expect(vm.currentStep).toBe(0)
+    expect(vm.selectedFile).toBeNull()
+    expect(vm.previewData).toBeNull()
+    expect(vm.importForm.title).toBe('')
+    expect(vm.importForm.author).toBe('')
+    expect(vm.llmAnalysisStatus).toBe('idle')
+    expect(vm.llmAnalysisProgress).toBeNull()
+    expect(vm.llmTokenUsage).toEqual({ input: 0, output: 0 })
+    expect(vm.llmEstimatedCost).toBe(0)
+    expect(vm.llmResult).toBeNull()
+  })
+
+  // =========================================================================
+  // 13. checkImportModel detects project config
+  // =========================================================================
+
+  it('sets hasImportModel true when project has a configured extractor model', async () => {
+    mockCurrentProject.value = {
+      title: 'Test',
+      config: {
+        extractorModel: 'model-1',
+        providers: [{
+          name: 'Anthropic',
+          type: 'anthropic',
+          isEnabled: true,
+          apiKey: 'key',
+          baseUrl: '',
+          models: [{ id: 'model-1', name: 'Claude', isEnabled: true }]
+        }]
+      }
+    }
+
+    const wrapper = mountDialog()
+    await flushPromises()
+    const vm = wrapper.vm as any
+
+    expect(vm.hasImportModel).toBe(true)
+  })
+
+  it('sets hasImportModel false when no project or global config is available', async () => {
+    mockCurrentProject.value = null
+    mockGlobalConfig.value = null
+
+    const wrapper = mountDialog()
+    await flushPromises()
+    const vm = wrapper.vm as any
+
+    expect(vm.hasImportModel).toBe(false)
+  })
+
+  // =========================================================================
+  // 14. LLM cancel handler
+  // =========================================================================
+
+  it('resets LLM analysis state when handleCancelLLMAnalysis is called', async () => {
+    const wrapper = mountDialog()
+    const vm = wrapper.vm as any
+
+    vm.llmAnalysisStatus = 'running'
+    vm.llmAnalysisProgress = { stage: 'analyzing', percentage: 50 }
+    vm.llmTokenUsage = { input: 500, output: 200 }
+    vm.llmEstimatedCost = 0.08
+    await wrapper.vm.$nextTick()
+
+    vm.handleCancelLLMAnalysis()
+    await wrapper.vm.$nextTick()
+
+    expect(vm.llmAnalysisStatus).toBe('idle')
+    expect(vm.llmAnalysisProgress).toBeNull()
+    expect(vm.llmTokenUsage).toEqual({ input: 0, output: 0 })
+    expect(vm.llmEstimatedCost).toBe(0)
+  })
+
+  // =========================================================================
+  // 15. LLM result confirm handlers
+  // =========================================================================
+
+  it('updates llmResult.chapters when handleConfirmChapters is called', async () => {
+    const wrapper = mountDialog()
+    const vm = wrapper.vm as any
+
+    vm.llmResult = {
+      chapters: [{ number: 1, title: 'Old Title' }],
+      characters: [],
+      stats: { totalWords: 0, totalChapters: 1, avgWordsPerChapter: 0, tokenUsage: { input: 0, output: 0 } },
+      outline: { mainPlot: '', subPlots: [], keyEvents: [] }
+    }
+    await wrapper.vm.$nextTick()
+
+    const newChapters = [
+      { number: 1, title: 'Updated Title' },
+      { number: 2, title: 'New Chapter' }
+    ]
+    vm.handleConfirmChapters(newChapters)
+    await wrapper.vm.$nextTick()
+
+    expect(vm.llmResult.chapters).toEqual(newChapters)
+    expect(vm.llmResult.chapters).toHaveLength(2)
+  })
+
+  it('updates llmResult.characters when handleConfirmCharacters is called', async () => {
+    const wrapper = mountDialog()
+    const vm = wrapper.vm as any
+
+    vm.llmResult = {
+      chapters: [],
+      characters: [{ name: 'Old Character' }],
+      stats: { totalWords: 0, totalChapters: 0, avgWordsPerChapter: 0, tokenUsage: { input: 0, output: 0 } },
+      outline: { mainPlot: '', subPlots: [], keyEvents: [] }
+    }
+    await wrapper.vm.$nextTick()
+
+    const newCharacters = [
+      { name: 'Hero' },
+      { name: 'Villain' }
+    ]
+    vm.handleConfirmCharacters(newCharacters)
+    await wrapper.vm.$nextTick()
+
+    expect(vm.llmResult.characters).toEqual(newCharacters)
+    expect(vm.llmResult.characters).toHaveLength(2)
+  })
+
+  // =========================================================================
+  // 16. Import error handling
+  // =========================================================================
+
+  it('sets progress status to exception when traditional import fails', async () => {
+    const wrapper = mountDialog()
+    const vm = wrapper.vm as any
+
+    mockImportNovel.mockRejectedValue(new Error('Parse error'))
+    mockDetectChapterPattern.mockReturnValue(null)
+
+    const file = createTestFile('novel.txt')
+    vm.selectedFile = file
+    vm.importForm.title = 'Test Novel'
+    vm.importOptions.useAIAnalysis = false
+    vm.hasImportModel = false
+    vm.currentStep = 1
+    await wrapper.vm.$nextTick()
+
+    const nextBtn = wrapper.findAll('.el-button-stub').find(
+      (w) => w.text() === '下一步'
+    )!
+    await nextBtn.trigger('click')
+    await flushPromises()
+
+    expect(vm.progress.status).toBe('exception')
+    expect(vm.progress.message).toContain('导入失败')
+  })
+
+  // =========================================================================
+  // 17. Dialog does not render when modelValue is false
+  // =========================================================================
+
+  it('does not render dialog content when modelValue is false', () => {
+    const wrapper = mountDialog({ modelValue: false })
+    const dialog = wrapper.find('.el-dialog-stub')
+    // el-dialog stub still exists but modelValue prop should be false
+    expect(dialog.exists()).toBe(true)
+    expect(wrapper.props('modelValue')).toBe(false)
+  })
+
+  // =========================================================================
+  // 18. Import options form displays all toggle switches
+  // =========================================================================
+
+  it('shows options section with all toggle switches when on step 1', async () => {
+    const wrapper = mountDialog()
+    const vm = wrapper.vm as any
+
+    vm.currentStep = 1
+    await wrapper.vm.$nextTick()
+
+    const switches = wrapper.findAll('.el-switch-stub')
+    // At least: detectChapters, extractCharacters, extractRelations, extractWorld,
+    // generateOutlineFromChapters, analyzeQualityMetrics, useAIAnalysis = 7 switches minimum
+    expect(switches.length).toBeGreaterThanOrEqual(7)
+  })
+
+  // =========================================================================
+  // 19. Import form fields are rendered after file is selected
+  // =========================================================================
+
+  it('shows title and author form fields after file selection', async () => {
+    const wrapper = mountDialog()
+    const vm = wrapper.vm as any
+
+    vm.selectedFile = createTestFile('novel.txt')
+    await wrapper.vm.$nextTick()
+
+    const inputs = wrapper.findAll('.el-input-stub')
+    // Should have at least 2 inputs: title and author
+    expect(inputs.length).toBeGreaterThanOrEqual(2)
+  })
 })

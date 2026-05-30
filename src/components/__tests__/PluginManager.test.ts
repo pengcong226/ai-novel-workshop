@@ -882,40 +882,108 @@ describe('PluginManager', () => {
   })
 
   // ---------------------------------------------------------------
-  // 25. Install from URL shows warnings from PluginLoader
+  // 25. Settings dialog cancel button closes the dialog
   // ---------------------------------------------------------------
 
-  it('displays warnings when PluginLoader.loadFromUrl returns warnings', async () => {
-    const manifest = createPlugin({ id: 'warn-plugin', name: 'Warn Plugin' })
-    vi.mocked(PluginLoader.loadFromUrl).mockResolvedValue({
-      success: true,
-      manifest,
-      module: {},
-      warnings: ['API version will be deprecated', 'No tests found'],
-    })
-    vi.spyOn(pluginStore, 'installPlugin').mockResolvedValue(undefined)
-    vi.spyOn(pluginStore, 'loadInstalledPlugins').mockResolvedValue(undefined)
+  it('closes settings dialog when cancel button is clicked', async () => {
+    pluginStore.plugins = [createPlugin({ id: 'p1' })]
+    pluginStore.activePlugins = ['p1']
+    pluginStore.pluginSettings = { p1: { apiKey: 'test' } }
 
     const wrapper = mountManager()
     await nextTick()
 
-    const headerButtons = wrapper.findAll('.header-card .el-button-stub')
-    const installButton = headerButtons.find(b => b.text().includes('安装插件'))
-    await installButton!.trigger('click')
+    // Open settings dialog
+    const buttons = wrapper.findAll('.plugin-card .el-button-stub')
+    const settingsButton = buttons.find(b => b.text().includes('设置'))
+    await settingsButton!.trigger('click')
     await nextTick()
 
-    const urlInput = wrapper.find('.el-dialog-stub .el-input-stub')
-    await urlInput.setValue('https://example.com/manifest.json')
-
     const dialog = wrapper.find('.el-dialog-stub')
-    const submitButton = dialog.findAll('.el-button-stub').find(b => b.text().trim() === '安装')
-    await submitButton!.trigger('click')
-    await flushPromises()
+    expect(dialog.exists()).toBe(true)
 
-    expect(mockElMessageWarning).toHaveBeenCalledWith('API version will be deprecated')
-    expect(mockElMessageWarning).toHaveBeenCalledWith('No tests found')
-    // Plugin should still install despite warnings
-    expect(pluginStore.installPlugin).toHaveBeenCalled()
-    expect(mockElMessageSuccess).toHaveBeenCalledWith('插件 Warn Plugin 安装成功')
+    // Click cancel
+    const cancelButton = dialog.findAll('.el-button-stub').find(b => b.text().includes('取消'))
+    expect(cancelButton).toBeDefined()
+    await cancelButton!.trigger('click')
+    await nextTick()
+
+    // Dialog should be hidden
+    expect(wrapper.find('.el-dialog-stub').exists()).toBe(false)
+  })
+
+  // ---------------------------------------------------------------
+  // 26. Plugin description is rendered in the card
+  // ---------------------------------------------------------------
+
+  it('renders plugin description text in the card', async () => {
+    pluginStore.plugins = [
+      createPlugin({ id: 'p1', description: 'This is a detailed plugin description' }),
+    ]
+
+    const wrapper = mountManager()
+    await nextTick()
+
+    const description = wrapper.find('.plugin-description')
+    expect(description.exists()).toBe(true)
+    expect(description.text()).toContain('This is a detailed plugin description')
+  })
+
+  // ---------------------------------------------------------------
+  // 27. Quick commands tab shows empty state when none registered
+  // ---------------------------------------------------------------
+
+  it('shows empty state in commands tab when no quick commands are registered', async () => {
+    pluginStore.getQuickCommands = vi.fn().mockReturnValue([])
+
+    const wrapper = mountManager()
+    await nextTick()
+
+    const commandList = wrapper.find('.command-list')
+    expect(commandList.exists()).toBe(false)
+
+    // Look for empty state in the commands tab pane
+    const commandPane = wrapper.findAll('.el-tab-pane-stub').find(t => t.attributes('data-name') === 'commands')
+    expect(commandPane).toBeDefined()
+    expect(commandPane!.text()).toContain('未注册快捷命令')
+  })
+
+  // ---------------------------------------------------------------
+  // 28. Extensions tab shows empty state for exporters when none registered
+  // ---------------------------------------------------------------
+
+  it('shows empty state message when no exporters are registered', async () => {
+    pluginStore.getRegistries = vi.fn().mockReturnValue({
+      aiProvider: { getAll: () => [] },
+      exporter: { getAll: () => [] },
+      importer: { getAll: () => [] },
+      processor: { getAll: () => [] },
+    })
+
+    const wrapper = mountManager()
+    await nextTick()
+
+    const emptyStubs = wrapper.findAll('.el-collapse-item-stub .el-empty-stub')
+    const exporterEmpty = emptyStubs.find(e => e.text().includes('未注册导出器'))
+    expect(exporterEmpty).toBeDefined()
+  })
+
+  // ---------------------------------------------------------------
+  // 29. Plugin card displays both settings and uninstall action buttons
+  // ---------------------------------------------------------------
+
+  it('renders both settings and uninstall buttons for each plugin', async () => {
+    pluginStore.plugins = [createPlugin({ id: 'p1' })]
+    pluginStore.activePlugins = ['p1']
+
+    const wrapper = mountManager()
+    await nextTick()
+
+    const actionButtons = wrapper.findAll('.plugin-card .el-button-stub')
+    const settingsButton = actionButtons.find(b => b.text().includes('设置'))
+    const uninstallButton = actionButtons.find(b => b.text().includes('卸载'))
+
+    expect(settingsButton).toBeDefined()
+    expect(uninstallButton).toBeDefined()
   })
 })

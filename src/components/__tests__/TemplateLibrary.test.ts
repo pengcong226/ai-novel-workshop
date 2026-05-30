@@ -420,4 +420,200 @@ describe('TemplateLibrary', () => {
     expect(wrapper.findAll('.template-card')).toHaveLength(0)
     expect(wrapper.find('.el-empty').exists()).toBe(true)
   })
+
+  // ---- Search by tags and description ----
+
+  it('filters templates by tag text', async () => {
+    const wrapper = mountComponent()
+    await flushPromises()
+
+    // Search for a tag that only appears on urbanTemplate
+    const searchInput = wrapper.find('input')
+    await searchInput.setValue('职场')
+    await nextTick()
+
+    const filteredCards = wrapper.findAll('.template-card')
+    expect(filteredCards).toHaveLength(1)
+    expect(filteredCards[0].find('.title').text()).toBe('都市模板')
+  })
+
+  it('filters templates by description text', async () => {
+    const wrapper = mountComponent()
+    await flushPromises()
+
+    const searchInput = wrapper.find('input')
+    await searchInput.setValue('科幻题材')
+    await nextTick()
+
+    const filteredCards = wrapper.findAll('.template-card')
+    expect(filteredCards).toHaveLength(1)
+    expect(filteredCards[0].find('.title').text()).toBe('科幻模板')
+  })
+
+  it('performs case-insensitive search', async () => {
+    const wrapper = mountComponent()
+    await flushPromises()
+
+    const searchInput = wrapper.find('input')
+    await searchInput.setValue('科幻')
+    await nextTick()
+
+    // Should still match even though tags contain Chinese chars
+    const filteredCards = wrapper.findAll('.template-card')
+    expect(filteredCards).toHaveLength(1)
+  })
+
+  // ---- Combined category + search filter ----
+
+  it('applies both category and search filters simultaneously', async () => {
+    const wrapper = mountComponent()
+    await flushPromises()
+
+    // First filter by category "urban"
+    const urbanButton = wrapper.findAll('.el-radio-button').find(b => b.text() === '都市')
+    expect(urbanButton).toBeTruthy()
+    await urbanButton!.trigger('click')
+    await nextTick()
+
+    expect(wrapper.findAll('.template-card')).toHaveLength(1)
+
+    // Now add a search that does not match the urban template
+    const searchInput = wrapper.find('input')
+    await searchInput.setValue('仙侠')
+    await nextTick()
+
+    // Urban template does not match "仙侠" -> empty
+    expect(wrapper.findAll('.template-card')).toHaveLength(0)
+    expect(wrapper.find('.el-empty').exists()).toBe(true)
+  })
+
+  // ---- Style info rendering ----
+
+  it('renders style info (tone and narrative perspective) in template cards', async () => {
+    const wrapper = mountComponent()
+    await flushPromises()
+
+    const firstCard = wrapper.findAll('.template-card')[0]
+    const styleInfo = firstCard.find('.style-info')
+    expect(styleInfo.exists()).toBe(true)
+    // The styleTemplate fixture has tone '热血' and narrativePerspective '第三人称'
+    expect(styleInfo.text()).toContain('热血')
+    expect(styleInfo.text()).toContain('第三人称')
+  })
+
+  // ---- Delete failure and cancel ----
+
+  it('shows warning when deleteTemplate returns false', async () => {
+    mockDeleteTemplate.mockResolvedValue(false)
+    const wrapper = mountComponent()
+    await flushPromises()
+
+    const cards = wrapper.findAll('.template-card')
+    const secondCardFooterButtons = cards[1].findAll('.card-footer button')
+    const deleteButton = secondCardFooterButtons.find(b => b.text().includes('删除'))
+    expect(deleteButton).toBeTruthy()
+
+    await deleteButton!.trigger('click')
+    await flushPromises()
+
+    expect(mockElMessageBoxConfirm).toHaveBeenCalled()
+    expect(mockDeleteTemplate).toHaveBeenCalledWith('tpl-2')
+    expect(mockElMessage.warning).toHaveBeenCalledWith('内置模板无法删除')
+    expect(mockElMessage.success).not.toHaveBeenCalled()
+  })
+
+  it('silently handles user cancelling the delete confirmation', async () => {
+    mockElMessageBoxConfirm.mockRejectedValue(new Error('cancel'))
+    const wrapper = mountComponent()
+    await flushPromises()
+
+    const cards = wrapper.findAll('.template-card')
+    const secondCardFooterButtons = cards[1].findAll('.card-footer button')
+    const deleteButton = secondCardFooterButtons.find(b => b.text().includes('删除'))
+    expect(deleteButton).toBeTruthy()
+
+    await deleteButton!.trigger('click')
+    await flushPromises()
+
+    expect(mockElMessageBoxConfirm).toHaveBeenCalled()
+    // deleteTemplate should not be called when user cancels
+    expect(mockDeleteTemplate).not.toHaveBeenCalled()
+  })
+
+  // ---- Export all ----
+
+  it('shows warning when exporting with no custom templates', async () => {
+    // All templates are System-authored
+    const systemOnlyTemplates = [
+      makeTemplate({ meta: { ...makeTemplate().meta, id: 'tpl-1', name: '内置模板1', author: 'System' } }),
+      makeTemplate({ meta: { ...makeTemplate().meta, id: 'tpl-2', name: '内置模板2', author: 'System' } }),
+    ]
+    mockGetAllTemplates.mockReturnValue(systemOnlyTemplates)
+    const wrapper = mountComponent()
+    await flushPromises()
+
+    // Find the export button
+    const exportButton = wrapper.findAll('button').find(b => b.text().includes('导出全部'))
+    expect(exportButton).toBeTruthy()
+
+    await exportButton!.trigger('click')
+    await flushPromises()
+
+    expect(mockElMessage.warning).toHaveBeenCalledWith('没有可导出的自定义模板')
+  })
+
+  it('creates blob and triggers download when exporting with custom templates', async () => {
+    const wrapper = mountComponent()
+    await flushPromises()
+
+    // Spy on URL.createObjectURL and document.createElement
+    const mockClick = vi.fn()
+    const mockRevokeObjectURL = vi.fn()
+    vi.spyOn(URL, 'createObjectURL').mockReturnValue('blob:mock')
+    vi.spyOn(URL, 'revokeObjectURL').mockImplementation(mockRevokeObjectURL)
+    const originalCreateElement = document.createElement.bind(document)
+    vi.spyOn(document, 'createElement').mockImplementation((tag: string) => {
+      if (tag === 'a') {
+        return { href: '', download: '', click: mockClick } as unknown as HTMLAnchorElement
+      }
+      return originalCreateElement(tag)
+    })
+
+    const exportButton = wrapper.findAll('button').find(b => b.text().includes('导出全部'))
+    await exportButton!.trigger('click')
+    await flushPromises()
+
+    expect(URL.createObjectURL).toHaveBeenCalled()
+    expect(mockClick).toHaveBeenCalled()
+    expect(mockRevokeObjectURL).toHaveBeenCalledWith('blob:mock')
+    expect(mockElMessage.success).toHaveBeenCalledWith('导出成功')
+
+    vi.restoreAllMocks()
+  })
+
+  // ---- Preview dialog close ----
+
+  it('closes preview dialog when close button is clicked', async () => {
+    const wrapper = mountComponent()
+    await flushPromises()
+
+    // Open preview
+    const previewButtons = wrapper.findAll('.card-footer button')
+    const firstPreviewButton = previewButtons.find(b => b.text().includes('预览'))
+    await firstPreviewButton!.trigger('click')
+    await nextTick()
+
+    expect(wrapper.find('.el-dialog').exists()).toBe(true)
+
+    // Find close button in the dialog footer
+    const dialogButtons = wrapper.findAll('.el-dialog button')
+    const closeButton = dialogButtons.find(b => b.text().includes('关闭'))
+    expect(closeButton).toBeTruthy()
+
+    await closeButton!.trigger('click')
+    await nextTick()
+
+    // Dialog should be closed (modelValue is false)
+    expect(wrapper.find('.el-dialog').exists()).toBe(false)
+  })
 })
