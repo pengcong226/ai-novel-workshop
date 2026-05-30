@@ -194,7 +194,7 @@ export class KnowledgeBaseManager {
       }
 
       // 更新元数据
-      if (!kb.metadata) kb.metadata = {} as any
+      if (!kb.metadata) kb.metadata = { totalEntries: 0, enabledEntries: 0, totalUsage: 0 }
       kb.metadata!.totalEntries = kb.entries.length
       kb.metadata!.enabledEntries = kb.entries.filter(e => !e.disable).length
       kb.tags = this.collectTags(kb.entries)
@@ -381,10 +381,13 @@ export class KnowledgeBaseManager {
     const entries = kb.entries
 
     // 各分类条目数
-    const entriesByCategory: Record<KnowledgeCategory, number> = {} as any
-    Object.values(KnowledgeCategory).forEach(cat => {
-      entriesByCategory[cat] = entries.filter(e => e.category === cat).length
-    })
+    const entriesByCategory = Object.values(KnowledgeCategory).reduce(
+      (acc, cat) => {
+        acc[cat] = entries.filter(e => e.category === cat).length
+        return acc
+      },
+      {} as Record<KnowledgeCategory, number>
+    )
 
     // 各标签条目数
     const entriesByTag: Record<string, number> = {}
@@ -561,10 +564,12 @@ export class KnowledgeBaseManager {
   }
 
   /**
-   * 生成UID
+   * 生成UID（自增计数器 + 随机后缀，避免碰撞）
    */
+  private uidCounter = 0
   private generateUid(): number {
-    return Date.now() % 1000000
+    this.uidCounter = (this.uidCounter + 1) % 10000
+    return (Date.now() % 100000) * 10000 + this.uidCounter
   }
 
   /**

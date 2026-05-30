@@ -70,7 +70,7 @@ async function callAI(
   }
 
   // 构建请求体（OpenAI格式）
-  const body = {
+  const body: Record<string, unknown> = {
     model: config.model || DEFAULT_AI_CONFIG.model,
     max_tokens: 4000,
     messages: [
@@ -97,9 +97,9 @@ async function callAI(
     }
 
     // Claude使用不同的请求格式
-    delete (body as any).messages
-    ;(body as any).system = "You are a professional novel analysis expert."
-    ;(body as any).prompt = prompt
+    delete body.messages
+    body.system = "You are a professional novel analysis expert."
+    body.prompt = prompt
 
   } else if (config.provider === 'openai') {
     // OpenAI API - 使用代理
@@ -344,11 +344,11 @@ export function convertAICharactersToExtracted(
       existing.description = aiChar.background || existing.description
 
       // 添加关系信息
-      for (const rel of (aiChar as any).relationships || []) {
-        if (!(existing as any).relationships) {
-          (existing as any).relationships = []
+      for (const rel of aiChar.relationships || []) {
+        if (!existing.relationships) {
+          existing.relationships = []
         }
-        (existing as any).relationships.push({
+        existing.relationships.push({
           target: rel.target,
           type: rel.relation,
           strength: 0.8

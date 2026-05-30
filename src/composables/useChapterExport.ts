@@ -36,7 +36,7 @@ export function useChapterExport(projectRef: Ref<Project | null | undefined>, ch
   const exporting = ref(false)
 
   // 导出单个章节
-  function handleExportSingleChapter(chapter: Chapter, format: 'markdown' | 'pdf' | 'txt') {
+  function handleExportSingleChapter(chapter: Chapter, format: 'markdown' | 'pdf' | 'txt' | 'docx') {
     if (!projectRef.value) return
 
     if (format === 'markdown') {
@@ -45,9 +45,15 @@ export function useChapterExport(projectRef: Ref<Project | null | undefined>, ch
     } else if (format === 'txt') {
       exportChapterToTxt(chapter, projectRef.value.title, DEFAULT_TXT_OPTIONS)
       ElMessage.success(`已导出第${chapter.number}章为 TXT`)
-    } else {
+    } else if (format === 'pdf') {
       exportChapterToPdf(chapter, projectRef.value, DEFAULT_PDF_OPTIONS)
       ElMessage.success(`已导出第${chapter.number}章为 PDF`)
+    } else if (format === 'docx') {
+      // DOCX 单章导出暂用全量导出替代
+      import('@/utils/docxExporter').then(({ exportAllChaptersToDocx, DEFAULT_DOCX_OPTIONS }) => {
+        exportAllChaptersToDocx([chapter], projectRef.value!.title, DEFAULT_DOCX_OPTIONS)
+        ElMessage.success(`已导出第${chapter.number}章为 DOCX`)
+      })
     }
   }
 
@@ -166,7 +172,7 @@ export function useChapterExport(projectRef: Ref<Project | null | undefined>, ch
       await exportAllChaptersToEpub(
         chaptersRef.value,
         projectRef.value.title,
-        { ...DEFAULT_EPUB_OPTIONS, author: (projectRef.value.config as any)?.authorName || projectRef.value.title }
+        { ...DEFAULT_EPUB_OPTIONS, author: projectRef.value.config.authorName || projectRef.value.title }
       )
       ElMessage.success('EPUB 导出成功！')
     } catch (error) {
@@ -190,7 +196,7 @@ export function useChapterExport(projectRef: Ref<Project | null | undefined>, ch
       await exportAllChaptersToDocx(
         chaptersRef.value,
         projectRef.value.title,
-        { ...DEFAULT_DOCX_OPTIONS, author: (projectRef.value.config as any)?.authorName || projectRef.value.title }
+        { ...DEFAULT_DOCX_OPTIONS, author: projectRef.value.config.authorName || projectRef.value.title }
       )
       ElMessage.success('DOCX 导出成功！')
     } catch (error) {
@@ -245,6 +251,8 @@ export function useChapterExport(projectRef: Ref<Project | null | undefined>, ch
       handleExportSingleChapter(chapter, 'pdf')
     } else if (format === 'txt') {
       handleExportSingleChapter(chapter, 'txt')
+    } else if (format === 'docx') {
+      handleExportSingleChapter(chapter, 'docx')
     }
   }
 

@@ -48,7 +48,7 @@ export async function detectChaptersWithLLM(
     { maxRetries: 2 }
   )
 
-  const pattern: ChapterPattern = patternResult as any
+  const pattern: ChapterPattern = patternResult as ChapterPattern
   logger.info('识别到模式:', pattern.pattern, '置信度:', pattern.confidence)
 
   // 等待1秒，避免QPS限制
@@ -68,12 +68,12 @@ export async function detectChaptersWithLLM(
       text.slice(-Math.floor(text.length * 0.2))
     : text
 
-  let chapters: LLMChapter[] = (await callLLMWithValidation(
+  let chapters: LLMChapter[] = await callLLMWithValidation(
     getChapterListPrompt(pattern.pattern, listText),
     chapterListSchema,
     config,
     { maxRetries: 2 }
-  )) as any
+  ) as LLMChapter[]
 
   logger.info('提取到章节数:', chapters.length)
 

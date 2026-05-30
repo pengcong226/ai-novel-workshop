@@ -6,6 +6,9 @@
 
 import type { ProcessorContribution, ProcessorContext, PluginManifest } from '../types'
 import { stripControlChars } from '@/utils/inputSanitizer'
+import { getLogger } from '@/utils/logger'
+
+const logger = getLogger('text-cleaner')
 
 /**
  * 文本清洗处理器
@@ -28,10 +31,10 @@ const textCleanerProcessor: ProcessorContribution = {
    * @returns 清洗后的文本
    */
   async process(data: any, context: ProcessorContext): Promise<unknown> {
-    console.log('文本清洗处理器: 开始处理')
+    logger.info('文本清洗处理器: 开始处理')
 
     if (typeof data !== 'string') {
-      console.warn('文本清洗处理器: 输入数据不是字符串，跳过处理')
+      logger.warn('文本清洗处理器: 输入数据不是字符串，跳过处理')
       return data
     }
 
@@ -72,7 +75,7 @@ const textCleanerProcessor: ProcessorContribution = {
     // 8. 修正引号配对
     cleanedText = fixQuotePairing(cleanedText)
 
-    console.log(`文本清洗处理器: 处理完成，原长度: ${data.length}，新长度: ${cleanedText.length}`)
+    logger.info(`文本清洗处理器: 处理完成，原长度: ${data.length}，新长度: ${cleanedText.length}`)
 
     return cleanedText
   }
@@ -129,7 +132,7 @@ const styleConverterProcessor: ProcessorContribution = {
    * 处理方法
    */
   async process(data: any, context: ProcessorContext): Promise<unknown> {
-    console.log('风格转换处理器: 开始处理')
+    logger.info('风格转换处理器: 开始处理')
 
     if (!data || typeof data !== 'object') {
       return data
@@ -252,7 +255,7 @@ export const manifest: PluginManifest = {
  * 插件激活钩子
  */
 export async function activate(context: any) {
-  console.log('文本处理器插件已激活')
+  logger.info('文本处理器插件已激活')
 
   // 注册处理器
   context.register.processor(textCleanerProcessor)
@@ -266,12 +269,12 @@ export async function activate(context: any) {
  * 插件停用钩子
  */
 export async function deactivate() {
-  console.log('文本处理器插件已停用')
+  logger.info('文本处理器插件已停用')
 }
 
 /**
  * 插件卸载钩子
  */
 export async function uninstall() {
-  console.log('文本处理器插件已卸载')
+  logger.info('文本处理器插件已卸载')
 }

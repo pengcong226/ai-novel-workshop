@@ -64,7 +64,7 @@ export class CharacterCardExporter {
       let exportData: any
       let size = 0
 
-      switch (format as any) {
+      switch (format) {
         case 'v1':
           exportData = this.createV1Format(data, options)
           break
@@ -103,7 +103,7 @@ export class CharacterCardExporter {
         format: options.format,
         size: 0,
         errors: [errorMsg]
-      } as any
+      }
     }
   }
 
@@ -309,7 +309,7 @@ export class CharacterCardExporter {
         format: 'png',
         size: 0,
         errors: [errorMsg]
-      } as any
+      }
     }
   }
 

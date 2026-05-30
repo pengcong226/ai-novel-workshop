@@ -75,7 +75,6 @@ import { useSuggestionsStore } from '@/stores/suggestions'
 import { useSandboxStore } from '@/stores/sandbox'
 import { ElMessage, ElNotification } from 'element-plus'
 import { ChatDotRound } from '@element-plus/icons-vue'
-import * as echarts from 'echarts/core'
 import type { Suggestion, SuggestionAction, SuggestionCategory, SuggestionPriority, SuggestionStatus } from '@/types/suggestions'
 import type { AssistantAction, AssistantMessage } from '@/assistant/commands/assistantChat'
 import {
@@ -90,13 +89,29 @@ import AssistantShellTabs from '@/components/assistant/AssistantShellTabs.vue'
 import AssistantStatisticsPanel from '@/components/assistant/AssistantStatisticsPanel.vue'
 import AssistantSuggestionsPanel from '@/components/assistant/AssistantSuggestionsPanel.vue'
 import { getLogger } from '@/utils/logger'
+import { useThemeStore } from '@/stores/theme'
 
 const logger = getLogger('components:AIAssistant')
 
 const projectStore = useProjectStore()
 const suggestionsStore = useSuggestionsStore()
 const sandboxStore = useSandboxStore()
+const themeStore = useThemeStore()
 const project = computed(() => projectStore.currentProject)
+
+// ECharts主题感知配色
+const chartColors = computed(() => {
+  const dark = themeStore.activeThemeId.includes('dark')
+  return {
+    surface: dark ? '#1e1e2e' : '#ffffff',
+    text: dark ? '#ececf1' : '#1a1a2e',
+    secondary: dark ? '#8e8ea0' : '#6b7280',
+    danger: dark ? '#ef4444' : '#dc2626',
+    warning: dark ? '#f59e0b' : '#d97706',
+    info: dark ? '#3b82f6' : '#2563eb',
+    success: dark ? '#10b981' : '#059669',
+  }
+})
 
 const showChat = ref(false)
 const activeTab = ref('chat')
@@ -112,9 +127,19 @@ const suggestionFilter = ref<{
 }>({})
 const selectedSuggestions = ref<string[]>([])
 
-let typeChart: echarts.ECharts | null = null
-let priorityChart: echarts.ECharts | null = null
-let trendChart: echarts.ECharts | null = null
+let typeChart: any = null
+let priorityChart: any = null
+let trendChart: any = null
+
+let echartsModule: typeof import('echarts/core') | null = null
+
+async function getEcharts() {
+  if (!echartsModule) {
+    echartsModule = await import('echarts/core')
+  }
+  return echartsModule
+}
+
 let pollingIntervalId: number | null = null
 
 const messages = ref<AssistantMessage[]>([])
@@ -148,6 +173,7 @@ onUnmounted(() => {
     clearInterval(pollingIntervalId)
     pollingIntervalId = null
   }
+  suggestionsStore.stopPeriodicCheck()
   disposeCharts()
 })
 
@@ -456,10 +482,8 @@ function batchMarkIgnored(): void {
   selectedSuggestions.value = []
 }
 
-function initCharts(): void {
-  initTypeChart()
-  initPriorityChart()
-  initTrendChart()
+async function initCharts(): Promise<void> {
+  await Promise.all([initTypeChart(), initPriorityChart(), initTrendChart()])
 }
 
 function disposeCharts(): void {
@@ -471,10 +495,11 @@ function disposeCharts(): void {
   trendChart = null
 }
 
-function initTypeChart(): void {
+async function initTypeChart(): Promise<void> {
   const chartRef = statisticsPanelRef.value?.typeChartRef
   if (!chartRef) return
 
+  const echarts = await getEcharts()
   if (typeChart) typeChart.dispose()
   typeChart = echarts.init(chartRef)
   typeChart.setOption({
@@ -485,7 +510,7 @@ function initTypeChart(): void {
       type: 'pie',
       radius: ['40%', '70%'],
       avoidLabelOverlap: false,
-      itemStyle: { borderRadius: 10, borderColor: '#fff', borderWidth: 2 },
+      itemStyle: { borderRadius: 10, borderColor: chartColors.value.surface, borderWidth: 2 },
       label: { show: false },
       emphasis: { label: { show: true, fontSize: 14, fontWeight: 'bold' } },
       labelLine: { show: false },
@@ -500,10 +525,11 @@ function initTypeChart(): void {
   })
 }
 
-function initPriorityChart(): void {
+async function initPriorityChart(): Promise<void> {
   const chartRef = statisticsPanelRef.value?.priorityChartRef
   if (!chartRef) return
 
+  const echarts = await getEcharts()
   if (priorityChart) priorityChart.dispose()
   priorityChart = echarts.init(chartRef)
   priorityChart.setOption({
@@ -514,19 +540,20 @@ function initPriorityChart(): void {
       type: 'pie',
       radius: '60%',
       data: [
-        { value: statistics.value.byPriority.high, name: '高', itemStyle: { color: '#f56c6c' } },
-        { value: statistics.value.byPriority.medium, name: '中', itemStyle: { color: '#e6a23c' } },
-        { value: statistics.value.byPriority.low, name: '低', itemStyle: { color: '#409eff' } }
+        { value: statistics.value.byPriority.high, name: '高', itemStyle: { color: chartColors.value.danger } },
+        { value: statistics.value.byPriority.medium, name: '中', itemStyle: { color: chartColors.value.warning } },
+        { value: statistics.value.byPriority.low, name: '低', itemStyle: { color: chartColors.value.info } }
       ],
       emphasis: { itemStyle: { shadowBlur: 10, shadowOffsetX: 0, shadowColor: 'rgba(0, 0, 0, 0.5)' } }
     }]
   })
 }
 
-function initTrendChart(): void {
+async function initTrendChart(): Promise<void> {
   const chartRef = statisticsPanelRef.value?.trendChartRef
   if (!chartRef) return
 
+  const echarts = await getEcharts()
   if (trendChart) trendChart.dispose()
   trendChart = echarts.init(chartRef)
   trendChart.setOption({
@@ -538,7 +565,7 @@ function initTrendChart(): void {
       type: 'line',
       data: statistics.value.adoptionTrend,
       smooth: true,
-      itemStyle: { color: '#67c23a' },
+      itemStyle: { color: chartColors.value.success },
       areaStyle: {
         color: {
           type: 'linear',
@@ -547,8 +574,8 @@ function initTrendChart(): void {
           x2: 0,
           y2: 1,
           colorStops: [
-            { offset: 0, color: 'rgba(103, 194, 58, 0.3)' },
-            { offset: 1, color: 'rgba(103, 194, 58, 0.05)' }
+            { offset: 0, color: 'rgba(16, 185, 129, 0.3)' },
+            { offset: 1, color: 'rgba(16, 185, 129, 0.05)' }
           ]
         }
       }
@@ -562,7 +589,7 @@ function initTrendChart(): void {
   position: fixed;
   right: var(--ds-space-5);
   bottom: var(--ds-space-5);
-  z-index: 9999;
+  z-index: var(--ds-z-float-button);
 }
 
 .ai-float-button {
@@ -576,7 +603,7 @@ function initTrendChart(): void {
   cursor: pointer;
   box-shadow: var(--ds-shadow-glow);
   transition: all var(--ds-transition-normal);
-  animation: breathe 3s ease-in-out infinite;
+  animation: breathe 3s ease-in-out 3;
 }
 
 .ai-float-button:hover {

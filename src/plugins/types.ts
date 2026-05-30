@@ -13,8 +13,8 @@ import type { Project, Chapter, Outline } from '@/types'
 import type { ResolvedEntity } from '@/stores/sandbox'
 
 // Inline AI types used by plugin context (not all exported from @/types/ai)
-type Message = { role: string; content: string }
-type ChatOptions = {
+export type Message = { role: string; content: string }
+export type ChatOptions = {
   temperature?: number
   maxTokens?: number
   model?: string
@@ -24,7 +24,7 @@ type ChatOptions = {
   presencePenalty?: number
   [key: string]: any
 }
-type GenerateOptions = {
+export type GenerateOptions = {
   temperature?: number
   maxTokens?: number
   model?: string

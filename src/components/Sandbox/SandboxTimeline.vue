@@ -19,7 +19,7 @@
           <div class="outline-header">
             <div class="outline-title">{{ chapter.title || '未命名章节' }}</div>
             <div class="outline-status" :style="{ color: getNodeColor(chapter) }">
-              <i :class="getStatusIcon(chapter)"></i> {{ getStatusText(chapter) }}
+              <i :class="getStatusIcon(chapter)"></i> {{ getChapterStatusText(chapter.status) }}
             </div>
           </div>
 
@@ -76,6 +76,7 @@ import { ElMessage } from 'element-plus'
 import { EditPen, Document, DataLine, View, MagicStick } from '@element-plus/icons-vue'
 import type { ChapterOutline } from '@/types'
 import { getLogger } from '@/utils/logger'
+import { getChapterStatusText } from '@/utils/formatters'
 
 const logger = getLogger('sandbox:timeline')
 
@@ -141,12 +142,6 @@ function getStatusIcon(chapter: ChapterOutline) {
   if (isCompletedNode(chapter)) return 'ri-check-double-line'
   if (isActiveNode(chapter)) return 'ri-edit-line'
   return 'ri-time-line'
-}
-
-function getStatusText(chapter: ChapterOutline) {
-  if (isCompletedNode(chapter)) return '完稿入库'
-  if (isActiveNode(chapter)) return '当前进度'
-  return '计划中 (预测)'
 }
 
 function getNodeType(chapter: ChapterOutline): 'info' | 'primary' | 'warning' {

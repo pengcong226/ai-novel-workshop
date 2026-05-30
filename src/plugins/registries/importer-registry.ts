@@ -144,7 +144,7 @@ export class ImporterRegistry {
           result,
           { config: { projectId: options?.projectId || '', params: options } }
         )
-        if (postResult && (postResult as any).project) {
+        if (postResult && typeof postResult === 'object' && 'project' in postResult) {
           Object.assign(result, postResult)
         }
       }

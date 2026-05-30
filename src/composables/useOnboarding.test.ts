@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { createOnboardingState, ONBOARDING_COMPLETED_KEY } from '@/composables/useOnboarding'
+import { createOnboardingState, ONBOARDING_COMPLETED_KEY, ONBOARDING_DISMISSED_KEY } from '@/composables/useOnboarding'
 
 function createStorage() {
   const values = new Map<string, string>()
@@ -69,6 +69,51 @@ describe('createOnboardingState', () => {
 
     expect(onboarding.isVisible.value).toBe(false)
     expect(storage.setItem).not.toHaveBeenCalledWith(ONBOARDING_COMPLETED_KEY, 'true')
+  })
+
+  it('dismiss stores timestamp in localStorage', () => {
+    const storage = createStorage()
+    const onboarding = createOnboardingState(storage)
+
+    onboarding.initialize()
+    onboarding.dismiss()
+
+    expect(storage.setItem).toHaveBeenCalledWith(ONBOARDING_DISMISSED_KEY, expect.any(String))
+    const stored = Number(storage.getItem(ONBOARDING_DISMISSED_KEY))
+    expect(stored).toBeGreaterThan(0)
+  })
+
+  it('hides onboarding when dismissed within 24 hours', () => {
+    const storage = createStorage()
+    const onboarding = createOnboardingState(storage)
+
+    storage.setItem(ONBOARDING_DISMISSED_KEY, String(Date.now()))
+    onboarding.initialize()
+
+    expect(onboarding.isVisible.value).toBe(false)
+  })
+
+  it('shows onboarding when dismissed more than 24 hours ago', () => {
+    const storage = createStorage()
+    const onboarding = createOnboardingState(storage)
+
+    const twoDaysAgo = Date.now() - 2 * 24 * 60 * 60 * 1000
+    storage.setItem(ONBOARDING_DISMISSED_KEY, String(twoDaysAgo))
+    onboarding.initialize()
+
+    expect(onboarding.isVisible.value).toBe(true)
+  })
+
+  it('reset clears dismissed key and shows onboarding', () => {
+    const storage = createStorage()
+    const onboarding = createOnboardingState(storage)
+
+    onboarding.dismiss()
+    onboarding.reset()
+
+    expect(storage.removeItem).toHaveBeenCalledWith(ONBOARDING_DISMISSED_KEY)
+    expect(onboarding.isVisible.value).toBe(true)
+    expect(onboarding.currentStep.value).toBe(0)
   })
 
   it('resets completion and shows onboarding from the first step', () => {

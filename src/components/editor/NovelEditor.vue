@@ -16,7 +16,6 @@ import StarterKit from '@tiptap/starter-kit'
 import Placeholder from '@tiptap/extension-placeholder'
 import CharacterCount from '@tiptap/extension-character-count'
 import Highlight from '@tiptap/extension-highlight'
-import Underline from '@tiptap/extension-underline'
 import EditorBubbleMenu from './EditorBubbleMenu.vue'
 import { EditorAnnotations, type AnnotationItem } from './EditorAnnotations'
 import { escapeXml } from '@/utils/escapeXml'
@@ -124,7 +123,6 @@ const editor = useEditor({
     Placeholder.configure({ placeholder: props.placeholder }),
     CharacterCount,
     Highlight.configure({ multicolor: true }),
-    Underline,
     EditorAnnotations.configure({ annotations: props.annotations || [] }),
   ],
   editable: !props.readonly,

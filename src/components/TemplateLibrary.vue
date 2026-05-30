@@ -145,7 +145,7 @@
       <el-form :model="aiGenForm" label-width="120px">
         <el-form-item label="流派/题材" required>
           <el-input v-model="aiGenForm.genre" placeholder="例如：凡人流修仙、赛博朋克黑客、克苏鲁悬疑..." />
-          <div style="font-size: 12px; color: #909399; margin-top: 4px;">输入具体的流派标签，AI 将为您量身定制专属的大纲结构和世界观体系。</div>
+          <div style="font-size: 12px; color: var(--ds-text-tertiary); margin-top: 4px;">输入具体的流派标签，AI 将为您量身定制专属的大纲结构和世界观体系。</div>
         </el-form-item>
         <el-form-item label="预期总章数">
           <el-input-number v-model="aiGenForm.totalChapters" :min="10" :max="1000" :step="50" />
@@ -155,7 +155,7 @@
         </el-form-item>
       </el-form>
 
-      <div v-if="aiGenerating" style="margin-top: 20px; text-align: center; color: #409eff;">
+      <div v-if="aiGenerating" style="margin-top: 20px; text-align: center; color: var(--ds-info);">
         <el-icon class="is-loading" style="margin-right: 8px;"><Loading /></el-icon>
         正在让大模型头脑风暴并构建模板，请稍候 (约需半分钟)...
       </div>
@@ -572,7 +572,7 @@ ${aiGenForm.value.extraPrompt ? '附加要求：' + aiGenForm.value.extraPrompt 
 
     const response = await aiStore.chat(
       [{ role: 'user', content: prompt }],
-      { type: 'planning' as any, complexity: 'high', priority: 'quality' },
+      { type: 'planning', complexity: 'high', priority: 'quality' },
       { maxTokens: 4000 }
     )
 
@@ -731,12 +731,12 @@ function handleExportAll() {
   height: 100%;
   display: flex;
   flex-direction: column;
-  background-color: #f5f7fa;
+  background-color: var(--ds-bg-tertiary);
 }
 
 .header {
   background: white;
-  border-bottom: 1px solid #e4e7ed;
+  border-bottom: 1px solid var(--ds-surface-border);
   padding: 20px 40px;
   display: flex;
   justify-content: space-between;
@@ -747,13 +747,13 @@ function handleExportAll() {
 .header-content h2 {
   margin: 0;
   font-size: 20px;
-  color: #303133;
+  color: var(--ds-text-primary);
 }
 
 .header-content .subtitle {
   margin: 5px 0 0;
   font-size: 14px;
-  color: #909399;
+  color: var(--ds-text-tertiary);
 }
 
 .header-actions {
@@ -811,7 +811,7 @@ function handleExportAll() {
 .title-row .title {
   font-size: 16px;
   font-weight: 600;
-  color: #303133;
+  color: var(--ds-text-primary);
 }
 
 .category-tag {
@@ -824,7 +824,7 @@ function handleExportAll() {
 }
 
 .description {
-  color: #606266;
+  color: var(--ds-text-secondary);
   font-size: 14px;
   line-height: 1.6;
   margin-bottom: 15px;
@@ -846,7 +846,7 @@ function handleExportAll() {
   gap: 20px;
   margin-bottom: 15px;
   padding: 10px;
-  background: #f5f7fa;
+  background: var(--ds-bg-tertiary);
   border-radius: 4px;
 }
 
@@ -855,16 +855,16 @@ function handleExportAll() {
   align-items: center;
   gap: 5px;
   font-size: 14px;
-  color: #606266;
+  color: var(--ds-text-secondary);
 }
 
 .style-info {
   font-size: 14px;
-  color: #909399;
+  color: var(--ds-text-tertiary);
 }
 
 .style-info .label {
-  color: #606266;
+  color: var(--ds-text-secondary);
 }
 
 .card-footer {
@@ -885,7 +885,7 @@ function handleExportAll() {
 
 .preview-section h4 {
   margin-bottom: 10px;
-  color: #303133;
+  color: var(--ds-text-primary);
 }
 
 .power-levels {
@@ -915,14 +915,14 @@ function handleExportAll() {
 }
 
 .char-desc {
-  color: #606266;
+  color: var(--ds-text-secondary);
   margin-bottom: 10px;
 }
 
 .char-details p {
   margin: 8px 0;
   font-size: 14px;
-  color: #606266;
+  color: var(--ds-text-secondary);
 }
 
 .outline-info {
@@ -936,7 +936,7 @@ function handleExportAll() {
 }
 
 .volume-theme {
-  color: #909399;
+  color: var(--ds-text-tertiary);
   margin: 5px 0;
 }
 
@@ -951,12 +951,12 @@ function handleExportAll() {
 
 .volume-events li {
   margin: 5px 0;
-  color: #606266;
+  color: var(--ds-text-secondary);
 }
 
 .example-content {
   white-space: pre-wrap;
   line-height: 1.8;
-  color: #606266;
+  color: var(--ds-text-secondary);
 }
 </style>

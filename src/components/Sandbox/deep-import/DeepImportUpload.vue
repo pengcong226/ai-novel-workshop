@@ -230,11 +230,11 @@ if (sourceText.value) {
   gap: 12px;
   padding: 4px 0;
   font-size: 12px;
-  border-bottom: 1px solid #f2f3f5;
+  border-bottom: 1px solid var(--ds-surface-border);
 }
 
 .ch-number {
-  color: #409eff;
+  color: var(--ds-info);
   font-weight: 500;
   min-width: 60px;
 }
@@ -244,18 +244,18 @@ if (sourceText.value) {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  color: #303133;
+  color: var(--ds-text-primary);
 }
 
 .ch-words {
-  color: #909399;
+  color: var(--ds-text-tertiary);
   min-width: 60px;
   text-align: right;
 }
 
 .chapter-more {
   padding: 8px 0;
-  color: #909399;
+  color: var(--ds-text-tertiary);
   font-size: 12px;
   text-align: center;
 }

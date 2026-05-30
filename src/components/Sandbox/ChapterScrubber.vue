@@ -68,7 +68,7 @@ const eventCount = computed(() => eventCountByChapter.value.get(props.modelValue
 
 .scrubber-info {
   font-size: 11px;
-  color: #909399;
+  color: var(--ds-text-tertiary);
   white-space: nowrap;
 }
 </style>

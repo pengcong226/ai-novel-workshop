@@ -27,7 +27,7 @@ export interface QualityIssue {
 /**
  * 分析情节完整性
  */
-function analyzePlot(chapters: Array<{ content: string }>): number {
+function analyzePlot(chapters: Array<{ content: string }>, allText: string): number {
   let score = 100
 
   // 检查是否有明显的开端、发展、高潮、结局
@@ -49,7 +49,6 @@ function analyzePlot(chapters: Array<{ content: string }>): number {
   }
 
   // 检查是否有明显的情节转折词
-  const allText = chapters.map(ch => ch.content).join('\n')
   const turningPointKeywords = ['但是', '然而', '突然', '转折', '危机', '困境']
   const turningPointCount = turningPointKeywords.reduce((count, word) => count + (allText.match(new RegExp(word, 'g')) || []).length, 0)
 
@@ -147,11 +146,10 @@ function analyzePacing(chapters: Array<{ content: string }>): number {
  */
 function analyzeConsistency(
   characters: Array<{ name: string; description: string }>,
-  chapters: Array<{ content: string }>
+  chapters: Array<{ content: string }>,
+  allText: string
 ): number {
   let score = 100
-
-  const allText = chapters.map(ch => ch.content).join('\n')
 
   // 检查人物名称一致性
   const nameVariants = new Map<string, Set<string>>()
@@ -191,10 +189,8 @@ function analyzeConsistency(
 /**
  * 分析可读性
  */
-function analyzeReadability(chapters: Array<{ content: string }>): number {
+function analyzeReadability(chapters: Array<{ content: string }>, allText: string): number {
   let score = 100
-
-  const allText = chapters.map(ch => ch.content).join('\n')
 
   // 检查段落长度
   const paragraphs = allText.split(/\n\n+/)
@@ -342,8 +338,11 @@ export async function analyzeQuality(
   characters: Array<{ name: string; description: string; occurrences: number }>,
   onProgress?: (progress: number) => void
 ): Promise<QualityMetrics> {
+  // 全文只拼接一次，避免重复遍历
+  const allText = chapters.map(ch => ch.content).join('\n')
+
   // 分析各个维度
-  const plot = analyzePlot(chapters)
+  const plot = analyzePlot(chapters, allText)
   onProgress?.(20)
 
   const character = analyzeCharacters(characters)
@@ -352,10 +351,10 @@ export async function analyzeQuality(
   const pacing = analyzePacing(chapters)
   onProgress?.(60)
 
-  const consistency = analyzeConsistency(characters, chapters)
+  const consistency = analyzeConsistency(characters, chapters, allText)
   onProgress?.(80)
 
-  const readability = analyzeReadability(chapters)
+  const readability = analyzeReadability(chapters, allText)
   onProgress?.(100)
 
   // 计算总分

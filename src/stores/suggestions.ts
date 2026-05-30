@@ -20,6 +20,8 @@ const STORAGE_KEY = 'ai-novel-suggestions'
 const logger = getLogger('suggestions:store')
 
 let periodicCheckInterval: ReturnType<typeof setInterval> | null = null
+let saveTimer: ReturnType<typeof setTimeout> | null = null
+const SAVE_DEBOUNCE_MS = 500
 
 export const useSuggestionsStore = defineStore('suggestions', () => {
   // 状态
@@ -191,17 +193,39 @@ export const useSuggestionsStore = defineStore('suggestions', () => {
     }
   }
 
-  // 保存到存储
+  // 保存到存储（防抖版本）
   function saveToStorage() {
-    try {
-      const data = {
-        suggestions: suggestions.value,
-        config: config.value,
-        rules: rules.value
+    if (saveTimer) clearTimeout(saveTimer)
+    saveTimer = setTimeout(() => {
+      try {
+        const data = {
+          suggestions: suggestions.value,
+          config: config.value,
+          rules: rules.value
+        }
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(data))
+      } catch (e) {
+        logger.error('保存存储失败:', e)
       }
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(data))
-    } catch (e) {
-      logger.error('保存存储失败:', e)
+      saveTimer = null
+    }, SAVE_DEBOUNCE_MS)
+  }
+
+  // 同步保存（用于页面卸载前）
+  function flushSave() {
+    if (saveTimer) {
+      clearTimeout(saveTimer)
+      saveTimer = null
+      try {
+        const data = {
+          suggestions: suggestions.value,
+          config: config.value,
+          rules: rules.value
+        }
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(data))
+      } catch (e) {
+        logger.error('保存存储失败:', e)
+      }
     }
   }
 
@@ -728,6 +752,7 @@ export const useSuggestionsStore = defineStore('suggestions', () => {
     getSuggestionsByCharacter,
     loadFromStorage,
     saveToStorage,
+    flushSave,
     stopPeriodicCheck
   }
 })

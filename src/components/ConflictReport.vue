@@ -373,8 +373,8 @@
               {{ selectedConflict.relatedChapters?.join(', ') || '无' }}
             </el-descriptions-item>
             <el-descriptions-item label="状态">
-              <el-tag :type="getStatusType(selectedConflict.status)">
-                {{ getStatusText(selectedConflict.status) }}
+              <el-tag :type="getChapterStatusType(selectedConflict.status)">
+                {{ getChapterStatusText(selectedConflict.status) }}
               </el-tag>
             </el-descriptions-item>
           </el-descriptions>
@@ -417,6 +417,7 @@ import { Setting, Search, Download, Document, Warning } from '@element-plus/icon
 import type { ConflictType, ConflictSeverity, ConflictReport, ConflictDetectionConfig, ConflictDetectionResult } from '@/types/conflicts'
 import { ConflictDetector, DEFAULT_CONFIG, exportConflictsAsMarkdown, exportConflictsAsJSON } from '@/utils/conflictDetector'
 import { getLogger } from '@/utils/logger'
+import { getChapterStatusType, getChapterStatusText } from '@/utils/formatters'
 const logger = getLogger('components:ConflictReport')
 
 const projectStore = useProjectStore()
@@ -592,24 +593,6 @@ function getSeverityText(severity: ConflictSeverity): string {
   return texts[severity] || severity
 }
 
-function getStatusType(status: string): '' | 'success' | 'warning' | 'info' | 'danger' {
-  const types: Record<string, '' | 'success' | 'warning' | 'info' | 'danger'> = {
-    active: 'warning',
-    ignored: 'info',
-    resolved: 'success'
-  }
-  return types[status] || 'info'
-}
-
-function getStatusText(status: string): string {
-  const texts: Record<string, string> = {
-    active: '活动',
-    ignored: '已忽略',
-    resolved: '已解决'
-  }
-  return texts[status] || status
-}
-
 function formatDate(date: Date | string): string {
   const d = new Date(date)
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
@@ -666,7 +649,7 @@ function formatDate(date: Date | string): string {
 }
 
 .detect-time {
-  color: #909399;
+  color: var(--ds-text-tertiary);
   font-size: 14px;
 }
 
@@ -678,25 +661,25 @@ function formatDate(date: Date | string): string {
 .stat-value {
   font-size: 32px;
   font-weight: bold;
-  color: #409eff;
+  color: var(--ds-info);
   margin-bottom: 10px;
 }
 
 .stat-item.critical .stat-value {
-  color: #f56c6c;
+  color: var(--ds-danger);
 }
 
 .stat-item.warning .stat-value {
-  color: #e6a23c;
+  color: var(--ds-warning);
 }
 
 .stat-item.info .stat-value {
-  color: #909399;
+  color: var(--ds-text-tertiary);
 }
 
 .stat-label {
   font-size: 14px;
-  color: #606266;
+  color: var(--ds-text-secondary);
 }
 
 .type-statistics h4 {
@@ -714,7 +697,7 @@ function formatDate(date: Date | string): string {
   align-items: center;
   gap: 8px;
   padding: 8px 12px;
-  background: #f5f7fa;
+  background: var(--ds-bg-tertiary);
   border-radius: 4px;
 }
 
@@ -734,19 +717,19 @@ function formatDate(date: Date | string): string {
 
 .conflict-card {
   margin-bottom: 0;
-  border-left: 4px solid #909399;
+  border-left: 4px solid var(--ds-text-tertiary);
 }
 
 .conflict-card.severity-critical {
-  border-left-color: #f56c6c;
+  border-left-color: var(--ds-danger);
 }
 
 .conflict-card.severity-warning {
-  border-left-color: #e6a23c;
+  border-left-color: var(--ds-warning);
 }
 
 .conflict-card.severity-info {
-  border-left-color: #909399;
+  border-left-color: var(--ds-text-tertiary);
 }
 
 .conflict-header {
@@ -779,7 +762,7 @@ function formatDate(date: Date | string): string {
 }
 
 .conflict-description {
-  color: #606266;
+  color: var(--ds-text-secondary);
   line-height: 1.6;
 }
 
@@ -787,7 +770,7 @@ function formatDate(date: Date | string): string {
 .suggestions h4 {
   margin: 0 0 10px 0;
   font-size: 14px;
-  color: #303133;
+  color: var(--ds-text-primary);
 }
 
 .evidence-item,
@@ -796,7 +779,7 @@ function formatDate(date: Date | string): string {
   align-items: center;
   gap: 8px;
   padding: 8px 12px;
-  background: #f5f7fa;
+  background: var(--ds-bg-tertiary);
   border-radius: 4px;
   margin-bottom: 8px;
 }
@@ -813,7 +796,7 @@ function formatDate(date: Date | string): string {
 
 .form-item-hint {
   font-size: 12px;
-  color: #909399;
+  color: var(--ds-text-tertiary);
   margin-top: 5px;
 }
 
@@ -837,12 +820,12 @@ function formatDate(date: Date | string): string {
 .detail-section h4 {
   margin: 0 0 10px 0;
   font-size: 16px;
-  color: #303133;
+  color: var(--ds-text-primary);
 }
 
 .detail-section p {
   margin: 0;
-  color: #606266;
+  color: var(--ds-text-secondary);
   line-height: 1.6;
 }
 

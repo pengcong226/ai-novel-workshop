@@ -685,7 +685,7 @@ watch(characterEntitiesWithEvents, (newEntities) => {
 .selector-header .title {
   font-size: 16px;
   font-weight: 600;
-  color: #303133;
+  color: var(--ds-text-primary);
 }
 
 .info-card {
@@ -720,12 +720,12 @@ watch(characterEntitiesWithEvents, (newEntities) => {
 .stat-item .stat-value {
   font-size: 28px;
   font-weight: bold;
-  color: #409EFF;
+  color: var(--ds-info);
 }
 
 .stat-item .stat-label {
   font-size: 12px;
-  color: #909399;
+  color: var(--ds-text-tertiary);
 }
 
 .timeline-card {
@@ -782,19 +782,19 @@ watch(characterEntitiesWithEvents, (newEntities) => {
 .section-label {
   font-size: 13px;
   font-weight: 600;
-  color: #909399;
+  color: var(--ds-text-tertiary);
   margin-bottom: 8px;
 }
 
 .growth-section p {
   margin: 0;
   line-height: 1.6;
-  color: #606266;
+  color: var(--ds-text-secondary);
 }
 
 .changes-section {
   padding-top: 10px;
-  border-top: 1px dashed #E4E7ED;
+  border-top: 1px dashed var(--ds-surface-border);
 }
 
 .ability-changes,
@@ -811,7 +811,7 @@ watch(characterEntitiesWithEvents, (newEntities) => {
 }
 
 .change-arrow {
-  color: #909399;
+  color: var(--ds-text-tertiary);
 }
 
 .state-change {
@@ -827,16 +827,16 @@ watch(characterEntitiesWithEvents, (newEntities) => {
 
 .state-label {
   width: 50px;
-  color: #909399;
+  color: var(--ds-text-tertiary);
   font-size: 13px;
 }
 
 .state-old {
-  color: #909399;
+  color: var(--ds-text-tertiary);
 }
 
 .state-new {
-  color: #409EFF;
+  color: var(--ds-info);
   font-weight: 600;
 }
 
@@ -847,19 +847,19 @@ watch(characterEntitiesWithEvents, (newEntities) => {
 .stat-box {
   text-align: center;
   padding: 20px;
-  background: #F5F7FA;
+  background: var(--ds-bg-tertiary);
   border-radius: 8px;
 }
 
 .stat-box .stat-value {
   font-size: 32px;
   font-weight: bold;
-  color: #409EFF;
+  color: var(--ds-info);
 }
 
 .stat-box .stat-label {
   font-size: 14px;
-  color: #909399;
+  color: var(--ds-text-tertiary);
   margin-top: 5px;
 }
 

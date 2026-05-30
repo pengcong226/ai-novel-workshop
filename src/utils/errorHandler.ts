@@ -247,6 +247,181 @@ export function handleError(
   return errorHandler.handleError(error, { severity, category })
 }
 
+/**
+ * 错误消息友好化映射
+ * 将技术性错误信息转换为用户可操作的建议提示
+ */
+const FRIENDLY_ERROR_MESSAGES: Record<string, string> = {
+  // 网络错误
+  'Failed to fetch': '网络连接失败，请检查网络后重试',
+  'NetworkError': '网络连接异常，请确认网络状态',
+  'Network request failed': '网络请求失败，请稍后再试',
+  'ERR_CONNECTION_REFUSED': '服务连接被拒绝，请确认后端服务已启动',
+  'ERR_NETWORK': '网络异常，请检查网络连接',
+  'ERR_INTERNET_DISCONNECTED': '网络已断开，请重新连接网络',
+  'ETIMEDOUT': '网络请求超时，请稍后重试',
+  'ECONNREFUSED': '服务连接被拒绝，请确认后端服务已启动',
+  'ECONNRESET': '网络连接已重置，请重试',
+  'timeout': '请求超时，服务器可能正忙，请稍后重试',
+  'abort': '请求已取消',
+  'ERR_NAME_NOT_RESOLVED': '域名解析失败，请检查网络设置',
+  'ERR_SSL': '安全连接失败，请检查网络代理设置',
+
+  // API 错误
+  'Unauthorized': '登录已过期，请重新登录',
+  '401': '登录已过期，请重新登录',
+  '403': '没有权限执行此操作',
+  '404': '请求的资源不存在',
+  '408': '请求超时，请稍后重试',
+  '409': '数据冲突，请刷新页面后重试',
+  '413': '提交的数据过大，请减少内容后重试',
+  '422': '提交的数据格式不正确，请检查输入',
+  '429': '请求过于频繁，请稍后再试',
+  '500': '服务器内部错误，请稍后重试',
+  '502': '服务暂时不可用，请稍后重试',
+  '503': '服务正在维护中，请稍后重试',
+  '504': '服务器响应超时，请稍后重试',
+
+  // AI 相关错误
+  'AI未初始化': '尚未配置AI模型，请前往「配置」页面添加模型提供商',
+  '模型未配置': '请先在「配置」页面选择一个AI模型',
+  'AI generation failed': 'AI生成失败，请检查模型配置或稍后重试',
+  'context_length_exceeded': '输入内容超出模型限制，请缩短内容后重试',
+  'insufficient_quota': 'AI额度不足，请检查API账户余额或更换模型',
+  'invalid_api_key': 'API密钥无效，请在「配置」页面更新密钥',
+  'rate_limit': 'AI请求频率过高，请稍后重试',
+  'model_not_found': '所选AI模型不可用，请在「配置」页面更换模型',
+  'overloaded': 'AI服务繁忙，请稍后重试',
+  'content_filter': '生成内容触发安全过滤，请调整写作方向后重试',
+  'max_tokens': '生成内容超出长度限制，请缩短目标字数',
+  'unknown provider': 'AI模型提供商配置异常，请检查「配置」页面',
+
+  // Pipeline 错误
+  '批量续写': '一键续写过程中出现错误，已完成的章节已自动保存',
+  'pipeline': '写作流水线执行异常，请检查AI配置后重试',
+  '续写失败': '章节续写失败，可能是AI服务暂时不可用，请稍后重试',
+  '审计失败': '章节质量审计未通过，系统将自动尝试修订',
+  '断点': '续写进度已保存，可以稍后继续',
+
+  // 存储错误
+  'QuotaExceededError': '本地存储空间已满，请清理浏览器数据后重试',
+  'localStorage': '本地存储异常，请检查浏览器设置',
+  'IndexedDB': '本地数据库异常，请尝试刷新页面或清除浏览器缓存',
+  'DataCloneError': '数据保存格式异常，请刷新页面后重试',
+  'InvalidStateError': '数据库状态异常，请刷新页面后重试',
+  'TransactionInactiveError': '数据库事务超时，请重试操作',
+
+  // 编辑器错误
+  '保存失败': '自动保存失败，请手动保存或检查网络连接',
+  '章节保存失败': '章节保存失败，请检查编辑内容后重试',
+  '项目未加载': '项目数据未加载完成，请等待加载后重试',
+  '项目未找到': '项目不存在或已被删除',
+
+  // 导入导出错误
+  '导入': '文件导入失败，请检查文件格式是否正确',
+  '导出': '文件导出失败，请重试',
+  '文件格式': '文件格式不支持，请使用 .txt 或 .md 格式',
+
+  // 权限错误
+  'NotAllowedError': '浏览器权限被拒绝，请在设置中允许相关权限',
+  'Permission denied': '权限不足，请检查浏览器设置',
+  'clipboard': '剪贴板访问被拒绝，请手动复制',
+
+  // Tauri 桌面端错误
+  'invoke': '桌面端功能调用失败，请重启应用后重试',
+  'tauri': '桌面端服务异常，请重启应用',
+}
+
+/**
+ * 将原始错误消息转为用户友好的提示
+ */
+export function getFriendlyMessage(rawMessage: string): string {
+  if (!rawMessage) return '发生了未知错误，请稍后重试'
+
+  // 精确匹配
+  if (FRIENDLY_ERROR_MESSAGES[rawMessage]) {
+    return FRIENDLY_ERROR_MESSAGES[rawMessage]
+  }
+
+  // 模糊匹配：遍历关键词
+  for (const [keyword, friendly] of Object.entries(FRIENDLY_ERROR_MESSAGES)) {
+    if (rawMessage.includes(keyword)) {
+      return friendly
+    }
+  }
+
+  // 如果消息本身已经是中文且较短，直接返回（可能已经是友好消息）
+  if (/[\u4e00-\u9fff]/.test(rawMessage) && rawMessage.length < 80) {
+    return rawMessage
+  }
+
+  // 默认友好消息
+  return '操作未能完成，请稍后重试。如果问题持续存在，请尝试刷新页面'
+}
+
+/**
+ * Pipeline 阶段级错误分类提示
+ * 根据 Pipeline 阶段和错误消息，返回针对性的用户友好提示
+ */
+const STAGE_ERROR_TIPS: Record<string, Record<string, string>> = {
+  prepare: {
+    default: '输入准备阶段失败，请检查项目数据是否完整',
+    '项目': '项目数据加载失败，请刷新页面后重试',
+    '大纲': '大纲数据异常，请在大纲编辑器中检查',
+  },
+  plan: {
+    default: '规划阶段失败，可能是AI服务暂时不可用',
+    'timeout': '规划请求超时，请检查网络或切换模型后重试',
+    'AI': 'AI模型响应异常，请检查模型配置',
+    '大纲': '大纲信息不足，请检查大纲是否完整',
+  },
+  compose: {
+    default: '上下文组装失败，请检查项目设定是否完整',
+  },
+  write: {
+    default: 'AI写作阶段失败，请检查网络或切换模型后重试',
+    'timeout': '写作请求超时，章节内容较长时可能发生，请稍后重试',
+    'AI': 'AI服务响应异常，请检查模型配置或切换其他模型',
+    'quota': 'AI额度不足，请检查API账户余额',
+    'content_filter': '生成内容触发安全过滤，请调整写作方向',
+  },
+  normalize: {
+    default: '字数标准化处理失败（不影响已生成的内容）',
+  },
+  audit: {
+    default: '质量审计服务不可用，章节已跳过审计直接保存',
+    'timeout': '审计请求超时，章节已跳过审计保存',
+    'AI': 'AI审计服务异常，章节已跳过审计保存',
+  },
+  revise: {
+    default: '修订阶段失败，已保留审计前的原始版本',
+    'timeout': '修订请求超时，已保留原始版本',
+  },
+  settle: {
+    default: '状态沉淀失败（不影响章节内容）',
+  },
+  analyze: {
+    default: '章节分析失败（不影响章节内容）',
+  },
+  'promote-hooks': {
+    default: '伏笔升级检查失败（不影响章节内容）',
+  },
+}
+
+export function getStageFriendlyMessage(stage: string, rawError: string): string {
+  const stageTips = STAGE_ERROR_TIPS[stage]
+  if (!stageTips) return getFriendlyMessage(rawError)
+
+  // 检查阶段特定的关键词匹配
+  for (const [keyword, message] of Object.entries(stageTips)) {
+    if (keyword === 'default') continue
+    if (rawError.includes(keyword)) return message
+  }
+
+  // 使用阶段默认提示
+  return stageTips.default || getFriendlyMessage(rawError)
+}
+
 export function handleNetworkError(error: Error | string, context?: Record<string, any>): AppError {
   return errorHandler.handleError(error, {
     severity: ErrorSeverity.MEDIUM,

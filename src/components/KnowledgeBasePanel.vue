@@ -463,11 +463,11 @@ onMounted(() => {
 
 .usage-count {
   font-family: monospace;
-  color: #606266;
+  color: var(--ds-text-secondary);
 }
 
 .content-preview {
-  color: #606266;
+  color: var(--ds-text-secondary);
   font-size: 12px;
   line-height: 1.5;
 }
@@ -477,7 +477,7 @@ onMounted(() => {
 }
 
 .entry-content {
-  background: #f5f7fa;
+  background: var(--ds-bg-tertiary);
   padding: 15px;
   border-radius: 4px;
   max-height: 600px;

@@ -265,11 +265,11 @@ function next() {
   justify-content: space-between;
   margin-top: 8px;
   font-size: 12px;
-  color: #909399;
+  color: var(--ds-text-tertiary);
 }
 
 .cost-info {
-  color: #e6a23c;
+  color: var(--ds-warning);
 }
 
 .chapter-progress-list {
@@ -279,11 +279,11 @@ function next() {
 }
 
 .review-panel {
-  border: 1px solid #e4e7ed;
+  border: 1px solid var(--ds-surface-border);
   border-radius: 4px;
   padding: 12px;
   margin-bottom: 16px;
-  background: #fafafa;
+  background: var(--ds-bg-tertiary);
 }
 
 .progress-controls {

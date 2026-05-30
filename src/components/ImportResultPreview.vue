@@ -392,7 +392,7 @@ function handleImport() {
 .score-label {
   font-size: 16px;
   font-weight: 600;
-  color: #303133;
+  color: var(--ds-text-primary);
 }
 
 .dimension-scores {
@@ -403,7 +403,7 @@ function handleImport() {
 
 .dimension-item {
   padding: 15px;
-  border: 1px solid #E4E7ED;
+  border: 1px solid var(--ds-surface-border);
   border-radius: 8px;
 }
 
@@ -416,13 +416,13 @@ function handleImport() {
 
 .dimension-name {
   font-weight: 600;
-  color: #303133;
+  color: var(--ds-text-primary);
 }
 
 .dimension-score {
   font-size: 18px;
   font-weight: bold;
-  color: #409EFF;
+  color: var(--ds-info);
 }
 
 .issues-section,
@@ -433,7 +433,7 @@ function handleImport() {
 .issues-section h3,
 .suggestions-section h3 {
   margin-bottom: 15px;
-  color: #303133;
+  color: var(--ds-text-primary);
 }
 
 .issue-header {
@@ -463,11 +463,11 @@ function handleImport() {
 
 .section h3 {
   margin-bottom: 15px;
-  color: #303133;
+  color: var(--ds-text-primary);
 }
 
 .description {
-  color: #606266;
+  color: var(--ds-text-secondary);
   margin-bottom: 15px;
 }
 
@@ -481,7 +481,7 @@ function handleImport() {
 }
 
 .volume-theme {
-  color: #909399;
+  color: var(--ds-text-tertiary);
   margin: 5px 0;
 }
 
@@ -512,7 +512,7 @@ function handleImport() {
 
 .suggestion-description {
   font-size: 14px;
-  color: #606266;
+  color: var(--ds-text-secondary);
   margin-bottom: 10px;
 }
 
@@ -525,7 +525,7 @@ function handleImport() {
   border-radius: 4px;
   margin-bottom: 10px;
   font-size: 13px;
-  color: #909399;
+  color: var(--ds-text-tertiary);
 }
 
 .suggestion-list {
@@ -534,7 +534,7 @@ function handleImport() {
 
 .suggestion-list h5 {
   margin-bottom: 8px;
-  color: #303133;
+  color: var(--ds-text-primary);
 }
 
 .suggestion-list ul {
@@ -544,7 +544,7 @@ function handleImport() {
 
 .suggestion-list li {
   margin: 5px 0;
-  color: #606266;
+  color: var(--ds-text-secondary);
   font-size: 14px;
 }
 </style>

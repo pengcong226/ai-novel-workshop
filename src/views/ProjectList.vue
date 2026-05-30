@@ -25,11 +25,15 @@
         v-if="!projectStore.loading && projectStore.projects.length === 0"
         class="empty-state glass-panel fade-in"
       >
-        <div class="empty-emoji">✍️</div>
+        <div class="empty-icon"><el-icon :size="56" color="var(--ds-accent-text)"><EditPen /></el-icon></div>
         <h2>开始你的第一部作品</h2>
         <p>从空白项目或模板出发，把设定、章节和审校流程集中到一个创作空间。</p>
         <div class="empty-actions">
-          <el-button type="primary" round @click="showCreateDialog = true">新建项目</el-button>
+          <el-button type="primary" round @click="quickStartDemo" :loading="demoLoading">
+            <el-icon><MagicStick /></el-icon>
+            一键体验示例
+          </el-button>
+          <el-button round @click="showCreateDialog = true">新建项目</el-button>
           <el-button round @click="showTemplateCreateDialog = true">从模板创建</el-button>
         </div>
       </div>
@@ -66,8 +70,8 @@
 
             <div class="card-meta">
               <el-tag size="small">{{ project.genre || '未分类' }}</el-tag>
-              <el-tag size="small" :type="getStatusType(project.status)">
-                {{ getStatusText(project.status) }}
+              <el-tag size="small" :type="getChapterStatusType(project.status)">
+                {{ getChapterStatusText(project.status) }}
               </el-tag>
               <span class="card-date">{{ formatRelativeTime(project.updatedAt) }}</span>
             </div>
@@ -103,12 +107,13 @@
       width="500px"
       :close-on-click-modal="false"
     >
-      <el-form 
+      <el-form
         ref="createFormRef"
         :model="createForm"
         :rules="createRules"
         label-width="100px"
         status-icon
+        @submit.prevent
       >
         <el-form-item label="项目名称" prop="title">
           <el-input 
@@ -120,17 +125,18 @@
         </el-form-item>
 
         <el-form-item label="小说类型" prop="genre">
-          <el-select v-model="createForm.genre" placeholder="请选择小说类型" style="width: 100%">
-            <el-option label="玄幻修仙" value="玄幻" />
-            <el-option label="科幻未来" value="科幻" />
-            <el-option label="都市现实" value="都市" />
-            <el-option label="奇幻魔法" value="奇幻" />
-            <el-option label="武侠江湖" value="武侠" />
-            <el-option label="历史军事" value="历史" />
-            <el-option label="悬疑推理" value="悬疑" />
-            <el-option label="游戏竞技" value="游戏" />
-            <el-option label="轻小说" value="轻小说" />
-            <el-option label="其他" value="其他" />
+          <el-select v-model="createForm.genre" placeholder="请选择小说类型" style="width: 100%" @click.stop>
+            <el-option
+              v-for="genre in availableGenres"
+              :key="genre.id"
+              :label="genre.name"
+              :value="genre.id"
+            >
+              <div style="display: flex; justify-content: space-between; align-items: center;">
+                <span>{{ genre.name }}</span>
+                <span style="color: var(--el-text-color-secondary); font-size: 12px; max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">{{ genre.description }}</span>
+              </div>
+            </el-option>
           </el-select>
         </el-form-item>
 
@@ -139,17 +145,19 @@
             v-model="createForm.targetWords" 
             :min="10000" 
             :max="10000000"
-            :step="50000"
+            :step="10000"
             style="width: 100%"
           />
-          <div class="form-tip">建议长篇小说目标设定在 100 万字以上</div>
+          <div class="form-tip">建议中长篇小说目标设定在 20 万字左右</div>
         </el-form-item>
 
         <el-form-item label="创作模板" prop="template">
-          <el-select v-model="createForm.template" placeholder="选择初始结构模板" style="width: 100%">
+          <el-select v-model="createForm.template" placeholder="选择初始结构模板" style="width: 100%" @click.stop>
             <el-option label="空白项目 (自定义设定)" value="blank" />
             <el-option label="标准网文 (包含常用设定和卷架构)" value="standard" />
             <el-option label="快速大纲 (AI辅助生成框架)" value="quick_outline" />
+            <el-option label="短篇小说 (5千-3万字单卷结构)" value="short_fiction" />
+            <el-option label="同人创作 (支持Canon/AU/OOC/CP模式)" value="fanfic" />
           </el-select>
         </el-form-item>
       </el-form>
@@ -245,6 +253,46 @@
         </template>
       </el-upload>
     </el-dialog>
+
+    <!-- 同人创作对话框 -->
+    <el-dialog
+      v-model="showFanficDialog"
+      title="同人创作"
+      width="600px"
+      :close-on-click-modal="false"
+    >
+      <el-form label-width="100px">
+        <el-form-item label="原作名称" required>
+          <el-input v-model="fanficForm.sourceMaterial" placeholder="请输入原作名称（如：斗破苍穹、三体）" />
+        </el-form-item>
+        <el-form-item label="同人模式" required>
+          <el-radio-group v-model="fanficForm.mode">
+            <el-radio-button value="canon">Canon（忠实原作）</el-radio-button>
+            <el-radio-button value="au">AU（平行宇宙）</el-radio-button>
+            <el-radio-button value="ooc">OOC（性格偏离）</el-radio-button>
+            <el-radio-button value="cp">CP（配对为主）</el-radio-button>
+          </el-radio-group>
+        </el-form-item>
+        <el-form-item label="主要角色" required>
+          <el-input v-model="fanficForm.characters" placeholder="多个角色用逗号分隔（如：萧炎,萧薰儿,美杜莎）" />
+        </el-form-item>
+        <el-form-item v-if="fanficForm.mode === 'cp'" label="CP配对">
+          <el-input v-model="fanficForm.cpPairing" placeholder="如：萧炎x萧薰儿" />
+        </el-form-item>
+        <el-form-item v-if="fanficForm.mode === 'au'" label="AU世界观">
+          <el-input v-model="fanficForm.auDescription" type="textarea" :rows="3" placeholder="描述AU模式下的世界观设定" />
+        </el-form-item>
+        <el-form-item label="主题">
+          <el-input v-model="fanficForm.theme" placeholder="可选，如：成长、救赎、复仇" />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="showFanficDialog = false">取消</el-button>
+        <el-button type="primary" @click="handleFanficCreate" :loading="creating">
+          创建同人项目
+        </el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
@@ -253,35 +301,61 @@ import { ref, onMounted, reactive, defineAsyncComponent, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { useProjectStore } from '@/stores/project'
 import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'element-plus'
-import { Plus, Edit, Download, Delete, MoreFilled, UploadFilled, Upload } from '@element-plus/icons-vue'
+import { Plus, Edit, Download, Delete, EditPen, MoreFilled, UploadFilled, Upload, MagicStick } from '@element-plus/icons-vue'
 import { templateManager } from '@/utils/templateManager'
 import { useSandboxStore } from '@/stores/sandbox'
 const TemplateLibrary = defineAsyncComponent(() => import('@/components/TemplateLibrary.vue'))
-import type { NovelTemplate, Project } from '@/types'
+import type { NovelTemplate, Project, ProjectConfig } from '@/types'
 import { getLogger } from '@/utils/logger'
+import { getChapterStatusType, getChapterStatusText, formatNumber, formatDate, formatRelativeTime } from '@/utils/formatters'
+import { getFriendlyMessage } from '@/utils/errorHandler'
+import { GENRE_IDS, GENRE_LABELS, getAllGenreProfiles } from '@/types/genreProfile'
+import { registerAllGenres } from '@/data/genres'
 const logger = getLogger('views:ProjectList')
 
 const router = useRouter()
 const projectStore = useProjectStore()
+
+// Register genre profiles for the genre selector
+registerAllGenres()
 
 const totalWords = computed(() => {
   const words = projectStore.projects.reduce((sum, project) => sum + (project.currentWords || 0), 0)
   return (words / 10000).toFixed(1)
 })
 
+const availableGenres = computed(() => {
+  try {
+    registerAllGenres()
+  } catch { /* already registered */ }
+  return getAllGenreProfiles()
+})
+
 // 对话框状态
 const showCreateDialog = ref(false)
 const showImportDialog = ref(false)
 const showTemplateCreateDialog = ref(false)
+const showFanficDialog = ref(false)
+
+// 同人创作相关
+const fanficForm = reactive({
+  sourceMaterial: '',
+  mode: 'canon' as 'canon' | 'au' | 'ooc' | 'cp',
+  characters: '',
+  cpPairing: '',
+  auDescription: '',
+  theme: '',
+})
 
 // 表单相关
 const createFormRef = ref<FormInstance>()
 const creating = ref(false)
+const demoLoading = ref(false)
 
 const createForm = reactive({
   title: '',
   genre: '',
-  targetWords: 1000000,
+  targetWords: 200000,
   template: 'blank'
 })
 
@@ -308,9 +382,98 @@ onMounted(async () => {
   await projectStore.loadProjects()
 })
 
+// 一键体验示例
+async function quickStartDemo() {
+  demoLoading.value = true
+  try {
+    const project = await projectStore.createProject('示例：幻灵大陆', '奇幻', 45000)
+    await applyCreateTemplate(project, 'builtin-demo')
+    ElMessage.success('示例项目已创建，开始探索吧！')
+    router.push(`/project/${project.id}`)
+  } catch (error) {
+    logger.error('创建示例项目失败:', error)
+    ElMessage.error(getFriendlyMessage('创建失败'))
+  } finally {
+    demoLoading.value = false
+  }
+}
+
 const TEMPLATE_BY_CREATE_OPTION: Record<string, string> = {
   standard: 'builtin-fantasy',
   quick_outline: 'builtin-urban'
+}
+
+async function handleFanficCreate() {
+  if (!fanficForm.sourceMaterial.trim()) {
+    ElMessage.warning('请输入原作名称')
+    return
+  }
+  if (!fanficForm.characters.trim()) {
+    ElMessage.warning('请输入主要角色')
+    return
+  }
+  if (fanficForm.mode === 'cp' && !fanficForm.cpPairing.trim()) {
+    ElMessage.warning('CP模式下请输入CP配对')
+    return
+  }
+
+  creating.value = true
+  try {
+    const { FanficService } = await import('@/services/FanficService')
+    const fanficService = new FanficService()
+
+    const characters = fanficForm.characters.split(/[,，、]/).map(s => s.trim()).filter(Boolean)
+
+    const projectInit = await fanficService.initFanficProject({
+      sourceMaterial: fanficForm.sourceMaterial,
+      mode: fanficForm.mode,
+      characters,
+      cpPairing: fanficForm.cpPairing || undefined,
+      auDescription: fanficForm.auDescription || undefined,
+      theme: fanficForm.theme || undefined,
+      language: 'zh',
+    })
+
+    const project = await projectStore.createProject(
+      projectInit.title,
+      projectInit.genre,
+      200000
+    )
+
+    await projectStore.openProject(project.id)
+    if (projectStore.currentProject) {
+      if (!projectStore.currentProject.config) {
+        projectStore.currentProject.config = {} as ProjectConfig
+      }
+      ;(projectStore.currentProject.config as Record<string, unknown>).fanfic = {
+        sourceMaterial: fanficForm.sourceMaterial,
+        mode: fanficForm.mode,
+        characters,
+        cpPairing: fanficForm.cpPairing || undefined,
+      }
+      projectStore.currentProject.description = projectInit.description
+      await projectStore.saveCurrentProject()
+    }
+
+    ElMessage.success('同人创作项目已创建！')
+    showFanficDialog.value = false
+    showCreateDialog.value = false
+
+    // 重置表单
+    fanficForm.sourceMaterial = ''
+    fanficForm.mode = 'canon'
+    fanficForm.characters = ''
+    fanficForm.cpPairing = ''
+    fanficForm.auDescription = ''
+    fanficForm.theme = ''
+
+    router.push(`/project/${project.id}`)
+  } catch (error) {
+    logger.error('创建同人项目失败:', error)
+    ElMessage.error(getFriendlyMessage('创建同人项目失败'))
+  } finally {
+    creating.value = false
+  }
 }
 
 async function applyCreateTemplate(project: Project, templateId: string): Promise<void> {
@@ -353,6 +516,50 @@ const handleCreate = async () => {
           createForm.targetWords
         )
 
+        // Store genreId in project config for use by the auditor
+        const { getGenreProfile } = await import('@/types/genreProfile')
+        const genreProfile = getGenreProfile(createForm.genre)
+        if (genreProfile) {
+          await projectStore.openProject(project.id)
+          if (projectStore.currentProject) {
+            if (!projectStore.currentProject.config) {
+              projectStore.currentProject.config = {} as ProjectConfig
+            }
+            ;(projectStore.currentProject.config as Record<string, unknown>).genreId = genreProfile.id
+            await projectStore.saveCurrentProject()
+          }
+        }
+
+        // 短篇小说模式：设置短篇配置
+        if (createForm.template === 'short_fiction') {
+          await projectStore.openProject(project.id)
+          if (projectStore.currentProject) {
+            if (!projectStore.currentProject.config) {
+              projectStore.currentProject.config = {} as ProjectConfig
+            }
+            ;(projectStore.currentProject.config as Record<string, unknown>).projectType = 'short_fiction'
+            projectStore.currentProject.config.advancedSettings = {
+              ...projectStore.currentProject.config.advancedSettings,
+              targetWordCount: Math.min(createForm.targetWords, 30000),
+              targetChapters: 1,
+            }
+            await projectStore.saveCurrentProject()
+          }
+          creating.value = false
+          showCreateDialog.value = false
+          ElMessage.success('短篇小说项目创建成功！请在章节中直接开始写作。')
+          openProject(project.id)
+          return
+        }
+
+        // 同人创作模式：显示同人创作对话框
+        if (createForm.template === 'fanfic') {
+          creating.value = false
+          showCreateDialog.value = false
+          showFanficDialog.value = true
+          return
+        }
+
         const templateId = TEMPLATE_BY_CREATE_OPTION[createForm.template]
         if (templateId) {
           await applyCreateTemplate(project, templateId)
@@ -368,7 +575,7 @@ const handleCreate = async () => {
         router.push(`/project/${project.id}`)
       } catch (error) {
         logger.error('创建项目失败:', error)
-        ElMessage.error('创建失败，请稍后重试')
+        ElMessage.error(getFriendlyMessage('创建失败'))
       } finally {
         creating.value = false
       }
@@ -396,7 +603,7 @@ const handleImport = async (file: any) => {
   } catch (error) {
     ElMessage.closeAll()
     logger.error('导入失败:', error)
-    ElMessage.error(`导入失败: ${(error as Error).message}`)
+    ElMessage.error('导入失败: ' + getFriendlyMessage((error as Error).message))
   }
 }
 
@@ -411,7 +618,7 @@ const handleCommand = async (command: string, projectId: string) => {
         await projectStore.exportProject(projectId)
         ElMessage.success('导出准备中，即将开始下载')
       } catch (error) {
-        ElMessage.error('导出失败')
+        ElMessage.error(getFriendlyMessage('导出失败'))
       }
       break
     case 'delete':
@@ -442,7 +649,7 @@ const deleteProject = (projectId: string) => {
       ElMessage.success('项目已删除')
     } catch (error) {
       logger.error('删除项目失败:', error)
-      ElMessage.error('删除失败')
+      ElMessage.error(getFriendlyMessage('删除失败'))
     }
   }).catch(() => {})
 }
@@ -467,7 +674,7 @@ async function createFromTemplate() {
     const project = await projectStore.createProject(
       templateProjectName.value,
       selectedTemplate.value.meta.tags?.[0] || '其他',
-      1000000 // 默认目标字数
+      200000 // 默认目标字数
     )
 
     // 2. 加载项目以进行修改
@@ -503,7 +710,7 @@ async function createFromTemplate() {
 
       // Update project metadata
       if (projectFields.config) {
-        projectStore.currentProject.config = projectFields.config as any
+        projectStore.currentProject.config = projectFields.config as ProjectConfig
       }
       projectStore.currentProject.description = templateData.meta.description
 
@@ -519,57 +726,16 @@ async function createFromTemplate() {
     router.push(`/project/${project.id}`)
   } catch (error) {
     logger.error('[ProjectList] 从模板创建失败:', error)
-    ElMessage.error('创建失败: ' + (error as Error).message)
+    ElMessage.error('创建失败: ' + getFriendlyMessage((error as Error).message))
   } finally {
     creatingFromTemplate.value = false
   }
 }
 
 // 辅助函数
-function getStatusType(status: string) {
-  const types: Record<string, any> = {
-    draft: 'info',
-    writing: 'warning',
-    completed: 'success'
-  }
-  return types[status] || 'info'
-}
-
-function getStatusText(status: string) {
-  const texts: Record<string, string> = {
-    draft: '草稿',
-    writing: '写作中',
-    completed: '已完成'
-  }
-  return texts[status] || status
-}
-
-function formatNumber(num?: number | null) {
-  if (num === undefined || num === null || isNaN(num)) return '0'
-  if (num >= 10000) {
-    return (num / 10000).toFixed(1) + '万'
-  }
-  return num.toString()
-}
-
 function getProgress(current?: number | null, target?: number | null) {
   if (!current || !target) return 0
   return Math.min(100, Math.round((current / target) * 100))
-}
-
-function formatDate(date: Date | string) {
-  const d = new Date(date)
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
-}
-
-function formatRelativeTime(date: Date | string) {
-  const timestamp = new Date(date).getTime()
-  const diffDays = Math.floor((Date.now() - timestamp) / 86400000)
-
-  if (diffDays <= 0) return '今天更新'
-  if (diffDays === 1) return '昨天更新'
-  if (diffDays < 30) return `${diffDays} 天前`
-  return formatDate(date)
 }
 
 function getAccentGradient(genre?: string) {
@@ -655,9 +821,9 @@ function getAccentGradient(genre?: string) {
   text-align: center;
 }
 
-.empty-emoji {
-  font-size: 56px;
+.empty-icon {
   margin-bottom: var(--ds-space-4);
+  opacity: 0.6;
 }
 
 .empty-state h2 {
@@ -830,6 +996,7 @@ function getAccentGradient(genre?: string) {
   margin-bottom: var(--ds-space-4);
 }
 
+/* breakpoint: md (768px) */
 @media (max-width: 768px) {
   .project-list {
     padding: var(--ds-space-5);

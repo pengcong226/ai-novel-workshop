@@ -13,9 +13,11 @@
  */
 
 import { defineStore } from 'pinia'
-import { ref, computed } from 'vue'
+import { ref, shallowRef, computed } from 'vue'
 import type { Worldbook, WorldbookEntry, WorldbookGroup } from '@/types/worldbook'
+import { generateId } from '@/utils/generateId'
 import { WorldbookInjector } from '@/services/worldbook-injector'
+import type { InjectionContext } from '@/services/worldbook-injector'
 import { WorldbookAIAssistant } from '@/services/worldbook-ai'
 import { useStorage } from './storage'
 import { useSandboxStore } from './sandbox'
@@ -42,16 +44,19 @@ export const useWorldbookStore = defineStore('worldbook', () => {
   /** 当前项目ID */
   const projectId = ref<string | null>(null)
 
+  /** V5 Bridge 同步错误状态 */
+  const bridgeError = ref<string | null>(null)
+
   // ============ 服务实例 ============
 
   /** 存储服务 */
   const storage = useStorage()
 
   /** 注入器实例 */
-  const injector = ref<WorldbookInjector | null>(null)
+  const injector = shallowRef<WorldbookInjector | null>(null)
 
   /** AI 助手实例 */
-  const aiAssistant = ref<WorldbookAIAssistant | null>(null)
+  const aiAssistant = shallowRef<WorldbookAIAssistant | null>(null)
 
   // ============ 计算属性 ============
 
@@ -84,7 +89,7 @@ export const useWorldbookStore = defineStore('worldbook', () => {
   const entriesByType = computed(() => {
     const grouped = new Map<string, WorldbookEntry[]>()
     entries.value.forEach(entry => {
-      const type = (entry.novelWorkshop as any)?.entryType || 'custom'
+      const type = entry.novelWorkshop?.entryType || 'custom'
       if (!grouped.has(type)) {
         grouped.set(type, [])
       }
@@ -294,7 +299,14 @@ export const useWorldbookStore = defineStore('worldbook', () => {
         })
       }
     } catch (e) {
-      logger.warn('V5 bridge: failed to sync entry to sandbox store', e)
+      bridgeError.value = e instanceof Error ? e.message : String(e)
+      logger.error('V5 bridge: failed to sync entry to sandbox store, rolling back worldbook entry', e)
+      // 回滚：移除刚才添加的条目
+      const idx = worldbook.value.entries.findIndex(e => e.uid === newEntry.uid)
+      if (idx !== -1) {
+        worldbook.value.entries.splice(idx, 1)
+        await saveWorldbook()
+      }
     }
 
     logger.info('条目已添加', { entryId: newEntry.uid })
@@ -318,6 +330,9 @@ export const useWorldbookStore = defineStore('worldbook', () => {
     if (index === -1) {
       throw new Error(`条目不存在: ${entryId}`)
     }
+
+    // 保存旧条目用于回滚
+    const previousEntry: WorldbookEntry = { ...worldbook.value.entries[index] }
 
     const updatedEntry: WorldbookEntry = {
       ...worldbook.value.entries[index],
@@ -351,7 +366,11 @@ export const useWorldbookStore = defineStore('worldbook', () => {
         }
       }
     } catch (e) {
-      logger.warn('V5 bridge: failed to sync update to sandbox store', e)
+      bridgeError.value = e instanceof Error ? e.message : String(e)
+      logger.error('V5 bridge: failed to sync update to sandbox store, rolling back worldbook entry', e)
+      // 回滚：恢复旧条目
+      worldbook.value.entries[index] = previousEntry
+      await saveWorldbook()
     }
 
     logger.info('条目已更新', { entryId })
@@ -373,6 +392,9 @@ export const useWorldbookStore = defineStore('worldbook', () => {
       throw new Error(`条目不存在: ${entryId}`)
     }
 
+    // 保存被删除的条目用于回滚
+    const deletedEntry = worldbook.value.entries[index]
+
     worldbook.value.entries.splice(index, 1)
 
     await saveWorldbook()
@@ -387,7 +409,11 @@ export const useWorldbookStore = defineStore('worldbook', () => {
         await sandboxStore.updateEntity(loreEntity.id, { isArchived: true })
       }
     } catch (e) {
-      logger.warn('V5 bridge: failed to sync delete to sandbox store', e)
+      bridgeError.value = e instanceof Error ? e.message : String(e)
+      logger.error('V5 bridge: failed to sync delete to sandbox store, rolling back worldbook deletion', e)
+      // 回滚：将被删除的条目恢复到原位置
+      worldbook.value.entries.splice(index, 0, deletedEntry)
+      await saveWorldbook()
     }
 
     logger.info('条目已删除', { entryId })
@@ -402,6 +428,8 @@ export const useWorldbookStore = defineStore('worldbook', () => {
     }
 
     const idSet = new Set(entryIds)
+    // 保存被删除的条目用于回滚
+    const deletedEntries = worldbook.value.entries.filter(e => idSet.has(e.uid))
     worldbook.value.entries = worldbook.value.entries.filter(e => !idSet.has(e.uid))
 
     await saveWorldbook()
@@ -419,7 +447,11 @@ export const useWorldbookStore = defineStore('worldbook', () => {
         }
       }
     } catch (e) {
-      logger.warn('V5 bridge: failed to sync bulk delete to sandbox store', e)
+      bridgeError.value = e instanceof Error ? e.message : String(e)
+      logger.error('V5 bridge: failed to sync bulk delete to sandbox store, rolling back worldbook entries', e)
+      // 回滚：将被删除的条目恢复
+      worldbook.value.entries.push(...deletedEntries)
+      await saveWorldbook()
     }
 
     logger.info('条目已批量删除', { count: entryIds.length })
@@ -436,9 +468,12 @@ export const useWorldbookStore = defineStore('worldbook', () => {
       throw new Error('世界书未初始化')
     }
 
+    // 保存旧状态用于回滚
+    const previousStates: Map<number, boolean | undefined> = new Map()
     entryIds.forEach(id => {
       const entry = worldbook.value!.entries.find(e => e.uid === id)
       if (entry) {
+        previousStates.set(id, entry.disable)
         entry.disable = !enabled
       }
     })
@@ -458,7 +493,16 @@ export const useWorldbookStore = defineStore('worldbook', () => {
         }
       }
     } catch (e) {
-      logger.warn('V5 bridge: failed to sync toggle to sandbox store', e)
+      bridgeError.value = e instanceof Error ? e.message : String(e)
+      logger.error('V5 bridge: failed to sync toggle to sandbox store, rolling back worldbook entries', e)
+      // 回滚：恢复旧状态
+      previousStates.forEach((prevDisable, id) => {
+        const entry = worldbook.value!.entries.find(e => e.uid === id)
+        if (entry) {
+          entry.disable = prevDisable
+        }
+      })
+      await saveWorldbook()
     }
 
     logger.info('条目状态已切换', { count: entryIds.length, enabled })
@@ -585,7 +629,7 @@ export const useWorldbookStore = defineStore('worldbook', () => {
       context,
       maxEntries: options?.maxEntries,
       maxTokens: options?.maxTokens
-    } as any)
+    } as unknown as InjectionContext)
   }
 
   // ============ AI 辅助方法 ============
@@ -778,6 +822,9 @@ export const useWorldbookStore = defineStore('worldbook', () => {
         uid: maxUid + index + 1
       }))
 
+      // 保存旧条目列表用于回滚
+      const previousEntries = [...worldbook.value.entries]
+
       // 添加条目
       if (merge) {
         worldbook.value.entries.push(...entriesToImport)
@@ -823,7 +870,11 @@ export const useWorldbookStore = defineStore('worldbook', () => {
           }
         }
       } catch (e) {
-        logger.warn('V5 bridge: failed to sync imported entries to sandbox store', e)
+        bridgeError.value = e instanceof Error ? e.message : String(e)
+        logger.error('V5 bridge: failed to sync imported entries to sandbox store, rolling back worldbook entries', e)
+        // 回滚：恢复旧条目列表
+        worldbook.value.entries = previousEntries
+        await saveWorldbook()
       }
 
       logger.info('条目导入完成', {
@@ -850,6 +901,9 @@ export const useWorldbookStore = defineStore('worldbook', () => {
     try {
       const imported = JSON.parse(json) as Worldbook
 
+      // 保存旧状态用于回滚
+      const previousWorldbook = worldbook.value ? { ...worldbook.value, entries: [...worldbook.value.entries] } : null
+
       if (merge && worldbook.value) {
         // 合并条目
         worldbook.value.entries.push(...imported.entries)
@@ -871,7 +925,7 @@ export const useWorldbookStore = defineStore('worldbook', () => {
             )
             if (!existing) {
               await sandboxStore.addEntity({
-                id: crypto.randomUUID(),
+                id: generateId(),
                 projectId: projectId.value,
                 type: 'LORE',
                 name: entry.comment || entry.key?.[0] || `LORE-${entry.uid}`,
@@ -887,7 +941,13 @@ export const useWorldbookStore = defineStore('worldbook', () => {
           }
         }
       } catch (e) {
-        logger.warn('V5 bridge: failed to sync importWorldbook to sandbox store', e)
+        bridgeError.value = e instanceof Error ? e.message : String(e)
+        logger.error('V5 bridge: failed to sync importWorldbook to sandbox store, rolling back worldbook', e)
+        // 回滚：恢复旧世界书状态
+        if (previousWorldbook) {
+          worldbook.value = previousWorldbook
+          await saveWorldbook()
+        }
       }
 
       logger.info('世界书导入完成', {
@@ -922,6 +982,7 @@ export const useWorldbookStore = defineStore('worldbook', () => {
     worldbook,
     loading,
     error,
+    bridgeError,
     projectId,
 
     // 计算属性

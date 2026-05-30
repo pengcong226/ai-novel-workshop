@@ -13,6 +13,7 @@ import type { Chapter } from '@/types'
 import { useAIStore } from '@/stores/ai'
 import { SUMMARY_SYSTEM_PROMPT } from './systemPrompts'
 import { safeParseAIJson } from './safeParseAIJson'
+import { estimateTokens } from './llm/tokenizer'
 import { getLogger } from '@/utils/logger'
 const logger = getLogger('utils:summarizer')
 
@@ -108,17 +109,9 @@ export interface SummaryQualityCheck {
 export const SUMMARY_GENERATION_VERSION = 2
 
 /**
- * 简单的token计数（中文：1字≈1.5token，英文：1词≈1token）
+ * Token估算（统一使用 tokenizer.ts 中的实现，确保全局一致性）
  */
-export function estimateTokens(text: string): number {
-  if (!text) return 0
-
-  const chineseChars = (text.match(/[\u4e00-\u9fa5]/g) || []).length
-  const englishWords = (text.match(/[a-zA-Z]+/g) || []).length
-  const otherChars = text.length - chineseChars - englishWords
-
-  return Math.ceil(chineseChars * 1.5 + englishWords * 1.2 + otherChars * 0.5)
-}
+export { estimateTokens }
 
 /**
  * 根据章节距离确定摘要详细度
@@ -495,26 +488,39 @@ export async function batchGenerateSummaries(
   chapters: Chapter[],
   onProgress?: (current: number, total: number, chapter: Chapter) => void
 ): Promise<ChapterSummaryData[]> {
+  const CONCURRENCY = 3
   const summaries: ChapterSummaryData[] = []
+  let completed = 0
 
-  for (let i = 0; i < chapters.length; i++) {
-    const chapter = chapters[i]
-
-    if (onProgress) {
-      onProgress(i + 1, chapters.length, chapter)
-    }
-
+  // 并发池执行器
+  async function processChapter(chapter: Chapter): Promise<void> {
     try {
       const summary = await generateChapterSummary(chapter)
       summaries.push(summary)
-
-      // 短暂延迟，避免API请求过快
-      if (i < chapters.length - 1) {
-        await new Promise(resolve => setTimeout(resolve, 500))
-      }
     } catch (error) {
       logger.error(`生成第${chapter.number}章摘要失败:`, error)
-      // 继续处理下一章
+    } finally {
+      completed++
+      onProgress?.(completed, chapters.length, chapter)
+    }
+  }
+
+  // 按并发度执行
+  const queue = [...chapters]
+  const workers: Promise<void>[] = []
+
+  while (queue.length > 0 || workers.length > 0) {
+    while (workers.length < CONCURRENCY && queue.length > 0) {
+      const chapter = queue.shift()!
+      const worker = processChapter(chapter)
+      worker.then(() => {
+        const idx = workers.indexOf(worker)
+        if (idx !== -1) workers.splice(idx, 1)
+      })
+      workers.push(worker)
+    }
+    if (workers.length > 0) {
+      await Promise.race(workers)
     }
   }
 

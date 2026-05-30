@@ -145,16 +145,16 @@ function formatTime(d: Date) {
 }
 
 .glass-card {
-  background: rgba(255, 255, 255, 0.6);
-  backdrop-filter: blur(10px);
-  border: 1px solid rgba(255, 255, 255, 0.4);
-  border-radius: 8px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
-  transition: transform 0.2s, box-shadow 0.2s;
+  background: var(--ds-glass-bg);
+  backdrop-filter: var(--ds-glass-blur);
+  border: 1px solid var(--ds-glass-border);
+  border-radius: var(--ds-radius-md);
+  box-shadow: var(--ds-shadow-sm);
+  transition: transform var(--ds-transition-fast), box-shadow var(--ds-transition-fast);
 }
 .glass-card:hover {
   transform: translateY(-2px);
-  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.1);
+  box-shadow: var(--ds-shadow-md);
 }
 
 .card-title {
@@ -167,7 +167,7 @@ function formatTime(d: Date) {
 
 .card-desc {
   font-size: 13px;
-  color: #606266;
+  color: var(--ds-text-secondary);
   line-height: 1.5;
 }
 
@@ -188,7 +188,7 @@ function formatTime(d: Date) {
 
 .audit-card {
   --el-card-padding: 10px;
-  background: rgba(255, 255, 255, 0.7);
+  background: var(--ds-glass-bg);
 }
 
 .audit-title {
@@ -200,6 +200,21 @@ function formatTime(d: Date) {
 .audit-desc {
   margin: 0;
   font-size: 12px;
-  color: #606266;
+  color: var(--ds-text-secondary);
+}
+
+/* breakpoint: md (768px) */
+@media (max-width: 768px) {
+  .context-cards-container {
+    gap: var(--ds-space-2);
+  }
+
+  .context-card {
+    padding: var(--ds-space-2);
+  }
+
+  .audit-timeline {
+    padding: var(--ds-space-2);
+  }
 }
 </style>

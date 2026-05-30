@@ -31,12 +31,12 @@ export async function generateOutlineWithLLM(
     message: '生成大纲...'
   })
 
-  const outline = (await callLLMWithValidation(
+  const outline = await callLLMWithValidation(
     getOutlineGenerationPrompt(chapters),
     outlineSchema,
     config,
     { maxRetries: 2 }
-  )) as any
+  ) as LLMOutline
 
   logger.info('生成完成')
 

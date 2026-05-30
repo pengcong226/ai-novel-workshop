@@ -208,7 +208,7 @@ const qualityProxy = computed({
 
 .desc {
   font-size: 12px;
-  color: #909399;
+  color: var(--ds-text-tertiary);
   margin: 0 0 20px 0;
 }
 

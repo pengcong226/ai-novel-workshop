@@ -134,6 +134,9 @@ export interface WorldbookEntry {
 export interface NovelWorkshopWorldbookExtensions {
   // ============ 组织与分类 ============
 
+  /** 条目类型 - 用于分类世界书条目 */
+  entryType?: string
+
   /** 分类标签 - 用于组织条目 */
   category?: string
 

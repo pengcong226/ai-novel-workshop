@@ -8,6 +8,10 @@
             <el-icon><Check /></el-icon>
             批量检查
           </el-button>
+          <el-button @click="runAIGCDetection" :loading="aigcChecking">
+            <el-icon><WarnTriangleFilled /></el-icon>
+            AIGC检测
+          </el-button>
           <el-button @click="exportReport" :disabled="reports.length === 0">
             <el-icon><Download /></el-icon>
             导出报告
@@ -100,13 +104,41 @@
       </el-card>
 
       <!-- V4-P2-⑨: CED质量看板 (哨兵拦截大盘) -->
+      <!-- AIGC检测结果 -->
+      <el-card v-if="aigcResults.size > 0" class="aigc-card">
+        <template #header>
+          <div class="card-header">
+            <span>AIGC 检测结果</span>
+            <el-tag :type="overallAIGCScore >= 70 ? 'success' : overallAIGCScore >= 40 ? 'warning' : 'danger'">
+              人类写作概率: {{ overallAIGCScore }}%
+            </el-tag>
+          </div>
+        </template>
+        <el-table :data="aigcTableData" stripe>
+          <el-table-column prop="chapter" label="章节" width="80" />
+          <el-table-column prop="humanProb" label="人类概率" width="100">
+            <template #default="{ row }">
+              <el-progress :percentage="row.humanProb" :color="row.humanProb >= 70 ? '#67c23a' : row.humanProb >= 40 ? '#e6a23c' : '#f56c6c'" :stroke-width="10" />
+            </template>
+          </el-table-column>
+          <el-table-column prop="classification" label="判定" width="100">
+            <template #default="{ row }">
+              <el-tag :type="row.classification === 'human' ? 'success' : row.classification === 'ai' ? 'danger' : 'warning'" size="small">
+                {{ row.classification === 'human' ? '人类' : row.classification === 'ai' ? 'AI生成' : '混合' }}
+              </el-tag>
+            </template>
+          </el-table-column>
+        </el-table>
+      </el-card>
+
+
       <el-card class="ced-card">
         <template #header>
           <div class="card-header">
             <span>CED 防跑偏拦截大盘 (一致性检测)</span>
           </div>
         </template>
-        <div v-if="cedLogs.length === 0" style="padding: 30px; text-align: center; color: #909399;">
+        <div v-if="cedLogs.length === 0" style="padding: 30px; text-align: center; color: var(--ds-text-tertiary);">
           <el-icon size="40"><CircleCheckFilled /></el-icon>
           <p>当前生成暂无防吃书拦截记录，一致性良好</p>
         </div>
@@ -130,7 +162,7 @@
               placement="top"
             >
               <el-card shadow="hover">
-                <h4 style="margin: 0 0 10px 0; color: #e6a23c;">{{ log.title }}</h4>
+                <h4 style="margin: 0 0 10px 0; color: var(--ds-warning);">{{ log.title }}</h4>
                 <p style="margin: 0; font-size: 13px;">{{ log.description }}</p>
                 <div v-if="log.metadata?.violations" style="margin-top: 10px;">
                   <el-tag
@@ -340,6 +372,38 @@
               </el-timeline>
             </el-card>
           </el-tab-pane>
+
+          <!-- 敏感词检测 -->
+          <el-tab-pane label="敏感词检测" name="sensitive">
+            <div v-if="currentSensitiveIssues.length === 0" class="sensitive-empty">
+              <el-icon size="40" style="color: var(--ds-success);"><CircleCheckFilled /></el-icon>
+              <p>未检测到敏感词，内容安全</p>
+            </div>
+            <div v-else class="sensitive-results">
+              <el-alert
+                :title="`检测到 ${currentSensitiveIssues.length} 个敏感词问题`"
+                type="warning"
+                show-icon
+                :closable="false"
+                style="margin-bottom: 16px;"
+              />
+              <el-timeline>
+                <el-timeline-item
+                  v-for="(issue, idx) in currentSensitiveIssues"
+                  :key="idx"
+                  type="danger"
+                >
+                  <div class="sensitive-issue">
+                    <el-tag type="danger" size="small" style="margin-right: 8px;">敏感词</el-tag>
+                    <span class="sensitive-desc">{{ issue.description }}</span>
+                  </div>
+                  <div v-if="issue.suggestion" class="sensitive-suggestion">
+                    建议：{{ issue.suggestion }}
+                  </div>
+                </el-timeline-item>
+              </el-timeline>
+            </div>
+          </el-tab-pane>
         </el-tabs>
       </div>
 
@@ -371,7 +435,7 @@ import { ref, computed, onMounted, onBeforeUnmount, nextTick, watch } from 'vue'
 import { useProjectStore } from '@/stores/project'
 import { useSandboxStore } from '@/stores/sandbox'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Check, Download, Search, Warning, CircleCheckFilled } from '@element-plus/icons-vue'
+import { Check, Download, Search, Warning, CircleCheckFilled, WarnTriangleFilled } from '@element-plus/icons-vue'
 import { useAuditLog } from '@/composables/useAuditLog'
 import { createQualityChecker, analyzeQualityTrend, type QualityReport } from '@/utils/qualityChecker'
 import { exportQualityReportAsJSON, exportQualityReportAsMarkdown} from '@/utils/reportExporter'
@@ -379,6 +443,10 @@ import * as echarts from 'echarts/core'
 import { marked } from 'marked'
 import DOMPurify from 'dompurify'
 import { getLogger } from '@/utils/logger'
+import { formatDate } from '@/utils/formatters'
+import { AIGCDetector } from '@/services/AIGCDetector'
+import type { AIGCDetectionResult } from '@/services/AIGCDetector'
+import { validateSensitiveWords } from '@/agents/PostWriteValidator'
 
 const logger = getLogger('quality-report')
 
@@ -393,6 +461,10 @@ const searchText = ref('')
 const showDetailDialog = ref(false)
 const currentReport = ref<QualityReport | null>(null)
 const activeTab = ref('dimensions')
+
+const aigcResults = ref<Map<number, AIGCDetectionResult>>(new Map())
+const aigcChecking = ref(false)
+const aigcDetector = new AIGCDetector({ provider: 'local' })
 
 const { logs } = useAuditLog()
 const cedLogs = computed(() => {
@@ -443,12 +515,20 @@ const filteredReports = computed(() => {
 const renderedDetails = computed(() => {
   if (!currentReport.value) return ''
   const html = marked.parse(currentReport.value.details) as string
-  const sanitized = DOMPurify.sanitize ? DOMPurify.sanitize(html) : html
+  const sanitized = DOMPurify.sanitize ? DOMPurify.sanitize(html, { FORBID_TAGS: ['script', 'iframe', 'object', 'embed', 'form'] }) : html
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;')
   return sanitized
+})
+
+// 当前章节的敏感词检测结果
+const currentSensitiveIssues = computed(() => {
+  if (!currentReport.value) return []
+  const chapter = chapters.value.find(c => c.number === currentReport.value!.chapterNumber)
+  if (!chapter?.content) return []
+  return validateSensitiveWords(chapter.content)
 })
 
 onMounted(async () => {
@@ -478,6 +558,29 @@ onBeforeUnmount(() => {
   }
 })
 
+// 获取当前主题色（基于 Design Token）
+function getChartThemeColors() {
+  const style = getComputedStyle(document.documentElement)
+  return {
+    accent: style.getPropertyValue('--ds-accent').trim() || '#6c5ce7',
+    accentText: style.getPropertyValue('--ds-accent-text').trim() || '#a78bfa',
+    success: style.getPropertyValue('--ds-success').trim() || '#10b981',
+    warning: style.getPropertyValue('--ds-warning').trim() || '#f59e0b',
+    danger: style.getPropertyValue('--ds-danger').trim() || '#ef4444',
+    info: style.getPropertyValue('--ds-info').trim() || '#3b82f6',
+    textPrimary: style.getPropertyValue('--ds-text-primary').trim() || '#ececf1',
+    textSecondary: style.getPropertyValue('--ds-text-secondary').trim() || '#8e8ea0',
+    textTertiary: style.getPropertyValue('--ds-text-tertiary').trim() || '#565869',
+    surfaceBorder: style.getPropertyValue('--ds-surface-border').trim() || 'rgba(255,255,255,0.06)',
+    bgPrimary: style.getPropertyValue('--ds-bg-primary').trim() || '#0a0a0f',
+    bgSecondary: style.getPropertyValue('--ds-bg-secondary').trim() || '#12121a',
+    fontSans: style.getPropertyValue('--ds-font-sans').trim() || 'sans-serif',
+  }
+}
+
+// 维度配色方案（柔和、有层次感）
+const DIMENSION_COLORS = ['#6c5ce7', '#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#ec4899', '#8b5cf6', '#06b6d4']
+
 // 初始化图表
 function initCharts() {
   if (trendChartRef.value) {
@@ -494,36 +597,94 @@ function updateCharts() {
   updateRadarChart()
 }
 
-// 更新趋势图表
+// 更新趋势折线图 — 使用 Design Token 风格
 function updateTrendChart() {
   if (!trendChart || reports.value.length === 0) return
 
+  const theme = getChartThemeColors()
+  const dimNames = reports.value[0].dimensions.map(d => d.name)
+  const chapters = reports.value.map(r => `第${r.chapterNumber}章`)
+  const seriesColors = [theme.accent, ...DIMENSION_COLORS.slice(0, dimNames.length)]
+
   const option = {
+    color: seriesColors,
+    backgroundColor: 'transparent',
     title: {
-      text: '质量趋势图',
-      left: 'center'
+      text: '审计趋势',
+      left: 0,
+      top: 0,
+      textStyle: {
+        fontFamily: theme.fontSans,
+        fontSize: 15,
+        fontWeight: 600,
+        color: theme.textPrimary,
+      },
     },
     tooltip: {
-      trigger: 'axis'
+      trigger: 'axis',
+      backgroundColor: theme.bgSecondary,
+      borderColor: theme.surfaceBorder,
+      borderWidth: 1,
+      textStyle: {
+        fontFamily: theme.fontSans,
+        fontSize: 12,
+        color: theme.textPrimary,
+      },
+      axisPointer: {
+        type: 'cross',
+        crossStyle: { color: theme.textTertiary },
+      },
     },
     legend: {
-      data: ['总体评分', ...reports.value[0].dimensions.map(d => d.name)],
-      top: 30
+      data: ['总体评分', ...dimNames],
+      top: 32,
+      left: 0,
+      textStyle: {
+        fontFamily: theme.fontSans,
+        fontSize: 11,
+        color: theme.textSecondary,
+      },
+      itemWidth: 16,
+      itemHeight: 2,
+      itemGap: 16,
     },
     grid: {
-      left: '3%',
-      right: '4%',
-      bottom: '3%',
-      containLabel: true
+      left: 12,
+      right: 24,
+      bottom: 12,
+      top: 72,
+      containLabel: true,
     },
     xAxis: {
       type: 'category',
-      data: reports.value.map(r => `第${r.chapterNumber}章`)
+      data: chapters,
+      boundaryGap: false,
+      axisLine: { lineStyle: { color: theme.surfaceBorder } },
+      axisTick: { show: false },
+      axisLabel: {
+        fontFamily: theme.fontSans,
+        fontSize: 11,
+        color: theme.textTertiary,
+      },
     },
     yAxis: {
       type: 'value',
       min: 0,
-      max: 10
+      max: 10,
+      splitNumber: 5,
+      axisLine: { show: false },
+      axisTick: { show: false },
+      axisLabel: {
+        fontFamily: theme.fontSans,
+        fontSize: 11,
+        color: theme.textTertiary,
+      },
+      splitLine: {
+        lineStyle: {
+          color: theme.surfaceBorder,
+          type: 'dashed',
+        },
+      },
     },
     series: [
       {
@@ -531,84 +692,203 @@ function updateTrendChart() {
         type: 'line',
         data: reports.value.map(r => r.overallScore),
         smooth: true,
-        lineStyle: {
-          width: 3
-        }
+        symbol: 'circle',
+        symbolSize: 6,
+        lineStyle: { width: 2.5 },
+        areaStyle: {
+          color: {
+            type: 'linear',
+            x: 0, y: 0, x2: 0, y2: 1,
+            colorStops: [
+              { offset: 0, color: theme.accent + '30' },
+              { offset: 1, color: theme.accent + '05' },
+            ],
+          },
+        },
       },
-      ...reports.value[0].dimensions.map((dim, index) => ({
-        name: dim.name,
+      ...dimNames.map((name, index) => ({
+        name,
         type: 'line' as const,
         data: reports.value.map(r => r.dimensions[index].score),
-        smooth: true
-      }))
-    ]
+        smooth: true,
+        symbol: 'circle',
+        symbolSize: 4,
+        lineStyle: { width: 1.5 },
+      })),
+    ],
+    animationDuration: 800,
+    animationEasing: 'cubicOut' as const,
   }
 
-  trendChart.setOption(option)
+  trendChart.setOption(option, true)
 }
 
-// 更新雷达图
+// 更新雷达图 — 使用 Design Token 风格
 function updateRadarChart() {
   if (!radarChart || reports.value.length === 0) return
 
+  const theme = getChartThemeColors()
   const dimensions = reports.value[0].dimensions
+  const isManyChapters = reports.value.length > 5
+
+  const radarSeriesData = isManyChapters
+    ? [
+        {
+          value: dimensions.map((_, i) => {
+            const sum = reports.value.reduce((s, r) => s + r.dimensions[i].score, 0)
+            return +(sum / reports.value.length).toFixed(1)
+          }),
+          name: '平均',
+          symbol: 'circle',
+          symbolSize: 5,
+          lineStyle: { width: 2.5, color: theme.accent },
+          areaStyle: { color: theme.accent + '20' },
+          itemStyle: { color: theme.accent },
+        },
+        {
+          value: dimensions.map((_, i) => {
+            return Math.max(...reports.value.map(r => r.dimensions[i].score))
+          }),
+          name: '最佳',
+          symbol: 'diamond',
+          symbolSize: 4,
+          lineStyle: { width: 1.5, color: theme.success, type: 'dashed' },
+          areaStyle: { color: theme.success + '10' },
+          itemStyle: { color: theme.success },
+        },
+        {
+          value: dimensions.map((_, i) => {
+            return Math.min(...reports.value.map(r => r.dimensions[i].score))
+          }),
+          name: '最差',
+          symbol: 'triangle',
+          symbolSize: 4,
+          lineStyle: { width: 1.5, color: theme.warning, type: 'dotted' },
+          areaStyle: { color: theme.warning + '10' },
+          itemStyle: { color: theme.warning },
+        },
+      ]
+    : reports.value.map((r, idx) => ({
+        value: r.dimensions.map(d => d.score),
+        name: `第${r.chapterNumber}章`,
+        symbol: 'circle',
+        symbolSize: 4,
+        lineStyle: { width: 1.5, color: DIMENSION_COLORS[idx % DIMENSION_COLORS.length] },
+        areaStyle: { color: DIMENSION_COLORS[idx % DIMENSION_COLORS.length] + '18' },
+        itemStyle: { color: DIMENSION_COLORS[idx % DIMENSION_COLORS.length] },
+      }))
 
   const option = {
+    backgroundColor: 'transparent',
     title: {
-      text: '维度雷达图',
-      left: 'center'
+      text: '审计维度分布',
+      left: 0,
+      top: 0,
+      textStyle: {
+        fontFamily: theme.fontSans,
+        fontSize: 15,
+        fontWeight: 600,
+        color: theme.textPrimary,
+      },
     },
-    tooltip: {},
+    tooltip: {
+      trigger: 'item',
+      backgroundColor: theme.bgSecondary,
+      borderColor: theme.surfaceBorder,
+      borderWidth: 1,
+      textStyle: {
+        fontFamily: theme.fontSans,
+        fontSize: 12,
+        color: theme.textPrimary,
+      },
+    },
     legend: {
-      data: reports.value.length > 5
+      data: isManyChapters
         ? ['平均', '最佳', '最差']
         : reports.value.map(r => `第${r.chapterNumber}章`),
-      top: 30
+      top: 32,
+      left: 0,
+      textStyle: {
+        fontFamily: theme.fontSans,
+        fontSize: 11,
+        color: theme.textSecondary,
+      },
+      itemWidth: 16,
+      itemHeight: 2,
+      itemGap: 16,
     },
     radar: {
+      center: ['50%', '58%'],
+      radius: '62%',
       indicator: dimensions.map(d => ({
         name: d.name,
-        max: d.maxScore
-      }))
+        max: d.maxScore,
+      })),
+      shape: 'polygon',
+      splitNumber: 5,
+      axisName: {
+        fontFamily: theme.fontSans,
+        fontSize: 11,
+        color: theme.textSecondary,
+      },
+      splitLine: {
+        lineStyle: { color: theme.surfaceBorder },
+      },
+      splitArea: {
+        show: true,
+        areaStyle: {
+          color: [theme.bgPrimary, theme.bgSecondary],
+        },
+      },
+      axisLine: {
+        lineStyle: { color: theme.surfaceBorder },
+      },
     },
     series: [{
       type: 'radar',
-      data: reports.value.length > 5
-        ? [
-            {
-              value: dimensions.map((_, i) => {
-                const sum = reports.value.reduce((s, r) => s + r.dimensions[i].score, 0)
-                return sum / reports.value.length
-              }),
-              name: '平均',
-              lineStyle: {
-                width: 3
-              }
-            },
-            {
-              value: dimensions.map((_, i) => {
-                return Math.max(...reports.value.map(r => r.dimensions[i].score))
-              }),
-              name: '最佳'
-            },
-            {
-              value: dimensions.map((_, i) => {
-                return Math.min(...reports.value.map(r => r.dimensions[i].score))
-              }),
-              name: '最差'
-            }
-          ]
-        : reports.value.map(r => ({
-            value: r.dimensions.map(d => d.score),
-            name: `第${r.chapterNumber}章`
-          }))
-    }]
+      data: radarSeriesData,
+    }],
+    animationDuration: 800,
+    animationEasing: 'cubicOut' as const,
   }
 
-  radarChart.setOption(option)
+  radarChart.setOption(option, true)
 }
 
 // 批量检查所有章节
+async function runAIGCDetection() {
+  aigcChecking.value = true
+  aigcResults.value = new Map()
+  try {
+    for (const report of reports.value) {
+      const chapter = chapters.value.find(c => c.number === report.chapterNumber)
+      if (chapter?.content) {
+        const result = await aigcDetector.detect(chapter.content)
+        aigcResults.value.set(report.chapterNumber, result)
+      }
+    }
+    ElMessage.success('AIGC检测完成')
+  } catch (error) {
+    ElMessage.error('AIGC检测失败：' + (error instanceof Error ? error.message : String(error)))
+  } finally {
+    aigcChecking.value = false
+  }
+}
+
+const overallAIGCScore = computed(() => {
+  if (aigcResults.value.size === 0) return 0
+  const scores = Array.from(aigcResults.value.values()).map(r => r.humanProbability * 100)
+  return Math.round(scores.reduce((a, b) => a + b, 0) / scores.length)
+})
+
+const aigcTableData = computed(() => {
+  return Array.from(aigcResults.value.entries()).map(([chapterNum, result]) => ({
+    chapter: `第${chapterNum}章`,
+    humanProb: Math.round(result.humanProbability * 100),
+    classification: result.humanProbability > 0.7 ? 'human' : result.humanProbability < 0.3 ? 'ai' : 'mixed',
+  }))
+})
+
 async function checkAllChapters() {
   if (!project.value || chapters.value.length === 0) {
     ElMessage.warning('没有可检查的章节')
@@ -744,11 +1024,6 @@ function getTotalIssues(report: QualityReport) {
   return report.dimensions.reduce((sum, dim) => sum + dim.issues.length, 0)
 }
 
-function formatDate(date: Date | string) {
-  const d = new Date(date)
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
-}
-
 // 监听窗口大小变化，重新渲染图表
 watch(() => [trendChartRef.value, radarChartRef.value], () => {
   if (trendChart) trendChart.resize()
@@ -807,7 +1082,11 @@ watch(() => [trendChartRef.value, radarChartRef.value], () => {
 }
 
 .chart-container {
-  margin-top: 20px;
+  margin-top: var(--ds-space-4);
+  padding: var(--ds-space-4);
+  background: var(--ds-bg-primary);
+  border: 1px solid var(--ds-surface-border);
+  border-radius: var(--ds-radius-md);
 }
 
 .dimension-card {
@@ -823,14 +1102,14 @@ watch(() => [trendChartRef.value, radarChartRef.value], () => {
 
 .dimension-name {
   font-size: 14px;
-  color: #606266;
+  color: var(--ds-text-secondary);
   margin-bottom: 10px;
 }
 
 .dimension-score {
   font-size: 24px;
   font-weight: bold;
-  color: #409eff;
+  color: var(--ds-info);
   margin-bottom: 10px;
 }
 
@@ -864,7 +1143,7 @@ watch(() => [trendChartRef.value, radarChartRef.value], () => {
 .issues-section h4,
 .suggestions-section h4 {
   margin-bottom: 15px;
-  color: #303133;
+  color: var(--ds-text-primary);
 }
 
 .issue-content {
@@ -874,12 +1153,12 @@ watch(() => [trendChartRef.value, radarChartRef.value], () => {
 }
 
 .issue-message {
-  color: #606266;
+  color: var(--ds-text-secondary);
 }
 
 .suggestions-list {
   padding-left: 20px;
-  color: #606266;
+  color: var(--ds-text-secondary);
   line-height: 1.8;
 }
 
@@ -899,7 +1178,7 @@ watch(() => [trendChartRef.value, radarChartRef.value], () => {
   width: 32px;
   height: 32px;
   border-radius: 50%;
-  background: #409eff;
+  background: var(--ds-info);
   color: white;
   display: flex;
   align-items: center;
@@ -911,25 +1190,25 @@ watch(() => [trendChartRef.value, radarChartRef.value], () => {
 .recommendation-text {
   flex: 1;
   line-height: 32px;
-  color: #606266;
+  color: var(--ds-text-secondary);
 }
 
 .progress-text {
   margin-top: 20px;
   text-align: center;
-  color: #606266;
+  color: var(--ds-text-secondary);
 }
 
 .markdown-content {
   line-height: 1.8;
-  color: #303133;
+  color: var(--ds-text-primary);
 }
 
 .markdown-content h2 {
   margin-top: 20px;
   margin-bottom: 10px;
   padding-bottom: 10px;
-  border-bottom: 1px solid #e4e7ed;
+  border-bottom: 1px solid var(--ds-surface-border);
 }
 
 .markdown-content h3 {
@@ -947,5 +1226,46 @@ watch(() => [trendChartRef.value, radarChartRef.value], () => {
 
 .detail-content {
   min-height: 400px;
+}
+
+/* 敏感词检测样式 */
+.sensitive-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: var(--ds-space-8) var(--ds-space-4);
+  text-align: center;
+  color: var(--ds-text-secondary);
+}
+
+.sensitive-empty p {
+  margin-top: var(--ds-space-3);
+  font-size: var(--ds-text-sm);
+}
+
+.sensitive-results {
+  padding: var(--ds-space-2);
+}
+
+.sensitive-issue {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--ds-space-2);
+}
+
+.sensitive-desc {
+  color: var(--ds-text-primary);
+  font-size: var(--ds-text-sm);
+  line-height: 1.6;
+}
+
+.sensitive-suggestion {
+  margin-top: var(--ds-space-2);
+  padding: var(--ds-space-2) var(--ds-space-3);
+  background: var(--ds-bg-secondary);
+  border-radius: var(--ds-radius-sm);
+  font-size: var(--ds-text-xs);
+  color: var(--ds-text-secondary);
 }
 </style>

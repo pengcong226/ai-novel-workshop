@@ -2,6 +2,9 @@ import DOMPurify from 'dompurify'
 import type { Entity } from '@/types/sandbox'
 import { IMPORTANCE_AI_LABELS } from '@/utils/eventTypeLabels'
 import { parseActionEnvelope, type ActionEnvelope } from '@/assistant/actions/actionEnvelope'
+import { getLogger } from '@/utils/logger'
+
+const logger = getLogger('assistant:chat')
 
 export interface AssistantAction {
   text: string
@@ -78,7 +81,7 @@ export function formatAssistantMessage(content: string): string {
   const html = content
     .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
     .replace(/\n/g, '<br>')
-  return DOMPurify.sanitize(html)
+  return DOMPurify.sanitize(html, { FORBID_TAGS: ['script', 'iframe', 'object', 'embed', 'form'] })
 }
 
 export function buildAssistantSystemPrompt(project: AssistantProjectContext | null | undefined, sandbox: AssistantSandboxContext): string {
@@ -185,6 +188,7 @@ export function parseAssistantActionCommand(command: string): ActionEnvelope | n
   try {
     return normalizeCreateCharacterAction(JSON.parse(command.substring(13)))
   } catch {
+    logger.debug('assistantChat: action command JSON parse failed')
     return null
   }
 }

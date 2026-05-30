@@ -9,7 +9,7 @@
  */
 
 import { defineStore } from 'pinia'
-import { ref, computed } from 'vue'
+import { ref, shallowRef, computed } from 'vue'
 import { getLogger } from '@/utils/logger'
 
 const logger = getLogger('vector')
@@ -26,7 +26,7 @@ import {
  */
 export const useVectorStore = defineStore('vector', () => {
   // 状态
-  const service = ref<VectorService | null>(null)
+  const service = shallowRef<VectorService | null>(null)
   const isInitialized = ref(false)
   const isLoading = ref(false)
   const error = ref<string | null>(null)
@@ -176,8 +176,8 @@ export const useVectorStore = defineStore('vector', () => {
     if (!service.value) return
     try {
       documentCount.value = await service.value.getDocumentCount(currentProjectId.value || undefined)
-    } catch {
-      // 忽略统计刷新失败
+    } catch (e) {
+      logger.debug('Vector stats refresh failed:', e)
     }
   }
 

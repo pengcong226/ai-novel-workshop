@@ -38,7 +38,7 @@
           <div v-for="task in manager.tasks" :key="task.id" class="task-item">
             <div class="task-item-header">
               <span class="task-title" :class="task.status">{{ task.title }}</span>
-              <span class="task-status-text">{{ getStatusText(task.status) }}</span>
+              <span class="task-status-text">{{ getTaskStatusText(task.status) }}</span>
             </div>
             <div class="task-item-desc" v-if="task.description">{{ task.description }}</div>
             <el-progress 
@@ -64,30 +64,20 @@
 <script setup lang="ts">
 import { ref } from 'vue'
 import { useTaskManager } from '@/stores/taskManager'
-import { 
-  InfoFilled, SuccessFilled, WarningFilled, CircleCloseFilled, 
-  Loading, Operation, ArrowUp, ArrowDown 
+import {
+  InfoFilled, SuccessFilled, WarningFilled, CircleCloseFilled,
+  Loading, Operation, ArrowUp, ArrowDown
 } from '@element-plus/icons-vue'
+import { getTaskStatusText } from '@/utils/formatters'
 
 const manager = useTaskManager()
 const isExpanded = ref(false)
-
-function getStatusText(status: string) {
-  switch(status) {
-    case 'pending': return '等待中'
-    case 'running': return '进行中'
-    case 'success': return '完成'
-    case 'error': return '失败'
-    case 'cancelled': return '已取消'
-    default: return status
-  }
-}
 </script>
 
 <style scoped>
 .global-task-observer {
   position: fixed;
-  z-index: 9999;
+  z-index: var(--ds-z-toast);
   pointer-events: none; /* Let clicks pass through */
   bottom: 0;
   left: 0;
@@ -110,7 +100,7 @@ function getStatusText(status: string) {
   pointer-events: auto;
   padding: 12px 16px;
   border-radius: 8px;
-  background: white;
+  background: var(--ds-surface);
   box-shadow: 0 4px 12px rgba(0,0,0,0.15);
   display: flex;
   align-items: center;
@@ -118,16 +108,16 @@ function getStatusText(status: string) {
   font-size: 14px;
   max-width: 350px;
 }
-.toast-success { border-left: 4px solid #67c23a; }
-.toast-info { border-left: 4px solid #909399; }
-.toast-warning { border-left: 4px solid #e6a23c; }
-.toast-error { border-left: 4px solid #f56c6c; }
+.toast-success { border-left: 4px solid var(--ds-success); }
+.toast-info { border-left: 4px solid var(--ds-text-tertiary); }
+.toast-warning { border-left: 4px solid var(--ds-warning); }
+.toast-error { border-left: 4px solid var(--ds-danger); }
 
 .toast-icon { font-size: 18px; }
-.toast-success .toast-icon { color: #67c23a; }
-.toast-info .toast-icon { color: #909399; }
-.toast-warning .toast-icon { color: #e6a23c; }
-.toast-error .toast-icon { color: #f56c6c; }
+.toast-success .toast-icon { color: var(--ds-success); }
+.toast-info .toast-icon { color: var(--ds-text-tertiary); }
+.toast-warning .toast-icon { color: var(--ds-warning); }
+.toast-error .toast-icon { color: var(--ds-danger); }
 
 
 /* Task Panel */
@@ -137,25 +127,25 @@ function getStatusText(status: string) {
   bottom: 20px;
   right: 20px;
   width: 320px;
-  background: white;
+  background: var(--ds-surface);
   border-radius: 8px;
   box-shadow: 0 4px 16px rgba(0,0,0,0.2);
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  border: 1px solid #ebeef5;
+  border: 1px solid var(--ds-surface-border);
 }
 
 .panel-header {
   padding: 12px 16px;
-  background: #f8f9fa;
+  background: var(--ds-bg-tertiary);
   display: flex;
   justify-content: space-between;
   align-items: center;
   cursor: pointer;
   user-select: none;
   font-weight: bold;
-  color: #303133;
+  color: var(--ds-text-primary);
 }
 .header-left {
   display: flex;
@@ -171,13 +161,13 @@ function getStatusText(status: string) {
 .panel-content {
   max-height: 400px;
   overflow-y: auto;
-  background: #fff;
+  background: var(--ds-surface);
   padding: 8px 0;
 }
 
 .task-item {
   padding: 12px 16px;
-  border-bottom: 1px solid #ebeef5;
+  border-bottom: 1px solid var(--ds-surface-border);
 }
 .task-item:last-child {
   border-bottom: none;
@@ -191,19 +181,19 @@ function getStatusText(status: string) {
 }
 .task-title {
   font-weight: 500;
-  color: #303133;
+  color: var(--ds-text-primary);
 }
-.task-title.error { color: #f56c6c; }
-.task-title.success { color: #67c23a; }
-.task-title.cancelled { color: #909399; text-decoration: line-through; }
+.task-title.error { color: var(--ds-danger); }
+.task-title.success { color: var(--ds-success); }
+.task-title.cancelled { color: var(--ds-text-tertiary); text-decoration: line-through; }
 
 .task-status-text {
   font-size: 12px;
-  color: #909399;
+  color: var(--ds-text-tertiary);
 }
 .task-item-desc {
   font-size: 12px;
-  color: #606266;
+  color: var(--ds-text-secondary);
   margin-bottom: 8px;
 }
 
@@ -216,8 +206,8 @@ function getStatusText(status: string) {
 .panel-footer {
   padding: 8px 16px;
   text-align: center;
-  background: #fcfcfc;
-  border-top: 1px solid #ebeef5;
+  background: var(--ds-bg-tertiary);
+  border-top: 1px solid var(--ds-surface-border);
 }
 
 /* Transitions */

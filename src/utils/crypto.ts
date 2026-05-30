@@ -9,10 +9,10 @@ const APP_SECRET_SEED = 'ai-novel-workshop-config'
 
 function getEnvironmentSeed(): string {
   const runtime = isWebRuntime() ? 'web' : 'tauri'
-  const origin = typeof window !== 'undefined' ? window.location.origin : 'unknown-origin'
-  const userAgent = typeof navigator !== 'undefined' ? navigator.userAgent : 'unknown-user-agent'
+  const origin = typeof window !== 'undefined' ? window.location.origin : 'tauri-local'
 
-  return `${APP_SECRET_SEED}:${runtime}:${origin}:${userAgent}`
+  // 移除 navigator.userAgent 依赖：浏览器更新会导致已加密密钥无法解密
+  return `${APP_SECRET_SEED}:${runtime}:${origin}`
 }
 
 function encodeBase64(bytes: Uint8Array): string {
@@ -55,14 +55,26 @@ function xorBytes(input: Uint8Array, seed: string): Uint8Array {
 
 async function deriveAESKey(seed: string): Promise<CryptoKey> {
   const encoder = new TextEncoder()
+  // 使用 PBKDF2 进行标准密钥派生，替代直接截取种子字符串
   const keyMaterial = await crypto.subtle.importKey(
     'raw',
-    encoder.encode(seed.padEnd(32, '0').slice(0, 32)),
-    { name: 'AES-GCM' },
+    encoder.encode(seed),
+    'PBKDF2',
+    false,
+    ['deriveBits', 'deriveKey']
+  )
+  return crypto.subtle.deriveKey(
+    {
+      name: 'PBKDF2',
+      salt: encoder.encode(APP_SECRET_SEED),
+      iterations: 100000,
+      hash: 'SHA-256'
+    },
+    keyMaterial,
+    { name: 'AES-GCM', length: 256 },
     false,
     ['encrypt', 'decrypt']
   )
-  return keyMaterial
 }
 
 export function isEncryptedApiKey(value?: string | null): boolean {
@@ -123,6 +135,7 @@ export async function decryptApiKeyV2(encrypted: string): Promise<string> {
   if (!encrypted) return encrypted
   if (encrypted.startsWith(ENCRYPTION_PREFIX)) {
     // Fallback to old XOR decryption for backward compat
+    logger.info('[crypto] 检测到 V1 加密格式，使用 XOR 解密（建议后续重新加密为 V2）')
     return decryptApiKey(encrypted)
   }
   if (!encrypted.startsWith(ENCRYPTION_PREFIX_V2)) return encrypted

@@ -207,9 +207,9 @@ export class RegexScriptManager {
     const {
       enabledOnly = false,
       includeExtensions = true,
-      _format = 'json',
+      format: _format = 'json',
       pretty = true
-    } = options as any
+    } = options
 
     let scripts = this.getAllScripts()
 
@@ -370,8 +370,19 @@ export class RegexScriptManager {
   /**
    * 解析正则表达式字符串
    * 格式: /pattern/flags
+   * 包含 ReDoS 防护：限制模式长度、检测嵌套量词
    */
   private parseRegexString(regexString: string): RegExp {
+    // ReDoS 防护：限制正则模式最大长度
+    if (regexString.length > 1000) {
+      throw new Error('正则表达式过长（最大1000字符），可能存在安全风险')
+    }
+
+    // ReDoS 防护：检测嵌套量词模式 (a+)+ 或 (a*)*
+    if (/\([^)]*[+*][^)]*\)[+*?]/.test(regexString)) {
+      throw new Error('检测到潜在的 ReDoS 模式（嵌套量词），已拒绝执行')
+    }
+
     // 检查是否是 /pattern/flags 格式
     const match = regexString.match(/^\/(.*)\/([gimsuy]*)$/)
 

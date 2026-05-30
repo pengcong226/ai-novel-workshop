@@ -432,7 +432,7 @@ export class NovelExtractor {
       try {
         entitiesOutput = JSON.parse(entityRes.content)
       } catch {
-        logger.warn('Failed to parse entity extraction result')
+        logger.debug('novel-extractor: entity extraction JSON parse fallback failed')
       }
     }
 
@@ -477,7 +477,7 @@ export class NovelExtractor {
       try {
         stateOutput = JSON.parse(stateRes.content)
       } catch {
-        logger.warn('Failed to parse state extraction result')
+        logger.debug('novel-extractor: state extraction JSON parse fallback failed')
       }
     }
 
@@ -683,6 +683,7 @@ export class NovelExtractor {
     try {
       return JSON.parse(res.content)
     } catch {
+      logger.debug('novel-extractor: quick-scan JSON parse failed, returning default')
       return { isKeyChapter: false, reason: 'Parse failed', mentionedEntities: [] }
     }
   }
@@ -1077,6 +1078,7 @@ export class NovelExtractor {
       const keys = parsed.filter((item): item is string => typeof item === 'string')
       return { exists: true, keys }
     } catch {
+      logger.debug('novel-extractor: session index parse failed, clearing index')
       localStorage.removeItem(indexKey)
       return { exists: false, keys: [] }
     }
@@ -1110,6 +1112,7 @@ export class NovelExtractor {
     try {
       return deserialize(serialized)
     } catch {
+      logger.debug('novel-extractor: cached session deserialization failed, removing')
       localStorage.removeItem(key)
       return null
     }

@@ -298,6 +298,9 @@ export const useProjectStore = defineStore('project', () => {
   let pendingSave = false
   let currentSavePromise: Promise<void> | null = null
 
+  // 章节保存锁：按 chapterId 串行化，防止同一章节并发保存导致数据竞态
+  const chapterSaveQueues = new Map<string, Promise<void>>()
+
   // 立即保存当前项目（用于关键操作）
   async function saveCurrentProject() {
     if (!currentProject.value) {
@@ -339,6 +342,12 @@ export const useProjectStore = defineStore('project', () => {
         await storage.saveProject(project)
         logger.debug('项目已保存到 IndexedDB', { id: project.id })
 
+        // 自动定期备份（不阻断主流程）
+        try {
+          const { maybeAutoBackup } = await import('@/utils/autoBackup')
+          void maybeAutoBackup(project)
+        } catch { /* 静默 */ }
+
         // 更新项目列表
         const index = projects.value.findIndex(p => p.id === project.id)
         if (index !== -1) {
@@ -379,8 +388,33 @@ export const useProjectStore = defineStore('project', () => {
 
   async function saveChapter(chapter: any) {
     if (!currentProject.value) {
-      logger.error('保存章节失败：currentProject 为空')
-      return
+      const errMsg = '保存章节失败：项目未加载'
+      logger.error(errMsg)
+      throw new Error(errMsg)
+    }
+
+    const chapterId = chapter.id
+
+    // 串行化同一章节的并发保存请求，防止数据竞态
+    const previousTask = chapterSaveQueues.get(chapterId) || Promise.resolve()
+    const currentTask = previousTask.then(() => doSaveChapter(chapter))
+    chapterSaveQueues.set(chapterId, currentTask)
+
+    try {
+      await currentTask
+    } finally {
+      // 清理已完成的队列项（仅当队列中没有更新的任务时）
+      if (chapterSaveQueues.get(chapterId) === currentTask) {
+        chapterSaveQueues.delete(chapterId)
+      }
+    }
+  }
+
+  async function doSaveChapter(chapter: any) {
+    if (!currentProject.value) {
+      const errMsg = '保存章节失败：项目未加载'
+      logger.error(errMsg)
+      throw new Error(errMsg)
     }
 
     loading.value = true
@@ -398,14 +432,14 @@ export const useProjectStore = defineStore('project', () => {
       // 2. 剥离 content 以维护前端状态机的轻量化（防OOM）
       const shallowChapter = { ...chapterToSave }
       delete shallowChapter.content
-      
+
       const index = currentProject.value.chapters.findIndex((c: any) => c.id === chapter.id)
       if (index !== -1) {
         currentProject.value.chapters[index] = shallowChapter
       } else {
         currentProject.value.chapters.push(shallowChapter)
       }
-      
+
       // 3. 级联更新主项目字数
       currentProject.value.currentWords = currentProject.value.chapters.reduce((sum: number, c: any) => sum + (c.wordCount || 0), 0)
 
@@ -585,6 +619,18 @@ export const useProjectStore = defineStore('project', () => {
     return project
   }
 
+  // 从备份恢复项目数据
+  async function restoreFromBackup(backupData: any) {
+    if (!backupData) {
+      throw new Error('备份数据为空')
+    }
+    // 将备份数据赋值给 currentProject
+    currentProject.value = backupData
+    // 立即保存到持久层
+    await saveCurrentProject()
+    logger.info('[ProjectStore] 已从备份恢复项目数据')
+  }
+
   return {
     // 状态
     projects,
@@ -608,6 +654,7 @@ export const useProjectStore = defineStore('project', () => {
     importProject,
     loadGlobalConfig,
     saveGlobalConfig,
+    restoreFromBackup,
 
     // 章节级新接口
     loadChapter,

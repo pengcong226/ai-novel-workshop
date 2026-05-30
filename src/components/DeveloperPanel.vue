@@ -246,7 +246,7 @@ onUnmounted(() => {
   margin: 0;
   font-size: 22px;
   font-weight: 600;
-  color: #303133;
+  color: var(--ds-text-primary);
 }
 
 .mock-indicator {
@@ -260,14 +260,14 @@ onUnmounted(() => {
 }
 
 .card {
-  border: 1px solid #ebeef5;
+  border: 1px solid var(--ds-surface-border);
 }
 
 .status-preview {
   margin-top: 10px;
   max-height: 180px;
   overflow: auto;
-  background: #f5f7fa;
+  background: var(--ds-bg-tertiary);
   padding: 10px;
   border-radius: 6px;
   font-size: 12px;
@@ -286,10 +286,10 @@ onUnmounted(() => {
 }
 
 .log-item {
-  border: 1px solid #ebeef5;
+  border: 1px solid var(--ds-surface-border);
   border-radius: 6px;
   padding: 8px;
-  background: #fff;
+  background: var(--ds-surface);
 }
 
 .log-meta {
@@ -301,18 +301,18 @@ onUnmounted(() => {
 }
 
 .log-meta .ns {
-  color: #606266;
+  color: var(--ds-text-secondary);
   font-weight: 500;
 }
 
 .log-meta .time {
   margin-left: auto;
-  color: #909399;
+  color: var(--ds-text-tertiary);
 }
 
 .log-message {
   font-size: 13px;
-  color: #303133;
+  color: var(--ds-text-primary);
   word-break: break-all;
 }
 </style>

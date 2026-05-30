@@ -39,7 +39,7 @@ function formatDate(date: Date | string): string {
   max-width: 820px;
   margin: 0 auto;
   padding: 8px 12px 32px;
-  color: #303133;
+  color: var(--ds-text-primary);
 }
 
 .reader-header {
@@ -51,7 +51,7 @@ function formatDate(date: Date | string): string {
 
 .chapter-number {
   margin: 0 0 8px;
-  color: #909399;
+  color: var(--ds-text-tertiary);
   letter-spacing: 0.12em;
 }
 
@@ -67,7 +67,7 @@ function formatDate(date: Date | string): string {
   justify-content: center;
   gap: 16px;
   margin-top: 12px;
-  color: #909399;
+  color: var(--ds-text-tertiary);
   font-size: 13px;
 }
 

@@ -152,15 +152,15 @@ const emit = defineEmits<{
 }
 
 .suggestion-card.priority-high {
-  border-left: 3px solid #f56c6c;
+  border-left: 3px solid var(--ds-danger);
 }
 
 .suggestion-card.priority-medium {
-  border-left: 3px solid #e6a23c;
+  border-left: 3px solid var(--ds-warning);
 }
 
 .suggestion-card.priority-low {
-  border-left: 3px solid #409eff;
+  border-left: 3px solid var(--ds-info);
 }
 
 .suggestion-card.status-adopted {
@@ -196,12 +196,12 @@ const emit = defineEmits<{
 }
 
 .more-icon:hover {
-  background: #f0f2f5;
+  background: var(--ds-bg-tertiary);
 }
 
 .suggestion-message {
   font-size: 13px;
-  color: #606266;
+  color: var(--ds-text-secondary);
   line-height: 1.5;
   margin-bottom: 8px;
 }
@@ -220,7 +220,7 @@ const emit = defineEmits<{
   display: flex;
   justify-content: space-between;
   font-size: 12px;
-  color: #909399;
+  color: var(--ds-text-tertiary);
 }
 
 .batch-actions {
@@ -228,7 +228,7 @@ const emit = defineEmits<{
   align-items: center;
   gap: 12px;
   padding: 12px;
-  background: #f5f7fa;
+  background: var(--ds-bg-tertiary);
   border-radius: 8px;
   margin-top: 12px;
 }

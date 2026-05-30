@@ -1,6 +1,9 @@
 import { defineConfig } from 'vitest/config'
 import vue from '@vitejs/plugin-vue'
 import { resolve } from 'path'
+import AutoImport from 'unplugin-auto-import/vite'
+import Components from 'unplugin-vue-components/vite'
+import { ElementPlusResolver } from 'unplugin-vue-components/resolvers'
 
 const devServerHost = process.env.VITE_DEV_SERVER_HOST ?? '127.0.0.1'
 const devAllowedHosts = (process.env.VITE_DEV_ALLOWED_HOSTS ?? '')
@@ -23,7 +26,15 @@ function getCustomProxyTarget(): string | undefined {
 const customProxyTarget = getCustomProxyTarget()
 
 export default defineConfig({
-  plugins: [vue()],
+  plugins: [
+    vue(),
+    AutoImport({
+      resolvers: [ElementPlusResolver()],
+    }),
+    Components({
+      resolvers: [ElementPlusResolver()],
+    }),
+  ],
   define: {
     __APP_IS_TAURI__: Boolean(process.env.TAURI_ENV_PLATFORM)
   },

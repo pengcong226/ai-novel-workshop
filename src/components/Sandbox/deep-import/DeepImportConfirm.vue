@@ -162,7 +162,7 @@ async function handleRetryAll() {
 .mode-desc {
   display: block;
   font-size: 11px;
-  color: #909399;
+  color: var(--ds-text-tertiary);
   margin-top: 2px;
 }
 
@@ -185,11 +185,11 @@ async function handleRetryAll() {
   justify-content: space-between;
   align-items: center;
   padding: 6px 12px;
-  background: #fef0f0;
-  border: 1px solid #fde2e2;
+  background: color-mix(in srgb, var(--ds-danger) 10%, var(--ds-surface));
+  border: 1px solid color-mix(in srgb, var(--ds-danger) 20%, var(--ds-surface));
   border-radius: 4px;
   font-size: 12px;
-  color: #f56c6c;
+  color: var(--ds-danger);
 }
 
 .confirm-actions {

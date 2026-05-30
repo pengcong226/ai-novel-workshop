@@ -4,7 +4,7 @@
  * 负责插件的安装、激活、停用、卸载等生命周期管理
  */
 
-import type { PluginManifest, PluginInstance, PluginContext } from './types'
+import type { ActionContext, PluginManifest, PluginInstance, PluginContext } from './types'
 import { createPluginContext, enhancePluginContext } from './context'
 import { PluginStorage } from './storage'
 import { getLogger } from '@/utils/logger'
@@ -285,9 +285,11 @@ export class PluginManager {
   /**
    * 执行AI动作
    */
-  async executeAction(type: string, data: any, context?: any): Promise<void> {
-    const ctx = context || { project: {} as any }
-    await this.registries.aiActionHandler.execute(type, data, ctx)
+  async executeAction(type: string, data: unknown, context?: ActionContext): Promise<void> {
+    if (!context) {
+      throw new Error('执行AI动作需要提供上下文')
+    }
+    await this.registries.aiActionHandler.execute(type, data, context)
   }
 
   // ==================== 私有方法 ====================

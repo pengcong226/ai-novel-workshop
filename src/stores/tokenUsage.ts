@@ -3,9 +3,12 @@ import { defineStore } from 'pinia'
 import type { ChatResponse, TaskContext } from '@/types/ai'
 import type { TokenUsageRecord, TokenUsageSource, TokenUsageTaskType } from '@/types/token-usage'
 import { normalizeUsageTaskType } from '@/utils/tokenUsage'
+import { generateId } from '@/utils/generateId'
+import { getLogger } from '@/utils/logger'
 
 const HISTORY_LIMIT = 1000
 const STORAGE_PREFIX = 'token_usage:'
+const logger = getLogger('tokenUsage:store')
 
 interface RecordUsageInput extends Omit<TokenUsageRecord, 'id' | 'timestamp'> {
   id?: string
@@ -29,7 +32,7 @@ export const useTokenUsageStore = defineStore('tokenUsage', () => {
 
     const record: TokenUsageRecord = {
       ...input,
-      id: input.id ?? crypto.randomUUID(),
+      id: input.id ?? generateId(),
       timestamp: input.timestamp ?? new Date().toISOString(),
       taskType: normalizeUsageTaskType(input.taskType),
     }
@@ -97,6 +100,7 @@ export const useTokenUsageStore = defineStore('tokenUsage', () => {
         ...loaded,
       ]
     } catch {
+      logger.debug('tokenUsage: storage load failed, clearing project records')
       records.value = records.value.filter(record => record.projectId !== projectId)
     }
   }
@@ -105,7 +109,7 @@ export const useTokenUsageStore = defineStore('tokenUsage', () => {
     try {
       localStorage.setItem(getStorageKey(projectId), JSON.stringify(getProjectRecords(projectId).slice(-HISTORY_LIMIT)))
     } catch {
-      // localStorage may be unavailable in private or restricted browser contexts.
+      logger.debug('tokenUsage: storage write failed (private/restricted browser context)')
     }
   }
 
@@ -114,7 +118,7 @@ export const useTokenUsageStore = defineStore('tokenUsage', () => {
     try {
       localStorage.removeItem(getStorageKey(projectId))
     } catch {
-      // localStorage may be unavailable in private or restricted browser contexts.
+      logger.debug('tokenUsage: storage remove failed (private/restricted browser context)')
     }
   }
 

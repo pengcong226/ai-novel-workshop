@@ -217,7 +217,7 @@ function handleStart() {
 
 .form-hint {
   margin-left: 8px;
-  color: #909399;
+  color: var(--ds-text-tertiary);
   font-size: 12px;
 }
 
@@ -240,7 +240,7 @@ function handleStart() {
 
 .scan-chapter {
   padding: 6px 8px;
-  border: 1px solid #e4e7ed;
+  border: 1px solid var(--ds-surface-border);
   border-radius: 4px;
   cursor: pointer;
   transition: all 0.2s;
@@ -248,17 +248,17 @@ function handleStart() {
 }
 
 .scan-chapter:hover {
-  border-color: #409eff;
+  border-color: var(--ds-info);
 }
 
 .scan-chapter.is-key {
-  background: #fdf6ec;
-  border-color: #e6a23c;
+  background: color-mix(in srgb, var(--ds-warning) 10%, var(--ds-surface));
+  border-color: var(--ds-warning);
 }
 
 .scan-chapter.is-selected {
-  background: #ecf5ff;
-  border-color: #409eff;
+  background: color-mix(in srgb, var(--ds-info) 10%, var(--ds-surface));
+  border-color: var(--ds-info);
 }
 
 .ch-num {
@@ -267,7 +267,7 @@ function handleStart() {
 }
 
 .ch-reason {
-  color: #909399;
+  color: var(--ds-text-tertiary);
   font-size: 11px;
   overflow: hidden;
   text-overflow: ellipsis;

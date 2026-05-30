@@ -11,6 +11,7 @@ import { ElMessage, ElMessageBox, ElNotification } from 'element-plus'
 import type { Outline } from '@/types'
 import type { ResolvedEntity } from '@/stores/sandbox'
 import { getLogger } from '@/utils/logger'
+import type { ChatMessage } from '@/types/ai'
 import type {
   PluginContext,
   DialogOptions,
@@ -28,7 +29,10 @@ import type {
   ToolbarButtonContribution,
   QuickCommandContribution,
   AIActionHandlerContribution,
-  ThemeExtension
+  ThemeExtension,
+  Message,
+  ChatOptions,
+  GenerateOptions
 } from './types'
 
 const logger = getLogger('plugin:context')
@@ -122,34 +126,34 @@ export function createPluginContext(
    * AI服务API
    */
   const aiAPI = {
-    async chat(messages: any[], options?: any) {
+    async chat(messages: Message[], options?: ChatOptions) {
       requirePermission('ai-api', '调用AI聊天')
       const store = useAIStore()
       if (!store.checkInitialized()) throw new Error('AI服务未配置')
-      const response = await store.chat(messages, { type: 'chapter' as any, priority: 'balanced', complexity: 'low' }, options)
+      const response = await store.chat(messages as ChatMessage[], { type: 'chapter', priority: 'balanced', complexity: 'low' }, options)
       return response.content
     },
 
-    async chatStream(messages: any[], callback: (chunk: string) => void) {
+    async chatStream(messages: Message[], callback: (chunk: string) => void) {
       requirePermission('ai-api', '调用AI流式聊天')
       const store = useAIStore()
       if (!store.checkInitialized()) throw new Error('AI服务未配置')
       await store.chatStream(
-        messages,
+        messages as ChatMessage[],
         (event) => {
           if (event.type === 'chunk' && event.chunk) {
             callback(event.chunk)
           }
         },
-        { type: 'chapter' as any, priority: 'balanced', complexity: 'low' }
+        { type: 'chapter', priority: 'balanced', complexity: 'low' }
       )
     },
 
-    async generateText(prompt: string, options?: any) {
+    async generateText(prompt: string, options?: GenerateOptions) {
       requirePermission('ai-api', '调用AI文本生成')
       const store = useAIStore()
       if (!store.checkInitialized()) throw new Error('AI服务未配置')
-      const response = await store.chat([{ role: 'user', content: prompt }], { type: 'chapter' as any, priority: 'balanced', complexity: 'medium' }, options)
+      const response = await store.chat([{ role: 'user', content: prompt }], { type: 'chapter', priority: 'balanced', complexity: 'medium' }, options)
       return response.content
     }
   }
@@ -164,12 +168,14 @@ export function createPluginContext(
       const projectId = projectStore.currentProject?.id
       if (!projectId) throw new Error('未打开项目')
       const { getVectorService } = await import('@/services/vector-service')
-      const vectorService = await getVectorService(projectId ? { projectId } as any : undefined)
-      return await vectorService.vectorSearch(query.query, {
+      // @ts-expect-error -- projectId is passed through for internal routing, not in EmbeddingConfig type
+      const vectorService = await getVectorService(projectId ? { projectId } : undefined)
+      const results = await vectorService.vectorSearch(query.query, {
         topK: query.topK,
         minScore: query.minScore,
         filter: { projectId }
-      }) as any as VectorSearchResult[]
+      })
+      return results as unknown as VectorSearchResult[]
     },
 
     async addDocument(doc: VectorDocument): Promise<void> {
@@ -178,7 +184,8 @@ export function createPluginContext(
       const projectId = projectStore.currentProject?.id
       if (!projectId) throw new Error('未打开项目')
       const { getVectorService } = await import('@/services/vector-service')
-      const vectorService = await getVectorService(projectId ? { projectId } as any : undefined)
+      // @ts-expect-error -- projectId is passed through for internal routing, not in EmbeddingConfig type
+      const vectorService = await getVectorService(projectId ? { projectId } : undefined)
       // 使用 V5 新接口
       await vectorService.addDocument({
         id: doc.id,
@@ -377,16 +384,21 @@ export function createPluginContext(
 
     deepMerge<T>(target: T, source: Partial<T>): T {
       const result = { ...target }
+      const resultRec = result as Record<string, unknown>
+      const sourceRec = source as Record<string, unknown>
       for (const key in source) {
         // Prototype pollution guard
         if (key === '__proto__' || key === 'constructor' || key === 'prototype') {
           continue
         }
-        if (source[key] !== undefined) {
-          if (typeof source[key] === 'object' && source[key] !== null && !Array.isArray(source[key])) {
-            (result as any)[key] = utilsAPI.deepMerge((result as any)[key] || {}, source[key] as any)
+        if (sourceRec[key] !== undefined) {
+          if (typeof sourceRec[key] === 'object' && sourceRec[key] !== null && !Array.isArray(sourceRec[key])) {
+            resultRec[key] = utilsAPI.deepMerge(
+              (resultRec[key] || {}) as Record<string, unknown>,
+              sourceRec[key] as Record<string, unknown>
+            )
           } else {
-            (result as any)[key] = source[key]
+            resultRec[key] = sourceRec[key]
           }
         }
       }

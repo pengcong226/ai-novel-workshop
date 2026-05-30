@@ -12,7 +12,7 @@
           <el-option v-for="model in getAvailableModels('all')" :key="model.id" :label="`${model.providerName} - ${model.name}`" :value="model.id">
             <div style="display: flex; justify-content: space-between;">
               <span>{{ model.providerName }} - {{ model.name }}</span>
-              <span style="color: #909399; font-size: 12px;">{{ model.maxTokens }}K tokens</span>
+              <span style="color: var(--ds-text-tertiary); font-size: 12px;">{{ model.maxTokens }}K tokens</span>
             </div>
           </el-option>
         </el-select>
@@ -24,7 +24,7 @@
           <el-option v-for="model in getAvailableModels('all')" :key="model.id" :label="`${model.providerName} - ${model.name}`" :value="model.id">
             <div style="display: flex; justify-content: space-between;">
               <span>{{ model.providerName }} - {{ model.name }}</span>
-              <span style="color: #909399; font-size: 12px;">{{ model.maxTokens }}K tokens</span>
+              <span style="color: var(--ds-text-tertiary); font-size: 12px;">{{ model.maxTokens }}K tokens</span>
             </div>
           </el-option>
         </el-select>
@@ -36,7 +36,7 @@
           <el-option v-for="model in getAvailableModels('all')" :key="model.id" :label="`${model.providerName} - ${model.name}`" :value="model.id">
             <div style="display: flex; justify-content: space-between;">
               <span>{{ model.providerName }} - {{ model.name }}</span>
-              <span style="color: #909399; font-size: 12px;">{{ model.maxTokens }}K tokens</span>
+              <span style="color: var(--ds-text-tertiary); font-size: 12px;">{{ model.maxTokens }}K tokens</span>
             </div>
           </el-option>
         </el-select>
@@ -48,7 +48,7 @@
           <el-option v-for="model in getAvailableModels('all')" :key="model.id" :label="`${model.providerName} - ${model.name}`" :value="model.id">
             <div style="display: flex; justify-content: space-between;">
               <span>{{ model.providerName }} - {{ model.name }}</span>
-              <span style="color: #909399; font-size: 12px;">{{ model.maxTokens }}K tokens</span>
+              <span style="color: var(--ds-text-tertiary); font-size: 12px;">{{ model.maxTokens }}K tokens</span>
             </div>
           </el-option>
         </el-select>
@@ -108,7 +108,7 @@ function getAvailableModels(type: string) {
 <style scoped>
 .form-tip {
   font-size: 12px;
-  color: #909399;
+  color: var(--ds-text-tertiary);
   margin-top: 4px;
 }
 </style>

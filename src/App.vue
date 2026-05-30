@@ -6,8 +6,12 @@
 
     <!-- 全局错误提示 -->
     <el-config-provider :locale="zhCn">
-      <router-view />
-      <OnboardingDialog />
+      <ErrorBoundary name="RouterView" :show-retry="true">
+        <router-view />
+      </ErrorBoundary>
+      <ErrorBoundary name="OnboardingDialog">
+        <OnboardingDialog />
+      </ErrorBoundary>
     </el-config-provider>
 
     <!-- 全局任务观察器 -->
@@ -33,14 +37,16 @@
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { ElConfigProvider, ElNotification } from 'element-plus'
 import zhCn from 'element-plus/es/locale/lang/zh-cn'
-import { setupGlobalErrorHandler, errorHandler, ErrorSeverity, type AppError } from '@/utils/errorHandler'
+import { setupGlobalErrorHandler, errorHandler, ErrorSeverity, type AppError, getFriendlyMessage } from '@/utils/errorHandler'
 import GlobalTaskObserver from '@/components/GlobalTaskObserver.vue'
 import GlobalMutator from '@/components/GlobalMutator.vue'
 import OnboardingDialog from '@/components/OnboardingDialog.vue'
+import ErrorBoundary from '@/components/ErrorBoundary.vue'
 import { useKeyboardShortcuts } from '@/composables/useKeyboardShortcuts'
 import { useOnboarding } from '@/composables/useOnboarding'
 import { useOnlineStatus } from '@/composables/useOnlineStatus'
 import { getLogger } from '@/utils/logger'
+import { cleanupMockData } from '@/utils/cleanupMockData'
 const logger = getLogger('src:App')
 
 const currentError = ref<AppError | null>(null)
@@ -76,10 +82,10 @@ const errorMessage = computed(() => {
   if (!currentError.value) return ''
 
   const error = currentError.value
-  let message = error.message
+  let message = getFriendlyMessage(error.message)
 
   if (error.userAction) {
-    message = `[${error.userAction}] ${message}`
+    message = `在${error.userAction}时：${message}`
   }
 
   return message
@@ -138,6 +144,16 @@ function handleError(error: AppError) {
 let unsubscribeErrorHandler: (() => void) | undefined
 
 onMounted(async () => {
+  // 清理开发/测试 mock 数据（仅首次交付时执行一次）
+  try {
+    const cleaned = await cleanupMockData()
+    if (cleaned) {
+      logger.info('Mock 数据已清理，页面将刷新以加载初始状态')
+    }
+  } catch (e) {
+    logger.warn('Mock 数据清理异常（不阻断启动）:', e)
+  }
+
   // 设置全局错误处理器
   setupGlobalErrorHandler()
   onboarding.initialize()
@@ -163,7 +179,7 @@ html, body, #app, .app-container {
   top: 0;
   left: 0;
   right: 0;
-  z-index: 10000;
+  z-index: var(--ds-z-banner);
   padding: var(--ds-space-2) var(--ds-space-4);
   background: color-mix(in srgb, var(--ds-warning) 14%, var(--ds-bg-elevated));
   color: var(--ds-warning);

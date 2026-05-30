@@ -1,6 +1,8 @@
 <template>
   <div class="sandbox-document-container">
-    <el-empty v-if="!activeEntityId" description="请从左侧实体库选择一个条目查看详细档案" />
+    <el-empty v-if="!activeEntityId" description="请从左侧实体库选择一个条目查看详细档案">
+      <el-button type="primary" @click="createNewEntity">创建新实体</el-button>
+    </el-empty>
 
     <div v-else class="entity-details">
       <!-- Top Section: Static Encyclopedia Data -->
@@ -90,12 +92,35 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { useSandboxStore } from '@/stores/sandbox'
+import { generateId } from '@/utils/generateId'
 import type { ResolvedEntity } from '@/stores/sandbox'
+import { useProjectStore } from '@/stores/project'
 import { getLogger } from '@/utils/logger'
+import { ElMessage } from 'element-plus'
 
 const logger = getLogger('sandbox:document')
 
 const sandboxStore = useSandboxStore()
+const projectStore = useProjectStore()
+
+async function createNewEntity() {
+  const projectId = projectStore.currentProject?.id
+  if (!projectId) return
+  const newEntity = {
+    id: generateId() || Math.random().toString(36).slice(2),
+    projectId,
+    type: 'CHARACTER' as const,
+    name: '新角色',
+    aliases: [],
+    importance: 'minor' as const,
+    category: 'Supporting',
+    systemPrompt: '',
+    isArchived: false,
+    createdAt: Date.now()
+  }
+  await sandboxStore.addEntity(newEntity)
+  ElMessage.success('已创建新实体，请在左侧实体库中选择查看')
+}
 
 // For the prototype, we assume the first entity is active if none selected.
 // Real app should have a `sandboxStore.activeEntityId`.

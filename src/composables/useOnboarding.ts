@@ -1,6 +1,7 @@
 import { computed, ref, type ComputedRef, type Ref } from 'vue'
 
 export const ONBOARDING_COMPLETED_KEY = 'ai-novel-workshop:onboarding:c2:completed'
+export const ONBOARDING_DISMISSED_KEY = 'ai-novel-workshop:onboarding:c2:dismissed-at'
 
 interface OnboardingStorage {
   getItem(key: string): string | null
@@ -31,7 +32,16 @@ export function createOnboardingState(storage = getDefaultStorage(), stepCount =
   const maxStep = Math.max(0, stepCount - 1)
 
   function initialize(): void {
-    isVisible.value = !readCompleted(storage)
+    if (readCompleted(storage)) {
+      isVisible.value = false
+      return
+    }
+    const dismissedAt = readDismissedAt(storage)
+    if (dismissedAt && Date.now() - dismissedAt < 24 * 60 * 60 * 1000) {
+      isVisible.value = false
+      return
+    }
+    isVisible.value = true
     currentStep.value = 0
   }
 
@@ -53,12 +63,18 @@ export function createOnboardingState(storage = getDefaultStorage(), stepCount =
   }
 
   function dismiss(): void {
+    try {
+      storage?.setItem(ONBOARDING_DISMISSED_KEY, String(Date.now()))
+    } catch {
+      // ignore
+    }
     isVisible.value = false
   }
 
   function reset(): void {
     try {
       storage?.removeItem(ONBOARDING_COMPLETED_KEY)
+      storage?.removeItem(ONBOARDING_DISMISSED_KEY)
     } catch {
       // Fail open: users should be able to see onboarding again when persistence is unavailable.
     }
@@ -84,6 +100,15 @@ function readCompleted(storage?: OnboardingStorage): boolean {
     return storage?.getItem(ONBOARDING_COMPLETED_KEY) === 'true'
   } catch {
     return false
+  }
+}
+
+function readDismissedAt(storage?: OnboardingStorage): number | null {
+  try {
+    const val = storage?.getItem(ONBOARDING_DISMISSED_KEY)
+    return val ? Number(val) : null
+  } catch {
+    return null
   }
 }
 

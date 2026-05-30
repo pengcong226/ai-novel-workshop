@@ -19,8 +19,8 @@ export function countTokens(text: string, provider: LLMProvider): number {
       return encode(text).length
 
     case 'anthropic':
-      // Claude tokenizer近似：中文约1.5字符/token
-      return estimateClaudeTokens(text)
+      // 使用统一的token估算函数
+      return estimateTokens(text)
 
     case 'local':
     case 'custom':
@@ -31,27 +31,25 @@ export function countTokens(text: string, provider: LLMProvider): number {
 }
 
 /**
- * 估算Claude模型的token数量
- * Claude的tokenizer对中文更友好
+ * 统一的Token估算函数（fallback模式）
+ * 用于所有模块的token数量近似计算，确保一致性
+ *
+ * 估算策略：
+ * - 中文：约1.5 token/字符（即1字符 ≈ 1.5 token）
+ * - 英文：约4字符/token（BPE tokenizer的典型表现）
+ * - 其他（标点、数字、空格等）：约3字符/token
  */
-function estimateClaudeTokens(text: string): number {
-  // 中文字符
+export function estimateTokens(text: string): number {
+  if (!text) return 0
+
   const chineseChars = (text.match(/[\u4e00-\u9fa5]/g) || []).length
+  const englishChars = (text.match(/[a-zA-Z]+/g) || []).join('').length
+  const otherChars = text.length - chineseChars - englishChars
 
-  // 英文单词
-  const englishWords = (text.match(/[a-zA-Z]+/g) || []).length
-
-  // 其他字符（标点、空格、数字等）
-  const otherChars = text.length - chineseChars - englishWords
-
-  // Claude tokenizer估算：
-  // 中文：约1.5字符/token
-  // 英文：约1词/token（1词平均约4字符）
-  // 其他：约4字符/token
   return Math.ceil(
-    chineseChars / 1.5 +
-    englishWords +
-    otherChars / 4
+    chineseChars * 1.5 +
+    englishChars / 4 +
+    otherChars / 3
   )
 }
 

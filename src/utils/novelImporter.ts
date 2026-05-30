@@ -5,7 +5,9 @@ import { ElMessage } from "element-plus"
  */
 
 import { v4 as uuidv4 } from 'uuid'
-import type { Project, Character, Chapter, WorldSetting } from '@/types'
+import type { Project, Character, Chapter, WorldSetting, Relationship } from '@/types'
+import type { GeneratedOutline } from './outlineGenerator'
+import type { QualityMetrics } from './qualityAnalyzer'
 import { parseNovelText, type ParsedChapter, type ChapterPattern } from './chapterParser'
 import {
   extractCharactersFromChapters,
@@ -32,6 +34,12 @@ import { getLogger } from '@/utils/logger'
 
 const logger = getLogger('utils:novelImporter')
 
+/** 文件大小限制：100MB */
+const MAX_FILE_SIZE = 100 * 1024 * 1024
+
+/** 分块读取阈值：4MB */
+const CHUNK_SIZE = 4 * 1024 * 1024
+
 export interface ImportOptions {
   title: string
   author?: string
@@ -43,6 +51,8 @@ export interface ImportOptions {
   analyzeQualityMetrics: boolean
   useAIAnalysis: boolean
   aiConfig?: AIAnalysisConfig
+  aiProvider?: AIAnalysisConfig['provider']
+  aiApiKey?: string
   customChapterPattern?: string
   minCharacterOccurrence?: number
   chapterPattern?: ChapterPattern
@@ -50,10 +60,14 @@ export interface ImportOptions {
 
 export interface ImportResult {
   project: Partial<Project>
-  stats?: any
-  qualityMetrics?: any
-  worldInfo?: any
-  outlineInfo?: any
+  stats?: {
+    totalWords: number
+    totalChapters: number
+    avgWordsPerChapter: number
+  }
+  qualityMetrics?: QualityMetrics | null
+  worldInfo?: Partial<WorldSetting>
+  outlineInfo?: GeneratedOutline
 }
 
 export interface ImportProgress {
@@ -121,6 +135,11 @@ export async function importNovel(
   options: ImportOptions,
   onProgress?: ProgressCallback
 ): Promise<ImportResult> {
+  // 文件大小限制检查
+  if (file.size > MAX_FILE_SIZE) {
+    throw new Error(`文件大小(${(file.size / 1024 / 1024).toFixed(1)}MB)超过限制(100MB)`)
+  }
+
   const format = file.name.split('.').pop()?.toLowerCase() as SupportedFormat
 
   if (!SUPPORTED_FORMATS.includes(format)) {
@@ -190,8 +209,8 @@ export async function importNovel(
         const storedConfig = getStoredAIConfig()
         const aiConfig: AIAnalysisConfig = {
           enabled: true,
-          provider: (options as any).aiProvider || storedConfig?.provider || 'claude',
-          apiKey: (options as any).aiApiKey || storedConfig?.apiKey || '',
+          provider: options.aiProvider || storedConfig?.provider || 'claude',
+          apiKey: options.aiApiKey || storedConfig?.apiKey || '',
           baseURL: storedConfig?.baseURL,
           model: storedConfig?.model || 'claude-3-5-sonnet-20241022'
         }
@@ -220,8 +239,8 @@ export async function importNovel(
 
         // 使用AI识别的关系
         relations = mergedCharacters
-          .filter(c => (c as any).relationships && (c as any).relationships.length > 0)
-          .flatMap(c => (c as any).relationships?.map((r: any) => ({
+          .filter(c => c.relationships && c.relationships.length > 0)
+          .flatMap(c => c.relationships?.map(r => ({
             from: c.name,
             to: r.target,
             type: r.type,
@@ -295,18 +314,20 @@ export async function importNovel(
   }
 
   // 阶段6: 大纲生成
-  let outlineData: any = {
+  let outlineData: GeneratedOutline = {
     structure: '导入的结构',
     totalChapters: stats.totalChapters,
     description: '从导入小说中提取的大纲',
     volumes: [{
+      id: uuidv4(),
       number: 1,
       title: '第一卷',
       theme: '',
-      chapterRange: { start: 1, end: stats.totalChapters },
+      startChapter: 1,
+      endChapter: stats.totalChapters,
       mainEvents: []
     }],
-    chapters: [] as any[]
+    chapters: []
   }
 
   if (options.generateOutlineFromChapters) {
@@ -344,7 +365,7 @@ export async function importNovel(
       parsedChapters,
       characters.map((c, idx) => ({
         name: c.name || '',
-        description: (c as any).description || '',
+        description: (c as { description?: string }).description || '',
         occurrences: relations
           .filter(r => r.from === c.name || r.to === c.name)
           .reduce((sum, r) => sum + r.strength * 10, idx === 0 ? 100 : 10)
@@ -378,34 +399,37 @@ export async function importNovel(
     title: parsed.title,
     content: parsed.content,
     wordCount: parsed.wordCount,
-    status: 'draft' as any,
+    status: 'draft' as const,
     createdAt: now,
     updatedAt: now
-  } as any))
+  } as unknown as Chapter))
 
   // 创建人物数据
-  const fullCharacters: Character[] = characters.map(char => ({
-    id: uuidv4(),
-    name: char.name || '',
-    aliases: char.aliases || [],
-    description: (char as any).description || '',
-    background: char.background || '',
-    personality: char.personality || [],
-    appearance: char.appearance || '',
-    motivation: char.motivation || '',
-    tags: char.tags || ['other'],
-    appearances: [],
-    relationships: relations
-      .filter(r => r.from === char.name || r.to === char.name)
-      .map(r => ({
-        characterId: r.from === char.name ? r.to : r.from,
-        type: r.type as any,
-        description: ''
-      })),
-    notes: (char as any).notes || '',
-    createdAt: now,
-    updatedAt: now
-  } as any))
+  const fullCharacters: Character[] = characters.map(char => {
+    const extras = char as { description?: string; notes?: string }
+    return {
+      id: uuidv4(),
+      name: char.name || '',
+      aliases: char.aliases || [],
+      description: extras.description || '',
+      background: char.background || '',
+      personality: char.personality || [],
+      appearance: char.appearance || '',
+      motivation: char.motivation || '',
+      tags: char.tags || ['other'],
+      appearances: [],
+      relationships: relations
+        .filter(r => r.from === char.name || r.to === char.name)
+        .map(r => ({
+          characterId: r.from === char.name ? r.to : r.from,
+          type: r.type as Relationship['type'],
+          description: ''
+        })),
+      notes: extras.notes || '',
+      createdAt: now,
+      updatedAt: now
+    } as unknown as Character
+  })
 
   // 转换大纲数据
   const projectOutline: any = outlineData.chapters && outlineData.chapters.length > 0
@@ -489,6 +513,10 @@ export async function importMultipleFiles(
 
   for (let i = 0; i < files.length; i++) {
     const file = files[i]
+    // 文件大小限制检查
+    if (file.size > MAX_FILE_SIZE) {
+      throw new Error(`文件 ${file.name} 大小(${(file.size / 1024 / 1024).toFixed(1)}MB)超过限制(100MB)`)
+    }
     const text = await parseFile(file)
     const { chapters } = parseNovelText(text)
 
@@ -528,7 +556,7 @@ export function exportProject(project: Project, format: 'txt' | 'md' = 'md'): vo
 
   if (format === 'md') {
     content = `# ${project.title}\n\n`
-    content += `作者: ${(project as any).author}\n\n`
+    content += `作者: ${project.author || ''}\n\n`
     content += `简介:\n${project.description}\n\n---\n\n`
 
     for (const chapter of project.chapters) {

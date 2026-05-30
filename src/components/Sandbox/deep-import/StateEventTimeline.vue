@@ -100,16 +100,16 @@ function eventTypeColor(type: StateEventType): ElementTagType {
 
 .event-detail {
   font-size: 12px;
-  color: #606266;
+  color: var(--ds-text-secondary);
   margin-bottom: 4px;
 }
 
 .prop-key {
-  color: #409eff;
+  color: var(--ds-info);
   font-weight: 500;
 }
 
 .prop-value {
-  color: #67c23a;
+  color: var(--ds-success);
 }
 </style>

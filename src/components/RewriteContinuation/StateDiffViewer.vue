@@ -158,12 +158,12 @@ function rejectAll() {
   gap: 8px;
 }
 
-.before-val { color: #f56c6c; font-size: 12px; }
-.after-val { color: #67c23a; font-size: 12px; }
+.before-val { color: var(--ds-danger); font-size: 12px; }
+.after-val { color: var(--ds-success); font-size: 12px; }
 
 .empty-state {
   text-align: center;
-  color: #909399;
+  color: var(--ds-text-tertiary);
   padding: 20px;
 }
 

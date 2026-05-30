@@ -2,6 +2,7 @@ import type { Chapter } from '@/types'
 import type { ChapterSnapshot } from '@/types/chapter-version'
 import { useStorage } from '@/stores/storage'
 import { getLogger } from '@/utils/logger'
+import { generateId } from '@/utils/generateId'
 
 export type { ChapterSnapshot } from '@/types/chapter-version'
 
@@ -13,7 +14,7 @@ export async function createSnapshot(
   source: 'auto' | 'manual' = 'auto'
 ): Promise<ChapterSnapshot> {
   const snapshot: ChapterSnapshot = {
-    id: crypto.randomUUID(),
+    id: generateId(),
     chapterId: chapter.id,
     projectId,
     title: chapter.title || `第${chapter.number}章`,

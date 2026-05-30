@@ -2,6 +2,7 @@ import type { AIActionHandlerContribution, ActionContext } from '../types';
 import { useProjectStore } from '@/stores/project';
 import { useSandboxStore } from '@/stores/sandbox';
 import { ElMessage } from 'element-plus';
+import { generateId } from '@/utils/generateId';
 
 /**
  * 内置AI动作处理器贡献
@@ -17,7 +18,7 @@ export const createCharacterActionContribution: AIActionHandlerContribution = {
 
     const projectId = projectStore.currentProject.id;
     await sandboxStore.addEntity({
-      id: crypto.randomUUID(),
+      id: generateId(),
       projectId,
       type: 'CHARACTER',
       name: data.name || '新角色',

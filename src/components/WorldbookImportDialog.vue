@@ -485,7 +485,7 @@ function prevStep() {
 .import-options {
   margin-top: 30px;
   padding: 20px;
-  background: #f5f7fa;
+  background: var(--ds-bg-tertiary);
   border-radius: 4px;
 
   h3 {
@@ -527,7 +527,7 @@ function prevStep() {
 }
 
 .content-preview {
-  color: #606266;
+  color: var(--ds-text-secondary);
   font-size: 12px;
   line-height: 1.5;
 }

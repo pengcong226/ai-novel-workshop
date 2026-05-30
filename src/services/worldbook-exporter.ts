@@ -17,6 +17,10 @@ import type {
   WorldbookExportOptions,
   WorldbookExportResult
 } from '@/types/worldbook'
+import {
+  prepareEntry,
+  prepareWorldbookData
+} from '@/services/worldbook-common'
 
 /**
  * PNG 导出选项
@@ -144,7 +148,7 @@ export class WorldbookExporter {
     } = options
 
     // 准备世界书数据
-    const worldbookData = this.prepareWorldbookData(worldbook, { includeExtensions })
+    const worldbookData = prepareWorldbookData(worldbook, { includeExtensions })
 
     // 创建 Canvas
     const canvas = document.createElement('canvas')
@@ -221,7 +225,7 @@ export class WorldbookExporter {
     entries = this.sortEntries(entries, sortBy)
 
     // 准备数据
-    const data = this.prepareWorldbookData(
+    const data = prepareWorldbookData(
       {
         ...worldbook,
         entries
@@ -260,7 +264,7 @@ export class WorldbookExporter {
     // 转换为 JSONL
     return entries
       .map((entry) => {
-        const preparedEntry = this.prepareEntry(entry, { includeExtensions, includeAiMetadata })
+        const preparedEntry = prepareEntry(entry, { includeExtensions, includeAiMetadata })
         return JSON.stringify(preparedEntry)
       })
       .join('\n')
@@ -296,7 +300,7 @@ export class WorldbookExporter {
     entries = this.sortEntries(entries, sortBy)
 
     // 准备数据
-    const data = this.prepareWorldbookData(
+    const data = prepareWorldbookData(
       {
         ...worldbook,
         entries
@@ -391,6 +395,7 @@ export class WorldbookExporter {
   /**
    * 过滤条目
    */
+
   private filterEntries(
     entries: WorldbookEntry[],
     options: { enabledOnly: boolean; includeDisabled: boolean }
@@ -445,132 +450,6 @@ export class WorldbookExporter {
       default:
         return sorted
     }
-  }
-
-  /**
-   * 准备世界书数据
-   */
-  private prepareWorldbookData(
-    worldbook: Worldbook,
-    options: {
-      includeExtensions?: boolean
-      includeStatistics?: boolean
-      includeAiMetadata?: boolean
-    }
-  ): any {
-    const { includeExtensions = false, includeStatistics = false, includeAiMetadata = false } = options
-
-    const entries = worldbook.entries.map((entry) =>
-      this.prepareEntry(entry, { includeExtensions, includeAiMetadata })
-    )
-
-    const data: any = {
-      entries,
-      name: worldbook.name,
-      description: worldbook.metadata?.description
-    }
-
-    // 添加元数据
-    if (worldbook.metadata) {
-      data.scan_depth = worldbook.metadata.scan_depth
-      data.token_budget = worldbook.metadata.token_budget
-      data.recursive_scan_depth = worldbook.metadata.recursive_scan_depth
-
-      if (includeStatistics && worldbook.metadata.totalEntries) {
-        data.total_entries = worldbook.metadata.totalEntries
-      }
-    }
-
-    return data
-  }
-
-  /**
-   * 准备单个条目
-   */
-  private prepareEntry(
-    entry: WorldbookEntry,
-    options: { includeExtensions?: boolean; includeAiMetadata?: boolean }
-  ): any {
-    const { includeExtensions = false, includeAiMetadata = false } = options
-
-    // SillyTavern 标准字段
-    const prepared: any = {
-      uid: entry.uid,
-      key: entry.key,
-      keysecondary: entry.keysecondary,
-      content: entry.content,
-      comment: entry.comment,
-      constant: entry.constant,
-      selective: entry.selective,
-      order: entry.order,
-      position: entry.position,
-      disable: entry.disable,
-      excludeRecursion: entry.excludeRecursion,
-      probability: entry.probability,
-      depth: entry.depth,
-      useProbability: entry.useProbability,
-      displayIndex: entry.displayIndex
-    }
-
-    // 移除 undefined 字段
-    Object.keys(prepared).forEach((key) => {
-      if (prepared[key] === undefined) {
-        delete prepared[key]
-      }
-    })
-
-    // 包含扩展字段
-    if (includeExtensions && entry.novelWorkshop) {
-      prepared.extensions = {
-        ...entry.extensions,
-        novelWorkshop: this.filterNovelWorkshopExtensions(
-          entry.novelWorkshop,
-          includeAiMetadata
-        )
-      }
-    } else if (entry.extensions) {
-      prepared.extensions = entry.extensions
-    }
-
-    return prepared
-  }
-
-  /**
-   * 过滤 AI 小说工坊扩展字段
-   */
-  private filterNovelWorkshopExtensions(
-    extensions: any,
-    includeAiMetadata: boolean
-  ): any {
-    const filtered: any = {}
-
-    // 基本信息
-    if (extensions.category) filtered.category = extensions.category
-    if (extensions.tags) filtered.tags = extensions.tags
-    if (extensions.createdAt) filtered.createdAt = extensions.createdAt
-    if (extensions.updatedAt) filtered.updatedAt = extensions.updatedAt
-
-    // 关联关系
-    if (extensions.relatedCharacters) filtered.relatedCharacters = extensions.relatedCharacters
-    if (extensions.relatedLocations) filtered.relatedLocations = extensions.relatedLocations
-
-    // 适用范围
-    if (extensions.chapterRange) filtered.chapterRange = extensions.chapterRange
-
-    // 可视化数据
-    if (extensions.visualData) filtered.visualData = extensions.visualData
-
-    // AI 元数据
-    if (includeAiMetadata && extensions.aiGenerated) {
-      filtered.aiGenerated = extensions.aiGenerated
-    }
-
-    // 统计信息
-    if (includeAiMetadata && extensions.statistics) {
-      filtered.statistics = extensions.statistics
-    }
-
-    return filtered
   }
 
   /**

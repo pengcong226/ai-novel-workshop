@@ -7,7 +7,7 @@ export interface SanitizeOptions {
   maxLength?: number
   preserveLineBreaks?: boolean
   strict?: boolean
-  escapeBraces?: boolean  // defaults to true for backward compat; set false for JSON/template content
+  escapeBraces?: boolean  // defaults to false; only set true when braces could be interpreted as template placeholders
 }
 
 const DEFAULT_MAX_LENGTH = 500
@@ -76,7 +76,7 @@ export function sanitizeForPrompt(input: string, options: SanitizeOptions = {}):
     maxLength = DEFAULT_MAX_LENGTH,
     preserveLineBreaks = true,
     strict = false,
-    escapeBraces = true
+    escapeBraces = false
   } = options
 
   let sanitized = normalizeWhitespace(input, preserveLineBreaks)

@@ -641,17 +641,17 @@ async function initializeStates() {
   align-items: center;
   gap: 8px;
   font-size: 14px;
-  color: #606266;
+  color: var(--ds-text-secondary);
 }
 
 .state-footer {
   padding-top: 10px;
-  border-top: 1px solid #E4E7ED;
+  border-top: 1px solid var(--ds-surface-border);
 }
 
 .update-time {
   font-size: 12px;
-  color: #909399;
+  color: var(--ds-text-tertiary);
 }
 
 .location-list,
@@ -666,7 +666,7 @@ async function initializeStates() {
 .location-item,
 .faction-item {
   padding: 10px;
-  background: #F5F7FA;
+  background: var(--ds-bg-tertiary);
   border-radius: 8px;
 }
 
@@ -681,7 +681,7 @@ async function initializeStates() {
 .location-name,
 .faction-name {
   font-weight: 600;
-  color: #303133;
+  color: var(--ds-text-primary);
 }
 
 .location-characters,
@@ -712,23 +712,23 @@ async function initializeStates() {
 }
 
 .history-content .old-value {
-  color: #909399;
+  color: var(--ds-text-tertiary);
 }
 
 .history-content .arrow {
   margin: 0 10px;
-  color: #909399;
+  color: var(--ds-text-tertiary);
 }
 
 .history-content .new-value {
-  color: #409EFF;
+  color: var(--ds-info);
   font-weight: 600;
 }
 
 .chapter-info {
   margin-top: 5px;
   font-size: 12px;
-  color: #909399;
+  color: var(--ds-text-tertiary);
 }
 
 .state-detail {
@@ -740,6 +740,6 @@ async function initializeStates() {
 .state-history-section h4 {
   margin: 0 0 15px 0;
   font-size: 16px;
-  color: #303133;
+  color: var(--ds-text-primary);
 }
 </style>

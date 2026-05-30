@@ -214,7 +214,7 @@ const avatarPaths = computed<AvatarPath[]>(() => {
   align-items: center;
   transform: translate(-50%, -100%);
   cursor: pointer;
-  z-index: 5;
+  z-index: var(--ds-z-dropdown);
   transition: all 0.3s;
 }
 .map-pin:hover { transform: translate(-50%, -110%); }
@@ -248,7 +248,7 @@ const avatarPaths = computed<AvatarPath[]>(() => {
   font-size: 12px;
   color: #fff;
   font-weight: bold;
-  z-index: 10;
+  z-index: var(--ds-z-dropdown);
   transition: top 1.5s cubic-bezier(0.45, 0, 0.15, 1), left 1.5s cubic-bezier(0.45, 0, 0.15, 1);
 }
 </style>

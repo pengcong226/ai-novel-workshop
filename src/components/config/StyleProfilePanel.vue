@@ -141,6 +141,32 @@
       <el-form-item label="样本文本">
         <el-input v-model="sampleText" type="textarea" :rows="5" placeholder="粘贴一段代表性正文，用于 AI 提取风格..." />
       </el-form-item>
+
+      <el-form-item label="分析深度">
+        <el-radio-group v-model="analysisDepth">
+          <el-radio value="quick">快速</el-radio>
+          <el-radio value="standard">标准</el-radio>
+          <el-radio value="deep">深度</el-radio>
+        </el-radio-group>
+        <span class="form-tip" style="margin-left: 12px;">深度分析包含句式/词汇/修辞/节奏/AI特征全维度指纹</span>
+      </el-form-item>
+
+      <el-form-item v-if="styleFingerprint" label="文风指纹">
+        <el-descriptions :column="2" border size="small">
+          <el-descriptions-item label="平均句长">{{ styleFingerprint.sentencePatterns.avgLength }}字</el-descriptions-item>
+          <el-descriptions-item label="对话占比">{{ (styleFingerprint.sentencePatterns.dialogueRatio * 100).toFixed(0) }}%</el-descriptions-item>
+          <el-descriptions-item label="短句比例">{{ (styleFingerprint.sentencePatterns.shortSentenceRatio * 100).toFixed(0) }}%</el-descriptions-item>
+          <el-descriptions-item label="长句比例">{{ (styleFingerprint.sentencePatterns.longSentenceRatio * 100).toFixed(0) }}%</el-descriptions-item>
+          <el-descriptions-item label="AI标记词密度">{{ styleFingerprint.aiCharacteristics.aiTellWordDensity.toFixed(1) }}次/千字</el-descriptions-item>
+          <el-descriptions-item label="段落变异系数">{{ styleFingerprint.rhythm.paragraphLengthVariation.toFixed(2) }}</el-descriptions-item>
+        </el-descriptions>
+        <div v-if="styleFingerprint.styleTags.length > 0" style="margin-top: 8px;">
+          <el-tag v-for="tag in styleFingerprint.styleTags" :key="tag" size="small" style="margin-right: 4px;">{{ tag }}</el-tag>
+        </div>
+        <div v-if="styleFingerprint.styleDescription" style="margin-top: 8px; color: var(--el-text-color-secondary); font-size: 13px;">
+          {{ styleFingerprint.styleDescription }}
+        </div>
+      </el-form-item>
     </el-form>
   </el-card>
 </template>
@@ -151,6 +177,8 @@ import { ElMessage } from 'element-plus'
 import type { ProjectConfig, StyleProfile } from '@/types'
 import { STYLE_PRESETS, createStyleProfileFromPreset, mergeStyleProfile } from '@/data/stylePresets'
 import { extractStyleProfile } from '@/services/style-extractor'
+import { StyleAnalyzerAgent } from '@/agents/StyleAnalyzerAgent'
+import type { StyleFingerprint } from '@/agents/StyleAnalyzerAgent'
 
 const props = defineProps<{
   config: ProjectConfig
@@ -164,6 +192,9 @@ const styleProfile = ref<StyleProfile>(mergeStyleProfile(props.config.styleProfi
 const selectedPresetId = ref(styleProfile.value.metadata?.presetId ?? STYLE_PRESETS[0].id)
 const sampleText = ref('')
 const extracting = ref(false)
+const analysisDepth = ref<'quick' | 'standard' | 'deep'>('standard')
+const styleFingerprint = ref<StyleFingerprint | null>(null)
+const styleAnalyzer = new StyleAnalyzerAgent()
 
 watch(() => props.config.styleProfile, (profile) => {
   styleProfile.value = mergeStyleProfile(profile)
@@ -198,17 +229,45 @@ async function extractFromSample() {
 
   try {
     extracting.value = true
+
+    // 1. 先用 StyleAnalyzerAgent 做深度文风分析
+    const analysisResult = await styleAnalyzer.analyze({
+      text: sampleText.value,
+      genre: styleProfile.value.genre,
+      analysisDepth: analysisDepth.value,
+    })
+    styleFingerprint.value = analysisResult.fingerprint
+
+    // 2. 再用基础 style-extractor 生成 StyleProfile
     const result = await extractStyleProfile({
       sampleText: sampleText.value,
       currentProfile: styleProfile.value,
-      projectGenre: styleProfile.value.genre
+      projectGenre: styleProfile.value.genre,
     })
-    styleProfile.value = result.profile
+
+    // 3. 将指纹信息注入 StyleProfile 的 customInstructions
+    const fingerprintHints = [
+      `平均句长${analysisResult.fingerprint.sentencePatterns.avgLength}字`,
+      `对话占比${(analysisResult.fingerprint.sentencePatterns.dialogueRatio * 100).toFixed(0)}%`,
+      `风格标签：${analysisResult.fingerprint.styleTags.join('、')}`,
+    ].join('；')
+
+    styleProfile.value = mergeStyleProfile({
+      ...result.profile,
+      customInstructions: [
+        result.profile.customInstructions,
+        `[文风指纹] ${fingerprintHints}`,
+        analysisResult.fingerprint.writingAdvice.length > 0
+          ? `[写作建议] ${analysisResult.fingerprint.writingAdvice.slice(0, 3).join('；')}`
+          : '',
+      ].filter(Boolean).join('\n'),
+    })
+
     selectedPresetId.value = styleProfile.value.metadata?.presetId ?? STYLE_PRESETS[0].id
     emitUpdate()
-    ElMessage.success('风格提取完成')
+    ElMessage.success(`文风提取完成（${analysisDepth.value === 'deep' ? '深度' : analysisDepth.value === 'standard' ? '标准' : '快速'}分析）`)
   } catch (error) {
-    ElMessage.error('风格提取失败：' + (error instanceof Error ? error.message : String(error)))
+    ElMessage.error('文风提取失败：' + (error instanceof Error ? error.message : String(error)))
   } finally {
     extracting.value = false
   }

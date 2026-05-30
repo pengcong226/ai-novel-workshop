@@ -1,6 +1,14 @@
 export type EntityType = 'CHARACTER' | 'FACTION' | 'LOCATION' | 'LORE' | 'ITEM' | 'CONCEPT' | 'WORLD';
 export type EntityImportance = 'critical' | 'major' | 'minor' | 'background';
 
+export interface SpeechPattern {
+  formality: 'formal' | 'casual' | 'mixed'
+  vocabulary: 'simple' | 'moderate' | 'literary'
+  sentenceLength: 'short' | 'medium' | 'long'
+  quirks: string[]
+  catchphrases: string[]
+}
+
 export interface Entity {
   id: string;
   projectId: string;
@@ -10,6 +18,10 @@ export interface Entity {
   importance: EntityImportance;
   category: string;
   systemPrompt: string;
+  /** 实体描述（兼容旧代码） */
+  description?: string;
+  /** 角色语言风格档案（可选） */
+  speechProfile?: SpeechPattern;
   visualMeta?: {
     color?: string;
     icon?: string;

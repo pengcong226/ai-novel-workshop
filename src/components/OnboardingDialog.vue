@@ -31,7 +31,10 @@
           <el-radio-button value="import">导入已有小说</el-radio-button>
           <el-radio-button value="configure">先配置 AI</el-radio-button>
         </el-radio-group>
-        <p class="hint">完成引导后会回到当前页面，你可以直接使用项目列表、导入入口或项目内配置页继续。</p>
+        <div class="path-hint">
+          <p class="hint">完成引导后会回到当前页面，你可以直接使用项目列表、导入入口或项目内配置页继续。</p>
+          <el-alert v-if="selectedPath === 'configure'" title="配置 AI 需要准备一个模型提供商的 API Key（如 OpenAI、Anthropic、智谱、DeepSeek 等），在项目配置页中添加即可。" type="info" :closable="false" show-icon style="margin-top: 8px;" />
+        </div>
       </template>
 
       <template v-else-if="onboarding.currentStep.value === 2">
@@ -114,12 +117,12 @@ function finishOnboarding(): void {
 
 .step-body h2 {
   margin: 0 0 12px;
-  color: #303133;
+  color: var(--ds-text-primary);
 }
 
 .step-body p,
 .hint {
-  color: #606266;
+  color: var(--ds-text-secondary);
   line-height: 1.7;
 }
 
@@ -135,17 +138,17 @@ function finishOnboarding(): void {
   flex-direction: column;
   gap: 8px;
   padding: 16px;
-  border: 1px solid #ebeef5;
+  border: 1px solid var(--ds-surface-border);
   border-radius: 12px;
-  background: #f8fafc;
+  background: var(--ds-bg-hover);
 }
 
 .feature-card strong {
-  color: #409eff;
+  color: var(--ds-accent-text);
 }
 
 .feature-card span {
-  color: #606266;
+  color: var(--ds-text-secondary);
   line-height: 1.5;
 }
 
@@ -168,6 +171,7 @@ function finishOnboarding(): void {
   gap: 8px;
 }
 
+/* breakpoint: md (768px) */
 @media (max-width: 768px) {
   .feature-grid {
     grid-template-columns: 1fr;

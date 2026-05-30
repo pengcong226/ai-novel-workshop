@@ -1,0 +1,9 @@
+{
+  "name": "@ai-novel-workshop/core",
+  "version": "1.0.0",
+  "type": "module",
+  "main": "src/index.ts",
+  "types": "src/index.ts",
+  "dependencies": {},
+  "description": "AI Novel Workshop core pipeline and agent logic"
+}

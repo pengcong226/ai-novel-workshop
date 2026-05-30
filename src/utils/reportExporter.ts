@@ -8,6 +8,7 @@ import type { QualityReport } from './qualityChecker'
 import html2canvas from 'html2canvas'
 import { saveAs } from 'file-saver'
 import { getLogger } from '@/utils/logger'
+import { escapeXml } from '@/utils/escapeXml'
 const logger = getLogger('utils:reportExporter')
 
 /**
@@ -145,11 +146,12 @@ export function exportQualityReportAsMarkdown(
  */
 function generateReportHTML(reports: QualityReport[], projectName: string): string {
   const avgScore = calculateAverageScore(reports)
+  const safeName = escapeXml(projectName)
 
   return `
     <div style="font-family: 'Microsoft YaHei', Arial, sans-serif;">
       <h1 style="text-align: center; color: #303133; margin-bottom: 30px;">
-        ${projectName} 质量报告
+        ${safeName} 质量报告
       </h1>
 
       <div style="text-align: center; margin-bottom: 30px; color: #909399;">
@@ -190,7 +192,7 @@ function generateReportHTML(reports: QualityReport[], projectName: string): stri
           <div style="margin-bottom: 15px;">
             ${report.dimensions.map(dim => `
               <div style="display: inline-block; margin-right: 15px; margin-bottom: 10px;">
-                <span style="color: #606266;">${dim.name}：</span>
+                <span style="color: #606266;">${escapeXml(dim.name)}：</span>
                 <span style="color: ${getScoreColor(dim.score)}; font-weight: bold;">
                   ${dim.score.toFixed(1)}
                 </span>
@@ -202,7 +204,7 @@ function generateReportHTML(reports: QualityReport[], projectName: string): stri
             <div style="background: #f5f7fa; padding: 15px; border-radius: 4px;">
               <div style="color: #606266; font-weight: bold; margin-bottom: 10px;">改进建议：</div>
               <ul style="margin: 0; padding-left: 20px; color: #909399;">
-                ${report.improvements.map(imp => `<li style="margin-bottom: 5px;">${imp}</li>`).join('')}
+                ${report.improvements.map(imp => `<li style="margin-bottom: 5px;">${escapeXml(imp)}</li>`).join('')}
               </ul>
             </div>
           ` : ''}

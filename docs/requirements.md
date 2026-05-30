@@ -3,9 +3,12 @@
 ## 文档信息
 
 - **项目名称：** AI小说工坊
-- **版本：** v1.0
+- **版本：** v5.0+
 - **创建日期：** 2026-03-20
-- **文档状态：** 初稿
+- **最后更新：** 2026-05-29（经5轮迭代，补充Pipeline/审计/伏笔等功能）
+- **文档状态：** 持续更新
+
+> **v5.0+ 更新说明**：本文档为v1.0初稿，经过5轮迭代开发，系统已新增大量核心功能。以下章节中标注 🆕 的为迭代新增需求，详见 [iteration6-prd.md](/data/share/project/docs/iteration6-prd.md) 获取最新迭代计划。完整功能清单参见 [COMPLETENESS_ANALYSIS.md](./COMPLETENESS_ANALYSIS.md)。
 
 ## 1. 执行摘要
 
@@ -838,7 +841,71 @@ function switchMode(
 }
 ```
 
-### 2.2 高级功能模块
+### 2.2 AI创作流水线 🆕
+
+> 第5轮迭代新增，核心写作质量保障体系
+
+#### 2.2.0.1 10-Agent Pipeline
+
+**功能描述：** 全流程自动化章节生成，10个Agent协作完成从规划到验证的完整创作链路
+
+**需求清单：**
+- ✅ Phase 0（prepare）：提取hook池、近期摘要、章节大纲、前章尾段；大纲耗尽时自动扩展
+- ✅ Phase 1（PlannerAgent）：从大纲提取创作意图/memo
+- ✅ Phase 2（ComposerAgent）：组装ContextPackage（7段预算分配、smartTrim智能裁剪）
+- ✅ Phase 3（Writer）：LLM生成正文（含NarrativeControl 7段结构注入）
+- ✅ Phase 4（LengthNormalizer）：长度标准化
+- ✅ Phase 5+6（ContinuityAuditor + ReviserAgent）：17维审计+多轮修订循环
+- ✅ Phase 7（StateSettler）：状态沉淀（ObserverFacts→WriterStateChanges→LLM二次提取）
+- ✅ Phase 8（ChapterAnalyzer）：章节分析+长跨度疲劳检测
+- ✅ Phase 9（HookPromoter）：伏笔升级检查+hook健康分析
+
+**实现位置：** `src/services/pipeline/PipelineRunner.ts`
+
+#### 2.2.0.2 17维质量审计
+
+**功能描述：** 8维确定性检查 + 9维LLM审计，全方位质量保障
+
+**审计维度：**
+- 确定性：AI标记词密度、段落等长、高频词重复、节奏、格式、POV混用、风格、数值矛盾
+- LLM：OOC、时间线、设定、战力、数值、伏笔、节奏、风格、信息泄露
+
+**实现位置：** `src/agents/ContinuityAuditor.ts` + `src/agents/PostWriteValidator.ts`
+
+#### 2.2.0.3 伏笔追踪系统
+
+**功能描述：** 跨章节伏笔种植/推进/回收/提及验证
+
+**需求清单：**
+- ✅ 伏笔池管理（DataAdapter.extractHookPool）
+- ✅ 伏笔健康分析（hookHealthAnalyzer.ts）
+- ✅ 伏笔验证（hookLedgerValidator.ts：plant/advance/resolve/mention操作验证）
+- ✅ Pipeline Phase 9伏笔升级检查（HookPromoter）
+
+#### 2.2.0.4 敏感词检测
+
+**功能描述：** 中文网文平台合规检查（政治敏感/色情/暴力），支持开关控制
+
+**需求清单：**
+- ✅ PostWriteValidator中检测敏感词（PostWriteValidator.ts:123-141）
+- ✅ 检测到critical级敏感词时阻断发布（ChapterReviewCycle.ts:113-128）
+- ✅ 项目设置中的开关控制（ProjectConfig.enableSensitiveWordCheck）
+
+#### 2.2.0.5 批量续写调度
+
+**功能描述：** 多章节自动化批量生成，含完整的调度控制
+
+**需求清单：**
+- ✅ 暂停/恢复/取消机制
+- ✅ Token预算控制（单章限额+总量限额）
+- ✅ 每日限额50章
+- ✅ 连续3失败自动暂停
+- ✅ 断点持久化（checkpointManager）
+- ✅ 项目级互斥锁（pipelineLock.ts）
+
+**实现位置：** `src/services/pipeline/BatchContinueScheduler.ts`
+
+### 2.3 高级功能模块
 
 #### 2.2.1 风格提示系统
 

@@ -42,7 +42,7 @@ export function validateLLMOutput(
     let extractionError: string | null = null
 
     // 根据schema类型决定提取顺序
-    const schemaType = typeof schema === 'object' ? (schema as any).type : undefined;
+    const schemaType = typeof schema === 'object' ? (schema as { type?: string }).type : undefined;
     const expectsArray = schemaType === 'array'
     const expectsObject = schemaType === 'object'
 

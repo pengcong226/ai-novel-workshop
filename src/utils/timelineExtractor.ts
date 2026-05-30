@@ -448,7 +448,7 @@ export async function extractEventsFromTextWithAI(text: string, chapterNumber: n
 小说文本：
 ${text.substring(0, 5000)}
 `
-    const response = await aiStore.chat([{ role: 'user' as const, content: prompt }], { type: 'outline' as any, complexity: 'low' as const, priority: 'speed' as const }, { maxTokens: 1000 })
+    const response = await aiStore.chat([{ role: 'user' as const, content: prompt }], { type: 'outline' as const, complexity: 'low' as const, priority: 'speed' as const }, { maxTokens: 1000 })
     
     let jsonStr = response.content.trim()
     const jsonMatch = jsonStr.match(/```(?:json)?\s*([\s\S]*?)\s*```/)

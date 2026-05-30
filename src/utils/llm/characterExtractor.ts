@@ -53,12 +53,12 @@ export async function extractCharactersWithLLM(
     .map(ch => ch.content)
     .join('\n\n')
 
-  const characters = (await callLLMWithValidation(
+  const characters = await callLLMWithValidation(
     getCharacterExtractionPrompt(textToAnalyze),
     characterListSchema,
     config,
     { maxRetries: 2 }
-  )) as any
+  ) as LLMCharacter[]
 
   logger.info('识别到人物数:', characters.length)
 
@@ -70,12 +70,12 @@ export async function extractCharactersWithLLM(
     message: '提取人物关系...'
   })
 
-  const relationships = (await callLLMWithValidation(
+  const relationships = await callLLMWithValidation(
     getRelationshipExtractionPrompt(characters, textToAnalyze),
     relationshipListSchema,
     config,
     { maxRetries: 2 }
-  )) as any
+  ) as LLMRelationship[]
 
   logger.info('提取到关系数:', relationships.length)
 

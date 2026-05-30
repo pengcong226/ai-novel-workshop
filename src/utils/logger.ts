@@ -196,7 +196,7 @@ function exposeLoggerDebugTools(): void {
     return
   }
 
-  (window as any).__APP_LOGGER__ = {
+  (window as unknown as Record<string, unknown>).__APP_LOGGER__ = {
     getConfig: () => loggerManager.getConfig(),
     setEnabled: (enabled: boolean) => loggerManager.setEnabled(enabled),
     setLevel: (level: LogLevel) => loggerManager.setLevel(level),

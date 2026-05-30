@@ -86,7 +86,7 @@ function handleAICommand(command: string) {
 
 <style scoped>
 .bubble-menu-wrapper {
-  z-index: 100;
+  z-index: var(--ds-z-float);
 }
 
 .bubble-menu {

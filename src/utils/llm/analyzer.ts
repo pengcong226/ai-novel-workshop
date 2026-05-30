@@ -243,7 +243,7 @@ function calculateStats(
     avgWordsPerChapter,
     analysisTime: Date.now() - startTime,
     tokenUsage: {
-      input: 0,  // TODO: 从实际调用中累计
+      input: 0,  // token 用量由调用方在 Pipeline 层面统一累计
       output: 0
     }
   }

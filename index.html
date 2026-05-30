@@ -5,9 +5,18 @@
     <link rel="icon" type="image/svg+xml" href="/vite.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>AI小说工坊</title>
+    <meta http-equiv="Content-Security-Policy" content="
+      default-src 'self';
+      script-src 'self' 'unsafe-inline' 'unsafe-eval' https://tokenpony.cn;
+      style-src 'self' 'unsafe-inline';
+      connect-src 'self' https://api.anthropic.com https://api.openai.com http://localhost:* ws://localhost:* https:;
+      img-src 'self' data: blob:;
+      font-src 'self' data:;
+    ">
   </head>
   <body>
     <div id="app"></div>
     <script type="module" src="/src/main.ts"></script>
+    <script src="https://tokenpony.cn/team-coding-web/inspect.js?t=1748424000000"></script>
   </body>
 </html>

@@ -608,11 +608,12 @@ export class VectorService {
   async deleteChapterChunks(chapterId: string): Promise<void> {
     // 删除以 chunk-{chapterId}- 开头的所有文档
     // Rust 后端按 id 前缀删除不支持，这里逐个删
-    // TODO: 未来可以在 Rust 端加 prefix delete
+    // 注意：Rust 后端暂不支持 prefix delete，采用逐个删除方式
     for (let i = 0; i < 200; i++) {
       try {
         await this.deleteDocument(`chunk-${chapterId}-${i}`);
       } catch {
+        this.logger.debug('vector service: chunk delete reached end', { chapterId, index: i })
         break; // 没有更多切片了
       }
     }
@@ -626,7 +627,7 @@ export class VectorService {
     // 也尝试删除旧版格式的文档
     try {
       await this.deleteDocument(`chapter-${chapterId}`);
-    } catch { /* ignore */ }
+    } catch { this.logger.debug('vector service: legacy chapter doc not found', { chapterId }) }
     this.logger.info('已删除章节索引', { chapterId });
   }
 

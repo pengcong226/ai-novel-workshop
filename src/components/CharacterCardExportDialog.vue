@@ -164,7 +164,7 @@ const handleExport = async () => {
   try {
     const filename = characterCardStore.characterName || 'character'
 
-    await characterCardStore.downloadCharacterCard(filename, exportOptions as any)
+    await characterCardStore.downloadCharacterCard(filename, exportOptions as CharacterCardExportOptions)
 
     ElMessage.success('角色卡导出成功')
     handleClose()

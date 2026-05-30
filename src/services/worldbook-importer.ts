@@ -11,10 +11,47 @@ import { getLogger } from '@/utils/logger'
 import type {
   Worldbook,
   WorldbookEntry,
+  WorldbookImportError,
   WorldbookImportOptions,
   WorldbookImportResult,
   WorldbookMergeOptions
 } from '@/types/worldbook'
+
+/**
+ * Tavern Parser 条目类型
+ * 包含 SillyTavern 所有可能的字段名
+ */
+interface TavernEntry {
+  uid?: string | number
+  id?: string | number
+  keys?: string[]
+  key?: string[]
+  secondary_keys?: string[]
+  keysecondary?: string[]
+  content?: string
+  enabled?: boolean
+  disable?: boolean
+  insertion_order?: number
+  order?: number
+  extensions?: Record<string, unknown>
+  name?: string
+  comment?: string
+  position?: unknown
+  depth?: number
+  selective?: boolean
+  priority?: number
+  group?: string
+  group_priority?: number
+  scan_depth?: number
+  match_whole_words?: boolean
+  case_sensitive?: boolean
+  delay_until_recursion?: boolean
+  prevent_recursion?: boolean
+  created_at?: number | string | Date
+  updated_at?: number | string | Date
+  metadata?: Record<string, unknown>
+  [key: string]: unknown
+}
 
 /**
  * Tavern Parser 解析结果类型
@@ -23,21 +60,14 @@ interface TavernParserResult {
   kind: 'character' | 'worldbook' | 'unknown'
   format: string
   data: {
-    entries?: Array<{
-      uid?: string
-      keys?: string[]
-      secondary_keys?: string[]
-      content?: string
-      enabled?: boolean
-      insertion_order?: number
-      extensions?: Record<string, unknown>
-      [key: string]: unknown
-    }>
+    entries?: TavernEntry[]
     name?: string
     description?: string
     scan_depth?: number
     token_budget?: number
     recursive_scanning?: boolean
+    character_book?: TavernParserResult['data']
+    extensions?: Record<string, unknown>
   }
   raw: Record<string, unknown>
 }
@@ -203,8 +233,8 @@ export class WorldbookImporter {
       errors: 0
     }
 
-    const errors: any[] = []
-    const warnings: any[] = []
+    const errors: WorldbookImportError[] = []
+    const warnings: string[] = []
     const idMapping = new Map<string, string>()
     const categoryMapping = new Map<string, string[]>()
 
@@ -259,11 +289,11 @@ export class WorldbookImporter {
           // ID处理
           if (autoGenerateIds || !entry.uid) {
             const oldId = entry.uid
-            const newId = uuidv4()
+            const newId = Date.now() + Math.floor(Math.random() * 1000)
             if (oldId) {
-              idMapping.set(String(oldId), newId)
+              idMapping.set(String(oldId), String(newId))
             }
-            entry.uid = newId as any
+            entry.uid = newId
           }
 
           // 分类推断
@@ -428,11 +458,11 @@ export class WorldbookImporter {
       // 如果是角色卡，尝试提取其中的世界书数据
       if (parsed.kind === 'character') {
         // Character Card V2/V3 格式可能包含 character_book
-        if ((parsed.data as any)?.character_book) {
+        if (parsed.data.character_book) {
           return this.convertToNovelWorkshopFormat({
             kind: 'worldbook',
             format: parsed.format,
-            data: (parsed.data as any).character_book,
+            data: parsed.data.character_book,
             raw: parsed.raw
           })
         }
@@ -515,12 +545,12 @@ export class WorldbookImporter {
    * 解析 JSONL 内容
    */
   private parseJsonlContent(text: string): Worldbook {
-    const entries: WorldbookEntry[] = []
+    const entries: TavernEntry[] = []
     const lines = text.split('\n').filter(line => line.trim())
 
     for (let i = 0; i < lines.length; i++) {
       try {
-        const entry = JSON.parse(lines[i])
+        const entry = JSON.parse(lines[i]) as TavernEntry
         entries.push(entry)
       } catch (error) {
         logger.warn(`JSONL 第 ${i + 1} 行解析失败:`, error)
@@ -530,7 +560,7 @@ export class WorldbookImporter {
     return this.convertToNovelWorkshopFormat({
       kind: 'worldbook',
       format: 'worldbook',
-      data: { entries: entries as any },
+      data: { entries },
       raw: { entries }
     })
   }
@@ -543,36 +573,35 @@ export class WorldbookImporter {
     const entries = (data.data.entries || []).map((entry, index) => {
       // SillyTavern格式字段映射
       // 注意：实际数据可能使用 id 而不是 uid
-      const rawEntry = entry as any
 
       return {
-        uid: Number(rawEntry.uid ?? rawEntry.id) || Date.now() + Math.floor(Math.random() * 1000),
-        key: rawEntry.keys || rawEntry.key || [],
-        keys: rawEntry.keys || rawEntry.key || [],
-        secondary_keys: rawEntry.secondary_keys || rawEntry.keysecondary || [],
-        content: rawEntry.content || '',
+        uid: Number(entry.uid ?? entry.id) || Date.now() + Math.floor(Math.random() * 1000),
+        key: entry.keys || entry.key || [],
+        keys: entry.keys || entry.key || [],
+        secondary_keys: entry.secondary_keys || entry.keysecondary || [],
+        content: entry.content || '',
         // 注意：实际数据使用 enabled，而不是 disable
-        enabled: rawEntry.enabled ?? (rawEntry.disable !== undefined ? !rawEntry.disable : true),
-        insertion_order: rawEntry.insertion_order ?? rawEntry.order ?? index,
-        extensions: rawEntry.extensions,
-        type: this.inferType(entry as any),
-        category: this.inferCategory(entry as any),
-        name: rawEntry.name || rawEntry.comment || `条目 ${index + 1}`,
-        comment: rawEntry.comment,
-        position: rawEntry.position as WorldbookEntry['position'],
-        depth: rawEntry.depth,
-        selective: rawEntry.selective,
-        priority: rawEntry.priority,
-        group: rawEntry.group,
-        group_priority: rawEntry.group_priority,
-        scan_depth: rawEntry.scan_depth,
-        match_whole_words: rawEntry.match_whole_words,
-        case_sensitive: rawEntry.case_sensitive,
-        delay_until_recursion: rawEntry.delay_until_recursion,
-        prevent_recursion: rawEntry.prevent_recursion,
-        created_at: rawEntry.created_at || Date.now(),
-        updated_at: rawEntry.updated_at || Date.now(),
-        metadata: rawEntry.metadata
+        enabled: entry.enabled ?? (entry.disable !== undefined ? !entry.disable : true),
+        insertion_order: entry.insertion_order ?? entry.order ?? index,
+        extensions: entry.extensions,
+        type: this.inferType(entry as Partial<WorldbookEntry>),
+        category: this.inferCategory(entry as Partial<WorldbookEntry>),
+        name: entry.name || entry.comment || `条目 ${index + 1}`,
+        comment: entry.comment,
+        position: entry.position as WorldbookEntry['position'],
+        depth: entry.depth,
+        selective: entry.selective,
+        priority: entry.priority,
+        group: entry.group,
+        group_priority: entry.group_priority,
+        scan_depth: entry.scan_depth,
+        match_whole_words: entry.match_whole_words,
+        case_sensitive: entry.case_sensitive,
+        delay_until_recursion: entry.delay_until_recursion,
+        prevent_recursion: entry.prevent_recursion,
+        created_at: entry.created_at || Date.now(),
+        updated_at: entry.updated_at || Date.now(),
+        metadata: entry.metadata
       }
     })
 
@@ -583,7 +612,7 @@ export class WorldbookImporter {
       scan_depth: data.data.scan_depth,
       token_budget: data.data.token_budget,
       recursive_scanning: data.data.recursive_scanning,
-      extensions: (data.data as any).extensions
+      extensions: data.data.extensions
     }
   }
 
@@ -750,7 +779,7 @@ export async function mergeWorldbooks(
 ): Promise<WorldbookImportResult> {
   const importer = new WorldbookImporter()
   const mergedEntries: WorldbookEntry[] = []
-  const allErrors: Array<any> = []
+  const allErrors: Array<WorldbookImportError> = []
   const stats = {
     total: 0,
     imported: 0,

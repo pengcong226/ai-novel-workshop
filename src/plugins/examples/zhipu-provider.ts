@@ -12,6 +12,9 @@ import type {
   ChatResponse,
   CostEstimate
 } from '../types'
+import { getLogger } from '@/utils/logger'
+
+const logger = getLogger('zhipu-provider')
 
 type ModelConfig = any
 type CostBreakdown = CostEstimate
@@ -313,7 +316,7 @@ export const manifest = {
  * 插件激活钩子
  */
 export async function activate(context: any) {
-  console.log('智谱GLM Provider插件已激活')
+  logger.info('智谱GLM Provider插件已激活')
 
   // 注册Provider
   context.register.aiProvider(zhipuGLMProviderContribution)
@@ -326,12 +329,12 @@ export async function activate(context: any) {
  * 插件停用钩子
  */
 export async function deactivate() {
-  console.log('智谱GLM Provider插件已停用')
+  logger.info('智谱GLM Provider插件已停用')
 }
 
 /**
  * 插件卸载钩子
  */
 export async function uninstall() {
-  console.log('智谱GLM Provider插件已卸载')
+  logger.info('智谱GLM Provider插件已卸载')
 }

@@ -8,6 +8,7 @@ import { buildNameToIdMapFromEntities } from '@/utils/entityHelpers';
 import { getLogger } from '@/utils/logger';
 import { isWebRuntime } from '@/utils/anthropic-guard';
 import { buildStateEventIndexes, sortStateEventsByChapter } from '@/utils/stateEventIndexes';
+import { StateEventSchema } from '@/schemas/stateEventSchema';
 
 const logger = getLogger('sandbox:store');
 
@@ -81,6 +82,7 @@ function parseEntityArray(rawJson: string, fallbackProjectId: string): Entity[] 
       projectId: entity.projectId ?? fallbackProjectId
     }));
   } catch {
+    logger.debug('sandbox: entity JSON parse failed')
     return null;
   }
 }
@@ -94,6 +96,7 @@ function parseStateEventArray(rawJson: string, fallbackProjectId: string): State
       projectId: event.projectId ?? fallbackProjectId
     }));
   } catch {
+    logger.debug('sandbox: state event JSON parse failed')
     return null;
   }
 }
@@ -112,6 +115,21 @@ export interface ResolvedEntity extends Entity {
   abilities: AbilityRecord[];
 }
 
+export interface DeltaPayload {
+  entitiesToAdd?: Entity[];
+  entitiesToUpdate?: Array<{ id: string; updates: Partial<Entity> }>;
+  stateEventsToAdd?: StateEvent[];
+}
+
+export interface DeltaResult {
+  success: boolean;
+  entitiesAdded: number;
+  entitiesUpdated: number;
+  eventsAdded: number;
+  errors: string[];
+  rollbackToken: string;
+}
+
 const WEB_SANDBOX_PREFIX = 'ai-novel-workshop:sandbox'
 
 function webSandboxKey(projectId: string, kind: 'entities' | 'state-events'): string {
@@ -127,11 +145,60 @@ function loadWebSandboxStateEvents(projectId: string): StateEvent[] | null {
 }
 
 function saveWebSandboxEntities(projectId: string, nextEntities: Entity[]): void {
-  localStorage.setItem(webSandboxKey(projectId, 'entities'), JSON.stringify(nextEntities))
+  const key = webSandboxKey(projectId, 'entities')
+  const json = JSON.stringify(nextEntities)
+
+  // Pre-check: estimate size (localStorage limit is typically 5-10MB)
+  if (json.length > 4 * 1024 * 1024) { // 4MB threshold
+    logger.warn(`Sandbox entities data size (${(json.length / 1024 / 1024).toFixed(2)}MB) exceeds safety threshold, data may be lost`)
+  }
+
+  try {
+    localStorage.setItem(key, json)
+  } catch (error) {
+    if (error instanceof DOMException && error.name === 'QuotaExceededError') {
+      logger.error('localStorage quota exceeded when saving sandbox entities. Consider archiving old data.')
+      // Try to save a trimmed version - keep only non-archived entities
+      const trimmed = nextEntities.filter(e => !e.isArchived)
+      try {
+        localStorage.setItem(key, JSON.stringify(trimmed))
+        logger.warn(`Saved trimmed entities (${trimmed.length}/${nextEntities.length}) after quota exceeded`)
+      } catch {
+        logger.error('Failed to save even trimmed entities to localStorage')
+        throw new Error('存储空间不足，无法保存沙盒实体数据。请清理部分数据后重试。')
+      }
+    } else {
+      throw error
+    }
+  }
 }
 
 function saveWebSandboxStateEvents(projectId: string, nextEvents: StateEvent[]): void {
-  localStorage.setItem(webSandboxKey(projectId, 'state-events'), JSON.stringify(nextEvents))
+  const key = webSandboxKey(projectId, 'state-events')
+  const json = JSON.stringify(nextEvents)
+
+  if (json.length > 4 * 1024 * 1024) {
+    logger.warn(`Sandbox state events data size (${(json.length / 1024 / 1024).toFixed(2)}MB) exceeds safety threshold`)
+  }
+
+  try {
+    localStorage.setItem(key, json)
+  } catch (error) {
+    if (error instanceof DOMException && error.name === 'QuotaExceededError') {
+      logger.error('localStorage quota exceeded when saving sandbox state events')
+      // Try to save only recent events (last 1000)
+      const trimmed = nextEvents.slice(-1000)
+      try {
+        localStorage.setItem(key, JSON.stringify(trimmed))
+        logger.warn(`Saved trimmed state events (${trimmed.length}/${nextEvents.length}) after quota exceeded`)
+      } catch {
+        logger.error('Failed to save even trimmed state events to localStorage')
+        throw new Error('存储空间不足，无法保存沙盒状态事件。请清理部分数据后重试。')
+      }
+    } else {
+      throw error
+    }
+  }
 }
 
 export const useSandboxStore = defineStore('sandbox', () => {
@@ -145,6 +212,7 @@ export const useSandboxStore = defineStore('sandbox', () => {
   const draftEntities = ref<Entity[]>([]);
   const draftRelations = ref<{ sourceId: string; relation: EntityRelation }[]>([]);
   const isWizardMode = ref(false);
+  const deltaRollbackMap = ref<Map<string, { entities: Entity[]; stateEvents: StateEvent[] }>>(new Map());
 
   // Pre-filtered entity views by type (non-archived)
   const activeEntities = computed(() => entities.value.filter(e => !e.isArchived));
@@ -691,6 +759,119 @@ export const useSandboxStore = defineStore('sandbox', () => {
     return buildNameToIdMapFromEntities(entities.value);
   }
 
+  function applyDelta(projectId: string, delta: DeltaPayload): DeltaResult {
+    const errors: string[] = [];
+    const rollbackToken = uuidv4();
+
+    // Validate all state events before applying anything
+    const eventsToAdd = delta.stateEventsToAdd ?? [];
+    for (let i = 0; i < eventsToAdd.length; i++) {
+      const result = StateEventSchema.validate(eventsToAdd[i]);
+      if (!result.valid) {
+        errors.push(`stateEventsToAdd[${i}] validation failed: ${result.errors.join('; ')}`);
+      }
+    }
+
+    if (errors.length > 0) {
+      return {
+        success: false,
+        entitiesAdded: 0,
+        entitiesUpdated: 0,
+        eventsAdded: 0,
+        errors,
+        rollbackToken,
+      };
+    }
+
+    // Take snapshot before applying
+    const snapshot = {
+      entities: [...entities.value],
+      stateEvents: [...stateEvents.value],
+    };
+
+    // Apply delta
+    let entitiesAdded = 0;
+    let entitiesUpdated = 0;
+    let eventsAdded = 0;
+
+    // Add entities
+    if (delta.entitiesToAdd && delta.entitiesToAdd.length > 0) {
+      const merged = new Map(entities.value.map(e => [e.id, e]));
+      for (const entity of delta.entitiesToAdd) {
+        merged.set(entity.id, entity);
+      }
+      entities.value = [...merged.values()];
+      entitiesAdded = delta.entitiesToAdd.length;
+    }
+
+    // Update entities
+    if (delta.entitiesToUpdate && delta.entitiesToUpdate.length > 0) {
+      for (const { id, updates } of delta.entitiesToUpdate) {
+        const index = entities.value.findIndex(e => e.id === id);
+        if (index !== -1) {
+          entities.value[index] = { ...entities.value[index], ...updates };
+          entitiesUpdated++;
+        } else {
+          errors.push(`Entity with id "${id}" not found for update`);
+        }
+      }
+    }
+
+    // Add state events
+    if (eventsToAdd.length > 0) {
+      const merged = new Map(stateEvents.value.map(e => [e.id, e]));
+      for (const event of eventsToAdd) {
+        merged.set(event.id, event);
+      }
+      stateEvents.value = sortStateEventsByChapter([...merged.values()]);
+      eventsAdded = eventsToAdd.length;
+    }
+
+    // Store snapshot for rollback (limit to 10 entries)
+    if (deltaRollbackMap.value.size >= 10) {
+      const firstKey = deltaRollbackMap.value.keys().next().value;
+      if (firstKey !== undefined) {
+        deltaRollbackMap.value.delete(firstKey);
+      }
+    }
+    deltaRollbackMap.value.set(rollbackToken, snapshot);
+
+    // Persist if in web runtime
+    if (isWebRuntime()) {
+      saveWebSandboxEntities(projectId, entities.value);
+      saveWebSandboxStateEvents(projectId, stateEvents.value);
+    }
+
+    return {
+      success: errors.length === 0,
+      entitiesAdded,
+      entitiesUpdated,
+      eventsAdded,
+      errors,
+      rollbackToken,
+    };
+  }
+
+  function rollbackDelta(rollbackToken: string): boolean {
+    const snapshot = deltaRollbackMap.value.get(rollbackToken);
+    if (!snapshot) {
+      logger.warn(`rollbackDelta: no snapshot found for token "${rollbackToken}"`);
+      return false;
+    }
+
+    const projectId = snapshot.entities[0]?.projectId || snapshot.stateEvents[0]?.projectId;
+    entities.value = snapshot.entities;
+    stateEvents.value = snapshot.stateEvents;
+    deltaRollbackMap.value.delete(rollbackToken);
+
+    if (isWebRuntime() && projectId) {
+      saveWebSandboxEntities(projectId, entities.value);
+      saveWebSandboxStateEvents(projectId, stateEvents.value);
+    }
+
+    return true;
+  }
+
   return {
     entities, stateEvents, pendingStateEvents, currentChapter, activeEntitiesState, stateEventIndexes,
     activeEntities, characterEntities, loreEntities, locationEntities, factionEntities, entitiesByType,
@@ -699,6 +880,7 @@ export const useSandboxStore = defineStore('sandbox', () => {
     addEntity, updateEntity, deleteEntity, addStateEvent, deleteStateEvent,
     batchAddEntities, batchAddStateEvents,
     replaceProjectData,
-    deleteStateEventsByChapterRange, deleteEntitiesByIds, getStateSnapshotAt, buildNameToIdMap
+    deleteStateEventsByChapterRange, deleteEntitiesByIds, getStateSnapshotAt, buildNameToIdMap,
+    deltaRollbackMap, applyDelta, rollbackDelta
   };
 });

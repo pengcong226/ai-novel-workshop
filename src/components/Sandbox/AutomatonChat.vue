@@ -21,6 +21,19 @@
         >
           <div class="msg-meta">{{ message.role === 'user' ? '你' : 'Automaton' }}</div>
           <div class="msg-content" v-html="message.renderedContent"></div>
+          <div v-if="message.intent" class="intent-card">
+            <div class="intent-header">
+              <el-icon><Aim /></el-icon>
+              <span>识别到操作意图：{{ getIntentLabel(message.intent) }}</span>
+            </div>
+            <div class="intent-params" v-if="hasParams(message.intent)">
+              <pre>{{ formatIntentParams(message.intent) }}</pre>
+            </div>
+            <div class="intent-actions">
+              <el-button type="primary" size="small" @click="executeIntent(message)">执行</el-button>
+              <el-button size="small" @click="dismissIntent(message)">取消</el-button>
+            </div>
+          </div>
           <div v-if="message.action" class="action-card">
             <div class="action-body">
               <div class="action-title">检测到可执行动作：{{ message.action.action }}</div>
@@ -52,6 +65,20 @@
         </el-button>
       </div>
 
+      <!-- Agent 状态面板 -->
+      <div class="agent-status-grid">
+        <div
+          v-for="agent in agentStatuses"
+          :key="agent.name"
+          class="agent-chip"
+          :class="`agent-chip--${agent.status}`"
+        >
+          <span class="agent-icon">{{ agent.icon }}</span>
+          <span class="agent-name">{{ agent.label }}</span>
+          <span class="agent-dot" :class="`dot--${agent.status}`"></span>
+        </div>
+      </div>
+
       <div class="chat-input">
         <div class="chat-input-wrapper">
           <textarea
@@ -72,6 +99,7 @@ import { computed, nextTick, onMounted, ref } from 'vue'
 import DOMPurify from 'dompurify'
 import { marked } from 'marked'
 import { ElMessage } from 'element-plus'
+import { Aim } from '@element-plus/icons-vue'
 import type { ActionEnvelope } from '@/assistant/actions/actionEnvelope'
 import { parseActionEnvelope } from '@/assistant/actions/actionEnvelope'
 import { executeAssistantAction } from '@/assistant/actions/executeAssistantAction'
@@ -81,7 +109,11 @@ import { useSandboxStore } from '@/stores/sandbox'
 import { IMPORTANCE_AI_LABELS } from '@/utils/eventTypeLabels'
 import { getErrorMessage } from '@/utils/getErrorMessage'
 import { getLogger } from '@/utils/logger'
+import { generateId } from '@/utils/generateId'
 import type { ChatMessage } from '@/types/ai'
+import { NaturalLanguageRouter } from '@/services/NaturalLanguageRouter'
+import type { IntentMatch } from '@/types/interactionIntents'
+import { INTENT_REGISTRY } from '@/types/interactionIntents'
 
 interface AutomatonMessage {
   id: string
@@ -89,6 +121,7 @@ interface AutomatonMessage {
   content: string
   renderedContent: string
   action?: ActionEnvelope
+  intent?: IntentMatch
 }
 
 interface QuickCommand {
@@ -105,6 +138,7 @@ interface CreateCharacterActionData {
 }
 
 const logger = getLogger('sandbox:automaton-chat')
+const nlRouter = new NaturalLanguageRouter()
 const aiStore = useAIStore()
 const projectStore = useProjectStore()
 const sandboxStore = useSandboxStore()
@@ -122,17 +156,41 @@ const MAX_RETAINED_MESSAGES = 40
 
 const quickCommands: QuickCommand[] = [
   { text: '总结当前状态', prompt: '请总结当前章节的沙盘状态、主要人物变化和世界观约束。' },
-  { text: '发现矛盾', prompt: '请检查当前沙盘状态里可能存在的时间线、人物状态或设定矛盾。' },
-  { text: '生成状态事件', prompt: '请根据当前章节进度，建议可以补充的 StateEvent。需要执行动作时只输出受支持的 ActionEnvelope。' },
+  { text: '写下一章', prompt: '帮我写下一章' },
+  { text: '检查连贯性', prompt: '检查连贯性' },
+  { text: '系统状态', prompt: '系统状态' },
+  { text: '帮助', prompt: '帮助' },
 ]
 
-function createMessage(role: AutomatonMessage['role'], content: string, action?: ActionEnvelope): AutomatonMessage {
+// 10-Agent 状态面板
+interface AgentStatus {
+  name: string
+  label: string
+  icon: string
+  status: 'idle' | 'active' | 'done' | 'error'
+}
+
+const agentStatuses = ref<AgentStatus[]>([
+  { name: 'planner', label: '规划师', icon: '📋', status: 'idle' },
+  { name: 'composer', label: '组装器', icon: '🧩', status: 'idle' },
+  { name: 'writer', label: '写手', icon: '✍️', status: 'idle' },
+  { name: 'normalizer', label: '字数标准化', icon: '📏', status: 'idle' },
+  { name: 'auditor', label: '审计员', icon: '🔍', status: 'idle' },
+  { name: 'reviser', label: '修订师', icon: '🔧', status: 'idle' },
+  { name: 'settler', label: '状态沉淀', icon: '📦', status: 'idle' },
+  { name: 'analyzer', label: '章节分析', icon: '📊', status: 'idle' },
+  { name: 'hook-promoter', label: '伏笔升级', icon: '🪝', status: 'idle' },
+  { name: 'observer', label: '观察者', icon: '👁️', status: 'idle' },
+])
+
+function createMessage(role: AutomatonMessage['role'], content: string, action?: ActionEnvelope, intent?: IntentMatch): AutomatonMessage {
   return {
-    id: crypto.randomUUID(),
+    id: generateId(),
     role,
     content,
     renderedContent: renderMarkdown(content),
     ...(action ? { action } : {}),
+    ...(intent ? { intent } : {}),
   }
 }
 
@@ -153,7 +211,7 @@ function initMessages() {
 function renderMarkdown(content: string): string {
   const html = marked.parse(content, { async: false }) as string
   return DOMPurify.sanitize(html, {
-    FORBID_TAGS: ['img', 'iframe', 'object', 'embed', 'script', 'style'],
+    FORBID_TAGS: ['img', 'iframe', 'object', 'embed', 'script', 'style', 'form'],
     FORBID_ATTR: ['srcset', 'onerror', 'onclick']
   })
 }
@@ -201,6 +259,70 @@ function normalizeAutomatonAction(action: ActionEnvelope | null): ActionEnvelope
 
 function formatActionPayload(action: ActionEnvelope): string {
   return JSON.stringify(action.data, null, 2)
+}
+
+function getIntentLabel(intent: IntentMatch): string {
+  const meta = INTENT_REGISTRY[intent.intent]
+  return meta ? `${meta.label}（${intent.intent}）` : intent.intent
+}
+
+function hasParams(intent: IntentMatch): boolean {
+  return intent.params && Object.keys(intent.params).length > 0
+}
+
+function formatIntentParams(intent: IntentMatch): string {
+  return JSON.stringify(intent.params, null, 2)
+}
+
+function executeIntent(message: AutomatonMessage) {
+  if (!message.intent) return
+  const intent = message.intent
+  const meta = INTENT_REGISTRY[intent.intent]
+
+  logger.info('执行意图', { intent: intent.intent, params: intent.params })
+
+  switch (intent.intent) {
+    case 'show_status': {
+      const currentChapter = sandboxStore.currentChapter
+      const entityCount = sandboxStore.entities.length
+      const eventCount = sandboxStore.stateEvents.filter(e => e.chapterNumber <= currentChapter).length
+      pushMessage(createMessage('assistant', `**当前项目状态**\n- 当前章节：第 ${currentChapter} 章\n- 实体数量：${entityCount}\n- 状态事件数：${eventCount}\n- 项目名称：${project.value?.title || '未命名项目'}`))
+      break
+    }
+    case 'help': {
+      pushMessage(createMessage('assistant', nlRouter.getHelpText()))
+      break
+    }
+    case 'query_entity': {
+      const entityName = intent.params.entityName
+      if (entityName) {
+        const entities = sandboxStore.entities.filter(e => e.name.includes(entityName))
+        if (entities.length > 0) {
+          const entityInfo = entities.map(e => `- **${e.name}** [${e.type}] ${e.description || ''}`).join('\n')
+          pushMessage(createMessage('assistant', `查询到以下实体：\n${entityInfo}`))
+        } else {
+          pushMessage(createMessage('assistant', `未找到名为「${entityName}」的实体。`))
+        }
+      } else {
+        const entities = sandboxStore.entities.slice(0, 20)
+        const entityList = entities.map(e => `- **${e.name}** [${e.type}]`).join('\n')
+        pushMessage(createMessage('assistant', `当前所有实体（前20个）：\n${entityList}`))
+      }
+      break
+    }
+    default: {
+      pushMessage(createMessage('assistant', `已识别操作意图「${meta?.label || intent.intent}」，该操作将通过流水线执行。\n\n参数：\`\`\`json\n${JSON.stringify(intent.params, null, 2)}\n\`\`\``))
+      break
+    }
+  }
+
+  // Clear the intent from the message so the card is dismissed
+  message.intent = undefined
+  void scrollToBottom()
+}
+
+function dismissIntent(message: AutomatonMessage) {
+  message.intent = undefined
 }
 
 function buildSystemPrompt(): string {
@@ -284,6 +406,36 @@ async function sendMessage() {
   userInput.value = ''
   await scrollToBottom()
 
+  // Try Natural Language Routing first
+  try {
+    const intentMatch = await nlRouter.route(text)
+    if (intentMatch) {
+      const meta = INTENT_REGISTRY[intentMatch.intent]
+      logger.info('NL路由匹配到意图', {
+        intent: intentMatch.intent,
+        confidence: intentMatch.confidence,
+        autoExecutable: meta?.autoExecutable,
+      })
+
+      if (meta?.autoExecutable && intentMatch.confidence > 0.85) {
+        // High confidence + auto-executable: execute directly
+        pushMessage(createMessage('assistant', `已自动识别操作意图「${meta.label}」并直接执行。`, undefined, intentMatch))
+        await scrollToBottom()
+        return
+      }
+
+      if (intentMatch.confidence > 0.7) {
+        // Show intent to user for confirmation
+        pushMessage(createMessage('assistant', `识别到操作意图，请确认是否执行。`, undefined, intentMatch))
+        await scrollToBottom()
+        return
+      }
+    }
+  } catch (error) {
+    logger.warn('NL路由处理失败，回退到LLM对话', error)
+  }
+
+  // Fallback: proceed with existing LLM chat behavior
   if (!aiStore.checkInitialized()) {
     pushMessage(createMessage('assistant', '请先在项目配置中添加并启用 AI 模型提供商。'))
     await scrollToBottom()
@@ -468,11 +620,105 @@ onMounted(() => {
   color: var(--el-text-color-regular);
   font-size: 12px;
 }
+.intent-card {
+  margin-top: 10px;
+  padding: 10px;
+  border: 1px solid rgba(64, 158, 255, 0.35);
+  border-radius: 8px;
+  background: rgba(64, 158, 255, 0.08);
+}
+.intent-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--el-color-primary);
+  font-size: 12px;
+  font-weight: 500;
+  margin-bottom: 8px;
+}
+.intent-params {
+  margin-bottom: 8px;
+}
+.intent-params pre {
+  margin: 0;
+  white-space: pre-wrap;
+  word-break: break-word;
+  max-height: 120px;
+  overflow-y: auto;
+  color: var(--el-text-color-regular);
+  font-size: 12px;
+  background: var(--el-bg-color-overlay);
+  padding: 6px 8px;
+  border-radius: 4px;
+}
+.intent-actions {
+  display: flex;
+  gap: 8px;
+}
 .quick-actions {
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
   margin-bottom: 10px;
+}
+.agent-status-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-bottom: 8px;
+  padding: 6px 8px;
+  background: var(--el-bg-color-overlay);
+  border: 1px solid var(--el-border-color-lighter);
+  border-radius: 6px;
+}
+.agent-chip {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  padding: 2px 8px;
+  border-radius: 12px;
+  font-size: 11px;
+  background: var(--el-fill-color-light);
+  border: 1px solid var(--el-border-color-lighter);
+  transition: all 0.2s;
+}
+.agent-chip--active {
+  background: var(--el-color-primary-light-9);
+  border-color: var(--el-color-primary-light-5);
+}
+.agent-chip--done {
+  background: var(--el-color-success-light-9);
+  border-color: var(--el-color-success-light-5);
+}
+.agent-chip--error {
+  background: var(--el-color-danger-light-9);
+  border-color: var(--el-color-danger-light-5);
+}
+.agent-icon {
+  font-size: 12px;
+}
+.agent-name {
+  color: var(--el-text-color-regular);
+}
+.agent-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--el-text-color-placeholder);
+}
+.dot--active {
+  background: var(--el-color-primary);
+  animation: pulse 1.2s ease-in-out infinite;
+}
+.dot--done {
+  background: var(--el-color-success);
+}
+.dot--error {
+  background: var(--el-color-danger);
+}
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
 }
 .chat-input {
   margin-top: auto;

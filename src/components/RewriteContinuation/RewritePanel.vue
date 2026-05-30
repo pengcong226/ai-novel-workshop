@@ -114,7 +114,7 @@ async function handleStart() {
 <style scoped>
 .range-info {
   font-size: 12px;
-  color: #e6a23c;
+  color: var(--ds-warning);
   font-weight: 500;
 }
 
@@ -126,12 +126,12 @@ async function handleStart() {
 
 .more-tag {
   font-size: 11px;
-  color: #909399;
+  color: var(--ds-text-tertiary);
   margin-left: 4px;
 }
 
 .form-hint {
-  color: #909399;
+  color: var(--ds-text-tertiary);
   font-size: 12px;
 }
 </style>

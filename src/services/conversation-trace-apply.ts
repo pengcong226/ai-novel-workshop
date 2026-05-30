@@ -86,13 +86,11 @@ async function defaultApplyWorldbook(
       comment: typeof payload.comment === 'string' ? payload.comment : artifact.title,
       constant: payload.constant === true,
       disable: payload.disable === true,
-      enabled: payload.enabled !== false,
-      insertion_order: typeof payload.insertion_order === 'number' ? payload.insertion_order : 100,
-      source: 'conversation-trace',
+      order: typeof payload.insertion_order === 'number' ? payload.insertion_order : 100,
     }
   })
 
-  await worldbookStore.importEntries(entries as any, {
+  await worldbookStore.importEntries(entries, {
     merge: true,
     conflictResolution: action === 'merge' ? 'merge' : 'keep_both',
     deduplicate: true,
@@ -135,7 +133,7 @@ async function defaultApplyKnowledge(
         createdAt: new Date(),
         updatedAt: new Date(),
       },
-    } as any)
+    })
 
     applied++
   }
@@ -172,7 +170,7 @@ async function defaultApplyCharacterProfile(
       continue
     }
 
-    characterCardStore.updateCharacter(updates as any)
+    characterCardStore.updateCharacter(updates)
     updated++
   }
 

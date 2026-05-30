@@ -198,7 +198,7 @@ watch([findText, caseSensitive], () => {
   position: absolute;
   top: 50px;
   right: 15%;
-  z-index: 50;
+  z-index: var(--ds-z-dropdown);
   min-width: 400px;
 }
 

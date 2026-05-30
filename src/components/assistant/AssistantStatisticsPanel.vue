@@ -111,12 +111,12 @@ defineExpose({
 
 .timeline-message {
   font-size: 13px;
-  color: #606266;
+  color: var(--ds-text-secondary);
   margin-bottom: 4px;
 }
 
 .timeline-time {
   font-size: 12px;
-  color: #909399;
+  color: var(--ds-text-tertiary);
 }
 </style>

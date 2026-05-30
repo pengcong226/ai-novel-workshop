@@ -11,6 +11,7 @@
 
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
+import { generateId } from '@/utils/generateId'
 import type {
   SillyTavernCharacterCard,
   CharacterBookEntry,
@@ -67,6 +68,9 @@ export const useCharacterCardStore = defineStore('characterCard', () => {
 
   /** 当前项目ID */
   const projectId = ref<string | null>(null)
+
+  /** V5 Bridge 同步错误状态 */
+  const bridgeError = ref<string | null>(null)
 
   // ============ 计算属性 ============
 
@@ -408,7 +412,7 @@ export const useCharacterCardStore = defineStore('characterCard', () => {
    */
   function addRegexScript(script: Partial<RegexScript>): void {
     regexScripts.value.push({
-      id: script.id || crypto.randomUUID(),
+      id: script.id || generateId(),
       scriptName: script.scriptName || '新脚本',
       disabled: script.disabled ?? false,
       runOnEdit: script.runOnEdit ?? false,
@@ -514,7 +518,8 @@ export const useCharacterCardStore = defineStore('characterCard', () => {
 
       projectId.value = entity.projectId
     } catch (e) {
-      logger.warn('syncFromSandbox failed:', e)
+      bridgeError.value = e instanceof Error ? e.message : String(e)
+      logger.error('syncFromSandbox failed:', e)
     }
   }
 
@@ -584,7 +589,8 @@ export const useCharacterCardStore = defineStore('characterCard', () => {
         })
       }
     } catch (e) {
-      logger.warn('dispatchToSandbox failed:', e)
+      bridgeError.value = e instanceof Error ? e.message : String(e)
+      logger.error('dispatchToSandbox failed:', e)
     }
   }
 
@@ -597,6 +603,7 @@ export const useCharacterCardStore = defineStore('characterCard', () => {
     worldbookEntries,
     loading,
     error,
+    bridgeError,
     projectId,
 
     // 计算属性

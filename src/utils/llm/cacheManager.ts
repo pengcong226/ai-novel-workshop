@@ -65,7 +65,8 @@ export class CacheManager {
     }
 
     // 更新对应阶段
-    ;(cache as any)[stage as string] = {
+    // Stage keys match AnalysisCache properties; cast needed for dynamic assignment
+    ;(cache as unknown as Record<string, unknown>)[stage] = {
       result,
       timestamp: Date.now()
     }

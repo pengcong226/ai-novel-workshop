@@ -1,7 +1,7 @@
-import { createRouter, createWebHistory } from 'vue-router'
+import { createRouter, createWebHashHistory } from 'vue-router'
 
 const router = createRouter({
-  history: createWebHistory(),
+  history: createWebHashHistory(),
   routes: [
     {
       path: '/',
@@ -18,8 +18,19 @@ const router = createRouter({
       name: 'ProjectEditor',
       component: () => import('@/views/ProjectEditor.vue'),
       meta: { title: '编辑作品' }
+    },
+    {
+      path: '/:pathMatch(.*)*',
+      redirect: '/'
     }
   ]
+})
+
+// 全局前置守卫：动态设置页面标题
+router.beforeEach((to, _from, next) => {
+  const title = to.meta.title as string | undefined
+  document.title = title ? `${title} - AI小说工坊` : 'AI小说工坊'
+  next()
 })
 
 export default router

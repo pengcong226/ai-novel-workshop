@@ -13,7 +13,7 @@ import type {
   TraceParseStats,
   TraceReviewItem,
 } from '@/types/conversation-trace'
-import type { WorldbookImportOptions } from '@/types/worldbook'
+import type { WorldbookImportOptions, WorldbookImportResult, WorldbookEntry } from '@/types/worldbook'
 import { useCharacterCardStore } from '@/stores/character-card'
 import { useKnowledgeStore } from '@/stores/knowledge'
 import { useProjectStore } from '@/stores/project'
@@ -223,8 +223,8 @@ export class UnifiedImporter {
     const projectStore = useProjectStore()
 
     const reviewResult = buildTraceReviewQueue(extractResult.artifacts, {
-      worldbookEntries: worldbookStore.entries as any as Array<Record<string, unknown>>,
-      knowledgeEntries: knowledgeStore.entries as any as Array<Record<string, unknown>>,
+      worldbookEntries: worldbookStore.entries as unknown as Array<Record<string, unknown>>,
+      knowledgeEntries: knowledgeStore.entries as unknown as Array<Record<string, unknown>>,
       hasWorldStructure: !!projectStore.currentProject?.world,
       hasCharacterStructure: (projectStore.currentProject?.characters?.length || 0) > 0,
     })
@@ -380,9 +380,9 @@ export class UnifiedImporter {
             await worldbookStore.loadWorldbook()
           }
 
-          await worldbookStore.importEntries(characterCardResult.worldbook.entries as any, {
+          await worldbookStore.importEntries(characterCardResult.worldbook.entries as unknown as WorldbookEntry[], {
             merge: worldbookOptions.mergeDuplicates,
-            conflictResolution: worldbookOptions.conflictResolution as any,
+            conflictResolution: worldbookOptions.conflictResolution,
             deduplicate: worldbookOptions.deduplicate,
             enableAllEntries: worldbookOptions.enableAllEntries,
           })
@@ -438,9 +438,9 @@ export class UnifiedImporter {
           await worldbookStore.loadWorldbook()
         }
 
-        await worldbookStore.importEntries(worldbookEntries as any, {
+        await worldbookStore.importEntries(worldbookEntries as unknown as WorldbookEntry[], {
           merge: worldbookOptions.mergeDuplicates,
-          conflictResolution: worldbookOptions.conflictResolution as any,
+          conflictResolution: worldbookOptions.conflictResolution,
           deduplicate: worldbookOptions.deduplicate,
           enableAllEntries: worldbookOptions.enableAllEntries,
         })
@@ -526,9 +526,9 @@ export class UnifiedImporter {
               await worldbookStore.loadWorldbook()
             }
 
-            await worldbookStore.importEntries(characterCardResult.worldbook.entries as any, {
+            await worldbookStore.importEntries(characterCardResult.worldbook.entries as unknown as WorldbookEntry[], {
               merge: worldbookOptions.mergeDuplicates,
-              conflictResolution: worldbookOptions.conflictResolution as any,
+              conflictResolution: worldbookOptions.conflictResolution,
               deduplicate: worldbookOptions.deduplicate,
               enableAllEntries: worldbookOptions.enableAllEntries,
             })
@@ -588,9 +588,9 @@ export class UnifiedImporter {
           await worldbookStore.loadWorldbook()
         }
 
-        await worldbookStore.importEntries(worldbookEntries as any, {
+        await worldbookStore.importEntries(worldbookEntries as unknown as WorldbookEntry[], {
           merge: worldbookOptions.mergeDuplicates,
-          conflictResolution: worldbookOptions.conflictResolution as any,
+          conflictResolution: worldbookOptions.conflictResolution,
           deduplicate: worldbookOptions.deduplicate,
           enableAllEntries: worldbookOptions.enableAllEntries,
         })
@@ -616,19 +616,17 @@ export class UnifiedImporter {
   /**
    * 从 worldbook 导入结果提取条目
    */
-  private extractWorldbookEntries(worldbookResult: any): any[] {
+  private extractWorldbookEntries(worldbookResult: WorldbookImportResult): WorldbookEntry[] {
     if (!worldbookResult || typeof worldbookResult !== 'object') {
       return []
     }
 
-    const directEntries = (worldbookResult as { entries?: any[] }).entries
-    if (Array.isArray(directEntries)) {
-      return directEntries
+    if (worldbookResult.entries && Array.isArray(worldbookResult.entries)) {
+      return worldbookResult.entries
     }
 
-    const nested = (worldbookResult as { worldbook?: { entries?: any[] } }).worldbook
-    if (nested && Array.isArray(nested.entries)) {
-      return nested.entries
+    if (worldbookResult.worldbook?.entries && Array.isArray(worldbookResult.worldbook.entries)) {
+      return worldbookResult.worldbook.entries
     }
 
     return []
@@ -637,21 +635,21 @@ export class UnifiedImporter {
   /**
    * 从 worldbook 导入结果提取错误消息
    */
-  private extractWorldbookErrors(worldbookResult: any): string[] | undefined {
+  private extractWorldbookErrors(worldbookResult: WorldbookImportResult): string[] | undefined {
     if (!worldbookResult || typeof worldbookResult !== 'object') {
       return undefined
     }
 
-    const maybeErrors = (worldbookResult as { errors?: any }).errors
-    if (!Array.isArray(maybeErrors)) {
+    const maybeErrors = worldbookResult.errors
+    if (!maybeErrors || !Array.isArray(maybeErrors)) {
       return undefined
     }
 
     const mapped = maybeErrors
       .map(error => {
         if (typeof error === 'string') return error
-        if (error && typeof error === 'object' && 'message' in error && typeof (error as any).message === 'string') {
-          return (error as any).message as string
+        if (error && typeof error === 'object' && 'message' in error && typeof error.message === 'string') {
+          return error.message
         }
         return ''
       })

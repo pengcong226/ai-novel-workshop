@@ -14,6 +14,13 @@
  */
 
 import type { Worldbook } from '@/types/worldbook'
+import { getLogger } from '@/utils/logger'
+import {
+  prepareEntry,
+  prepareWorldbookData
+} from '@/services/worldbook-common'
+
+const logger = getLogger('worldbook:png-writer')
 
 // ============================================================================
 // 类型定义
@@ -209,6 +216,7 @@ async function deflate(data: Uint8Array): Promise<Uint8Array> {
     const pako = await import('pako')
     return pako.deflate(data)
   } catch {
+    logger.debug('png writer: pako unavailable, falling back to CompressionStream')
     // 如果pako不可用，使用浏览器原生CompressionStream
     const stream = new CompressionStream('deflate')
     const writer = stream.writable.getWriter()
@@ -590,7 +598,7 @@ export class WorldbookPngWriter {
     } = options
 
     // 准备世界书数据
-    const worldbookData = this.prepareWorldbookData(worldbook, {
+    const worldbookData = prepareWorldbookData(worldbook, {
       includeExtensions,
       includeAiMetadata
     })
@@ -634,7 +642,7 @@ export class WorldbookPngWriter {
     } = options
 
     // 准备世界书数据
-    const worldbookData = this.prepareWorldbookData(worldbook, {
+    const worldbookData = prepareWorldbookData(worldbook, {
       includeExtensions,
       includeAiMetadata
     })
@@ -753,148 +761,6 @@ export class WorldbookPngWriter {
 
     // 创建Blob
     return new Blob([pngData], { type: 'image/png' })
-  }
-
-  /**
-   * 准备世界书数据
-   *
-   * @param worldbook 世界书
-   * @param options 选项
-   * @returns 清理后的世界书数据
-   */
-  private prepareWorldbookData(
-    worldbook: Worldbook,
-    options: { includeExtensions?: boolean; includeAiMetadata?: boolean }
-  ): any {
-    const { includeExtensions = false, includeAiMetadata = false } = options
-
-    const entries = worldbook.entries.map((entry) =>
-      this.prepareEntry(entry, { includeExtensions, includeAiMetadata })
-    )
-
-    const data: any = {
-      entries,
-      name: worldbook.name
-    }
-
-    // 添加元数据
-    if (worldbook.metadata) {
-      if (worldbook.metadata.description) {
-        data.description = worldbook.metadata.description
-      }
-      if (worldbook.metadata.scan_depth !== undefined) {
-        data.scan_depth = worldbook.metadata.scan_depth
-      }
-      if (worldbook.metadata.token_budget !== undefined) {
-        data.token_budget = worldbook.metadata.token_budget
-      }
-      if (worldbook.metadata.recursive_scan_depth !== undefined) {
-        data.recursive_scan_depth = worldbook.metadata.recursive_scan_depth
-      }
-    }
-
-    return data
-  }
-
-  /**
-   * 准备单个条目
-   *
-   * @param entry 条目
-   * @param options 选项
-   * @returns 清理后的条目数据
-   */
-  private prepareEntry(
-    entry: any,
-    options: { includeExtensions?: boolean; includeAiMetadata?: boolean }
-  ): any {
-    const { includeExtensions = false, includeAiMetadata = false } = options
-
-    // SillyTavern标准字段
-    const prepared: any = {
-      uid: entry.uid,
-      key: entry.key,
-      keysecondary: entry.keysecondary,
-      content: entry.content,
-      comment: entry.comment,
-      constant: entry.constant,
-      selective: entry.selective,
-      order: entry.order,
-      position: entry.position,
-      disable: entry.disable,
-      excludeRecursion: entry.excludeRecursion,
-      probability: entry.probability,
-      depth: entry.depth,
-      useProbability: entry.useProbability,
-      displayIndex: entry.displayIndex
-    }
-
-    // 移除undefined字段
-    Object.keys(prepared).forEach((key) => {
-      if (prepared[key] === undefined) {
-        delete prepared[key]
-      }
-    })
-
-    // 包含扩展字段
-    if (includeExtensions && entry.novelWorkshop) {
-      prepared.extensions = {
-        ...entry.extensions,
-        novelWorkshop: this.filterNovelWorkshopExtensions(
-          entry.novelWorkshop,
-          includeAiMetadata
-        )
-      }
-    } else if (entry.extensions) {
-      prepared.extensions = entry.extensions
-    }
-
-    return prepared
-  }
-
-  /**
-   * 过滤AI小说工坊扩展字段
-   *
-   * @param extensions 扩展字段
-   * @param includeAiMetadata 是否包含AI元数据
-   * @returns 过滤后的扩展字段
-   */
-  private filterNovelWorkshopExtensions(
-    extensions: any,
-    includeAiMetadata: boolean
-  ): any {
-    const filtered: any = {}
-
-    // 基本信息
-    if (extensions.category) filtered.category = extensions.category
-    if (extensions.tags) filtered.tags = extensions.tags
-    if (extensions.createdAt) filtered.createdAt = extensions.createdAt
-    if (extensions.updatedAt) filtered.updatedAt = extensions.updatedAt
-
-    // 关联关系
-    if (extensions.relatedCharacters) {
-      filtered.relatedCharacters = extensions.relatedCharacters
-    }
-    if (extensions.relatedLocations) {
-      filtered.relatedLocations = extensions.relatedLocations
-    }
-
-    // 适用范围
-    if (extensions.chapterRange) filtered.chapterRange = extensions.chapterRange
-
-    // 可视化数据
-    if (extensions.visualData) filtered.visualData = extensions.visualData
-
-    // AI元数据
-    if (includeAiMetadata && extensions.aiGenerated) {
-      filtered.aiGenerated = extensions.aiGenerated
-    }
-
-    // 统计信息
-    if (includeAiMetadata && extensions.statistics) {
-      filtered.statistics = extensions.statistics
-    }
-
-    return filtered
   }
 
   /**

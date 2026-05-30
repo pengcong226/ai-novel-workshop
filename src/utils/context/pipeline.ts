@@ -1,6 +1,6 @@
 import type { Project, Chapter, VectorServiceConfig } from '@/types';
 import type { VectorService } from '@/services/vector-service';
-import { countTokens as countLLMTokens } from '../llm/tokenizer';
+import { countTokens as countLLMTokens, estimateTokens } from '../llm/tokenizer';
 
 /**
  * 管道负载，在中间件之间流转的上下文对象
@@ -56,19 +56,9 @@ export interface ContextMiddleware {
 }
 
 /**
- * Token估算辅助函数
+ * Token估算辅助函数（统一使用 tokenizer.ts 中的实现）
  */
-export function estimateTokens(text: string): number {
-  if (!text) return 0;
-  try {
-    return countLLMTokens(text, 'openai');
-  } catch {
-    const chineseChars = (text.match(/[\u4e00-\u9fa5]/g) || []).length;
-    const englishWords = (text.match(/[a-zA-Z]+/g) || []).length;
-    const otherChars = text.length - chineseChars - englishWords;
-    return Math.ceil(chineseChars * 1.5 + englishWords + otherChars / 3);
-  }
-}
+export { estimateTokens };
 
 /**
  * 安全截断函数 (防止截断 UTF-16 Surrogate Pair)

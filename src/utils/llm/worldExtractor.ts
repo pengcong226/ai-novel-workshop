@@ -52,12 +52,12 @@ export async function extractWorldWithLLM(
     .map(ch => ch.content)
     .join('\n\n')
 
-  const worldSetting = (await callLLMWithValidation(
+  const worldSetting = await callLLMWithValidation(
     getWorldExtractionPrompt(textToAnalyze),
     worldSettingSchema,
     config,
     { maxRetries: 2 }
-  )) as any
+  ) as LLMWorldSetting
 
   logger.info('提取完成:', worldSetting.worldType)
 

@@ -546,6 +546,9 @@ export function useDeepImportSession() {
   // --------------------------------------------------------------------------
 
   function clearSession(): void {
+    if (extractor.value) {
+      extractor.value.abort()
+    }
     if (session.value) {
       const projectStore = useProjectStore()
       const projectId = projectStore.currentProject?.id || ''

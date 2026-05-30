@@ -156,6 +156,7 @@ import { ref, computed, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Refresh, Select, Connection, Delete, Edit } from '@element-plus/icons-vue'
 import type { LLMChapter } from '@/utils/llm/types'
+import { formatNumber } from '@/utils/formatters'
 
 interface Props {
   modelValue: LLMChapter[]
@@ -355,10 +356,6 @@ function countWords(text: string): number {
   return chineseChars + englishWords + numbers
 }
 
-// 格式化数字
-function formatNumber(num: number): string {
-  return num.toLocaleString()
-}
 </script>
 
 <style scoped>
@@ -397,23 +394,23 @@ function formatNumber(num: number): string {
 
 .position-info {
   font-size: 12px;
-  color: #909399;
+  color: var(--ds-text-tertiary);
 }
 
 .content-preview {
   padding: 12px;
-  background-color: #f5f7fa;
+  background-color: var(--ds-bg-tertiary);
   border-radius: 4px;
   font-size: 14px;
   line-height: 1.6;
-  color: #606266;
+  color: var(--ds-text-secondary);
   white-space: pre-wrap;
 }
 
 .more-indicator {
   margin-top: 8px;
   font-size: 12px;
-  color: #909399;
+  color: var(--ds-text-tertiary);
   font-style: italic;
 }
 

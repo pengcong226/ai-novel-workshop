@@ -51,7 +51,11 @@ export async function initializePluginSystem(): Promise<void> {
 
     // 在开发环境下暴露插件管理器到全局
     if (import.meta.env.DEV) {
-      (window as any).__PLUGIN_MANAGER__ = pluginStore.getRegistries()
+      Object.defineProperty(window, '__PLUGIN_MANAGER__', {
+        value: pluginStore.getRegistries(),
+        writable: true,
+        configurable: true
+      })
       logger.debug('开发模式已暴露插件管理器到 window.__PLUGIN_MANAGER__')
     }
   } catch (error) {

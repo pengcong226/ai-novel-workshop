@@ -354,11 +354,11 @@ function generateChapterHtml(
     lines.push('<footer class="chapter-footer">')
 
     if (chapter.outline?.characters.length > 0) {
-      lines.push(`<p><strong>出场人物：</strong>${chapter.outline.characters.join('、')}</p>`)
+      lines.push(`<p><strong>出场人物：</strong>${chapter.outline.characters.map(c => escapeHtml(c)).join('、')}</p>`)
     }
 
     if (chapter.outline?.location) {
-      lines.push(`<p><strong>地点：</strong>${chapter.outline.location}</p>`)
+      lines.push(`<p><strong>地点：</strong>${escapeHtml(chapter.outline.location)}</p>`)
     }
 
     lines.push('</footer>')
@@ -504,7 +504,7 @@ export function exportAllChaptersToPdf(
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>${project.title}</title>
+  <title>${escapeHtml(project.title)}</title>
   <style>
     ${generatePrintCss(opts)}
   </style>
@@ -575,7 +575,7 @@ export function generatePrintableHtml(
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>${project.title}</title>
+  <title>${escapeHtml(project.title)}</title>
   <style>
     ${generatePrintCss(opts)}
   </style>

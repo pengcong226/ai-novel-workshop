@@ -294,7 +294,7 @@ export class CharacterCardImporter {
     // 角色基本信息
     if (data.data) {
       // V2/V3 格式在 data 字段中
-      const char = data.data as any
+      const char = data.data
       result.character = {
         name: char.name || 'Unknown',
         description: char.description,

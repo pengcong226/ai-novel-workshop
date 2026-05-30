@@ -2,6 +2,8 @@
 
 ## 项目简介
 
+**面向中文创作者的AI长篇小说智能生成桌面工具，通过Entity & StateEvent状态记忆系统解决百万字长篇创作的"吃书"问题。**
+
 一个支持100万字以上长篇小说的智能生成系统,通过**Entity & StateEvent 状态记忆系统**确保长篇创作的连贯性和一致性。
 
 **最新架构升级 (v5.0)**: 采用 **Tauri + SQLite 桌面端混合架构**，同时保留浏览器 IndexedDB 备用运行模式；前端已统一为暗色优先的 Notion/Linear 风格工作台与全局 Design System。
@@ -32,20 +34,48 @@
 - ✨ **命运织布机 (Plot Loom)** - 创新看板+时间线融合视图 (`PlotLoomBoard.vue`)，将大纲升级为包含命运锚点 (`PlotAnchor`) 的 `VolumeArc` 结构；配合 `PlotAnchorMiddleware` 中间件向 AI 上下文动态注入【命运锚点预警】，实现前瞻性伏笔回收
 
 ### 📊 智能工作流系统
+- ✅ **10阶段AI创作流水线** - Planner→Composer→Writer→LengthNormalizer→ContinuityAuditor→Reviser→StateSettler→ChapterAnalyzer→HookPromoter→PostWriteValidator，全流程自动化
+- ✅ **17维质量审计** - 8维确定性检查（AI标记/段落等长/高频词/节奏/格式/POV/风格/数值矛盾）+ 9维LLM审计（OOC/时间线/设定/战力/数值/伏笔/节奏/风格/信息泄露等）
+- ✅ **审计-修订循环** - 自动快照→审计→修订→重评→最优选择，支持回滚到最佳版本
 - ✅ **全自动视界推演引擎** - （卷-章-幕）细纲约束系统，提前扼杀逻辑死局
 - ✅ **Zero-Touch 静默提取** - 完全无需手输，大模型在后台切片，全自动在背景将新实体入库并生成状态事件
 - ✅ **落笔防吃书哨兵 (Plot-Hole Detector)** - 上下文矛盾一秒红牌警告，AI 自身自检 3 次直至退回正确逻辑
 - ✅ **成本感知模型路由 (Model Router)** - 推演跑 GPT-4，正文跑特化生文模型，提取跑本地 OLLAMA，彻底压榨每 1 美分算力
 - ✅ **向量知识库搜索** - 自动在 OpenAI Embeddings 和本地 @xenova/transformers 之间无缝切换
+- ✅ **跨全书张力曲线分析器 (TensionCurvePlanner)** - 确定性全书节奏分析，检测高潮扎堆/低谷过长/节奏单调/突变跳跃4类问题，为下一章推荐张力目标值
+- ✅ **多读者群体评估 (ReaderAgent)** - 模拟资深网文读者/新手读者/题材核心受众3种读者群体差异化反馈，含弃书风险评估
+- ✅ **对话质量专项检测 (DialogueAnalyzer)** - 对话/叙述比例计算、对话标签频率统计、重复标签检测、连续对话检测，集成到17维质量审计
+- ✅ **角色语言风格档案 (SpeechPattern)** - ObserverAgent新增第10类事实提取，追踪角色formality/vocabulary/sentenceLength/quirks/catchphrases
+- ✅ **改稿二次验证 (RevisionVerifier)** - 审计-修订循环中不再盲目标记fixedIssues，两级验证：Level 1确定性验证（长度/重复段/敏感词）+ Level 2 LLM验证
+- ✅ **ComposerAgent LLM裁剪** - 章节数≥20时自动启用LLM语义裁剪，对chapterSummaries和characterMatrix做相关性评分，仅保留高相关条目
 
 ### 📝 功能模块
 - ✅ **模板系统** - 内置模板、从模板创建、导入导出
 - ✅ **大纲系统** - 经典结构模板、卷管理、结构化编辑
 - ✅ **实体状态管理** - 基于StateEvent的历史追踪，告别OOM
-- ✅ **导出格式** - Markdown、PDF、批量导出
+- ✅ **导出格式** - EPUB、PDF、DOCX、TXT、Markdown、批量导出
+- ✅ **平台格式导出** - 起点/番茄/刺猬猫/晋江/通用5种平台格式适配
 - ✅ **AI建议系统** - 主动建议、历史记录、统计分析
 - ✅ **小说导入分析** - 智能提取人物、关系、章节结构
 - ✅ **统一导入向导** - 向下兼容旧版角色卡/世界书/会话轨迹(JSONL)一体化导入与审核
+- ✅ **敏感词检测** - 中文网文平台合规检查（政治敏感/色情/暴力），支持开关控制
+- ✅ **伏笔追踪系统** - 伏笔种植/推进/回收/提及验证，hook健康分析
+- ✅ **节奏分析** - 章节节奏检测（5种场景类型），连续同类型告警，高张力检测
+- ✅ **叙事控制** - 7段结构（Hook→Rising→Climax→Falling→Resolution→Transition→Cliffhanger）
+- ✅ **自动备份** - 30分钟间隔自动快照，最多10份，支持恢复
+- ✅ **批量续写** - 支持暂停/恢复/取消，Token预算控制，每日限额，断点续写
+- ✅ **新手引导** - 7步交互式引导，localStorage持久化
+- ✅ **跨全书张力曲线** - 全书节奏宏观规划，4类节奏问题自动检测（高潮扎堆/低谷过长/节奏单调/突变跳跃）
+- ✅ **改稿二次验证** - 审计-修订循环中对修订结果进行确定性+LLM两级验证，防止虚假修复
+- ✅ **LLM语义裁剪** - 长篇小说（≥20章）自动启用LLM对上下文做语义相关性裁剪，提升上下文质量
+
+### 🧪 实验性功能（Beta）
+> 以下功能处于实验阶段，API和行为可能在后续版本中变更，不建议在生产环境中依赖。
+- 🧪 **同人创作服务 (FanficService)** - 支持4种同人模式：canon（原作向）、AU（架空设定）、OOC（人设崩坏）、CP（配对向）。源码：`src/services/FanficService.ts`
+- 🧪 **短篇小说Runner (ShortFictionRunner)** - 3阶段短篇生成流程：大纲→写作→组装，含自动review。源码：`src/services/pipeline/ShortFictionRunner.ts`
+- 🧪 **风格分析器 (StyleAnalyzerAgent)** - 5维风格指纹分析（句式/词汇/修辞/节奏/AI特征），支持quick/standard/deep三种分析深度。源码：`src/agents/StyleAnalyzerAgent.ts`
+- 🧪 **AIGC检测服务 (AIGCDetector)** - 集成GPTZero/Originality.ai外部API与本地启发式检测，支持段落级标注。源码：`src/services/AIGCDetector.ts`
+- 🧪 **观察者Agent (ObserverAgent)** - 10类事实提取（角色/关系/地点/物品/状态变化/伏笔/情感/时间线/数值/语言风格），"宁多勿漏"原则。源码：`src/agents/ObserverAgent.ts`
 
 ### 🔌 插件系统 (v2.0)
 - ✨ **强大扩展性** - 主题沙盒渲染与管道中间件拦截
@@ -485,6 +515,25 @@ window.__APP_LOGGER__.clearLogs()                  // 清空缓冲
 - [x] API 风控防误杀与代理对截断
 - [x] RAG 重排序 (相关性+时间序混合)
 
+### ✅ Phase 9: AI创作流水线 (v5.0+)
+- [x] 10阶段Pipeline完整接入（Planner→Composer→Writer→LengthNormalizer→ContinuityAuditor→Reviser→StateSettler→ChapterAnalyzer→HookPromoter→PostWriteValidator）
+- [x] 17维质量审计系统（8维确定性+9维LLM审计）
+- [x] 审计-修订循环（快照→审计→修订→重评→最优选择→回滚）
+- [x] 敏感词检测与开关控制
+- [x] 伏笔追踪系统（种植/推进/回收/提及验证+健康分析）
+- [x] 叙事控制（7段结构：Hook→Rising→Climax→Falling→Resolution→Transition→Cliffhanger）
+- [x] 节奏分析（5种场景类型检测+连续同类型告警）
+- [x] 批量续写调度（暂停/恢复/取消+Token预算+每日限额+断点续写）
+- [x] LLM重试机制（指数退避+抖动+Agent专属配置）
+- [x] 流水线锁（项目级互斥+30分钟过期清理）
+- [x] 自动备份（30分钟间隔+10快照上限+恢复）
+- [x] 存储空间监控（80%警告+95%严重）
+- [x] 错误处理（55+友好消息+10阶段错误映射）
+- [x] 新手引导（7步AppTour+localStorage持久化）
+- [x] 平台格式导出（起点/番茄/刺猬猫/晋江/通用5种适配）
+- [x] 14种类型配置（武侠/仙侠/玄幻/都市/言情/科幻/推理/轻小说/游戏/历史+6英文类型）
+- [x] 473个单元测试全通过
+
 ## 文档
 
 ### 核心文档
@@ -594,6 +643,14 @@ window.__APP_LOGGER__.clearLogs()                  // 清空缓冲
 **A:**
 - **桌面版**: SQLite存储,性能更好,支持百万字+项目
 - **Web版**: IndexedDB存储,无需安装,跨平台
+
+## 产品路线
+
+### 当前方向（v5.0）
+AI长篇小说智能生成工具 — 面向中文创作者，支持100万字以上长篇小说的智能生成、记忆管理和质量保障。
+
+### 远期探索
+- **互动式同人小说生成器** — 基于原作设定的if线剧情生成（详见 [DESIGN.md](./DESIGN.md)，当前为探索性设计文档，暂不实施）
 
 ## 许可证
 

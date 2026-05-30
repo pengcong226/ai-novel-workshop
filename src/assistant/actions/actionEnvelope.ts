@@ -1,3 +1,7 @@
+import { getLogger } from '@/utils/logger'
+
+const logger = getLogger('action-envelope')
+
 export interface ActionEnvelope {
   action: string;
   data: any;
@@ -22,7 +26,7 @@ export function parseActionEnvelope(text: string): ParseResult {
         };
       }
     } catch (e) {
-      // Ignored: JSON parse error
+      logger.warn('Failed to parse action envelope JSON:', e)
     }
   }
 

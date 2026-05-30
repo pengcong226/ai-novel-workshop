@@ -4,8 +4,8 @@
  * 管理所有AI提供商,包括内置和插件提供的自定义Provider
  */
 
-import type { ChatRequest, ChatResponse, CostBreakdown, ModelConfig } from '@/types/ai'
-import type { AIProviderContribution, ProviderConfig, ProviderInstance } from '../types'
+import type { ChatRequest, CostBreakdown } from '@/types/ai'
+import type { AIProviderContribution, ChatResponse as PluginChatResponse, ModelInfo, ProviderConfig, ProviderInstance } from '../types'
 import { getLogger } from '@/utils/logger'
 
 const logger = getLogger('plugin:registry:provider')
@@ -118,13 +118,13 @@ export class ProviderRegistry {
   /**
    * 发送聊天请求
    */
-  async chat(id: string, request: ChatRequest): Promise<ChatResponse> {
+  async chat(id: string, request: ChatRequest): Promise<PluginChatResponse> {
     const instance = this.getInstance(id)
     if (!instance) {
       throw new Error(`Provider ${id} 未配置或未注册`)
     }
 
-    return (await instance.chat(request)) as any
+    return await instance.chat(request)
   }
 
   /**
@@ -163,13 +163,13 @@ export class ProviderRegistry {
   /**
    * 获取Provider支持的模型列表
    */
-  async getModels(id: string): Promise<ModelConfig[]> {
+  async getModels(id: string): Promise<ModelInfo[]> {
     const instance = this.getInstance(id)
     if (!instance) {
       throw new Error(`Provider ${id} 未配置或未注册`)
     }
 
-    return (await instance.getModels()) as any
+    return await instance.getModels()
   }
 
   /**

@@ -277,6 +277,7 @@ export class RewriteContinuationService {
       const key = `${BACKUP_KEY_PREFIX}${projectId}`
       return await readEncryptedLocalStorage<RewriteBackup>(key)
     } catch {
+      logger.debug('rewrite continuation: pending backup read failed')
       return null
     }
   }

@@ -38,6 +38,8 @@
       </div>
 
       <nav class="sidebar-nav" aria-label="项目工作区导航">
+        <!-- 核心功能 -->
+        <span v-show="!isSidebarCollapsed" class="nav-group-label">核心功能</span>
         <button
           class="nav-item"
           :class="{ active: activeMenu === 'dashboard' }"
@@ -70,58 +72,6 @@
         </button>
         <button
           class="nav-item"
-          :class="{ active: activeMenu === 'summary' }"
-          type="button"
-          title="摘要管理"
-          @click="handleMenuSelect('summary')"
-        >
-          <el-icon class="nav-icon"><DocumentCopy /></el-icon>
-          <span v-show="!isSidebarCollapsed" class="nav-label">摘要管理</span>
-        </button>
-        <button
-          class="nav-item"
-          :class="{ active: activeMenu === 'quality' }"
-          type="button"
-          title="质量报告"
-          @click="handleMenuSelect('quality')"
-        >
-          <el-icon class="nav-icon"><DataAnalysis /></el-icon>
-          <span v-show="!isSidebarCollapsed" class="nav-label">质量报告</span>
-        </button>
-        <button
-          class="nav-item"
-          :class="{ active: activeMenu === 'token-usage' }"
-          type="button"
-          title="Token 用量"
-          @click="handleMenuSelect('token-usage')"
-        >
-          <el-icon class="nav-icon"><TrendCharts /></el-icon>
-          <span v-show="!isSidebarCollapsed" class="nav-label">Token 用量</span>
-        </button>
-        <button
-          class="nav-item"
-          :class="{ active: activeMenu === 'agents' }"
-          type="button"
-          title="Agent 控制台"
-          @click="handleMenuSelect('agents')"
-        >
-          <el-icon class="nav-icon"><Grid /></el-icon>
-          <span v-show="!isSidebarCollapsed" class="nav-label">Agent 控制台</span>
-        </button>
-        <button
-          v-if="isDev"
-          class="nav-item"
-          :class="{ active: activeMenu === '__dev_panel__' }"
-          type="button"
-          title="开发者面板"
-          @click="handleMenuSelect('__dev_panel__')"
-        >
-          <el-icon class="nav-icon"><Tools /></el-icon>
-          <span v-show="!isSidebarCollapsed" class="nav-label">开发者面板</span>
-          <el-tag v-if="isMockEnabled && !isSidebarCollapsed" size="small" type="danger">MOCK</el-tag>
-        </button>
-        <button
-          class="nav-item"
           :class="{ active: activeMenu === 'config' }"
           type="button"
           title="配置"
@@ -130,6 +80,79 @@
           <el-icon class="nav-icon"><Setting /></el-icon>
           <span v-show="!isSidebarCollapsed" class="nav-label">配置</span>
         </button>
+
+        <!-- Pipeline -->
+        <div class="nav-divider"></div>
+        <span v-show="!isSidebarCollapsed" class="nav-group-label">Pipeline</span>
+        <button
+          class="nav-item"
+          :class="{ active: activeMenu === 'agents' }"
+          type="button"
+          title="Agent 控制台"
+          @click="handleMenuSelect('agents')"
+        >
+          <el-icon class="nav-icon"><Connection /></el-icon>
+          <span v-show="!isSidebarCollapsed" class="nav-label">Agent 控制台</span>
+          <el-tag v-show="!isSidebarCollapsed" size="small" type="success" class="nav-badge">Pipeline</el-tag>
+        </button>
+
+        <!-- 工具 -->
+        <div class="nav-divider"></div>
+        <span v-show="!isSidebarCollapsed" class="nav-group-label">工具</span>
+        <button
+          class="nav-item nav-group-toggle"
+          type="button"
+          title="展开/收起工具"
+          @click="isToolsExpanded = !isToolsExpanded"
+        >
+          <el-icon class="nav-icon"><Grid /></el-icon>
+          <span v-show="!isSidebarCollapsed" class="nav-label">工具</span>
+          <el-icon v-show="!isSidebarCollapsed" class="nav-arrow" :class="{ expanded: isToolsExpanded }"><ArrowDown /></el-icon>
+        </button>
+        <template v-if="isToolsExpanded">
+          <button
+            class="nav-item nav-sub-item"
+            :class="{ active: activeMenu === 'summary' }"
+            type="button"
+            title="摘要管理"
+            @click="handleMenuSelect('summary')"
+          >
+            <el-icon class="nav-icon"><DocumentCopy /></el-icon>
+            <span v-show="!isSidebarCollapsed" class="nav-label">摘要管理</span>
+          </button>
+          <button
+            class="nav-item nav-sub-item"
+            :class="{ active: activeMenu === 'quality' }"
+            type="button"
+            title="质量报告"
+            @click="handleMenuSelect('quality')"
+          >
+            <el-icon class="nav-icon"><DataAnalysis /></el-icon>
+            <span v-show="!isSidebarCollapsed" class="nav-label">质量报告</span>
+          </button>
+          <button
+            class="nav-item nav-sub-item"
+            :class="{ active: activeMenu === 'token-usage' }"
+            type="button"
+            title="Token 用量"
+            @click="handleMenuSelect('token-usage')"
+          >
+            <el-icon class="nav-icon"><TrendCharts /></el-icon>
+            <span v-show="!isSidebarCollapsed" class="nav-label">Token 用量</span>
+          </button>
+          <button
+            v-if="isDev"
+            class="nav-item nav-sub-item"
+            :class="{ active: activeMenu === '__dev_panel__' }"
+            type="button"
+            title="开发者面板"
+            @click="handleMenuSelect('__dev_panel__')"
+          >
+            <el-icon class="nav-icon"><Tools /></el-icon>
+            <span v-show="!isSidebarCollapsed" class="nav-label">开发者面板</span>
+            <el-tag v-if="isMockEnabled && !isSidebarCollapsed" size="small" type="danger">MOCK</el-tag>
+          </button>
+        </template>
 
         <div v-if="pluginMenuItems.length > 0" class="nav-divider"></div>
         <button
@@ -157,17 +180,17 @@
       </div>
 
       <div class="sidebar-footer">
-        <div v-show="!isSidebarCollapsed" class="save-status-wrap">
-          <span v-if="isSaving" class="save-status saving">保存中</span>
-          <span v-else-if="isDirty" class="save-status dirty">未保存</span>
+        <span v-if="isSaving" v-show="!isSidebarCollapsed" class="save-status saving">保存中</span>
+        <span v-else-if="isDirty" v-show="!isSidebarCollapsed" class="save-status dirty">未保存</span>
+        <div class="footer-actions">
+          <button class="footer-btn" type="button" title="快捷键" @click="showShortcutsDialog = true">⌨</button>
+          <button class="footer-btn" type="button" :title="isDark ? '切换到明亮模式' : '切换到暗色模式'" @click="toggleTheme">
+            <el-icon><Sunny v-if="isDark" /><Moon v-else /></el-icon>
+          </button>
+          <button class="footer-btn" type="button" title="返回项目列表" @click="goBack">
+            <el-icon><ArrowLeft /></el-icon>
+          </button>
         </div>
-        <button class="footer-btn" type="button" title="快捷键" @click="showShortcutsDialog = true">⌨</button>
-        <button class="footer-btn" type="button" :title="isDark ? '切换到明亮模式' : '切换到暗色模式'" @click="toggleTheme">
-          <el-icon><Sunny v-if="isDark" /><Moon v-else /></el-icon>
-        </button>
-        <button class="footer-btn" type="button" title="返回项目列表" @click="goBack">
-          <el-icon><ArrowLeft /></el-icon>
-        </button>
       </div>
     </aside>
 
@@ -189,21 +212,36 @@
         <p>加载项目中...</p>
       </div>
       <section v-else-if="project && project.id" class="workspace-surface">
-        <WritingDashboard
-          v-if="activeMenu === 'dashboard'"
-          @open-chapters="handleDashboardAction"
-          @create-chapter="handleDashboardAction"
-          @continue-writing="handleDashboardAction"
-          @batch-generate="handleDashboardAction"
-        />
-        <SandboxLayout v-else-if="activeMenu === 'sandbox'" />
-        <Chapters v-else-if="activeMenu === 'chapters'" />
-        <SummaryManager v-else-if="activeMenu === 'summary'" />
-        <QualityReport v-else-if="activeMenu === 'quality'" />
-        <TokenUsagePanel v-else-if="activeMenu === 'token-usage'" />
-        <AgentConsole v-else-if="activeMenu === 'agents'" />
-        <ProjectConfig v-else-if="activeMenu === 'config'" />
-        <DeveloperPanel v-else-if="activeMenu === '__dev_panel__'" />
+        <ErrorBoundary name="WritingDashboard" :show-retry="true" :show-detail="false">
+          <WritingDashboard
+            v-if="activeMenu === 'dashboard'"
+            @open-chapters="handleDashboardAction"
+            @create-chapter="handleDashboardAction"
+            @continue-writing="handleDashboardAction"
+            @batch-generate="handleDashboardAction"
+            @open-config="handleMenuSelect('config')"
+            @open-sandbox="handleMenuSelect('sandbox')"
+            @open-agents="handleMenuSelect('agents')"
+          />
+        </ErrorBoundary>
+        <ErrorBoundary name="SandboxLayout" :show-retry="true">
+          <SandboxLayout v-if="activeMenu === 'sandbox'" />
+        </ErrorBoundary>
+        <ErrorBoundary name="Chapters" :show-retry="true">
+          <Chapters v-if="activeMenu === 'chapters'" />
+        </ErrorBoundary>
+        <SummaryManager v-if="activeMenu === 'summary'" />
+        <ErrorBoundary name="QualityReport" :show-retry="true">
+          <QualityReport v-if="activeMenu === 'quality'" />
+        </ErrorBoundary>
+        <ErrorBoundary name="TokenUsagePanel" :show-retry="true">
+          <TokenUsagePanel v-if="activeMenu === 'token-usage'" />
+        </ErrorBoundary>
+        <AgentConsole v-if="activeMenu === 'agents'" />
+        <ErrorBoundary name="ProjectConfig" :show-retry="true">
+          <ProjectConfig v-if="activeMenu === 'config'" />
+        </ErrorBoundary>
+        <DeveloperPanel v-if="activeMenu === '__dev_panel__'" />
       </section>
       <div v-else class="error-container glass-panel">
         <el-empty description="项目加载失败">
@@ -229,11 +267,19 @@
       v-model="showShortcutsDialog"
       :shortcuts="shortcuts"
     />
+
+    <!-- Pipeline 新手引导（自定义实现，替代 el-tour） -->
+    <AppTour
+      v-model="pipelineTourOpen"
+      :steps="pipelineTourSteps"
+      @finish="onPipelineTourFinish"
+      @close="onPipelineTourClose"
+    />
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, computed, defineAsyncComponent } from 'vue'
+import { ref, onMounted, onBeforeUnmount, computed, defineAsyncComponent, nextTick, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useProjectStore } from '@/stores/project'
 import { usePluginStore } from '@/stores/plugin'
@@ -241,9 +287,13 @@ import { useAutoSave } from '@/composables/useAutoSave'
 import { useGlobalSearch } from '@/composables/useGlobalSearch'
 import { useThemeStore } from '@/stores/theme'
 import { useTokenUsageStore } from '@/stores/tokenUsage'
-import { Reading, Setting, ArrowLeft, Loading, DataAnalysis, DocumentCopy, Tools, Fold, Expand, DataBoard, Sunny, Moon, Grid, TrendCharts } from '@element-plus/icons-vue'
+import { Reading, Setting, ArrowLeft, ArrowDown, Loading, DataAnalysis, DocumentCopy, Tools, Fold, Expand, DataBoard, Sunny, Moon, Grid, TrendCharts, Connection, House, Notebook, Compass, Cpu, Connection as PipelineIcon } from '@element-plus/icons-vue'
+import { h } from 'vue'
 import { getAIMockEnabled } from '@/utils/devFlags'
 import { getLogger } from '@/utils/logger'
+import { formatNumber } from '@/utils/formatters'
+import AppTour from '@/components/AppTour.vue'
+import ErrorBoundary from '@/components/ErrorBoundary.vue'
 const logger = getLogger('views:ProjectEditor')
 
 // 懒加载组件 - 按需加载，优化首屏性能
@@ -281,7 +331,92 @@ const isDev = import.meta.env.DEV
 const isMockEnabled = ref(false)
 const isZenMode = ref(false)
 const isSidebarCollapsed = ref(false)
+const isToolsExpanded = ref(false)
 const showShortcutsDialog = ref(false)
+
+// Pipeline 新手引导
+const PIPELINE_TOUR_KEY = 'ai-novel-workshop:pipeline-tour:completed'
+const pipelineTourOpen = ref(false)
+const sidebarNavRef = ref<HTMLElement>()
+const agentsMenuRef = ref<HTMLElement>()
+
+const pipelineTourSteps = computed(() => [
+  {
+    target: '.sidebar-nav',
+    title: '欢迎使用 AI 小说工坊',
+    description: '这是你的创作工作台。左侧导航可快速切换各功能区域，由10个专业AI Agent组成流水线，帮你完成从构思到成书的全过程。',
+    icon: h(House, { style: 'color: var(--ds-accent); font-size: 18px;' }),
+  },
+  {
+    target: '.sidebar-stats',
+    title: '写作进度概览',
+    description: '实时显示当前字数与目标字数。设定目标后，系统会自动追踪你的创作进度。',
+    icon: h(TrendCharts, { style: 'color: var(--ds-success); font-size: 18px;' }),
+  },
+  {
+    target: '.nav-item[title="写作仪表盘"]',
+    title: '写作仪表盘',
+    description: '项目的核心控制台。查看章节状态、续写进度、AI配置状态和快捷操作，一站掌握全局。',
+    icon: h(DataBoard, { style: 'color: var(--ds-info); font-size: 18px;' }),
+  },
+  {
+    target: '.nav-item[title="多维设定沙盘"]',
+    title: '多维设定沙盘',
+    description: '世界观、人物关系、势力图的可视化管理。AI会自动维护设定一致性，避免前后矛盾。',
+    icon: h(Grid, { style: 'color: var(--ds-warning); font-size: 18px;' }),
+  },
+  {
+    target: '.nav-item[title="章节"]',
+    title: '章节管理',
+    description: '管理所有章节的创作、编辑和审校。支持AI续写、批量生成、多格式导出。',
+    icon: h(Notebook, { style: 'color: var(--ds-accent-text); font-size: 18px;' }),
+  },
+  {
+    target: '.nav-item[title="配置"]',
+    title: '模型配置',
+    description: '配置AI模型提供商（OpenAI、Anthropic、DeepSeek等），是使用AI功能的前提。',
+    icon: h(Cpu, { style: 'color: var(--ds-text-secondary); font-size: 18px;' }),
+  },
+  {
+    target: '.nav-item[title="展开/收起工具"]',
+    title: 'Agent 控制台',
+    description: '展开工具菜单找到Agent控制台。10个Agent协同完成高质量创作。',
+    icon: h(Compass, { style: 'color: var(--ds-accent); font-size: 18px;' }),
+  },
+])
+
+function markPipelineTourCompleted() {
+  try {
+    localStorage.setItem(PIPELINE_TOUR_KEY, 'true')
+    sessionStorage.setItem(PIPELINE_TOUR_KEY, 'true')
+  } catch {
+    // ignore
+  }
+}
+
+function isPipelineTourDone(): boolean {
+  try {
+    return localStorage.getItem(PIPELINE_TOUR_KEY) === 'true'
+      || sessionStorage.getItem(PIPELINE_TOUR_KEY) === 'true'
+  } catch {
+    return false
+  }
+}
+
+function onPipelineTourFinish() {
+  markPipelineTourCompleted()
+}
+
+function onPipelineTourClose() {
+  markPipelineTourCompleted()
+}
+
+// 当 tour 从打开变为关闭时（无论通过何种方式），标记为已完成
+watch(pipelineTourOpen, (newVal) => {
+  if (!newVal) {
+    markPipelineTourCompleted()
+  }
+})
 
 const project = computed(() => projectStore.currentProject)
 
@@ -408,9 +543,41 @@ onMounted(async () => {
   // 加载已安装插件
   await pluginStore.loadInstalledPlugins()
   isMockEnabled.value = getAIMockEnabled()
+
+  // 首次进入自动触发 Pipeline 新手引导
+  if (!isPipelineTourDone()) {
+    // 延迟确保 DOM 和异步组件就绪
+    nextTick(() => {
+      setTimeout(() => {
+        if (!isPipelineTourDone()) {
+          const firstTarget = document.querySelector('.sidebar-nav')
+          if (!firstTarget) {
+            logger.warn('[Tour] 目标元素未就绪，跳过 Tour 显示')
+            markPipelineTourCompleted()
+            return
+          }
+          pipelineTourOpen.value = true
+        }
+      }, 1000)
+    })
+  }
+})
+
+// 组件卸载时，如果 tour 仍在打开状态，持久化完成状态
+onBeforeUnmount(() => {
+  if (pipelineTourOpen.value) {
+    markPipelineTourCompleted()
+    pipelineTourOpen.value = false
+  }
 })
 
 function handleMenuSelect(index: string) {
+  // 切换导航时，如果 Tour 仍在显示，关闭它
+  if (pipelineTourOpen.value) {
+    markPipelineTourCompleted()
+    pipelineTourOpen.value = false
+  }
+
   if (index === '__dev_panel__') {
     activeMenu.value = index
     isMockEnabled.value = getAIMockEnabled()
@@ -436,13 +603,6 @@ function goBack() {
   router.push('/')
 }
 
-function formatNumber(num?: number | null) {
-  if (num === undefined || num === null || isNaN(num)) return '0'
-  if (num >= 10000) {
-    return (num / 10000).toFixed(1) + '万'
-  }
-  return num.toString()
-}
 </script>
 
 <style scoped>
@@ -610,6 +770,36 @@ function formatNumber(num?: number | null) {
 .nav-icon {
   flex-shrink: 0;
   width: 24px;
+}
+
+.nav-group-toggle {
+  color: var(--ds-text-tertiary);
+  font-size: var(--ds-text-xs);
+  letter-spacing: 0.05em;
+}
+
+.nav-group-toggle:hover {
+  color: var(--ds-text-primary);
+}
+
+.nav-arrow {
+  margin-left: auto;
+  font-size: 12px;
+  transition: transform var(--ds-transition-fast);
+}
+
+.nav-arrow.expanded {
+  transform: rotate(180deg);
+}
+
+.nav-sub-item {
+  padding-left: calc(var(--ds-space-3) + 12px);
+  font-size: var(--ds-text-xs);
+}
+
+.nav-icon {
+  flex-shrink: 0;
+  width: 24px;
   justify-content: center;
   font-size: 16px;
 }
@@ -620,10 +810,26 @@ function formatNumber(num?: number | null) {
   text-overflow: ellipsis;
 }
 
+.nav-badge {
+  margin-left: auto;
+  flex-shrink: 0;
+}
+
 .nav-divider {
   height: 1px;
   margin: var(--ds-space-3) var(--ds-space-2);
   background: var(--ds-surface-border);
+}
+
+.nav-group-label {
+  display: block;
+  padding: var(--ds-space-1) var(--ds-space-3);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ds-text-tertiary);
+  user-select: none;
 }
 
 .plugin-panels {
@@ -637,11 +843,17 @@ function formatNumber(num?: number | null) {
 .sidebar-footer {
   display: flex;
   align-items: center;
-  justify-content: center;
-  gap: var(--ds-space-1);
+  gap: var(--ds-space-2);
   padding-top: var(--ds-space-3);
   border-top: 1px solid var(--ds-surface-border);
   margin-top: var(--ds-space-3);
+}
+
+.footer-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--ds-space-1);
+  margin-left: auto;
 }
 
 .save-status-wrap {
@@ -733,7 +945,7 @@ function formatNumber(num?: number | null) {
   position: absolute;
   top: var(--ds-space-5);
   left: var(--ds-space-5);
-  z-index: 999;
+  z-index: var(--ds-z-overlay);
   box-shadow: var(--ds-shadow-lg);
   opacity: 0.35;
   transition: opacity var(--ds-transition-normal);
@@ -754,12 +966,21 @@ function formatNumber(num?: number | null) {
   padding-right: 0;
 }
 
+.sidebar-collapsed .sidebar-footer {
+  justify-content: center;
+}
+
+.sidebar-collapsed .footer-actions {
+  margin-left: 0;
+}
+
 .sidebar-collapsed .nav-item {
   justify-content: center;
   padding-left: 0;
   padding-right: 0;
 }
 
+/* breakpoint: lg (900px) */
 @media (max-width: 900px) {
   .editor-layout,
   .editor-layout.has-right-sidebar {
@@ -774,4 +995,5 @@ function formatNumber(num?: number | null) {
     padding: var(--ds-space-4);
   }
 }
+
 </style>

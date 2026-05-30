@@ -495,7 +495,7 @@ async function persistChapterDraftSilently() {
 
   const draftData = structuredClone(chapterForm.value)
   draftData.id = draftData.id || uuidv4()
-  draftData.wordCount = draftData.content.length
+  draftData.wordCount = (draftData.content || '').length
   chapterForm.value.id = draftData.id
 
   await projectStore.saveChapter(draftData)
@@ -506,7 +506,7 @@ function scheduleAutoSave() {
     return
   }
 
-  if (!project.value || (!chapterForm.value.title.trim() && !chapterForm.value.content.trim())) {
+  if (!project.value || !chapterForm.value.title.trim()) {
     return
   }
 
@@ -613,20 +613,36 @@ async function saveChapter() {
     return
   }
 
+  if (!project.value) {
+    ElMessage.error('项目未加载，无法保存')
+    saveStatus.value = 'error'
+    return
+  }
+
   clearAutoSaveTimer()
   saving.value = true
   saveStatus.value = 'saving'
   try {
-    if (!project.value) return
-
     const projectId = project.value.id
-    const chapterData = structuredClone(chapterForm.value)
-    chapterData.wordCount = chapterData.content?.length || 0
+    let chapterData: Chapter
+    try {
+      chapterData = structuredClone(chapterForm.value)
+    } catch (cloneError) {
+      // structuredClone 可能对 Proxy 对象失败，降级为 JSON 深拷贝
+      logger.warn('structuredClone 失败，降级为 JSON 深拷贝', cloneError)
+      chapterData = JSON.parse(JSON.stringify(chapterForm.value))
+      // 恢复 Date 对象
+      if (chapterData.generationTime && typeof chapterData.generationTime === 'string') {
+        chapterData.generationTime = new Date(chapterData.generationTime)
+      }
+    }
+    chapterData.wordCount = (chapterData.content || '').length
 
     if (!editingChapter.value) {
       chapterData.id = chapterData.id || uuidv4()
     }
 
+    logger.info('开始保存章节', { id: chapterData.id, title: chapterData.title, wordCount: chapterData.wordCount })
     await projectStore.saveChapter(chapterData)
 
     ElMessage.success('保存成功')
@@ -655,6 +671,7 @@ async function saveChapter() {
     window.dispatchEvent(chapterSaveEvent)
   } catch (error) {
     saveStatus.value = 'error'
+    logger.error('章节保存失败', error)
     ElMessage.error(`保存失败：${getErrorMessage(error)}`)
   } finally {
     saving.value = false
@@ -1223,6 +1240,7 @@ onUnmounted(clearAutoSaveTimer)
   margin-top: var(--ds-space-3);
 }
 
+/* breakpoint: xl (1024px) */
 @media (max-width: 1024px) {
   .immersive-editor-area {
     padding: 0 var(--ds-space-6);

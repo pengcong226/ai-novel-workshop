@@ -727,7 +727,8 @@ export async function buildChapterContext(
   let vectorService: VectorService | undefined
   if (vectorConfig) {
     try {
-      vectorService = await getVectorService({ ...vectorConfig, projectId: project.id } as any)
+      const { provider, model, dimension, apiKey, baseUrl } = vectorConfig
+      vectorService = await getVectorService({ provider, model, dimension, apiKey, baseUrl })
     } catch (error) {
       logger.warn('向量检索初始化失败', error)
     }

@@ -166,7 +166,7 @@ export async function callLLM(
     maxRetries = 3,
     temperature = config.temperature || 0.7,
     maxTokens = config.maxTokens || 65536,
-    timeout = 1800000
+    timeout = 180000
   } = options
 
   const service = getOrCreateAIService(config, maxRetries)
@@ -244,9 +244,10 @@ export async function callLLMWithValidation(
 
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
     try {
+      // 外层已负责重试逻辑，内层禁用重试（设maxRetries=1）避免双重放大
       const result = await callLLM(currentPrompt, config, {
         ...options,
-        maxRetries
+        maxRetries: 1
       })
 
       logger.info(`第${attempt}次尝试，原始响应前200字符:`, result.content.substring(0, 200))
@@ -270,7 +271,8 @@ export async function callLLMWithValidation(
         currentPrompt = `${basePrompt}\n\n请修正上一次返回的JSON结果，并严格遵守目标结构。只返回合法JSON，不要添加注释、Markdown代码块或任何额外说明。\n关键错误：${condensedError}`
 
         logger.info(`使用精简纠错提示重试，错误摘要: ${condensedError}`)
-        await sleep(1000 * attempt)
+        // JSON验证失败与API限流无关，无需长等待
+        await sleep(500)
         continue
       }
     } catch (error) {

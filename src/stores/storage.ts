@@ -8,10 +8,11 @@ const logger = getLogger('storage')
 
 // 使用IndexedDB存储大数据，LocalStorage存储元数据
 const DB_NAME = 'AI_Novel_Workshop'
-const DB_VERSION = 3 // 升级数据库版本以支持章节快照存储
+const DB_VERSION = 4 // 升级数据库版本以支持模板存储
 const PROJECTS_STORE = 'projects'
 const CHAPTERS_STORE = 'chapters'
 const CHAPTER_SNAPSHOTS_STORE = 'chapter-snapshots'
+const TEMPLATES_STORE = 'templates'
 
 const isTauri = !isWebRuntime();
 const MAX_ID_LENGTH = 256
@@ -61,24 +62,40 @@ class IndexedDBStorage {
         logger.info('数据库连接成功')
 
         // 检查对象存储是否存在
-        const missingRequiredStore = [PROJECTS_STORE, CHAPTERS_STORE, CHAPTER_SNAPSHOTS_STORE]
-          .some(storeName => !this.db!.objectStoreNames.contains(storeName))
-        if (missingRequiredStore) {
-          logger.error('IndexedDB 对象存储不完整，需要重建数据库')
+        const missingRequiredStores = [PROJECTS_STORE, CHAPTERS_STORE, CHAPTER_SNAPSHOTS_STORE]
+          .filter(storeName => !this.db!.objectStoreNames.contains(storeName))
+        if (missingRequiredStores.length > 0) {
+          logger.warn('IndexedDB 对象存储不完整，尝试增量创建缺失的存储', { missing: missingRequiredStores })
           this.db.close()
-          // 删除旧数据库并重建
-          indexedDB.deleteDatabase(DB_NAME)
-          logger.info('已删除旧数据库，正在重新初始化...')
 
-          // 重新打开数据库
-          const newRequest = indexedDB.open(DB_NAME, DB_VERSION)
-          newRequest.onerror = () => reject(newRequest.error)
-          newRequest.onsuccess = () => {
-            this.db = newRequest.result
-            logger.info('数据库重建成功')
+          // 通过版本升级增量创建缺失的 objectStore，而非删库重建
+          const currentVersion = this.db.version
+          const upgradeRequest = indexedDB.open(DB_NAME, currentVersion + 1)
+          upgradeRequest.onerror = () => {
+            logger.error('增量升级失败，尝试完整重建', upgradeRequest.error)
+            // 仅在增量升级失败时才降级为删库重建
+            const deleteRequest = indexedDB.deleteDatabase(DB_NAME)
+            deleteRequest.onsuccess = () => {
+              const freshRequest = indexedDB.open(DB_NAME, DB_VERSION)
+              freshRequest.onerror = () => reject(freshRequest.error)
+              freshRequest.onsuccess = () => {
+                this.db = freshRequest.result
+                logger.info('数据库重建成功')
+                resolve()
+              }
+              freshRequest.onupgradeneeded = (event) => {
+                const db = (event.target as IDBOpenDBRequest).result
+                this.createStores(db)
+              }
+            }
+            deleteRequest.onerror = () => reject(deleteRequest.error)
+          }
+          upgradeRequest.onsuccess = () => {
+            this.db = upgradeRequest.result
+            logger.info('数据库增量升级成功')
             resolve()
           }
-          newRequest.onupgradeneeded = (event) => {
+          upgradeRequest.onupgradeneeded = (event) => {
             const db = (event.target as IDBOpenDBRequest).result
             this.createStores(db)
           }
@@ -116,6 +133,11 @@ class IndexedDBStorage {
       const snapshotsStore = db.createObjectStore(CHAPTER_SNAPSHOTS_STORE, { keyPath: 'id' })
       snapshotsStore.createIndex('chapterId', 'chapterId', { unique: false })
       snapshotsStore.createIndex('projectId', 'projectId', { unique: false })
+    }
+    // 模板存储
+    if (!db.objectStoreNames.contains(TEMPLATES_STORE)) {
+      logger.info('创建 templates 对象存储')
+      db.createObjectStore(TEMPLATES_STORE, { keyPath: 'id' })
     }
   }
 
@@ -216,13 +238,14 @@ class IndexedDBStorage {
         logger.info('项目加载结果:', project ? '找到' : '未找到')
 
         if (!project) {
+          logger.warn('Project not found in IndexedDB:', projectId)
           resolve(null)
           return
         }
 
-        // 默认加载所有章节，但支持延迟加载
+        // 默认只加载章节元数据（不含content），支持延迟加载完整数据
         if (options?.loadChapters !== false) {
-          const chapters = await this.loadChapters(projectId)
+          const chapters = await this.loadChaptersMeta(projectId)
           project.chapters = chapters
         } else {
           project.chapters = []
@@ -346,24 +369,35 @@ class IndexedDBStorage {
     }
 
     return new Promise<void>((resolve, reject) => {
-      const transaction = this.db!.transaction([CHAPTERS_STORE], 'readwrite')
+      let transaction: IDBTransaction
+      try {
+        transaction = this.db!.transaction([CHAPTERS_STORE], 'readwrite')
+      } catch (txError) {
+        reject(new Error(`创建事务失败: ${txError instanceof Error ? txError.message : String(txError)}`))
+        return
+      }
       const store = transaction.objectStore(CHAPTERS_STORE)
       const getRequest = store.get(chapter.id)
 
       getRequest.onsuccess = () => {
-        const existingChapter = getRequest.result
-        if (existingChapter && existingChapter.projectId !== chapter.projectId) {
-          transaction.abort()
-          return
+        try {
+          const existingChapter = getRequest.result
+          if (existingChapter && existingChapter.projectId !== chapter.projectId) {
+            transaction.abort()
+            return
+          }
+          const chapterToSave = existingChapter?.number
+            ? { ...chapter, projectId: chapter.projectId, number: existingChapter.number }
+            : { ...chapter, projectId: chapter.projectId }
+          store.put(chapterToSave)
+        } catch (putError) {
+          // store.put 可能因 DataCloneError（不可序列化数据）失败
+          reject(new Error(`章节数据写入失败: ${putError instanceof Error ? putError.message : String(putError)}`))
         }
-        const chapterToSave = existingChapter?.number
-          ? { ...chapter, projectId: chapter.projectId, number: existingChapter.number }
-          : { ...chapter, projectId: chapter.projectId }
-        store.put(chapterToSave)
       }
-      getRequest.onerror = () => reject(getRequest.error)
+      getRequest.onerror = () => reject(new Error(`查询章节失败: ${getRequest.error?.message || '未知错误'}`))
       transaction.oncomplete = () => resolve()
-      transaction.onerror = () => reject(transaction.error)
+      transaction.onerror = () => reject(transaction.error || new Error('章节保存事务失败'))
       transaction.onabort = () => reject(transaction.error || new Error('章节保存已取消'))
     })
   }
@@ -524,6 +558,49 @@ class IndexedDBStorage {
     })
   }
 
+  // 只加载章节元数据（不含content），用于列表展示
+  async loadChaptersMeta(projectId: string) {
+    if (!this.db) await this.init()
+
+    return new Promise<any[]>((resolve, reject) => {
+      const transaction = this.db!.transaction([CHAPTERS_STORE], 'readonly')
+      const store = transaction.objectStore(CHAPTERS_STORE)
+      const index = store.index('projectId')
+      const request = index.getAll(IDBKeyRange.only(projectId))
+
+      request.onsuccess = () => {
+        const chapters = (request.result || [])
+          .map(({ content, ...meta }) => meta) // 剥离content
+          .sort((a, b) => (a.number || 0) - (b.number || 0))
+        resolve(chapters)
+      }
+
+      request.onerror = () => reject(request.error)
+    })
+  }
+
+  // 按需加载单个章节的完整数据（含content）
+  async loadSingleChapter(projectId: string, chapterId: string) {
+    if (!this.db) await this.init()
+
+    return new Promise<any>((resolve, reject) => {
+      const transaction = this.db!.transaction([CHAPTERS_STORE], 'readonly')
+      const store = transaction.objectStore(CHAPTERS_STORE)
+      const request = store.get(chapterId)
+
+      request.onsuccess = () => {
+        const chapter = request.result
+        if (!chapter || chapter.projectId !== projectId) {
+          resolve(null)
+          return
+        }
+        resolve(chapter)
+      }
+
+      request.onerror = () => reject(request.error)
+    })
+  }
+
   // 删除项目
   async deleteProject(projectId: string) {
     if (!this.db) await this.init()
@@ -560,6 +637,52 @@ class IndexedDBStorage {
           cursor.continue()
         }
       }
+
+      transaction.oncomplete = () => resolve()
+      transaction.onerror = () => reject(transaction.error)
+    })
+  }
+
+  // ============ 模板存储 ============
+
+  async loadTemplates(): Promise<any[]> {
+    if (!this.db) await this.init()
+
+    return new Promise<any[]>((resolve, reject) => {
+      const transaction = this.db!.transaction([TEMPLATES_STORE], 'readonly')
+      const store = transaction.objectStore(TEMPLATES_STORE)
+      const request = store.getAll()
+
+      request.onsuccess = () => resolve(request.result || [])
+      request.onerror = () => reject(request.error)
+    })
+  }
+
+  async saveTemplates(templates: any[]): Promise<void> {
+    if (!this.db) await this.init()
+
+    return new Promise<void>((resolve, reject) => {
+      const transaction = this.db!.transaction([TEMPLATES_STORE], 'readwrite')
+      const store = transaction.objectStore(TEMPLATES_STORE)
+
+      // Clear and rewrite all user templates
+      store.clear()
+      for (const template of templates) {
+        store.put(template)
+      }
+
+      transaction.oncomplete = () => resolve()
+      transaction.onerror = () => reject(transaction.error)
+    })
+  }
+
+  async deleteTemplate(templateId: string): Promise<void> {
+    if (!this.db) await this.init()
+
+    return new Promise<void>((resolve, reject) => {
+      const transaction = this.db!.transaction([TEMPLATES_STORE], 'readwrite')
+      const store = transaction.objectStore(TEMPLATES_STORE)
+      store.delete(templateId)
 
       transaction.oncomplete = () => resolve()
       transaction.onerror = () => reject(transaction.error)
@@ -620,7 +743,7 @@ class TauriStorage {
 
       return project;
     } catch (e) {
-      logger.error('加载项目失败:', e);
+      logger.warn('Project not found in Tauri storage:', projectId, e);
       return null;
     }
   }
@@ -811,7 +934,13 @@ export const useStorage = defineStore('storage', () => {
       return { ...project, chapters }
     }
 
-    return await storage.loadProject(projectId)
+    // IndexedDB: loadProject 默认只加载元数据，这里需要全量数据
+    const s = storage as IndexedDBStorage
+    const project = await s.loadProject(projectId, { loadChapters: false }) as Record<string, unknown> | null
+    if (!project) return null
+    const chapters = await s.loadChapters(projectId)
+    project.chapters = chapters
+    return project
   }
 
   async function saveProject(project: any) {
@@ -848,11 +977,23 @@ export const useStorage = defineStore('storage', () => {
 
   async function loadChapter(projectId: string, chapterId: string) {
     await init()
+    if (storage instanceof IndexedDBStorage) {
+      return await storage.loadSingleChapter(projectId, chapterId)
+    }
     if (storage instanceof TauriStorage) {
       return await storage.loadChapter(projectId, chapterId)
     }
-    // TODO: support IndexedDB implementation if needed
     throw new Error('当前存储后端不支持单个章节内容按需拉取')
+  }
+
+  async function loadChaptersMeta(projectId: string) {
+    await init()
+    if (storage instanceof IndexedDBStorage) {
+      return await storage.loadChaptersMeta(projectId)
+    }
+    // Tauri和其他后端回退到全量加载并剥离content
+    const chapters = await loadChapters(projectId)
+    return chapters.map(({ content, ...meta }: any) => meta)
   }
 
   async function saveChapter(chapter: any, projectId?: string) {
@@ -912,8 +1053,51 @@ export const useStorage = defineStore('storage', () => {
     return await storage.pruneChapterSnapshots(chapterId, projectId, keepCount)
   }
 
+  // ============ 模板存储 ============
+
+  async function loadTemplates(): Promise<any[]> {
+    await init()
+    if (storage instanceof IndexedDBStorage) {
+      return await storage.loadTemplates()
+    }
+    // Tauri: 降级到 localStorage
+    try {
+      const stored = localStorage.getItem('ai-novel-templates')
+      return stored ? JSON.parse(stored) : []
+    } catch {
+      return []
+    }
+  }
+
+  async function saveTemplates(templates: any[]): Promise<void> {
+    await init()
+    if (storage instanceof IndexedDBStorage) {
+      return await storage.saveTemplates(templates)
+    }
+    // Tauri: 降级到 localStorage
+    localStorage.setItem('ai-novel-templates', JSON.stringify(templates))
+  }
+
+  async function deleteTemplate(templateId: string): Promise<void> {
+    await init()
+    if (storage instanceof IndexedDBStorage) {
+      return await storage.deleteTemplate(templateId)
+    }
+    // Tauri: 降级到 localStorage
+    try {
+      const stored = localStorage.getItem('ai-novel-templates')
+      if (stored) {
+        const templates = JSON.parse(stored).filter((t: any) => t.id !== templateId)
+        localStorage.setItem('ai-novel-templates', JSON.stringify(templates))
+      }
+    } catch {
+      // ignore
+    }
+  }
+
   return {
     isInitialized,
+    init,
     loadProjects,
     saveProjects,
     loadProject,
@@ -921,6 +1105,7 @@ export const useStorage = defineStore('storage', () => {
     saveProject,
     deleteProject,
     loadChapters,
+    loadChaptersMeta,
     loadChapter,
     loadChaptersPaginated,
     saveChapter,
@@ -930,6 +1115,9 @@ export const useStorage = defineStore('storage', () => {
     listChapterSnapshots,
     getChapterSnapshot,
     deleteChapterSnapshot,
-    pruneChapterSnapshots
+    pruneChapterSnapshots,
+    loadTemplates,
+    saveTemplates,
+    deleteTemplate
   }
 })

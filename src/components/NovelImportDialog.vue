@@ -193,13 +193,13 @@
               <el-radio-group v-model="llmAnalysisMode">
                 <el-radio value="quick">
                   <span>快速模式</span>
-                  <span style="font-size: 12px; color: #909399; margin-left: 8px;">
+                  <span style="font-size: 12px; color: var(--ds-text-tertiary); margin-left: 8px;">
                     (~$0.19, 2-3分钟)
                   </span>
                 </el-radio>
                 <el-radio value="full">
                   <span>完整模式</span>
-                  <span style="font-size: 12px; color: #909399; margin-left: 8px;">
+                  <span style="font-size: 12px; color: var(--ds-text-tertiary); margin-left: 8px;">
                     (~$0.75, 5-10分钟)
                   </span>
                 </el-radio>
@@ -516,6 +516,7 @@ import {
   type LLMProviderConfig,
   type AnalysisMode,
   type LLMAnalysisResult,
+  type LLMChapter,
   type AnalysisProgress,
   DEFAULT_QUICK_MODE_SAMPLING
 } from '@/utils/llm'
@@ -523,6 +524,7 @@ import { v4 as uuidv4 } from 'uuid'
 import { encryptApiKey, decryptApiKey } from '@/utils/crypto'
 import { getLogger } from '@/utils/logger'
 import type { AIAnalysisConfig } from '@/utils/aiAnalyzer'
+import type { ImportResult } from '@/utils/novelImporter'
 import AnalysisProgressComponent from './novel-import/AnalysisProgress.vue'
 import ChapterPreviewComponent from './novel-import/ChapterPreview.vue'
 import CharacterPreviewComponent from './novel-import/CharacterPreview.vue'
@@ -567,7 +569,7 @@ interface PreviewData extends Partial<Project> {
 }
 
 const uploadRef = ref()
-const importResult = ref<any>(null)
+const importResult = ref<ImportResult | null>(null)
 const qualityMetrics = ref<QualityMetricsData | null>(null)
 
 const importForm = ref({
@@ -1033,20 +1035,23 @@ async function processWithLLM(text: string) {
     previewData.value = {
       title: importForm.value.title,
       author: importForm.value.author,
-      chapters: llmResult.value.chapters.map((ch: any) => ({
+      chapters: llmResult.value.chapters.map((ch: LLMChapter) => ({
         id: uuidv4(),
         number: ch.number,
         title: ch.title,
         content: ch.content || '',
         wordCount: ch.wordCount || 0,
         status: 'completed' as const,
+        generatedBy: 'ai' as const,
+        generationTime: new Date(),
+        checkpoints: [],
         outline: {
           chapterId: uuidv4(),
           title: ch.title,
           scenes: [],
           status: 'completed' as const
         }
-      }) as any),
+      })),
       characters: llmResult.value.characters.map(char => ({
         id: uuidv4(),
         name: char.name,
@@ -1088,13 +1093,13 @@ async function processWithLLM(text: string) {
           name: '主线',
           description: llmResult.value.outline.mainPlot || ''
         },
-        subPlots: (llmResult.value.outline.subPlots || []).map((plot: any, index: number) => ({
+        subPlots: (llmResult.value.outline.subPlots || []).map((plot, index: number) => ({
           id: uuidv4(),
           name: `支线${index + 1}`,
-          description: typeof plot === 'string' ? plot : plot.description || plot.name || ''
+          description: plot.description || plot.name || ''
         })),
         volumes: [],
-        chapters: llmResult.value.chapters.map((ch: any) => ({
+        chapters: llmResult.value.chapters.map((ch: LLMChapter) => ({
           chapterId: ch.id || uuidv4(),
           title: ch.title || `第${ch.number}章`,
           scenes: [],
@@ -1105,10 +1110,10 @@ async function processWithLLM(text: string) {
           resolutions: [],
           status: 'planned' as const
         })),
-        foreshadowings: (llmResult.value.outline.keyEvents || []).map((event: any) => ({
+        foreshadowings: (llmResult.value.outline.keyEvents || []).map((event) => ({
           id: uuidv4(),
-          description: typeof event === 'string' ? event : event.event || '',
-          plantChapter: typeof event === 'object' && event.chapter ? event.chapter : 1,
+          description: event.event || '',
+          plantChapter: event.chapter || 1,
           status: 'planted' as const
         }))
       }
@@ -1235,13 +1240,13 @@ async function handleImport() {
               name: '主线',
               description: llmResult.value.outline.mainPlot || ''
             },
-            subPlots: (llmResult.value.outline.subPlots || []).map((plot: any, index: number) => ({
+            subPlots: (llmResult.value.outline.subPlots || []).map((plot, index: number) => ({
               id: uuidv4(),
               name: `支线${index + 1}`,
-              description: typeof plot === 'string' ? plot : plot.description || plot.name || ''
+              description: plot.description || plot.name || ''
             })),
             volumes: [],
-            chapters: llmResult.value.chapters.map((ch: any) => ({
+            chapters: llmResult.value.chapters.map((ch: LLMChapter) => ({
               chapterId: ch.id || uuidv4(),
               title: ch.title || `第${ch.number}章`,
               scenes: [],
@@ -1262,7 +1267,7 @@ async function handleImport() {
         },
         stats: llmResult.value.stats
       }
-      emit('imported', llmImportResult as any)
+      emit('imported', llmImportResult)
     } else {
       emit('imported', importResult.value.project || importResult.value)
     }
@@ -1378,7 +1383,7 @@ function getRoleName(role: string): string {
 .option-hint {
   display: block;
   font-size: 12px;
-  color: #909399;
+  color: var(--ds-text-tertiary);
   margin-top: 4px;
 }
 
@@ -1391,7 +1396,7 @@ function getRoleName(role: string): string {
 
 .progress-message {
   font-size: 14px;
-  color: #606266;
+  color: var(--ds-text-secondary);
 }
 
 .stats-card {
@@ -1407,7 +1412,7 @@ function getRoleName(role: string): string {
 .more-hint {
   text-align: center;
   padding: 10px;
-  color: #909399;
+  color: var(--ds-text-tertiary);
   font-size: 14px;
 }
 

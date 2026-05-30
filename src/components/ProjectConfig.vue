@@ -284,6 +284,11 @@
             <el-switch v-model="configForm.enableQualityCheck" />
           </el-form-item>
 
+          <el-form-item label="敏感词检测">
+            <el-switch v-model="configForm.enableSensitiveWordCheck" />
+            <div class="form-tip">开启后将自动检测章节中的敏感词并阻止发布。关闭后跳过敏感词检查。</div>
+          </el-form-item>
+
           <el-form-item v-if="configForm.enableQualityCheck" label="质量阈值">
             <div style="width: 100%;">
               <el-slider
@@ -572,11 +577,11 @@
               <el-tag :type="vectorIndexStatus.indexed ? 'success' : 'info'">
                 {{ vectorIndexStatus.indexed ? '已索引' : '未索引' }}
               </el-tag>
-              <span style="margin-left: 12px; color: #606266;">
+              <span style="margin-left: 12px; color: var(--ds-text-secondary);">
                 {{ vectorIndexStatus.documentCount }} 个文档
               </span>
             </div>
-            <div v-else style="color: #909399;">未初始化</div>
+            <div v-else style="color: var(--ds-text-tertiary);">未初始化</div>
           </el-form-item>
 
           <el-form-item>
@@ -758,6 +763,69 @@
           </el-form-item>
         </el-form>
       </el-card>
+
+      <!-- 数据备份与恢复 -->
+      <el-card class="config-card">
+        <template #header>
+          <div class="card-header">
+            <span>数据备份与恢复</span>
+            <el-button size="small" @click="refreshBackups" :loading="backupsLoading">
+              <el-icon><RefreshRight /></el-icon>
+              刷新
+            </el-button>
+          </div>
+        </template>
+
+        <div v-if="backupsLoading && backups.length === 0" class="backup-loading">
+          <el-skeleton :rows="3" animated />
+        </div>
+
+        <div v-else-if="backups.length === 0" class="backup-empty">
+          <el-icon size="36" style="color: var(--ds-text-tertiary);"><Clock /></el-icon>
+          <p style="color: var(--ds-text-tertiary); margin-top: 8px;">暂无自动备份记录</p>
+          <p style="color: var(--ds-text-tertiary); font-size: 12px;">系统会在每次保存项目时自动创建备份（间隔30分钟以上）</p>
+        </div>
+
+        <div v-else class="backup-list">
+          <div
+            v-for="backup in backups"
+            :key="backup.id"
+            class="backup-item"
+            :class="{ 'backup-latest': backup === backups[0] }"
+          >
+            <div class="backup-info">
+              <div class="backup-time">
+                <el-icon><Clock /></el-icon>
+                {{ formatBackupTime(backup.timestamp) }}
+                <el-tag v-if="backup === backups[0]" size="small" type="success">最近</el-tag>
+              </div>
+              <div class="backup-meta">
+                <span>{{ backup.chaptersCount }}章</span>
+                <span class="backup-meta-sep">|</span>
+                <span>{{ formatWordCount(backup.wordCount) }}字</span>
+              </div>
+            </div>
+            <div class="backup-actions">
+              <el-popconfirm
+                :title="`确定要恢复到此备份吗？当前数据将被覆盖。`"
+                confirm-button-text="恢复"
+                cancel-button-text="取消"
+                @confirm="handleRestoreBackup(backup)"
+              >
+                <template #reference>
+                  <el-button size="small" type="primary" plain>
+                    <el-icon><RefreshRight /></el-icon>
+                    恢复
+                  </el-button>
+                </template>
+              </el-popconfirm>
+            </div>
+          </div>
+          <div class="backup-footer">
+            <span class="backup-hint">最多保留10个自动备份，旧备份会被自动清理</span>
+          </div>
+        </div>
+      </el-card>
     </div>
     <!-- 插件管理对话框 -->
     <el-dialog
@@ -781,7 +849,7 @@ import ProviderManager from './config/ProviderManager.vue'
 import { useProjectStore } from '@/stores/project'
 import { usePluginStore } from '@/stores/plugin'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Refresh, Grid, Setting, Download } from '@element-plus/icons-vue'
+import { Refresh, Grid, Setting, Download, Clock, RefreshRight } from '@element-plus/icons-vue'
 import type { ProjectConfig, VectorServiceConfig } from '@/types'
 import {
   AGENT_PHASE_LABELS,
@@ -845,6 +913,57 @@ async function refreshPlugins() {
   } catch (error) {
     ElMessage.error('刷新失败: ' + error)
   }
+}
+
+// 数据备份与恢复
+import { listAutoBackups, restoreAutoBackup, type AutoBackup } from '@/utils/autoBackup'
+
+const backups = ref<AutoBackup[]>([])
+const backupsLoading = ref(false)
+
+async function refreshBackups() {
+  if (!project.value?.id) return
+  backupsLoading.value = true
+  try {
+    backups.value = await listAutoBackups(project.value.id)
+  } catch (err) {
+    logger.warn('加载备份列表失败:', err)
+  } finally {
+    backupsLoading.value = false
+  }
+}
+
+async function handleRestoreBackup(backup: AutoBackup) {
+  try {
+    const restored = await restoreAutoBackup(backup.id)
+    if (restored) {
+      // 将恢复的数据写入项目存储
+      await projectStore.restoreFromBackup(restored)
+      ElMessage.success(`已恢复到 ${formatBackupTime(backup.timestamp)} 的备份`)
+    } else {
+      ElMessage.error('备份数据损坏，恢复失败')
+    }
+  } catch (err) {
+    ElMessage.error('恢复失败: ' + (err instanceof Error ? err.message : String(err)))
+  }
+}
+
+function formatBackupTime(timestamp: number): string {
+  const d = new Date(timestamp)
+  const now = new Date()
+  const isToday = d.toDateString() === now.toDateString()
+  const time = d.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })
+  if (isToday) return `今天 ${time}`
+  const yesterday = new Date(now)
+  yesterday.setDate(yesterday.getDate() - 1)
+  if (d.toDateString() === yesterday.toDateString()) return `昨天 ${time}`
+  return d.toLocaleDateString('zh-CN', { month: '2-digit', day: '2-digit' }) + ' ' + time
+}
+
+function formatWordCount(n: number): string {
+  if (n >= 10000) return (n / 10000).toFixed(1) + '万'
+  if (n >= 1000) return (n / 1000).toFixed(1) + 'k'
+  return String(n)
 }
 
 const configForm = ref<ProjectConfig>(normalizeProjectConfig({
@@ -1340,13 +1459,13 @@ onUnmounted(() => {
 
 .label-desc {
   font-size: 12px;
-  color: #909399;
+  color: var(--ds-text-tertiary);
 }
 
 .form-tip {
   margin-top: 8px;
   font-size: 12px;
-  color: #909399;
+  color: var(--ds-text-tertiary);
   line-height: 1.5;
 }
 
@@ -1359,14 +1478,14 @@ onUnmounted(() => {
 .prompt-tips {
   margin-top: 12px;
   padding: 12px;
-  background-color: #f5f7fa;
+  background-color: var(--ds-bg-tertiary);
   border-radius: 4px;
 }
 
 .prompt-tip-title {
   font-size: 13px;
   font-weight: 500;
-  color: #606266;
+  color: var(--ds-text-secondary);
   margin-bottom: 8px;
 }
 
@@ -1384,5 +1503,113 @@ onUnmounted(() => {
 .plugin-actions {
   display: flex;
   gap: 10px;
+}
+
+/* breakpoint: md (768px) */
+@media (max-width: 768px) {
+  .project-config {
+    padding: 0 var(--ds-space-3);
+  }
+
+  :deep(.el-form) {
+    --el-form-label-width: 100px;
+  }
+
+  :deep(.el-form-item__label) {
+    float: none;
+    display: block;
+    text-align: left;
+    margin-bottom: var(--ds-space-1);
+  }
+
+  :deep(.el-form-item__content) {
+    margin-left: 0 !important;
+  }
+
+  .header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: var(--ds-space-3);
+  }
+}
+
+/* 备份管理样式 */
+.backup-loading {
+  padding: var(--ds-space-4);
+}
+
+.backup-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: var(--ds-space-8) var(--ds-space-4);
+  text-align: center;
+}
+
+.backup-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ds-space-2);
+}
+
+.backup-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--ds-space-3) var(--ds-space-4);
+  background: var(--ds-bg-secondary);
+  border: 1px solid var(--ds-surface-border);
+  border-radius: var(--ds-radius-md);
+  transition: border-color var(--ds-transition-fast);
+}
+
+.backup-item:hover {
+  border-color: var(--ds-accent);
+}
+
+.backup-item.backup-latest {
+  border-left: 3px solid var(--ds-success);
+}
+
+.backup-info {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.backup-time {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: var(--ds-text-sm);
+  font-weight: 500;
+  color: var(--ds-text-primary);
+}
+
+.backup-meta {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: var(--ds-text-xs);
+  color: var(--ds-text-tertiary);
+}
+
+.backup-meta-sep {
+  opacity: 0.4;
+}
+
+.backup-actions {
+  flex-shrink: 0;
+}
+
+.backup-footer {
+  padding: var(--ds-space-2) 0 0;
+  text-align: right;
+}
+
+.backup-hint {
+  font-size: var(--ds-text-xs);
+  color: var(--ds-text-tertiary);
 }
 </style>

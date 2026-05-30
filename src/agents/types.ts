@@ -1,8 +1,12 @@
 import type { Chapter, ChapterOutline, Project } from '@/types'
 
-export type AgentRole = 'planner' | 'writer' | 'sentinel' | 'extractor' | 'editor' | 'reader'
+export type AgentRole =
+  | 'planner' | 'writer' | 'sentinel' | 'extractor' | 'editor' | 'reader'
+  | 'composer' | 'auditor' | 'reviser' | 'normalizer' | 'settler' | 'analyzer' | 'hook-promoter' | 'post-write-validator'
 
-export type AgentPhase = 'pre-generation' | 'generation' | 'post-generation'
+export type AgentPhase =
+  | 'pre-generation' | 'generation' | 'post-generation'
+  | 'composition' | 'audit' | 'revise' | 'settlement'
 
 export type AgentRunStatus = 'skipped' | 'running' | 'success' | 'failed' | 'halted'
 
@@ -12,6 +16,28 @@ export interface ReaderFeedback {
   paragraphIndex?: number
   emotionalScore?: number
   immersionScore?: number
+}
+
+export interface ReaderPersona {
+  id: string
+  name: string
+  readingExperience: 'veteran' | 'intermediate' | 'newcomer'
+  genreFamiliarity: 'core' | 'casual' | 'unfamiliar'
+  focusAreas: string[]
+  toleranceForTropes: 'high' | 'medium' | 'low'
+}
+
+export interface PersonaFeedback {
+  personaId: string
+  personaName: string
+  overallScore: number
+  engagementLevel: 'hooked' | 'interested' | 'neutral' | 'bored'
+  specificFeedback: Array<{
+    aspect: string
+    score: number
+    comment: string
+  }>
+  dropRisk: 'none' | 'low' | 'medium' | 'high'
 }
 
 export interface AgentConfig {
@@ -69,9 +95,9 @@ export const DEFAULT_AGENT_CONFIGS: AgentConfig[] = [
   { role: 'extractor', enabled: false, phase: 'post-generation', priority: 10 },
 ]
 
-export const AGENT_PHASES: AgentPhase[] = ['pre-generation', 'generation', 'post-generation']
+export const AGENT_PHASES: AgentPhase[] = ['pre-generation', 'generation', 'post-generation', 'composition', 'audit', 'revise', 'settlement']
 
-export const ACTIVE_AGENT_ROLES: AgentRole[] = ['planner', 'sentinel', 'extractor', 'editor', 'reader']
+export const ACTIVE_AGENT_ROLES: AgentRole[] = ['planner', 'sentinel', 'extractor', 'editor', 'reader', 'composer', 'auditor', 'reviser', 'normalizer']
 
 export const AGENT_ROLE_LABELS: Record<AgentRole, string> = {
   planner: '规划师',
@@ -79,13 +105,25 @@ export const AGENT_ROLE_LABELS: Record<AgentRole, string> = {
   sentinel: '哨兵',
   extractor: '抽取器',
   editor: '编辑审校',
-  reader: '读者反馈'
+  reader: '读者反馈',
+  composer: '作曲师',
+  auditor: '审计员',
+  reviser: '修订师',
+  normalizer: '字数标准化器',
+  settler: '状态沉淀器',
+  analyzer: '章节分析器',
+  'hook-promoter': '伏笔升级器',
+  'post-write-validator': '写后校验器',
 }
 
 export const AGENT_PHASE_LABELS: Record<AgentPhase, string> = {
   'pre-generation': '生成前',
   generation: '生成中',
-  'post-generation': '生成后'
+  'post-generation': '生成后',
+  composition: '上下文组装',
+  audit: '质量审计',
+  revise: '修订',
+  settlement: '状态沉淀',
 }
 
 export function isAgentRole(value: unknown): value is AgentRole {

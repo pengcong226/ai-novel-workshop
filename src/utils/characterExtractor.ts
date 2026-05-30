@@ -72,7 +72,7 @@ export async function extractCharactersWithAI(
 ${truncatedText}
 `
 
-    const response = await aiStore.chat([{ role: 'user' as const, content: prompt }], { type: 'character' as any, complexity: 'low' as const, priority: 'quality' as const }, { maxTokens: 4000 })
+    const response = await aiStore.chat([{ role: 'user' as const, content: prompt }], { type: 'character' as const, complexity: 'low' as const, priority: 'quality' as const }, { maxTokens: 4000 })
     
     let jsonStr = response.content.trim()
     const jsonMatch = jsonStr.match(/```(?:json)?\s*([\s\S]*?)\s*```/)

@@ -197,6 +197,31 @@
           </el-form-item>
         </el-form>
       </el-tab-pane>
+
+      <!-- 平台格式设置 -->
+      <el-tab-pane label="平台格式" name="platform">
+        <el-form :model="platformSettings" label-width="120px">
+          <el-form-item label="目标平台">
+            <el-select v-model="platformSettings.platform" style="width: 100%">
+              <el-option label="起点中文网" value="qidian" />
+              <el-option label="番茄小说" value="fanqie" />
+              <el-option label="刺猬猫" value="ciweimao" />
+              <el-option label="晋江文学城" value="jjwxc" />
+              <el-option label="通用格式" value="generic" />
+            </el-select>
+          </el-form-item>
+          <el-form-item label="作者名">
+            <el-input v-model="platformSettings.authorName" placeholder="作者笔名" />
+          </el-form-item>
+          <el-form-item label="书名">
+            <el-input v-model="platformSettings.bookName" placeholder="小说名称" />
+          </el-form-item>
+          <el-form-item label="自动截断">
+            <el-switch v-model="platformSettings.autoTrimLongChapters" />
+            <span class="setting-hint">超过平台字数限制时自动截断</span>
+          </el-form-item>
+        </el-form>
+      </el-tab-pane>
     </el-tabs>
 
     <template #footer>
@@ -211,6 +236,7 @@
 <script setup lang="ts">
 import { ref, watch } from 'vue'
 import type { Chapter, Project } from '@/types'
+import { ElMessage } from 'element-plus'
 import {
   exportChapterToMarkdown,
   exportAllChaptersToMarkdown,
@@ -240,6 +266,7 @@ import {
   DEFAULT_DOCX_OPTIONS,
   type DocxExportOptions
 } from '@/utils/docxExporter'
+import { exportToPlatformFormat, DEFAULT_PLATFORM_OPTIONS, type PlatformExportOptions, PLATFORM_CONFIGS } from '@/utils/exporters/platformExporter'
 
 const logger = getLogger('components:ExportSettings')
 
@@ -276,12 +303,13 @@ const pdfSettings = ref<PdfExportOptions>({
 const txtSettings = ref<TxtExportOptions>({ ...DEFAULT_TXT_OPTIONS })
 const epubSettings = ref<EpubExportOptions>({
   ...DEFAULT_EPUB_OPTIONS,
-  author: (props.project?.config as any)?.authorName || ''
+  author: props.project?.config.authorName || ''
 })
 const docxSettings = ref<DocxExportOptions>({
   ...DEFAULT_DOCX_OPTIONS,
-  author: (props.project?.config as any)?.authorName || ''
+  author: props.project?.config.authorName || ''
 })
+const platformSettings = ref<PlatformExportOptions>({ ...DEFAULT_PLATFORM_OPTIONS })
 
 // 字号标记
 const fontSizeMarks = {
@@ -359,6 +387,18 @@ async function handleExport() {
       await exportAllChaptersToEpub(props.chapters, props.project.title, epubSettings.value)
     } else if (activeTab.value === 'docx') {
       await exportAllChaptersToDocx(props.chapters, props.project.title, docxSettings.value)
+    } else if (activeTab.value === 'platform') {
+      const result = exportToPlatformFormat(props.chapters, platformSettings.value)
+      const blob = new Blob([result.content], { type: 'text/plain;charset=utf-8' })
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `${props.project?.title || '小说'}_${platformSettings.value.platform}.txt`
+      a.click()
+      URL.revokeObjectURL(url)
+      if (result.warnings.length > 0) {
+        ElMessage.warning(`导出完成，但有 ${result.warnings.length} 条格式警告`)
+      }
     }
 
     emit('exported')
@@ -375,14 +415,14 @@ async function handleExport() {
 .setting-hint {
   display: block;
   font-size: 12px;
-  color: #909399;
+  color: var(--ds-text-tertiary);
   margin-top: 4px;
 }
 
 .margin-label {
   text-align: center;
   font-size: 12px;
-  color: #909399;
+  color: var(--ds-text-tertiary);
   margin-top: 4px;
 }
 

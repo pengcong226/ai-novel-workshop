@@ -4,6 +4,7 @@
  */
 
 import type { WorldSetting } from '@/types'
+import type { LocationType } from '@/types/deprecated'
 
 export interface ExtractedWorldInfo {
   era: {
@@ -124,6 +125,19 @@ function inferLocationType(name: string): string {
   if (name.includes('殿') || name.includes('宫')) return '建筑'
   if (name.includes('国') || name.includes('界')) return '地域'
   return '其他'
+}
+
+/**
+ * 将推断的地点类型映射为 LocationType
+ */
+function mapToLocationType(inferred: string): LocationType {
+  const mapping: Record<string, LocationType> = {
+    '城镇': 'city',
+    '自然景观': 'mountain',
+    '建筑': 'castle',
+    '地域': 'island'
+  }
+  return mapping[inferred] || 'other' as LocationType
 }
 
 /**
@@ -272,7 +286,7 @@ export function convertToWorldTemplate(
         id: `loc_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
         name: loc.name,
         description: loc.description,
-        type: loc.type as any,
+        type: mapToLocationType(loc.type),
         importance: 'medium'
       }))
     },

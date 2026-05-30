@@ -1,22 +1,35 @@
 import { v4 as uuidv4 } from 'uuid'
-import type { NovelTemplate, Project, Outline, ChapterOutline, PlotTemplate } from '@/types'
+import type { NovelTemplate, Project, Outline, ChapterOutline, PlotTemplate, TemplateCategory } from '@/types'
+import type { CharacterTag, WorldSetting } from '@/types/deprecated'
 import type { Entity } from '@/types/sandbox'
 import { useSandboxStore } from '@/stores/sandbox'
 import { getBuiltInTemplates } from './builtInTemplates'
 import { createStyleProfileFromTemplate } from '@/data/stylePresets'
 import { getLogger } from '@/utils/logger'
+import { isWebRuntime } from '@/utils/anthropic-guard'
 const logger = getLogger('utils:templateManager')
+
+const STORAGE_KEY = 'ai-novel-templates'
 
 /**
  * 模板管理器
+ *
+ * 存储策略：
+ * - Web 模式：使用 IndexedDB（通过 storage store）持久化用户模板
+ * - Tauri 模式：使用 IndexedDB（与项目存储共用）
+ * - 内置模板始终从代码加载
  */
 export class TemplateManager {
   private static instance: TemplateManager
   private templates: Map<string, NovelTemplate> = new Map()
-  private storageKey = 'ai-novel-templates'
+  private initialized = false
+  private initPromise: Promise<void> | null = null
 
   private constructor() {
-    this.loadTemplates()
+    // 同步加载内置模板
+    this.loadBuiltInTemplates()
+    // 异步加载用户模板
+    this.initPromise = this.loadUserTemplates()
   }
 
   static getInstance(): TemplateManager {
@@ -27,40 +40,100 @@ export class TemplateManager {
   }
 
   /**
-   * 加载所有模板（内置 + 用户自定义）
+   * 确保初始化完成（加载内置+用户模板）
    */
-  private loadTemplates(): void {
-    // 加载内置模板
-    const builtIn = getBuiltInTemplates()
-    builtIn.forEach(template => {
-      this.templates.set(template.meta.id, template)
-    })
-
-    // 加载用户自定义模板
-    try {
-      const stored = localStorage.getItem(this.storageKey)
-      if (stored) {
-        const userTemplates: NovelTemplate[] = JSON.parse(stored)
-        userTemplates.forEach(template => {
-          this.templates.set(template.meta.id, template)
-        })
-      }
-    } catch (error) {
-      logger.error('Failed to load user templates:', error)
+  async ensureReady(): Promise<void> {
+    if (this.initPromise) {
+      await this.initPromise
+      this.initPromise = null
     }
   }
 
   /**
-   * 保存用户模板到本地存储
+   * 加载内置模板（同步）
    */
-  private saveUserTemplates(): void {
+  private loadBuiltInTemplates(): void {
+    const builtIn = getBuiltInTemplates()
+    builtIn.forEach(template => {
+      this.templates.set(template.meta.id, template)
+    })
+  }
+
+  /**
+   * 加载用户自定义模板（异步，优先 IndexedDB，兼容 localStorage 迁移）
+   */
+  private async loadUserTemplates(): Promise<void> {
+    try {
+      // 尝试从 IndexedDB 加载
+      const { useStorage } = await import('@/stores/storage')
+      const storageStore = useStorage()
+      await storageStore.init()
+      const stored = await storageStore.loadTemplates()
+
+      if (stored && stored.length > 0) {
+        stored.forEach((template: NovelTemplate) => {
+          this.templates.set(template.meta.id, template)
+        })
+        logger.info(`Loaded ${stored.length} user templates from IndexedDB`)
+        this.initialized = true
+        return
+      }
+
+      // 降级：从 localStorage 迁移旧数据
+      const legacyData = localStorage.getItem(STORAGE_KEY)
+      if (legacyData) {
+        const userTemplates: NovelTemplate[] = JSON.parse(legacyData)
+        userTemplates.forEach(template => {
+          this.templates.set(template.meta.id, template)
+        })
+        // 迁移到 IndexedDB
+        await storageStore.saveTemplates(userTemplates)
+        // 清理旧 localStorage
+        localStorage.removeItem(STORAGE_KEY)
+        logger.info(`Migrated ${userTemplates.length} templates from localStorage to IndexedDB`)
+      }
+      this.initialized = true
+    } catch (error) {
+      logger.error('Failed to load user templates:', error)
+      // 降级到 localStorage
+      try {
+        const stored = localStorage.getItem(STORAGE_KEY)
+        if (stored) {
+          const userTemplates: NovelTemplate[] = JSON.parse(stored)
+          userTemplates.forEach(template => {
+            this.templates.set(template.meta.id, template)
+          })
+        }
+      } catch (fallbackError) {
+        logger.error('Fallback to localStorage also failed:', fallbackError)
+      }
+      this.initialized = true
+    }
+  }
+
+  /**
+   * 保存用户模板到 IndexedDB
+   */
+  private async saveUserTemplates(): Promise<void> {
     try {
       const userTemplates = Array.from(this.templates.values()).filter(
         t => t.meta.author !== 'System'
       )
-      localStorage.setItem(this.storageKey, JSON.stringify(userTemplates))
+      const { useStorage } = await import('@/stores/storage')
+      const storageStore = useStorage()
+      await storageStore.init()
+      await storageStore.saveTemplates(userTemplates)
     } catch (error) {
       logger.error('Failed to save user templates:', error)
+      // 降级到 localStorage
+      try {
+        const userTemplates = Array.from(this.templates.values()).filter(
+          t => t.meta.author !== 'System'
+        )
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(userTemplates))
+      } catch (fallbackError) {
+        logger.error('Fallback save to localStorage also failed:', fallbackError)
+      }
     }
   }
 
@@ -122,7 +195,7 @@ export class TemplateManager {
           appearance: resolved?.properties?.['appearance'] || '',
           personality: resolved?.properties?.['personality'] ? [resolved.properties['personality']] : [],
           background: entity.systemPrompt,
-          tags: [entity.importance] as any
+          tags: [entity.importance] as CharacterTag[]
         },
         description: `${entity.name}模板`
       }
@@ -136,13 +209,13 @@ export class TemplateManager {
         author: author,
         description: `基于项目"${project.title}"创建的模板`,
         tags: [project.genre],
-        category: this.detectCategory(project.genre) as any,
+        category: this.detectCategory(project.genre) as TemplateCategory,
         createdAt: new Date(),
         updatedAt: new Date(),
         rating: 0,
         downloads: 0
       },
-      worldTemplate: worldTemplate as any,
+      worldTemplate: worldTemplate as Partial<WorldSetting>,
       characterTemplates,
       plotTemplate: {
         structure: this.detectStructure(project.outline),
@@ -184,20 +257,20 @@ export class TemplateManager {
   /**
    * 保存模板
    */
-  saveTemplate(template: NovelTemplate): void {
+  async saveTemplate(template: NovelTemplate): Promise<void> {
     template.meta.updatedAt = new Date()
     this.templates.set(template.meta.id, template)
-    this.saveUserTemplates()
+    await this.saveUserTemplates()
   }
 
   /**
    * 删除模板
    */
-  deleteTemplate(id: string): boolean {
+  async deleteTemplate(id: string): Promise<boolean> {
     const template = this.templates.get(id)
     if (template && template.meta.author !== 'System') {
       this.templates.delete(id)
-      this.saveUserTemplates()
+      await this.saveUserTemplates()
       return true
     }
     return false

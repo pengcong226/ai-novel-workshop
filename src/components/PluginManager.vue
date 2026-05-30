@@ -612,7 +612,7 @@ function getPermissionLabel(permission: string) {
 }
 
 .plugin-card.is-active {
-  border-color: #409eff;
+  border-color: var(--ds-info);
 }
 
 .plugin-header {
@@ -629,7 +629,7 @@ function getPermissionLabel(permission: string) {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: #f5f7fa;
+  background: var(--ds-bg-tertiary);
   border-radius: 8px;
 }
 
@@ -642,13 +642,13 @@ function getPermissionLabel(permission: string) {
   display: flex;
   gap: 8px;
   font-size: 12px;
-  color: #909399;
+  color: var(--ds-text-tertiary);
   margin-top: 4px;
 }
 
 .plugin-description {
   font-size: 14px;
-  color: #606266;
+  color: var(--ds-text-secondary);
   margin-bottom: 12px;
   line-height: 1.6;
 }
@@ -678,7 +678,7 @@ function getPermissionLabel(permission: string) {
   align-items: center;
   gap: 10px;
   padding: 10px;
-  background: #f5f7fa;
+  background: var(--ds-bg-tertiary);
   border-radius: 4px;
 }
 

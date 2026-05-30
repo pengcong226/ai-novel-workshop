@@ -106,6 +106,7 @@
 import { ref, computed, watch } from 'vue'
 import { Loading, Select, Close, Clock } from '@element-plus/icons-vue'
 import type { AnalysisStage, AnalysisProgress } from '@/utils/llm/types'
+import { formatNumber } from '@/utils/formatters'
 
 interface Stage {
   key: AnalysisStage
@@ -240,10 +241,6 @@ function getStageClass(stage: Stage): Record<string, boolean> {
   }
 }
 
-// 格式化数字
-function formatNumber(num: number): string {
-  return num.toLocaleString()
-}
 
 // 取消分析
 function handleCancel() {
@@ -274,7 +271,7 @@ function handleCancel() {
   text-align: center;
   margin-top: 10px;
   font-size: 14px;
-  color: #606266;
+  color: var(--ds-text-secondary);
 }
 
 .stages-list {
@@ -288,12 +285,12 @@ function handleCancel() {
   align-items: flex-start;
   padding: 12px;
   border-radius: 8px;
-  background-color: #f5f7fa;
+  background-color: var(--ds-bg-tertiary);
   transition: all 0.3s;
 }
 
 .stage-item.stage-completed {
-  background-color: #f0f9ff;
+  background-color: color-mix(in srgb, var(--ds-info) 10%, var(--ds-surface));
 }
 
 .stage-item.stage-running {
@@ -322,13 +319,13 @@ function handleCancel() {
 .stage-name {
   font-size: 15px;
   font-weight: 500;
-  color: #303133;
+  color: var(--ds-text-primary);
   margin-bottom: 4px;
 }
 
 .stage-message {
   font-size: 13px;
-  color: #909399;
+  color: var(--ds-text-tertiary);
 }
 
 .stage-progress {
@@ -348,18 +345,18 @@ function handleCancel() {
 
 .usage-label {
   font-size: 12px;
-  color: #909399;
+  color: var(--ds-text-tertiary);
   margin-bottom: 4px;
 }
 
 .usage-value {
   font-size: 18px;
   font-weight: 600;
-  color: #303133;
+  color: var(--ds-text-primary);
 }
 
 .usage-value.cost {
-  color: #E6A23C;
+  color: var(--ds-warning);
 }
 
 .actions {

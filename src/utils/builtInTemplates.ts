@@ -5,6 +5,8 @@ import type { NovelTemplate } from '@/types'
  */
 export function getBuiltInTemplates(): NovelTemplate[] {
   return [
+    // 新手示例模板（帮助新用户快速上手）
+    createDemoTemplate(),
     // 玄幻修仙模板
     createFantasyTemplate(),
     // 都市异能模板
@@ -693,6 +695,183 @@ function createWuxiaTemplate(): NovelTemplate {
       worldGeneration: '请为武侠小说生成世界观设定，包含门派体系、武学传承、江湖规矩。',
       characterGeneration: '请为武侠小说生成人物设定，包含背景、武功、性格。',
       chapterGeneration: '请根据大纲生成武侠小说章节，注重武学描写、江湖恩怨和侠义精神。'
+    }
+  }
+}
+
+/**
+ * 新手示例模板 - 帮助新用户快速理解产品用法
+ */
+function createDemoTemplate(): NovelTemplate {
+  return {
+    meta: {
+      id: 'builtin-demo',
+      name: '新手引导示例',
+      version: '1.0.0',
+      author: 'System',
+      description: '预设了一部完整的短篇小说框架，包含世界观、角色和3卷大纲，帮助你快速了解AI小说工坊的创作流程。可在此基础上自由修改。',
+      tags: ['示例', '入门', '奇幻'],
+      category: 'fantasy',
+      createdAt: new Date(),
+      updatedAt: new Date(),
+      rating: 5.0,
+      downloads: 0
+    },
+    worldTemplate: {
+      id: 'world-demo',
+      name: '幻灵大陆',
+      era: {
+        time: '架空中世纪',
+        techLevel: '魔法文明',
+        socialForm: '王国联盟'
+      },
+      geography: {
+        locations: [
+          {
+            id: 'demo-loc-1',
+            name: '星辰城',
+            description: '大陆中央的王都，人口百万，拥有最古老的魔法学院',
+            importance: 'high',
+            type: 'city'
+          },
+          {
+            id: 'demo-loc-2',
+            name: '迷雾森林',
+            description: '北方的禁地，传说中精灵族的居所，常年被迷雾笼罩',
+            importance: 'high',
+            type: 'forest'
+          },
+          {
+            id: 'demo-loc-3',
+            name: '铁炉堡',
+            description: '矮人族的地下要塞，锻造术冠绝天下',
+            importance: 'medium',
+            type: 'castle'
+          }
+        ]
+      },
+      factions: [
+        {
+          id: 'demo-faction-1',
+          name: '星辰王国',
+          type: '国家',
+          description: '大陆上最强盛的人类王国，以魔法立国',
+          relationships: ['demo-faction-2']
+        },
+        {
+          id: 'demo-faction-2',
+          name: '暗影教团',
+          type: '组织',
+          description: '潜伏在暗处的神秘组织，意图收集远古神器复活魔王',
+          relationships: ['demo-faction-1']
+        }
+      ],
+      rules: [],
+      aiGenerated: false
+    },
+    characterTemplates: [
+      {
+        role: 'protagonist',
+        template: {
+          name: '林夜',
+          aliases: ['星辰之子'],
+          gender: 'male',
+          age: 18,
+          appearance: '黑发银瞳，身形修长，左手背有一枚星辰形胎记',
+          personality: ['善良', '坚毅', '好奇心强'],
+          background: '星辰城平民少年，自幼父母双亡，在魔法学院当杂工，却意外发现自己拥有罕见的星辰魔法天赋',
+          motivation: '寻找身世真相，保护所爱之人'
+        },
+        description: '主角：星辰城的平凡少年，拥有星辰魔法天赋'
+      },
+      {
+        role: 'supporting',
+        template: {
+          name: '苏灵月',
+          aliases: ['月之精灵'],
+          gender: 'female',
+          age: 17,
+          appearance: '银白长发，紫色眼眸，耳尖微尖，气质清冷',
+          personality: ['聪慧', '外冷内热', '责任感强'],
+          background: '迷雾森林精灵族公主，因族中预言来到人类世界寻找"星辰之子"',
+          motivation: '完成预言，拯救精灵族免于消亡'
+        },
+        description: '女主角：精灵族公主，身负预言使命'
+      },
+      {
+        role: 'antagonist',
+        template: {
+          name: '玄墨',
+          aliases: ['暗影之主'],
+          gender: 'male',
+          age: 35,
+          appearance: '黑袍覆身，面容苍白，右眼被黑色眼罩遮住',
+          personality: ['冷酷', '深谋远虑', '偏执'],
+          background: '曾是星辰学院最天才的法师，研究禁术被逐出后创立暗影教团',
+          motivation: '收集远古神器，打破世界壁垒，释放被封印的魔王以获取终极力量'
+        },
+        description: '反派：暗影教团之主，意图释放魔王'
+      }
+    ],
+    plotTemplate: {
+      structure: '三幕结构',
+      totalChapters: 15,
+      description: '平凡少年林夜发现自己拥有星辰魔法天赋，与精灵公主苏灵月一起踏上冒险之旅，对抗暗影教团，最终拯救幻灵大陆。一部融合友情、成长与奇幻冒险的短篇小说。',
+      volumes: [
+        {
+          number: 1,
+          title: '第一卷：星辰觉醒',
+          theme: '命运的召唤',
+          chapterRange: { start: 1, end: 5 },
+          mainEvents: ['发现魔法天赋', '进入魔法学院', '精灵族来访', '初遇暗影教团'],
+          plotPoints: [
+            '林夜在学院杂工时意外触发星辰魔法',
+            '被破格录取进入魔法学院学习',
+            '苏灵月带着预言来到星辰城',
+            '暗影教团袭击学院抢夺远古卷轴',
+            '林夜和苏灵月决定踏上寻找神器之旅'
+          ]
+        },
+        {
+          number: 2,
+          title: '第二卷：迷雾之旅',
+          theme: '试炼与成长',
+          chapterRange: { start: 6, end: 10 },
+          mainEvents: ['深入迷雾森林', '矮人族结盟', '获取第一件神器', '遭受背叛'],
+          plotPoints: [
+            '二人进入迷雾森林寻找精灵族',
+            '在铁炉堡与矮人族结盟锻造神器线索',
+            '成功获取第一件远古神器"星辰之钥"',
+            '发现学院中有暗影教团的内应',
+            '林夜身世之谜逐渐揭开'
+          ]
+        },
+        {
+          number: 3,
+          title: '第三卷：终焉之战',
+          theme: '命运对决',
+          chapterRange: { start: 11, end: 15 },
+          mainEvents: ['集合盟友', '正面交锋', '身世真相', '终极之战'],
+          plotPoints: [
+            '林夜发现自己的星辰血脉与远古封印有关',
+            '联合人类、精灵、矮人三族对抗暗影教团',
+            '玄墨集齐神器开始解封仪式',
+            '林夜觉醒星辰之力与玄墨决战',
+            '封印魔王，守护大陆和平，林夜成为传说'
+          ]
+        }
+      ]
+    },
+    styleTemplate: {
+      tone: '轻松',
+      narrativePerspective: '第三人称',
+      dialogueStyle: '简洁',
+      descriptionLevel: '适中'
+    },
+    promptTemplates: {
+      worldGeneration: '请生成一个包含魔法体系、种族设定、王国势力的奇幻世界观。要求设定完整且自洽，包含地理、历史、势力关系。',
+      characterGeneration: '请为奇幻小说生成角色设定，包含外貌、性格、背景故事、能力体系和人物关系。',
+      chapterGeneration: '请根据大纲生成小说章节，注重场景描写、人物对话和情节推进，语言流畅自然，保持叙事节奏。'
     }
   }
 }

@@ -699,10 +699,12 @@ export interface AIServiceConfig {
     openai?: {
       apiKey: string;
       baseUrl?: string;
+      model?: string;
     };
     anthropic?: {
       apiKey: string;
       baseUrl?: string;
+      model?: string;
     };
     local?: {
       baseUrl: string;

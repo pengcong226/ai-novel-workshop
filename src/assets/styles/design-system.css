@@ -74,6 +74,23 @@ html.dark {
   --ds-sidebar-width: 260px;
   --ds-sidebar-collapsed-width: 60px;
 
+  --ds-z-base: 1;
+  --ds-z-dropdown: 50;
+  --ds-z-float: 100;
+  --ds-z-overlay: 900;
+  --ds-z-toast: 9990;
+  --ds-z-float-button: 9991;
+  --ds-z-banner: 10000;
+
+  /*
+   * Responsive Breakpoints (use as @media max-width reference):
+   * --ds-bp-sm:  640px   (small phone)
+   * --ds-bp-md:  768px   (tablet portrait)
+   * --ds-bp-lg:  900px   (tablet landscape / small desktop)
+   * --ds-bp-xl:  1024px  (desktop)
+   * --ds-bp-2xl: 1280px  (large desktop)
+   */
+
   --el-color-primary: var(--ds-accent);
   --el-color-primary-light-3: var(--ds-accent-hover);
   --el-color-primary-light-5: #a79ff5;
@@ -109,19 +126,34 @@ html.light {
   --ds-bg-elevated: #ffffff;
   --ds-bg-hover: rgba(0, 0, 0, 0.03);
   --ds-bg-active: rgba(0, 0, 0, 0.06);
+
   --ds-surface: #ffffff;
   --ds-surface-hover: #f5f5f7;
   --ds-surface-border: rgba(0, 0, 0, 0.08);
+
   --ds-text-primary: #1a1a2e;
   --ds-text-secondary: #6b7280;
   --ds-text-tertiary: #9ca3af;
   --ds-text-inverse: #ffffff;
+
+  --ds-accent: #5b4bd6;
+  --ds-accent-hover: #6c5ce7;
   --ds-accent-subtle: rgba(108, 92, 231, 0.08);
+  --ds-accent-text: #5b4bd6;
+
+  --ds-success: #059669;
+  --ds-warning: #d97706;
+  --ds-danger: #dc2626;
+  --ds-info: #2563eb;
+
   --ds-shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.08);
   --ds-shadow-md: 0 4px 12px rgba(0, 0, 0, 0.08);
   --ds-shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.1);
+  --ds-shadow-glow: 0 0 20px rgba(108, 92, 231, 0.1);
+
   --ds-glass-bg: rgba(255, 255, 255, 0.8);
   --ds-glass-border: rgba(0, 0, 0, 0.06);
+
   --el-mask-color: rgba(0, 0, 0, 0.45);
 }
 

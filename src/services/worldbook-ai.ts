@@ -107,6 +107,14 @@ export interface AIAnalysisResult {
 }
 
 /**
+ * 获取 AI Store 实例（模块级辅助函数，供独立便捷函数使用）
+ */
+async function getAiStoreInstance() {
+  const { useAIStore } = await import('@/stores/ai')
+  return useAIStore()
+}
+
+/**
  * 世界书 AI 助手
  */
 export class WorldbookAIAssistant {
@@ -114,6 +122,13 @@ export class WorldbookAIAssistant {
 
   constructor(model?: string) {
     this.model = model || 'gpt-4-turbo'
+  }
+
+  /**
+   * 获取 AI Store 实例
+   */
+  private async getAiStore() {
+    return getAiStoreInstance()
   }
 
   /**
@@ -145,8 +160,7 @@ export class WorldbookAIAssistant {
       existingEntriesCount: existingEntries?.length || 0
     })
 
-    const { useAIStore } = await import('@/stores/ai')
-    const aiStore = useAIStore()
+    const aiStore = await this.getAiStore()
 
     const promptText = `
 参考已有设定数量: ${existingEntries?.length || 0}
@@ -206,8 +220,7 @@ ${prompt || '无附加要求'}
       contentLength: entry.content.length
     })
 
-    const { useAIStore } = await import('@/stores/ai')
-    const aiStore = useAIStore()
+    const aiStore = await this.getAiStore()
 
     const promptText = `
 请为以下设定的条目内容生成 2-5 个用于检索的关键词（包括主关键词和次级关键词）。
@@ -254,8 +267,7 @@ ${context ? `上下文参考:\n${context}` : ''}
       options
     })
 
-    const { useAIStore } = await import('@/stores/ai')
-    const aiStore = useAIStore()
+    const aiStore = await this.getAiStore()
 
     const promptText = `
 请优化以下设定条目的内容。保持设定核心不变，使语言更精炼、描述更生动。
@@ -299,8 +311,7 @@ ${entry.content}
   ): Promise<Array<{ merged: WorldbookEntry; sources: WorldbookEntry[] }>> {
     logger.info('开始合并相似条目', { count: entries.length })
 
-    const { useAIStore } = await import('@/stores/ai')
-    const aiStore = useAIStore()
+    const aiStore = await this.getAiStore()
 
     const promptText = `
 请分析以下世界书设定的条目，找出意思相近或重复的条目，并将它们合并为更完善的单一条目。
@@ -354,8 +365,7 @@ ${JSON.stringify(entries.map(e => ({ uid: e.uid, keys: e.key, content: e.content
     logger.info('开始分类条目', { count: entries.length })
 
     const categories = new Map<string, WorldbookEntry[]>()
-    const { useAIStore } = await import('@/stores/ai')
-    const aiStore = useAIStore()
+    const aiStore = await this.getAiStore()
 
     // 若数据量太大，仅抽取 keys / content 简略版给AI
     const entriesData = entries.map(e => ({ uid: e.uid, keys: e.key, content: e.content.substring(0, 100) }))
@@ -410,8 +420,7 @@ ${JSON.stringify(entriesData, null, 2)}
       entryCount: worldbook.entries.length
     })
 
-    const { useAIStore } = await import('@/stores/ai')
-    const aiStore = useAIStore()
+    const aiStore = await this.getAiStore()
 
     const maxEntries = 50 // 如果条目太多，就取片段
     const sampleEntries = worldbook.entries.slice(0, maxEntries).map(e => ({ uid: e.uid, keys: e.key, content: e.content.substring(0, 150) }))
@@ -441,18 +450,26 @@ ${JSON.stringify(sampleEntries, null, 2)}
         model: this.model, temperature: 0.3, maxTokens: 1500, response_format: { type: 'json_object' }
       })
 
-      const parsed = safeParseAIJson<unknown>(dbResponse.content)
+      interface WorldbookAnalysisAIResponse {
+        duplicationScore?: number
+        qualityScore?: number
+        coverageScore?: number
+        suggestions?: string[]
+        problematicEntries?: Array<{ uid: number; issue: string; suggestion: string }>
+      }
+
+      const parsed = safeParseAIJson<WorldbookAnalysisAIResponse>(dbResponse.content)
       if (parsed) {
         const result: AIAnalysisResult = {
-          duplicationScore: (parsed as any).duplicationScore || 0,
-          qualityScore: (parsed as any).qualityScore || 0,
-          coverageScore: (parsed as any).coverageScore || 0,
-          suggestions: (parsed as any).suggestions || [],
-          problematicEntries: ((parsed as any).problematicEntries || []).map((pe: any) => ({
+          duplicationScore: parsed.duplicationScore || 0,
+          qualityScore: parsed.qualityScore || 0,
+          coverageScore: parsed.coverageScore || 0,
+          suggestions: parsed.suggestions || [],
+          problematicEntries: (parsed.problematicEntries || []).map(pe => ({
             entry: worldbook.entries.find(e => e.uid === pe.uid) as WorldbookEntry,
             issue: pe.issue,
             suggestion: pe.suggestion
-          })).filter((pe: any) => pe.entry)
+          })).filter(pe => pe.entry)
         }
         logger.info('世界书分析完成', { qualityScore: result.qualityScore, suggestionCount: result.suggestions.length })
         return result
@@ -474,8 +491,7 @@ ${JSON.stringify(sampleEntries, null, 2)}
   ): Promise<Array<{ entries: WorldbookEntry[]; similarity: number }>> {
     logger.info('开始检测重复条目', { count: entries.length })
 
-    const { useAIStore } = await import('@/stores/ai')
-    const aiStore = useAIStore()
+    const aiStore = await this.getAiStore()
 
     const entriesData = entries.map(e => ({ uid: e.uid, keys: e.key, content: e.content.substring(0, 100) }))
     const promptText = `
@@ -526,8 +542,7 @@ ${JSON.stringify(sampleEntries, null, 2)}
       options
     })
 
-    const { useAIStore } = await import('@/stores/ai')
-    const aiStore = useAIStore()
+    const aiStore = await this.getAiStore()
 
     const promptText = `
 请从以下文本中提取潜在的小说世界观设定条目。
@@ -568,8 +583,7 @@ ${text.substring(0, 5000)}
   }> {
     logger.info('开始生成条目关系图', { entryCount: entries.length })
 
-    const { useAIStore } = await import('@/stores/ai')
-    const aiStore = useAIStore()
+    const aiStore = await this.getAiStore()
 
     const maxEntries = 30 // 控制数量
     const entriesData = entries.slice(0, maxEntries).map(e => ({ uid: e.uid, keys: e.key, content: e.content.substring(0, 60) }))
@@ -634,8 +648,7 @@ ${text.substring(0, 5000)}
       totalEntries: allEntries.length
     })
 
-    const { useAIStore } = await import('@/stores/ai')
-    const aiStore = useAIStore()
+    const aiStore = await this.getAiStore()
 
     const otherEntries = allEntries.filter(e => e.uid !== entry.uid).slice(0, 50)
     const entriesData = otherEntries.map(e => ({ uid: e.uid, keys: e.key, content: e.content.substring(0, 50) }))
@@ -699,8 +712,7 @@ export async function extractKeywords(text: string): Promise<string[]> {
   const heuristic = Array.from(new Set([...chineseNouns.slice(0, 5), ...englishWords.slice(0, 3)]))
 
   try {
-    const { useAIStore } = await import('@/stores/ai')
-    const aiStore = useAIStore()
+    const aiStore = await getAiStoreInstance()
     const dbResponse = await aiStore.chat([{
       role: 'user', 
       content: `提取这段话的核心关键词（最多10个）:\n${text.substring(0, 1000)}\n\n返回JSON: {"keywords": ["词1", "词2"]}`
@@ -728,8 +740,7 @@ export async function optimizeContent(
   const maxLength = options?.maxLength || 500
 
   try {
-    const { useAIStore } = await import('@/stores/ai')
-    const aiStore = useAIStore()
+    const aiStore = await getAiStoreInstance()
     const prompt = `请压缩/优化的文本，使其符合${options?.style === 'concise' ? '精简' : '详实'}风格，且长度不超过${maxLength}字:\n${content}\n\n输出JSON: {"content": "结果"}`
     const dbResponse = await aiStore.chat([{ role: 'user', content: prompt }], undefined, { maxTokens: maxLength * 2, response_format: { type: 'json_object' } })
     const parsed = safeParseAIJson<{ content: string }>(dbResponse.content)

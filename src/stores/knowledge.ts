@@ -5,7 +5,8 @@
 
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
-import type { KnowledgeEntry, KnowledgeCategory } from '@/types/knowledge-base'
+import type { KnowledgeEntry, KnowledgeMetadata } from '@/types/knowledge-base'
+import { KnowledgeCategory } from '@/types/knowledge-base'
 import { getLogger } from '@/utils/logger'
 import { v4 as uuidv4 } from 'uuid'
 
@@ -271,7 +272,7 @@ export const useKnowledgeStore = defineStore('knowledge', () => {
       extensions: entry.extensions,
 
       // 知识库特有字段
-      category: entry.category || ('custom' as any),
+      category: entry.category || KnowledgeCategory.CUSTOM,
       tags: entry.tags || [],
       source: entry.source,
       author: entry.author,
@@ -310,11 +311,11 @@ export const useKnowledgeStore = defineStore('knowledge', () => {
       ...entries.value[index],
       ...updates,
       metadata: {
-        createdAt: entries.value[index].metadata?.createdAt || new Date(),
         ...entries.value[index].metadata,
         ...updates.metadata,
+        createdAt: entries.value[index].metadata?.createdAt || new Date(),
         updatedAt: new Date()
-      } as any
+      } as KnowledgeMetadata
     }
 
     entries.value[index] = updatedEntry

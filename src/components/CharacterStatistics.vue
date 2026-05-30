@@ -500,7 +500,7 @@ function updateLineChart() {
         formatter: (value: number) => value === 1 ? '出场' : '未出场'
       }
     },
-    series: series as any[]
+    series
   }
 
   lineChart.setOption(option)
@@ -589,12 +589,12 @@ onBeforeUnmount(() => {
 .stat-value {
   font-size: 32px;
   font-weight: bold;
-  color: #409EFF;
+  color: var(--ds-info);
 }
 
 .stat-label {
   font-size: 14px;
-  color: #909399;
+  color: var(--ds-text-tertiary);
   margin-top: 5px;
 }
 

@@ -3,444 +3,253 @@ import { useAIStore } from '@/stores/ai'
 import { useSandboxStore } from '@/stores/sandbox'
 import { useTaskManager } from '@/stores/taskManager'
 import { v4 as uuidv4 } from 'uuid'
-import { SummaryDetail } from '@/types'
-import type { Chapter, ChapterOutline } from '@/types'
-import type { Entity, StateEvent, EntityType, EntityImportance } from '@/types/sandbox'
+import type { Chapter } from '@/types'
+import { generateId } from '@/utils/generateId'
+import type { StateEvent } from '@/types/sandbox'
 import type { ExtractedPlotEvent, ExtractPlotEventsOutput } from '@/types/deep-import'
 import { buildChapterContext, contextToPromptPayload } from '@/utils/contextBuilder'
 import { extendOutlineWithLLM } from '@/utils/llm/outlineGenerator'
-import { extractEntitiesWithAI, analyzeRelationships } from '@/utils/characterExtractor'
-import { mergeSystemPrompts } from '@/utils/systemPrompts'
 import { normalizeProjectConfig } from '@/utils/project-config-normalizer'
 import { syncCompletedChapter } from '@/services/outline-sync'
 import type { ChatMessage } from '@/types/ai'
 import { useAuditLog } from '@/composables/useAuditLog'
 import { getLogger } from '@/utils/logger'
-import { AgentOrchestrator } from '@/agents/AgentOrchestrator'
-import { PlannerAgent } from '@/agents/PlannerAgent'
-import { EditorAgent } from '@/agents/EditorAgent'
-import { ReaderAgent } from '@/agents/ReaderAgent'
-import { SentinelAgent } from '@/agents/SentinelAgent'
-import { ExtractorAgent } from '@/agents/ExtractorAgent'
 import type { AgentConfig } from '@/agents/types'
+import {
+  BatchGenerationOptions,
+  buildGenerationOptions,
+  hasHighImpactContent
+} from './generation/types'
+import { PipelineRunner } from './pipeline/PipelineRunner'
+import type { PipelineConfig, ChapterPipelineResult, WriteNextChapterOptions } from './pipeline/types'
+import {
+  enqueuePostGenerationAgents,
+  runPreGenerationAgents,
+  updateProjectSettings,
+  consultPlanner,
+  runExtractionInBackground
+} from './generation/agent-orchestrator'
 
 const logger = getLogger('generation:scheduler')
 
-const HIGH_IMPACT_KEYWORDS = [
-  '死', '伤', '去', '到', '回', '破', '境', '阶',
-  '层', '宗', '门', '帮', '派', '遇', '得', '失',
-  '战', '斗', '杀', '救', '突破', '晋升', '陨落',
-  '死亡', '觉醒', '背叛', '加入', '离开', '获得',
-  '失去', '重伤', '痊愈', '结盟', '决裂', '封印', '解封'
-]
-
-const HIGH_IMPACT_REGEX = new RegExp(HIGH_IMPACT_KEYWORDS.join('|'))
-
-function hasHighImpactContent(text: string): boolean {
-  return HIGH_IMPACT_REGEX.test(text)
-}
-
-export interface BatchGenerationOptions {
-  startChapter: number
-  count: number
-  autoSave: boolean
-  autoUpdateSettings: boolean
-  enableCheckpoint?: boolean
-  checkpointInterval?: number
-  extraction?: {
-    extractPlotEvents?: boolean
-    enableAntiRetcon?: boolean
-  }
-  rewrite?: {
-    directionPrompt?: string
-  }
-  callbacks?: {
-    onCheckpointConfirm?: (chaptersGenerated: number) => Promise<boolean>
-    onBatchComplete?: (chaptersGenerated: number) => void
-  }
-}
-
-function buildGenerationOptions(advancedSettings?: {
-  maxTokens?: number
-  temperature?: number
-  stopSequences?: string[]
-}) {
-  const maxTokens = advancedSettings?.maxTokens ?? 4000
-  const temperature = advancedSettings?.temperature ?? 0.7
-  const stopSequences = (advancedSettings?.stopSequences || []).filter(Boolean)
-
-  return {
-    maxTokens,
-    temperature,
-    ...(stopSequences.length > 0 ? { stopSequences } : {})
-  }
-}
-
 export class GenerationScheduler {
-  
-  private isBatchCancelled = false
-  private generationRunId = 0
+
+  // 使用 generationRunId 作为唯一运行标识，替代共享的 isBatchCancelled 标志
+  // 每次新生成或取消都递增 runId，旧运行通过 runId 不匹配自动失效
+  private currentRunId = 0
   private agentQueue: Promise<void> = Promise.resolve()
 
-  public cancelBatchGeneration() {
-    this.isBatchCancelled = true
-    this.generationRunId += 1
+  // Pipeline 相关 — 默认启用，旧路径保留为 fallback
+  private pipeline: PipelineRunner | null = null
+  private usePipeline = true  // 默认启用 Pipeline
+
+  constructor() {
+    // 构造时自动初始化 Pipeline
+    this.pipeline = new PipelineRunner()
+    logger.info('[GenerationScheduler] Pipeline 模式默认已启用')
   }
 
-  private enqueuePostGenerationAgents(chapter: Chapter, configs: AgentConfig[], runId: number): void {
-    const chapterSnapshot = { ...chapter }
-
-    this.agentQueue = this.agentQueue
-      .catch(() => undefined)
-      .then(async () => {
-        if (this.isBatchCancelled || runId !== this.generationRunId) return
-
-        const projectStore = useProjectStore()
-        const project = projectStore.currentProject
-        const normalizedConfig = normalizeProjectConfig(project?.config)
-        if (!project || !normalizedConfig.enableAutoReview) return
-
-        await this.runPostGenerationAgents(chapterSnapshot, normalizedConfig.agentConfigs ?? configs)
-      })
-      .catch(error => logger.warn('Agent 后处理失败:', error))
+  /**
+   * 配置 Pipeline 参数
+   */
+  public enablePipeline(config?: Partial<PipelineConfig>): void {
+    this.pipeline = new PipelineRunner(config)
+    this.usePipeline = true
+    logger.info('[GenerationScheduler] Pipeline 模式已启用（重新配置）')
   }
 
-  public async runExtractionInBackground(chapter: Chapter) {
+  /**
+   * 禁用 Pipeline 模式（回退到原有逻辑）
+   */
+  public disablePipeline(): void {
+    this.usePipeline = false
+    this.pipeline = null
+    logger.info('[GenerationScheduler] Pipeline 模式已禁用，回退到传统模式')
+  }
+
+  /**
+   * 获取 Pipeline 实例
+   */
+  public getPipeline(): PipelineRunner | null {
+    return this.pipeline
+  }
+
+  /**
+   * 是否启用了 Pipeline 模式
+   */
+  public isPipelineEnabled(): boolean {
+    return this.usePipeline && this.pipeline !== null
+  }
+
+  /**
+   * 通过 Pipeline 执行单章写作
+   */
+  public async writeChapterWithPipeline(options: WriteNextChapterOptions): Promise<ChapterPipelineResult> {
+    if (!this.pipeline) {
+      throw new Error('Pipeline 未启用，请先调用 enablePipeline()')
+    }
+    return this.pipeline.writeNextChapter(options)
+  }
+
+  /**
+   * 通过 Pipeline 执行批量续写（保留中断/恢复能力）
+   */
+  public async executeBatchWithPipeline(
+    batchOptions: BatchGenerationOptions,
+    pipelineConfig?: Partial<PipelineConfig>
+  ): Promise<ChapterPipelineResult[]> {
+    const projectStore = useProjectStore()
+    const aiStore = useAIStore()
     const taskManager = useTaskManager()
-    const task = taskManager.createTask({
-      title: `设定抽取: 第${chapter.number}章`,
-      description: '正在分析事件与人物关系...',
-      cancellable: false
+
+    const currentProject = projectStore.currentProject
+    if (!currentProject || !aiStore.checkInitialized()) {
+      throw new Error('系统未初始化或项目未加载')
+    }
+
+    // 确保 Pipeline 已初始化
+    if (!this.pipeline) {
+      this.pipeline = new PipelineRunner(pipelineConfig)
+    } else if (pipelineConfig) {
+      this.pipeline.updateConfig(pipelineConfig)
+    }
+
+    this.currentRunId += 1
+    const runId = this.currentRunId
+
+    const batchTask = taskManager.createTask({
+      title: 'Pipeline 批量续写',
+      description: '初始化 Pipeline...',
+      cancellable: true,
+      onCancel: () => this.cancelBatchGeneration(),
     })
+
+    const results: ChapterPipelineResult[] = []
 
     try {
-      await this.updateProjectSettings(chapter)
-      
-      const projectStore = useProjectStore()
-      await projectStore.saveCurrentProject()
-      
-      taskManager.completeTask(task.id, '抽取与记忆入库成功')
-      taskManager.addToast(`第${chapter.number}章事件已成功载入系统记忆树 🌲`, 'success')
-    } catch (err) {
-      logger.error('设定提取失败:', err)
-      taskManager.failTask(task.id, err instanceof Error ? err.message : String(err))
-    }
-  }
-
-  private async runPreGenerationAgents(chapter: Chapter, configs: AgentConfig[]): Promise<void> {
-    const plannerConfigs = configs.filter(config => config.role === 'planner' && config.enabled && config.phase === 'pre-generation')
-    if (plannerConfigs.length === 0) return
-
-    const projectStore = useProjectStore()
-    const project = projectStore.currentProject
-    if (!project) return
-
-    const orchestrator = new AgentOrchestrator({
-      agents: [new PlannerAgent()],
-      configs: plannerConfigs,
-      logger,
-      onTrace: event => logger.debug('[Agent]', event),
-    })
-
-    const result = await orchestrator.runPhase('pre-generation', {
-      phase: 'pre-generation',
-      project,
-      chapter,
-      outline: chapter.outline,
-    })
-
-    for (const agentResult of result.results) {
-      if (agentResult.role !== 'planner' || agentResult.status !== 'success') continue
-      const refinedOutline = agentResult.data as Partial<ChapterOutline> | undefined
-      if (!refinedOutline || typeof refinedOutline !== 'object') continue
-      Object.assign(chapter.outline, refinedOutline)
-      chapter.title = chapter.outline.title || chapter.title
-    }
-  }
-
-  private async runPostGenerationAgents(chapter: Chapter, configs: AgentConfig[]): Promise<void> {
-    const projectStore = useProjectStore()
-    const project = projectStore.currentProject
-    if (!project) return
-
-    const orchestrator = new AgentOrchestrator({
-      agents: [
-        new SentinelAgent(),
-        new EditorAgent(),
-        new ReaderAgent(),
-        new ExtractorAgent({ extractChapter: chapter => this.updateProjectSettings(chapter) }),
-      ],
-      configs: configs.filter(config => ['sentinel', 'editor', 'reader', 'extractor'].includes(config.role)),
-      logger,
-      onTrace: event => logger.debug('[Agent]', event),
-    })
-
-    await orchestrator.runPhase('post-generation', {
-      phase: 'post-generation',
-      project,
-      chapter,
-    })
-  }
-
-  private async updateProjectSettings(chapter: Chapter) {
-    const projectStore = useProjectStore()
-    const sandboxStore = useSandboxStore()
-    const project = projectStore.currentProject
-    if (!project) return
-
-    if (!project.config?.enableZeroTouchExtraction) return
-
-    const { safeParseAIJson: parseAIJson } = await import('@/utils/safeParseAIJson')
-
-    // 1. 全量提取实体（人物、词条、分水岭事件）
-    const entities = await extractEntitiesWithAI(chapter.content)
-
-    // 2. 无缝入库新角色 → V5 sandbox store
-    const newEntities: Entity[] = []
-    const newStateEvents: StateEvent[] = []
-    if (entities && entities.characters.length > 0) {
-      for (const nc of entities.characters) {
-        const existing = sandboxStore.entities.find(e => e.type === 'CHARACTER' && e.name === nc.name)
-        if (!existing) {
-          const importanceMap: Record<string, EntityImportance> = {
-            protagonist: 'critical',
-            antagonist: 'critical',
-            supporting: 'major',
-            minor: 'minor',
-            other: 'background'
-          }
-          const entity: Entity = {
-            id: uuidv4(),
-            projectId: project.id,
-            type: 'CHARACTER' as EntityType,
-            name: nc.name,
-            aliases: [],
-            importance: importanceMap[nc.role] || 'major',
-            category: '角色',
-            systemPrompt: nc.description,
-            isArchived: false,
-            createdAt: Date.now()
-          }
-          newEntities.push(entity)
+      for (let i = 0; i < batchOptions.count; i++) {
+        // 中断检查
+        if (this.isRunCancelled(runId)) {
+          taskManager.failTask(batchTask.id, '已被用户手动终止')
+          break
         }
-      }
 
-      // 增量分析并更新关系图 → V5 StateEvents (use last 10 chapters for performance)
-      const recentChapters = project.chapters.slice(-10)
-      const allText = recentChapters.map(c => c.content).join('\n\n')
-      const extChars = sandboxStore.entities
-        .filter(e => e.type === 'CHARACTER')
-        .map(e => ({ name: e.name, aliases: e.aliases, description: '', firstAppearance: '', role: 'other' as const, confidence: 1, occurrences: 1 }))
-      const relations = analyzeRelationships(allText, extChars)
+        const chapterNumber = batchOptions.startChapter + i
+        const progress = Math.round((i / batchOptions.count) * 100)
 
-      for (const rel of relations) {
-        const sourceEntity = sandboxStore.entities.find(e => e.type === 'CHARACTER' && e.name === rel.from)
-          || newEntities.find(e => e.type === 'CHARACTER' && e.name === rel.from)
-        const targetEntity = sandboxStore.entities.find(e => e.type === 'CHARACTER' && e.name === rel.to)
-          || newEntities.find(e => e.type === 'CHARACTER' && e.name === rel.to)
-        if (sourceEntity && targetEntity) {
-          const existingRel = sandboxStore.stateEvents.find(
-            e => e.entityId === sourceEntity.id && e.eventType === 'RELATION_ADD' && e.payload.targetId === targetEntity.id
-          )
-          if (!existingRel) {
-            const event: StateEvent = {
-              id: uuidv4(),
-              projectId: project.id,
-              chapterNumber: chapter.number,
-              entityId: sourceEntity.id,
-              eventType: 'RELATION_ADD',
-              payload: {
-                targetId: targetEntity.id,
-                relationType: rel.type || 'other',
-                attitude: '共现关系'
-              },
-              source: 'AI_EXTRACTED'
-            }
-            newStateEvents.push(event)
+        taskManager.updateTask(batchTask.id, {
+          progress,
+          description: `Pipeline: 正在处理第 ${chapterNumber} 章 (${i + 1}/${batchOptions.count})`,
+        })
+
+        // 断点审查
+        if (batchOptions.enableCheckpoint && batchOptions.checkpointInterval && i > 0 && i % batchOptions.checkpointInterval === 0) {
+          taskManager.updateTask(batchTask.id, { description: `已完成 ${i} 章，等待人工审查...` })
+          const shouldContinue = batchOptions.callbacks?.onCheckpointConfirm
+            ? await batchOptions.callbacks.onCheckpointConfirm(i)
+            : true
+          if (!shouldContinue) {
+            this.cancelBatchGeneration()
+            taskManager.failTask(batchTask.id, '于检查点处由用户手动终止')
+            break
           }
         }
-      }
-    }
 
-    // 3. 零触感录入世界体系 → V5 sandbox store (LORE entities)
-    if (entities && entities.worldbook.length > 0) {
-      for (const wb of entities.worldbook) {
-        const existing = sandboxStore.entities.find(
-          e => e.type === 'LORE' && e.name === wb.keyword
-        )
-        if (!existing) {
-          const loreEntity: Entity = {
-            id: uuidv4(),
-            projectId: project.id,
-            type: 'LORE' as EntityType,
-            name: wb.keyword,
-            aliases: [],
-            importance: 'minor',
-            category: wb.category || '设定',
-            systemPrompt: wb.content,
-            isArchived: false,
-            createdAt: Date.now()
-          }
-          newEntities.push(loreEntity)
-        }
-      }
-    }
-
-    // 批量持久化所有新增实体和事件
-    if (newEntities.length > 0) {
-      await sandboxStore.batchAddEntities(newEntities)
-    }
-    if (newStateEvents.length > 0) {
-      await sandboxStore.batchAddStateEvents(newStateEvents)
-    }
-
-    // 4. 重大历史转折点打标 (记录到章节关键事件中)
-    if (entities && entities.events.length > 0) {
-      const highImpactEvents = entities.events.filter(e => e.importance >= 4).map(e => `[影响力 ${e.importance}/10] ` + e.description)
-      if (highImpactEvents.length > 0) {
-        if (!chapter.summaryData) {
-          chapter.summaryData = {
-            id: uuidv4(),
-            chapterNumber: chapter.number,
-            title: chapter.title,
-            summary: chapter.title,
-            keyEvents: [],
-            characters: [],
-            locations: [],
-            plotProgression: '',
-            wordCount: chapter.wordCount,
-            summaryWordCount: 0,
-            tokenCount: 0,
-            createdAt: new Date(),
-            updatedAt: new Date(),
-            detail: SummaryDetail.MINIMAL
-          }
-        }
-        if (chapter.summaryData) {
-          chapter.summaryData.keyEvents = [
-            ...(chapter.summaryData.keyEvents || []),
-            ...highImpactEvents
-          ]
-        }
-      }
-    }
-
-    // 5. V5 状态追踪：基于高影响事件提取 StateEvents
-    const hasAction = hasHighImpactContent(chapter.content)
-
-    if (hasAction && project.config?.enableZeroTouchExtraction) {
-      const aiStore = useAIStore()
-      if (aiStore.checkInitialized()) {
-        const prompts = mergeSystemPrompts(project.config?.systemPrompts)
-
-        const entityNames = sandboxStore.entities
-          .filter(e => e.type === 'CHARACTER')
-          .map(e => e.name)
-          .join('、')
-
-        if (entityNames) {
-          const extractPrompt = `分析以下章节内容，提取涉及角色【${entityNames}】的状态变化。
-
-请严格按 JSON Schema 输出，包含以下事件类型：
-- PROPERTY_UPDATE: 属性变化（如修为提升、受伤等）
-- RELATION_ADD: 新增关系
-- RELATION_UPDATE: 关系态度变化
-- LOCATION_MOVE: 位置转移
-- VITAL_STATUS_CHANGE: 生死状态变化
-- ABILITY_CHANGE: 能力变化
-
-章节内容：
-${chapter.content.substring(0, 8000)}
-
-如果没有变化，返回空数组。`
-
+        // 大纲自动翻页
+        const currentOutlineLength = currentProject.outline.chapters.length
+        if (currentOutlineLength > 0 && chapterNumber >= currentOutlineLength - 4) {
           try {
-            const res = await aiStore.chat(
-              [
-                { role: 'system', content: prompts.extractor },
-                { role: 'user', content: extractPrompt }
-              ],
-              { type: 'check', complexity: 'low', priority: 'speed' },
-              {
-                maxTokens: 1000,
-                response_format: {
-                  type: 'json_schema',
-                  json_schema: {
-                    name: 'extract_state_events',
-                    strict: true,
-                    schema: {
-                      type: 'object',
-                      additionalProperties: false,
-                      properties: {
-                        events: {
-                          type: 'array',
-                          items: {
-                            type: 'object',
-                            additionalProperties: false,
-                            properties: {
-                              entityName: { type: 'string' },
-                              eventType: { type: 'string', enum: ['PROPERTY_UPDATE', 'RELATION_ADD', 'RELATION_UPDATE', 'LOCATION_MOVE', 'VITAL_STATUS_CHANGE', 'ABILITY_CHANGE'] },
-                              key: { type: 'string' },
-                              value: { type: 'string' },
-                              targetName: { type: 'string' },
-                              relationType: { type: 'string' },
-                              attitude: { type: 'string' },
-                              status: { type: 'string' },
-                              abilityName: { type: 'string' },
-                              abilityStatus: { type: 'string' }
-                            },
-                            required: ['entityName', 'eventType']
-                          }
-                        }
-                      },
-                      required: ['events']
-                    }
-                  }
-                }
-              }
-            )
-
-            const parsed = parseAIJson<{ events?: Array<Record<string, unknown>> }>(res.content)
-            const extractedEvents = (parsed?.events || []) as Array<{ entityName: string; targetName?: string; eventType: string; description: string; key?: string; value?: string; relationType?: string; attitude?: string; status?: string; abilityName?: string; abilityStatus?: string }>
-
-            const stateEventsToSave: StateEvent[] = []
-            for (const evt of extractedEvents) {
-              const entity = sandboxStore.entities.find(e => e.name === evt.entityName)
-              if (!entity) continue
-
-              const targetEntity = evt.targetName
-                ? sandboxStore.entities.find(e => e.name === evt.targetName)
-                : undefined
-
-              const stateEvent: StateEvent = {
-                id: uuidv4(),
-                projectId: project.id,
-                chapterNumber: chapter.number,
-                entityId: entity.id,
-                eventType: evt.eventType as StateEvent['eventType'],
-                payload: {
-                  key: evt.key,
-                  value: evt.value,
-                  targetId: targetEntity?.id,
-                  relationType: evt.relationType,
-                  attitude: evt.attitude,
-                  status: evt.status,
-                  abilityName: evt.abilityName,
-                  abilityStatus: evt.abilityStatus
-                },
-                source: 'AI_EXTRACTED'
-              }
-              stateEventsToSave.push(stateEvent)
-            }
-            if (stateEventsToSave.length > 0) {
-              await sandboxStore.batchAddStateEvents(stateEventsToSave)
+            const { extendOutlineWithLLM } = await import('@/utils/llm/outlineGenerator')
+            const newOutlines = await extendOutlineWithLLM(currentProject, currentOutlineLength + 1, 20)
+            if (newOutlines && newOutlines.length > 0) {
+              currentProject.outline.chapters.push(...newOutlines)
+              await projectStore.saveCurrentProject()
             }
           } catch (err) {
-            logger.warn('V5 状态提取失败', err)
+            logger.error('Pipeline: 大纲翻页失败:', err)
           }
         }
+
+        // 设置进度回调
+        if (this.pipeline) {
+          this.pipeline.updateConfig({
+            ...pipelineConfig,
+            onStageProgress: (stage, detail) => {
+              taskManager.updateTask(batchTask.id, {
+                description: `[${chapterNumber}章] ${stage}: ${detail}`,
+              })
+            },
+          })
+        }
+
+        // 执行 Pipeline
+        const result = await this.pipeline!.writeNextChapter({
+          project: currentProject,
+          chapterNumber,
+          externalContext: batchOptions.rewrite?.directionPrompt,
+        })
+
+        results.push(result)
+
+        // 保存章节
+        if (result.content && batchOptions.autoSave) {
+          const chapter: Chapter = {
+            id: generateId(),
+            number: chapterNumber,
+            title: result.title,
+            content: result.content,
+            wordCount: result.wordCount,
+            summary: '',
+            outline: currentProject.outline.chapters[chapterNumber - 1] || {
+              chapterId: generateId(),
+              title: result.title,
+              scenes: [],
+              characters: [],
+              location: '',
+              goals: [],
+              conflicts: [],
+              resolutions: [],
+              foreshadowingToPlant: [],
+              foreshadowingToResolve: [],
+              status: 'completed',
+            },
+            status: 'draft',
+            generatedBy: 'ai' as const,
+            generationTime: new Date(),
+            checkpoints: [],
+            aiSuggestions: [],
+            qualityScore: result.auditResult.overallScore,
+          }
+          await projectStore.saveChapter(chapter)
+        }
+
+        // 章间冷却
+        if (i < batchOptions.count - 1) {
+          await new Promise(resolve => setTimeout(resolve, 2000))
+        }
       }
+
+      if (!this.isRunCancelled(runId)) {
+        taskManager.completeTask(batchTask.id, `Pipeline 完成 ${results.length} 个章节`)
+        batchOptions.callbacks?.onBatchComplete?.(results.length)
+      }
+    } catch (error) {
+      logger.error('Pipeline 批量续写失败:', error)
+      taskManager.failTask(batchTask.id, error instanceof Error ? error.message : String(error))
     }
+
+    return results
+  }
+
+  public cancelBatchGeneration() {
+    this.currentRunId += 1
+  }
+
+  /**
+   * 检查当前运行是否已被取消或被新运行取代
+   */
+  private isRunCancelled(runId: number): boolean {
+    return runId !== this.currentRunId
   }
 
   public async executeBatchGeneration(options: BatchGenerationOptions) {
@@ -454,9 +263,8 @@ ${chapter.content.substring(0, 8000)}
       throw new Error('系统未初始化或项目未加载')
     }
 
-    this.generationRunId += 1
-    const generationRunId = this.generationRunId
-    this.isBatchCancelled = false
+    this.currentRunId += 1
+    const generationRunId = this.currentRunId
 
     // Pre-resolve dynamic imports used inside the loop to avoid repeated module loading
     const [{ validateChapterLogic }, { usePluginStore }, { createQualityChecker }, { RewriteContinuationService }, { EXTRACT_PLOT_EVENTS_SCHEMA, PLOT_EXTRACTION_SYSTEM }, { safeParseAIJson }] = await Promise.all([
@@ -521,16 +329,16 @@ ${chapter.content.substring(0, 8000)}
       const contextWindow = normalizedProjectConfig.advancedSettings?.maxContextTokens ?? 128000
 
       for (let i = 0; i < options.count; i++) {
-        if (this.isBatchCancelled) {
+        if (this.isRunCancelled(generationRunId)) {
           taskManager.failTask(batchTask.id, '已被用户手动终止')
           break
         }
 
         const chapterNumber = options.startChapter + i
         const progress = Math.round((i / options.count) * 100)
-        
-        taskManager.updateTask(batchTask.id, { 
-          progress, 
+
+        taskManager.updateTask(batchTask.id, {
+          progress,
           description: `正在处理第 ${chapterNumber} 章 (${i+1}/${options.count})`
         })
 
@@ -603,7 +411,7 @@ ${chapter.content.substring(0, 8000)}
           aiSuggestions: []
         }
 
-        await this.runPreGenerationAgents(chapterData, normalizedProjectConfig.agentConfigs ?? [])
+        await runPreGenerationAgents(chapterData, normalizedProjectConfig.agentConfigs ?? [])
 
         // 构建上下文
         taskManager.updateTask(batchTask.id, { description: `正在编织第 ${chapterNumber} 章记忆矩阵...` })
@@ -618,14 +426,14 @@ ${chapter.content.substring(0, 8000)}
 
         const targetWords = currentProject.config?.advancedSettings?.targetWordCount || 2000
         const promptPayload = contextToPromptPayload(context, chapterData.title, targetWords)
-        
+
         if (context.warnings.length > 0) {
           taskManager.addToast(`第 ${chapterNumber} 章上下文截断: ${context.warnings[0]}`, 'warning')
         }
 
         const aiContext = { type: 'chapter' as const, complexity: 'high' as const, priority: 'quality' as const }
         const generationOptions = buildGenerationOptions(currentProject.config?.advancedSettings)
-        
+
         let finalContent = ''
         const maxRetries = 3
 
@@ -637,7 +445,7 @@ ${chapter.content.substring(0, 8000)}
 
         for (let attempt = 1; attempt <= maxRetries; attempt++) {
           taskManager.updateTask(batchTask.id, { description: `[${context.totalTokens} Tokens] 核心推理中${attempt > 1 ? ` (第${attempt}次修正重试)` : ''}...` })
-          
+
           chapterData.content = ''
           let response
           try {
@@ -656,18 +464,18 @@ ${chapter.content.substring(0, 8000)}
             taskManager.updateTask(batchTask.id, { description: `流式被降级，重连执行后备通道...` })
             response = await aiStore.chat(messages, aiContext, generationOptions)
           }
-          
+
           finalContent = response.content.trim()
 
           // ================= 吃书预警与修复拦截层 =================
           if (shouldRunAntiRetcon) {
             const vResult = await validateChapterLogic(currentProject, chapterData.outline, finalContent)
-            
+
             if (!vResult.passed) {
               const warnMsg = `第 ${chapterNumber} 章触发吃书警告: ${vResult.reason}`
               taskManager.addToast(warnMsg, 'warning')
               logger.warn(warnMsg)
-              
+
               if (attempt < maxRetries) {
                 // V4-D3：先询问规划师，检查 PlotBeat 本身是否有矛盾
                 const violationDescs = (vResult.violations || []).map(v =>
@@ -684,7 +492,7 @@ ${chapter.content.substring(0, 8000)}
                   metadata: { violations: vResult.violations }
                 })
 
-                const plotBeatReview = await this.consultPlanner(
+                const plotBeatReview = await consultPlanner(
                   chapterData.outline, violationDescs
                 )
 
@@ -692,7 +500,7 @@ ${chapter.content.substring(0, 8000)}
                   // PlotBeat 有问题 → 先修大纲再让写手重写
                   taskManager.updateTask(batchTask.id, { description: `规划师已修正大纲，正在重新生成第 ${chapterNumber} 章...` })
                   Object.assign(chapterData.outline, plotBeatReview.revisedOutline)
-                  
+
                   addLog({
                     type: 'ai_decision',
                     title: '规划师介入：修正预设大纲',
@@ -734,10 +542,10 @@ ${chapter.content.substring(0, 8000)}
               }
             }
           }
-          
+
           break
         }
-        
+
         chapterData.content = finalContent
         chapterData.wordCount = chapterData.content.length
 
@@ -801,7 +609,10 @@ ${chapter.content.substring(0, 8000)}
         const hasHighImpact = hasHighImpactContent(chapterData.content)
 
         if (normalizedProjectConfig.enableAutoReview) {
-          this.enqueuePostGenerationAgents(
+          this.agentQueue = enqueuePostGenerationAgents(
+            this.agentQueue,
+            this.isRunCancelled.bind(this),
+            updateProjectSettings,
             chapterData,
             normalizedProjectConfig.agentConfigs ?? [],
             generationRunId
@@ -883,7 +694,7 @@ ${chapterData.content}
                         if (!args) return []
                         const toolParsed = JSON.parse(args)
                         return Array.isArray(toolParsed.events) ? toolParsed.events : []
-                      } catch { return [] }
+                      } catch { logger.debug('Agent parse failed, returning empty'); return [] }
                     })()
 
                 const stateEventsToPersist: StateEvent[] = []
@@ -917,7 +728,7 @@ ${chapterData.content}
               logger.warn('状态抽取失败', err);
             }
 
-            await this.runExtractionInBackground(chapterData)
+            await runExtractionInBackground(chapterData)
           } else {
             logger.debug(`[状态追踪] 第${chapterNumber}章无高影响事件，跳过状态提取`)
           }
@@ -971,7 +782,7 @@ ${chapterData.content}
 
       await flushStagedChapters()
 
-      if (!this.isBatchCancelled) {
+      if (!this.isRunCancelled(generationRunId)) {
         taskManager.completeTask(batchTask.id, `成功生成 ${options.count} 个章节`)
         options.callbacks?.onBatchComplete?.(options.count)
       }
@@ -987,56 +798,10 @@ ${chapterData.content}
       taskManager.failTask(batchTask.id, error instanceof Error ? error.message : String(error))
     }
   }
-
-  /**
-   * V4-D3: 规划师审查 — 当哨兵驳回章节时，检查 PlotBeat 本身是否有逻辑矛盾
-   * 如果大纲有问题则返回修正后的大纲，否则让写手自行修补
-   */
-  private async consultPlanner(
-    outline: ChapterOutline,
-    violations: string[]
-  ): Promise<{ needsRevision: boolean; reason?: string; revisedOutline?: Partial<ChapterOutline> }> {
-    try {
-      const aiStore = useAIStore()
-      if (!aiStore.checkInitialized()) return { needsRevision: false }
-
-      const outlineJson = JSON.stringify({
-        title: outline.title,
-        scenes: outline.scenes,
-        characters: outline.characters,
-        goals: outline.goals,
-        conflicts: outline.conflicts,
-      }, null, 2)
-
-      const prompt = `你是叙事规划顾问。哨兵模型检测到以下逻辑冲突：
-${violations.map((v, i) => `${i + 1}. ${v}`).join('\n')}
-
-当前章节计划：
-${outlineJson}
-
-请判断：这些冲突是写手的执行问题（写手没按计划写），还是计划本身存在逻辑矛盾（计划要求了不可能的事）？
-
-输出严格 JSON：
-{
-  "needsRevision": true或false,
-  "reason": "简要说明判断依据",
-  "revisedOutline": { "goals": [...], "conflicts": [...], "scenes": [...] }  // 仅当needsRevision为true时提供
-}`
-
-      const res = await aiStore.chat(
-        [{ role: 'user', content: prompt }],
-        { type: 'outline', complexity: 'medium', priority: 'quality' },
-        { maxTokens: 1500 }
-      )
-
-      const { safeParseAIJson: parseAIJson } = await import('@/utils/safeParseAIJson')
-      const parsed = parseAIJson<{ needsRevision: boolean; reason?: string; revisedOutline?: Partial<ChapterOutline> }>(res.content)
-      return parsed || { needsRevision: false }
-    } catch (err) {
-      logger.warn('规划师审查调用失败，降级为写手直接修补:', err)
-      return { needsRevision: false }
-    }
-  }
 }
 
 export const generationScheduler = new GenerationScheduler()
+
+// Re-export types for backward compatibility
+export type { BatchGenerationOptions } from './generation/types'
+export { hasHighImpactContent, buildGenerationOptions, HIGH_IMPACT_KEYWORDS } from './generation/types'

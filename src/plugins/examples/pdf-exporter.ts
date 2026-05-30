@@ -4,8 +4,10 @@
  * 演示如何创建PDF格式导出器
  */
 
-import type { ExporterContribution, ExportData, ExportOptions } from '../types'
-import type { PluginManifest } from '../types'
+import type { ExporterContribution, ExportData, ExportOptions, PluginContext, PluginManifest } from '../types'
+import { getLogger } from '@/utils/logger'
+
+const logger = getLogger('pdf-exporter')
 
 /**
  * PDF导出器实现
@@ -32,7 +34,7 @@ const pdfExporter: ExporterContribution = {
    * 导出单个项目
    */
   async export(data: ExportData, options: ExportOptions): Promise<Blob> {
-    console.log('PDF导出器: 开始导出', data.type)
+    logger.info('PDF导出器: 开始导出', data.type)
 
     // 注意：实际PDF生成需要使用专门的库，如jsPDF、pdf-lib等
     // 这里提供简化的示例实现
@@ -44,7 +46,7 @@ const pdfExporter: ExporterContribution = {
       type: 'application/pdf'
     })
 
-    console.log('PDF导出器: 导出完成')
+    logger.info('PDF导出器: 导出完成')
     return blob
   },
 
@@ -52,7 +54,7 @@ const pdfExporter: ExporterContribution = {
    * 批量导出
    */
   async exportBatch(items: ExportData[], options: ExportOptions): Promise<Blob> {
-    console.log(`PDF导出器: 批量导出 ${items.length} 个项目`)
+    logger.info(`PDF导出器: 批量导出 ${items.length} 个项目`)
 
     // 合并所有项目到单个PDF
     const pdfContent = await generateBatchPdfContent(items, options)
@@ -60,12 +62,6 @@ const pdfExporter: ExporterContribution = {
     return new Blob([pdfContent], { type: 'application/pdf' })
   },
 
-  /**
-   * 获取设置组件（可选）
-   */
-  getSettingsComponent() {
-    return undefined as any
-  }
 }
 
 /**
@@ -266,8 +262,8 @@ export const manifest: PluginManifest = {
 /**
  * 插件激活钩子
  */
-export async function activate(context: any) {
-  console.log('PDF导出器插件已激活')
+export async function activate(context: PluginContext) {
+  logger.info('PDF导出器插件已激活')
 
   // 注册导出器
   context.register.exporter(pdfExporter)
@@ -275,7 +271,7 @@ export async function activate(context: any) {
   // 可以访问项目数据
   const project = context.project.getCurrentProject()
   if (project) {
-    console.log(`当前项目: ${project.title}`)
+    logger.info(`当前项目: ${project.title}`)
   }
 
   // 显示激活消息
@@ -286,12 +282,12 @@ export async function activate(context: any) {
  * 插件停用钩子
  */
 export async function deactivate() {
-  console.log('PDF导出器插件已停用')
+  logger.info('PDF导出器插件已停用')
 }
 
 /**
  * 插件卸载钩子
  */
 export async function uninstall() {
-  console.log('PDF导出器插件已卸载')
+  logger.info('PDF导出器插件已卸载')
 }

@@ -1,4 +1,4 @@
-import { ref, computed } from 'vue'
+import { ref, watch } from 'vue'
 import { useProjectStore } from '@/stores/project'
 import { useSandboxStore } from '@/stores/sandbox'
 import type { SearchEntityType } from '@/utils/eventTypeLabels'
@@ -15,11 +15,13 @@ export function useGlobalSearch() {
   const sandboxStore = useSandboxStore()
   const query = ref('')
   const visible = ref(false)
+  const results = ref<SearchResult[]>([])
 
-  const results = computed<SearchResult[]>(() => {
-    const q = query.value.trim().toLowerCase()
-    if (!q) return []
+  // 防抖定时器
+  let searchDebounceTimer: ReturnType<typeof setTimeout> | null = null
 
+  // 搜索逻辑提取为独立函数
+  function performSearch(q: string): SearchResult[] {
     const out: SearchResult[] = []
     const project = projectStore.currentProject
     if (!project) return out
@@ -68,6 +70,20 @@ export function useGlobalSearch() {
     }
 
     return out.slice(0, 30)
+  }
+
+  // 防抖搜索：每次输入后等待 200ms 才执行搜索
+  watch(query, (newQuery) => {
+    if (searchDebounceTimer) clearTimeout(searchDebounceTimer)
+
+    if (!newQuery.trim()) {
+      results.value = []
+      return
+    }
+
+    searchDebounceTimer = setTimeout(() => {
+      results.value = performSearch(newQuery.trim().toLowerCase())
+    }, 200)
   })
 
   function open() {

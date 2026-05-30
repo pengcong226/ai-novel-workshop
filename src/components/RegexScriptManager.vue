@@ -194,7 +194,7 @@
 
         <el-form-item label="备注">
           <el-input
-            v-model="(editForm as any).comment"
+            v-model="editForm.comment"
             type="textarea"
             :rows="2"
             placeholder="脚本的说明或备注"

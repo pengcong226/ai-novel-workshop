@@ -20,7 +20,9 @@
       </div>
     </div>
 
-    <el-empty v-if="!projectStore.currentProject?.outline" description="暂无项目大纲" />
+    <el-empty v-if="!projectStore.currentProject?.outline" description="暂无项目大纲">
+      <el-button type="primary" @click="initOutline">初始化大纲</el-button>
+    </el-empty>
 
     <div v-else-if="outline" class="outline-workspace">
       <aside class="outline-sidebar">
@@ -156,6 +158,7 @@
 import { computed, defineComponent, h, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { v4 as uuidv4 } from 'uuid'
+import { generateId } from '@/utils/generateId'
 import type { ChapterOutline, Scene, Volume } from '@/types'
 import type { OutlineRefinementChange, OutlineRefinementProposal } from '@/services/outline-refiner'
 import { useProjectStore } from '@/stores/project'
@@ -193,6 +196,21 @@ const proposal = ref<OutlineRefinementProposal | null>(null)
 const activeChapterIds = ref<string[]>([])
 
 const outline = computed(() => projectStore.currentProject?.outline ?? null)
+
+function initOutline() {
+  if (!projectStore.currentProject) return
+  projectStore.currentProject.outline = {
+    id: generateId() || Math.random().toString(36).slice(2),
+    synopsis: '',
+    theme: '',
+    mainPlot: { id: generateId() || Math.random().toString(36).slice(2), name: '主线', description: '' },
+    subPlots: [],
+    volumes: [],
+    chapters: [],
+    foreshadowings: []
+  }
+  projectStore.saveCurrentProject()
+}
 
 const knownCharacters = computed(() => {
   const names = new Set<string>()

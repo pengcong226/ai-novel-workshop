@@ -45,20 +45,20 @@ defineProps<{
 <style scoped>
 .extraction-progress-bar {
   padding: 8px 12px;
-  border: 1px solid #e4e7ed;
+  border: 1px solid var(--ds-surface-border);
   border-radius: 4px;
   margin-bottom: 4px;
-  background: #fafafa;
+  background: var(--ds-bg-tertiary);
 }
 
 .extraction-progress-bar[status="success"] {
-  background: #f0f9eb;
-  border-color: #e1f3d8;
+  background: color-mix(in srgb, var(--ds-success) 10%, var(--ds-surface));
+  border-color: color-mix(in srgb, var(--ds-success) 20%, var(--ds-surface));
 }
 
 .extraction-progress-bar[status="error"] {
-  background: #fef0f0;
-  border-color: #fde2e2;
+  background: color-mix(in srgb, var(--ds-danger) 10%, var(--ds-surface));
+  border-color: color-mix(in srgb, var(--ds-danger) 20%, var(--ds-surface));
 }
 
 .progress-header {
@@ -75,7 +75,7 @@ defineProps<{
 }
 
 .chapter-title {
-  color: #909399;
+  color: var(--ds-text-tertiary);
   font-size: 12px;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -87,13 +87,13 @@ defineProps<{
   display: flex;
   gap: 12px;
   font-size: 11px;
-  color: #67c23a;
+  color: var(--ds-success);
   margin-top: 4px;
 }
 
 .error-msg {
   font-size: 11px;
-  color: #f56c6c;
+  color: var(--ds-danger);
   margin-top: 4px;
 }
 </style>

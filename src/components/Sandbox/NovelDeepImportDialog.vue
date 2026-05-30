@@ -243,7 +243,7 @@ function handleClose() {
 .pattern-hint {
   margin: 4px 0 12px;
   font-size: 12px;
-  color: #909399;
+  color: var(--ds-text-tertiary);
 }
 
 .step-content {

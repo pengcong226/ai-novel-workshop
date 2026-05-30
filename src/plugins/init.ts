@@ -26,7 +26,7 @@ export async function initializeBuiltinPlugins(): Promise<void> {
 
   try {
     // 安装OpenAI Provider
-    await pluginManager.installPlugin(openAIManifest as any as PluginManifest, async () => ({
+    await pluginManager.installPlugin(openAIManifest as unknown as PluginManifest, async () => ({
       activate: async (context: PluginContext) => {
         context.register.aiProvider(openAIProviderContribution)
         logger.info('内置插件已激活', { plugin: openAIManifest.name, id: openAIManifest.id })
@@ -40,7 +40,7 @@ export async function initializeBuiltinPlugins(): Promise<void> {
     await pluginManager.activatePlugin(openAIManifest.id)
 
     // 安装Anthropic Provider
-    await pluginManager.installPlugin(anthropicManifest as any as PluginManifest, async () => ({
+    await pluginManager.installPlugin(anthropicManifest as unknown as PluginManifest, async () => ({
       activate: async (context: PluginContext) => {
         context.register.aiProvider(anthropicProviderContribution)
         logger.info('内置插件已激活', { plugin: anthropicManifest.name, id: anthropicManifest.id })
@@ -54,7 +54,7 @@ export async function initializeBuiltinPlugins(): Promise<void> {
     await pluginManager.activatePlugin(anthropicManifest.id)
 
     // 安装Local Provider
-    await pluginManager.installPlugin(localManifest as any as PluginManifest, async () => ({
+    await pluginManager.installPlugin(localManifest as unknown as PluginManifest, async () => ({
       activate: async (context: PluginContext) => {
         context.register.aiProvider(localProviderContribution)
         logger.info('内置插件已激活', { plugin: localManifest.name, id: localManifest.id })
@@ -68,7 +68,7 @@ export async function initializeBuiltinPlugins(): Promise<void> {
     await pluginManager.activatePlugin(localManifest.id)
 
     // 安装 Assistant Actions
-    await pluginManager.installPlugin(assistantActionsManifest as any as PluginManifest, async () => ({
+    await pluginManager.installPlugin(assistantActionsManifest as unknown as PluginManifest, async () => ({
       activate: async (context: PluginContext) => {
         context.register.aiActionHandler(createCharacterActionContribution)
         logger.info('内置插件已激活', { plugin: assistantActionsManifest.name, id: assistantActionsManifest.id })
@@ -82,7 +82,7 @@ export async function initializeBuiltinPlugins(): Promise<void> {
     await pluginManager.activatePlugin(assistantActionsManifest.id)
 
     // 安装 Sci-Fi Dark Theme
-    await pluginManager.installPlugin(scifiDarkManifest as any as PluginManifest, async () => ({
+    await pluginManager.installPlugin(scifiDarkManifest, async () => ({
       activate: async (context: PluginContext) => {
         activateScifiDark(context)
         logger.info('内置插件已激活', { plugin: scifiDarkManifest.name, id: scifiDarkManifest.id })
@@ -91,7 +91,7 @@ export async function initializeBuiltinPlugins(): Promise<void> {
     await pluginManager.activatePlugin(scifiDarkManifest.id)
 
     // 安装 Classic Light Theme
-    await pluginManager.installPlugin(classicLightManifest as any as PluginManifest, async () => ({
+    await pluginManager.installPlugin(classicLightManifest, async () => ({
       activate: async (context: PluginContext) => {
         activateClassicLight(context)
         logger.info('内置插件已激活', { plugin: classicLightManifest.name, id: classicLightManifest.id })

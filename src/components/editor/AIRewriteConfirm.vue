@@ -32,7 +32,7 @@
     </div>
     <template #footer>
       <el-button @click="emit('update:visible', false)">放弃</el-button>
-      <el-button @click="emit('regenerate')">重新生成</el-button>
+      <el-button @click="handleRegenerate">重新生成</el-button>
       <el-button type="primary" @click="emit('accept')">采纳</el-button>
     </template>
   </el-dialog>
@@ -40,6 +40,7 @@
 
 <script setup lang="ts">
 import { computed } from 'vue'
+import { ElMessageBox } from 'element-plus'
 
 interface DiffSegment {
   text: string
@@ -99,6 +100,23 @@ function computeDiff(original: string, modified: string): { originalSegments: Di
 
 const originalSegments = computed(() => computeDiff(props.originalText, props.modifiedText).originalSegments)
 const modifiedSegments = computed(() => computeDiff(props.originalText, props.modifiedText).modifiedSegments)
+
+async function handleRegenerate() {
+  try {
+    await ElMessageBox.confirm(
+      '重新生成将替换当前AI修改结果，是否继续？',
+      '确认重新生成',
+      {
+        confirmButtonText: '确认重新生成',
+        cancelButtonText: '取消',
+        type: 'warning',
+      }
+    )
+    emit('regenerate')
+  } catch {
+    // 用户取消
+  }
+}
 </script>
 
 <style scoped>

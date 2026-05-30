@@ -1,4 +1,5 @@
 import { ref } from 'vue'
+import { generateId } from '@/utils/generateId'
 
 export type AuditLogType = 'info' | 'warning' | 'success' | 'error' | 'ai_decision' | 'conflict_resolved' | 'memory_updated'
 
@@ -19,7 +20,7 @@ export function useAuditLog() {
   function addLog(entry: Omit<AuditLogEntry, 'id' | 'timestamp'>) {
     const newLog: AuditLogEntry = {
       ...entry,
-      id: crypto.randomUUID(),
+      id: generateId(),
       timestamp: new Date()
     }
     logs.value.unshift(newLog) // prepend latest

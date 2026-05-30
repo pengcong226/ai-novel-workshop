@@ -108,7 +108,7 @@ describe('WorldbookImporter', () => {
       )
 
       expect(result.worldbook!.entries[0].uid).toBeDefined()
-      expect(result.worldbook!.entries[0].uid).toMatch(/^[0-9a-f-]{36}$/)
+      expect(typeof result.worldbook!.entries[0].uid).toBe('number')
     })
 
     it('应该推断条目分类', async () => {

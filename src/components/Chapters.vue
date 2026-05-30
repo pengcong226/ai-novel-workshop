@@ -17,15 +17,31 @@
             <template #dropdown>
               <el-dropdown-menu>
                 <el-dropdown-item command="exportAllMarkdown">
+                  <el-icon><Document /></el-icon>
                   导出全部 (Markdown)
                 </el-dropdown-item>
                 <el-dropdown-item command="exportAllPdf">
+                  <el-icon><Document /></el-icon>
                   导出全部 (PDF)
                 </el-dropdown-item>
+                <el-dropdown-item command="exportAllDocx">
+                  <el-icon><Document /></el-icon>
+                  导出全部 (DOCX)
+                </el-dropdown-item>
+                <el-dropdown-item command="exportAllTxt">
+                  <el-icon><Document /></el-icon>
+                  导出全部 (TXT)
+                </el-dropdown-item>
+                <el-dropdown-item command="exportAllEpub">
+                  <el-icon><Reading /></el-icon>
+                  导出全部 (EPUB)
+                </el-dropdown-item>
                 <el-dropdown-item command="exportAllJson">
+                  <el-icon><DataBoard /></el-icon>
                   导出全部 (JSON)
                 </el-dropdown-item>
                 <el-dropdown-item divided command="exportSettings">
+                  <el-icon><Setting /></el-icon>
                   导出设置...
                 </el-dropdown-item>
               </el-dropdown-menu>
@@ -34,6 +50,10 @@
           <el-button type="primary" @click="startBatchGeneration">
             <el-icon><MagicStick /></el-icon>
             批量生成
+          </el-button>
+          <el-button type="success" @click="showWriteNextDialog = true">
+            <el-icon><MagicStick /></el-icon>
+            一键续写
           </el-button>
           <el-button type="success" plain @click="showContinuationPanel = true">续写</el-button>
           <el-button type="warning" plain @click="showRewritePanel = true">改写</el-button>
@@ -86,8 +106,8 @@
                     </button>
                     <span class="chapter-number">第{{ chapter.number }}章</span>
                     <span class="chapter-title">{{ chapter.title }}</span>
-                    <el-tag :type="getStatusType(chapter.status)" size="small">
-                      {{ getStatusText(chapter.status) }}
+                    <el-tag :type="getChapterStatusType(chapter.status)" size="small">
+                      {{ getChapterStatusText(chapter.status) }}
                     </el-tag>
                     <el-tag v-if="chapter.generatedBy === 'ai'" type="success" size="small">
                       AI生成
@@ -108,45 +128,53 @@
                 </div>
 
                 <div class="chapter-actions">
-                  <el-button size="small" @click="previewChapter(chapter)">
-                    预览
-                  </el-button>
                   <el-button type="primary" size="small" @click="editChapter(chapter)">
                     编辑
                   </el-button>
-                  <el-dropdown size="small" @command="(cmd: string) => handleChapterExport(chapter, cmd)">
+                  <el-button size="small" @click="previewChapter(chapter)">
+                    预览
+                  </el-button>
+                  <el-dropdown size="small" @command="(cmd: string) => handleChapterAction(cmd, chapter)">
                     <el-button size="small">
-                      导出 <el-icon class="el-icon--right"><ArrowDown /></el-icon>
+                      更多 <el-icon class="el-icon--right"><ArrowDown /></el-icon>
                     </el-button>
                     <template #dropdown>
                       <el-dropdown-menu>
-                        <el-dropdown-item command="markdown">Markdown</el-dropdown-item>
-                        <el-dropdown-item command="pdf">PDF</el-dropdown-item>
+                        <el-dropdown-item command="export-md">
+                          <el-icon><Document /></el-icon>导出 Markdown
+                        </el-dropdown-item>
+                        <el-dropdown-item command="export-pdf">
+                          <el-icon><Document /></el-icon>导出 PDF
+                        </el-dropdown-item>
+                        <el-dropdown-item command="export-docx">
+                          <el-icon><Document /></el-icon>导出 DOCX
+                        </el-dropdown-item>
+                        <el-dropdown-item command="export-txt">
+                          <el-icon><Document /></el-icon>导出 TXT
+                        </el-dropdown-item>
+                        <el-dropdown-item command="regenerate">
+                          <el-icon><RefreshRight /></el-icon>重新生成
+                        </el-dropdown-item>
+                        <el-dropdown-item command="checkpoints">
+                          <el-icon><Clock /></el-icon>检查点
+                        </el-dropdown-item>
+                        <el-dropdown-item command="aigc-detect">
+                          <el-icon><DataAnalysis /></el-icon>AI 检测
+                        </el-dropdown-item>
+                        <el-dropdown-item
+                          v-for="button in pluginToolbarButtons"
+                          :key="button.id"
+                          :command="'plugin:' + button.id"
+                        >
+                          <el-icon v-if="button.icon"><component :is="button.icon" /></el-icon>
+                          {{ button.label }}
+                        </el-dropdown-item>
+                        <el-dropdown-item divided command="delete" :style="{ color: 'var(--ds-danger)' }">
+                          <el-icon><Delete /></el-icon>删除
+                        </el-dropdown-item>
                       </el-dropdown-menu>
                     </template>
                   </el-dropdown>
-                  <el-button size="small" @click="regenerateChapter">
-                    重新生成
-                  </el-button>
-                  <el-button size="small" @click="viewCheckpoints(chapter)">
-                    检查点
-                  </el-button>
-
-                  <el-button
-                    v-for="button in pluginToolbarButtons"
-                    :key="button.id"
-                    size="small"
-                    @click="void handlePluginToolbarClick(chapter, button.handler)"
-                  >
-                    <el-icon v-if="button.icon">
-                      <component :is="button.icon" />
-                    </el-icon>
-                    {{ button.label }}
-                  </el-button>
-
-                  <el-button type="danger" size="small" @click="confirmDeleteChapter(chapter)">
-                    删除
-                  </el-button>
                 </div>
 
                 <div v-if="chapter.qualityScore" class="quality-score">
@@ -159,15 +187,17 @@
       </div>
     </div>
 
-    <ChapterEditorDialog
-      v-if="showEditDialog || editingChapter"
-      :model-value="showEditDialog"
-      :chapter="editingChapter"
-      :project-id="project?.id"
-      :preserve-provided-content="preserveEditorContent"
-      @update:model-value="handleEditorVisibility"
-      @saved="onChapterSaved"
-    />
+    <ErrorBoundary name="ChapterEditorDialog" :show-retry="true" :show-detail="true">
+      <ChapterEditorDialog
+        v-if="showEditDialog || editingChapter"
+        :model-value="showEditDialog"
+        :chapter="editingChapter"
+        :project-id="project?.id"
+        :preserve-provided-content="preserveEditorContent"
+        @update:model-value="handleEditorVisibility"
+        @saved="onChapterSaved"
+      />
+    </ErrorBoundary>
 
     <el-dialog
       v-model="showPreviewDialog"
@@ -243,13 +273,13 @@
 
         <el-form-item label="提取设定">
           <el-switch v-model="batchForm.autoUpdateSettings" />
-          <span style="margin-left: 10px; font-size: 12px; color: #909399;">生成后自动更新人物/关系图/表格记忆</span>
+          <span style="margin-left: 10px; font-size: 12px; color: var(--ds-text-tertiary);">生成后自动更新人物/关系图/表格记忆</span>
         </el-form-item>
 
         <el-form-item label="断点审查">
           <el-switch v-model="batchForm.enableCheckpoint" />
           <el-input-number v-if="batchForm.enableCheckpoint" v-model="batchForm.checkpointInterval" :min="1" :max="10" style="margin-left: 10px;" />
-          <span style="margin-left: 10px; font-size: 12px; color: #909399;">每N章暂停等待确认，防止跑偏</span>
+          <span style="margin-left: 10px; font-size: 12px; color: var(--ds-text-tertiary);">每N章暂停等待确认，防止跑偏</span>
         </el-form-item>
       </el-form>
 
@@ -261,20 +291,42 @@
       </template>
     </el-dialog>
 
-    <ExportSettings
-      v-model="showExportSettings"
-      :project="project"
-      :chapters="chapters"
-      :selected-chapter="exportChapter"
-      :export-mode="exportMode"
-      @exported="handleExportComplete"
-    />
+    <ErrorBoundary name="ExportSettings" :show-retry="true">
+      <ExportSettings
+        v-model="showExportSettings"
+        :project="project"
+        :chapters="chapters"
+        :selected-chapter="exportChapter"
+        :export-mode="exportMode"
+        @exported="handleExportComplete"
+      />
+    </ErrorBoundary>
 
     <ContinuationPanel
       v-if="showContinuationPanel"
       @close="showContinuationPanel = false"
       @started="showContinuationPanel = false"
     />
+
+    <WriteNextDialog
+      v-if="showWriteNextDialog"
+      @close="showWriteNextDialog = false"
+      @start="handleWriteNextStart"
+    />
+
+    <ErrorBoundary name="PipelineProgressPanel" :show-retry="true">
+      <PipelineProgressPanel
+        :visible="showPipelineProgress"
+        :events="pipelineEvents"
+        :current-event="currentPipelineEvent"
+        :is-paused="isPipelinePaused"
+        :is-running="isPipelineRunning"
+        @pause="handlePipelinePause"
+        @resume="handlePipelineResume"
+        @cancel="handlePipelineCancel"
+        @close="showPipelineProgress = false"
+      />
+    </ErrorBoundary>
 
     <RewritePanel
       v-if="showRewritePanel"
@@ -321,7 +373,7 @@
           </div>
         </el-card>
 
-        <div style="margin-top: 20px; color: #909399; font-size: 13px;">
+        <div style="margin-top: 20px; color: var(--ds-text-tertiary); font-size: 13px;">
           <el-icon><InfoFilled /></el-icon>
           这些问题通常不影响阅读，可在后续编辑中逐步修正
         </div>
@@ -331,28 +383,70 @@
         <el-button @click="showValidationDialog = false">关闭</el-button>
       </template>
     </el-dialog>
+
+    <!-- AIGC 检测结果对话框 -->
+    <el-dialog
+      v-model="showAIGCDialog"
+      title="AI 生成检测结果"
+      width="420px"
+    >
+      <div v-if="aigcDetecting" style="text-align: center; padding: 30px 0;">
+        <el-icon :size="32" class="is-loading"><Loading /></el-icon>
+        <p style="margin-top: 12px; color: var(--ds-text-secondary);">正在分析章节内容...</p>
+      </div>
+      <div v-else-if="aigcResult" style="text-align: center;">
+        <el-progress
+          type="dashboard"
+          :percentage="aigcResult.overallScore"
+          :color="aigcResult.overallScore >= 70 ? '#67c23a' : aigcResult.overallScore >= 40 ? '#e6a23c' : '#f56c6c'"
+          :width="160"
+        >
+          <template #default="{ percentage }">
+            <span style="font-size: 28px; font-weight: bold;">{{ percentage }}%</span>
+            <br/>
+            <span style="font-size: 12px; color: var(--ds-text-secondary);">人类写作概率</span>
+          </template>
+        </el-progress>
+        <p style="margin-top: 16px; color: var(--ds-text-secondary);">
+          AI 生成概率: {{ (aigcResult.aiProbability * 100).toFixed(1) }}%
+        </p>
+        <p style="font-size: 12px; color: var(--ds-text-tertiary); margin-top: 8px;">
+          使用本地启发式检测（仅供参考）
+        </p>
+      </div>
+      <template #footer>
+        <el-button @click="showAIGCDialog = false">关闭</el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed, defineAsyncComponent, ref, watch } from 'vue'
+import { computed, defineAsyncComponent, ref, watch, onMounted } from 'vue'
 import { useVirtualizer } from '@tanstack/vue-virtual'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { ArrowDown, CircleCheck, Download, InfoFilled, MagicStick, Plus } from '@element-plus/icons-vue'
+import { ArrowDown, CircleCheck, Clock, DataBoard, Delete, Document, Download, InfoFilled, MagicStick, Plus, Reading, RefreshRight, Setting } from '@element-plus/icons-vue'
 import type { Chapter, Checkpoint } from '@/types'
 import { useProjectStore } from '@/stores/project'
 import { usePluginStore } from '@/stores/plugin'
 import { generationScheduler } from '@/services/generation-scheduler'
 import { useChapterExport } from '@/composables/useChapterExport'
 import { useRewriteContinuation } from '@/composables/useRewriteContinuation'
+import { usePipelineStatePersistence } from '@/composables/usePipelineStatePersistence'
+import { acquireProjectLock, releaseProjectLock, getLockConflictMessage } from '@/utils/pipelineLock'
 import { getLogger } from '@/utils/logger'
 import { buildReadingPreview, truncateReadingPreviewText } from '@/utils/readingPreview'
+import { getChapterStatusType, getChapterStatusText, formatDate } from '@/utils/formatters'
+import { getFriendlyMessage } from '@/utils/errorHandler'
+import ErrorBoundary from '@/components/ErrorBoundary.vue'
 const ExportSettings = defineAsyncComponent(() => import('./ExportSettings.vue'))
 const ChapterEditorDialog = defineAsyncComponent(() => import('./ChapterEditorDialog.vue'))
 const ChapterReadingPreview = defineAsyncComponent(() => import('./ChapterReadingPreview.vue'))
 const ContinuationPanel = defineAsyncComponent(() => import('./RewriteContinuation/ContinuationPanel.vue'))
 const RewritePanel = defineAsyncComponent(() => import('./RewriteContinuation/RewritePanel.vue'))
 const StateDiffViewer = defineAsyncComponent(() => import('./RewriteContinuation/StateDiffViewer.vue'))
+const WriteNextDialog = defineAsyncComponent(() => import('./WriteNextDialog.vue'))
+const PipelineProgressPanel = defineAsyncComponent(() => import('./PipelineProgressPanel.vue'))
 
 const logger = getLogger('chapters')
 const projectStore = useProjectStore()
@@ -400,6 +494,36 @@ const batchForm = ref({
 const showContinuationPanel = ref(false)
 const showRewritePanel = ref(false)
 const { diffReport, acceptRewrite, rejectRewrite } = useRewriteContinuation()
+
+// 一键续写（Pipeline）相关状态（含 IndexedDB 持久化）
+const showWriteNextDialog = ref(false)
+const pipelineBatchScheduler = ref<any>(null)
+
+const {
+  pipelineEvents,
+  currentPipelineEvent,
+  isPipelinePaused,
+  isPipelineRunning,
+  showPipelineProgress,
+  restoreState: restorePipelineState,
+  pushEvent,
+  startPipeline,
+  finishPipeline,
+  pausePipeline,
+  resumePipeline,
+} = usePipelineStatePersistence(() => project.value?.id)
+
+// 页面加载时尝试恢复 Pipeline 运行状态
+onMounted(async () => {
+  try {
+    const restored = await restorePipelineState()
+    if (restored) {
+      logger.info('[Chapters] Pipeline 运行状态已从 IndexedDB 恢复')
+    }
+  } catch (err) {
+    logger.warn('[Chapters] Pipeline 状态恢复失败:', err)
+  }
+})
 
 const {
   showExportSettings,
@@ -474,7 +598,7 @@ async function validateChapters() {
       ElMessage.warning(`发现${validationIssues.value.length}个问题`)
     }
   } catch (error) {
-    ElMessage.error('验证失败：' + (error as Error).message)
+    ElMessage.error('验证失败：' + getFriendlyMessage((error as Error).message))
   } finally {
     validating.value = false
   }
@@ -589,7 +713,7 @@ async function handleChapterDrop(targetChapterId: string) {
     ElMessage.success('章节排序已保存')
   } catch (error) {
     logger.error('章节排序失败', error)
-    ElMessage.error('章节排序失败：' + (error instanceof Error ? error.message : String(error)))
+    ElMessage.error('章节排序失败：' + getFriendlyMessage(error instanceof Error ? error.message : String(error)))
   }
 }
 
@@ -689,39 +813,218 @@ async function executeBatchGeneration() {
     })
   } catch (error) {
     logger.error('批量生成失败', error)
-    ElMessage.error('批量生成失败：' + (error as Error).message)
+    ElMessage.error('批量生成失败：' + getFriendlyMessage((error as Error).message))
   }
 }
 
-function regenerateChapter() {
-  ElMessage.info('重新生成功能开发中...')
+// ============================================================================
+// 一键续写（Pipeline 批量续写）
+// ============================================================================
+
+async function handleWriteNextStart(options: {
+  chapterCount: number
+  directionPrompt: string
+  checkpointInterval: number
+  autoSave: boolean
+}) {
+  showWriteNextDialog.value = false
+  if (!project.value) {
+    ElMessage.warning('请先打开或创建项目')
+    return
+  }
+
+  // 并发保护：检查项目锁
+  if (!acquireProjectLock(project.value.id, 'batch-continue')) {
+    ElMessage.warning(getLockConflictMessage(project.value.id))
+    return
+  }
+
+  ElMessage.success('🚀 一键续写已启动，可在进度面板中查看实时状态')
+
+  // 重置进度状态（通过 composable 管理，自动持久化）
+  startPipeline()
+
+  try {
+    const { BatchContinueScheduler } = await import('@/services/pipeline/BatchContinueScheduler')
+    const { PipelineRunner } = await import('@/services/pipeline/PipelineRunner')
+
+    const aiStore = await import('@/stores/ai').then(m => m.useAIStore())
+    const pipelineConfig = aiStore.getPipelineConfig()
+
+    const pipeline = new PipelineRunner(pipelineConfig)
+    const scheduler = new BatchContinueScheduler(pipeline)
+    pipelineBatchScheduler.value = scheduler
+
+    const startChapter = chapters.value.length > 0
+      ? Math.max(...chapters.value.map(c => c.number)) + 1
+      : 1
+
+    const result = await scheduler.executeBatchContinue(
+      project.value,
+      startChapter,
+      {
+        chapterCount: options.chapterCount,
+        directionPrompt: options.directionPrompt || undefined,
+        checkpointInterval: options.checkpointInterval || undefined,
+        autoSave: options.autoSave,
+        onChapterComplete: async (chapterResult, index) => {
+          if (options.autoSave && chapterResult.content) {
+            const chapter: Chapter = {
+              id: `pipeline-${chapterResult.chapterNumber}-${Date.now()}`,
+              number: chapterResult.chapterNumber,
+              title: chapterResult.title,
+              content: chapterResult.content,
+              wordCount: chapterResult.wordCount,
+              summary: '',
+              outline: project.value!.outline.chapters[chapterResult.chapterNumber - 1] || {
+                chapterId: `outline-${chapterResult.chapterNumber}`,
+                title: chapterResult.title,
+                scenes: [],
+                characters: [],
+                location: '',
+                goals: [],
+                conflicts: [],
+                resolutions: [],
+                foreshadowingToPlant: [],
+                foreshadowingToResolve: [],
+                status: 'completed',
+              },
+              status: 'draft',
+              generatedBy: 'ai' as const,
+              generationTime: new Date(),
+              checkpoints: [],
+              aiSuggestions: [],
+              qualityScore: chapterResult.auditResult.overallScore,
+            }
+            await projectStore.saveChapter(chapter)
+          }
+        },
+        onCheckpoint: async (completedResults) => {
+          try {
+            await ElMessageBox.confirm(
+              `已完成 ${completedResults.length} 章，是否继续续写？\n您可以趁此时检查前文质量。`,
+              '断点审查',
+              { confirmButtonText: '继续续写', cancelButtonText: '终止续写', type: 'info' }
+            )
+            return true
+          } catch {
+            return false
+          }
+        },
+        onProgress: (event) => {
+          pushEvent(event)
+
+          if (event.type === 'batch-paused') {
+            pausePipeline()
+          } else if (event.type === 'chapter-complete') {
+            resumePipeline()
+          }
+        },
+        onError: (chapterNumber, error) => {
+          logger.error(`一键续写第${chapterNumber}章失败:`, error)
+        },
+      },
+      pipelineConfig,
+    )
+
+    await finishPipeline()
+    if (project.value) releaseProjectLock(project.value.id, 'batch-continue')
+    ElMessage.success(`一键续写完成！产出 ${result.completedChapters} 章，失败 ${result.failedChapters} 章`)
+  } catch (error) {
+    logger.error('一键续写失败', error)
+    await finishPipeline()
+    if (project.value) releaseProjectLock(project.value.id, 'batch-continue')
+    ElMessage.error('一键续写失败：' + getFriendlyMessage((error as Error).message))
+  }
 }
 
-function getStatusType(status: string) {
-  const types: Record<string, 'info' | 'warning' | 'success'> = {
-    draft: 'info',
-    revised: 'warning',
-    final: 'success'
-  }
-  return types[status] || 'info'
+function handlePipelinePause() {
+  pipelineBatchScheduler.value?.pause()
+  pausePipeline()
 }
 
-function getStatusText(status: string) {
-  const texts: Record<string, string> = {
-    draft: '草稿',
-    revised: '已修订',
-    final: '定稿'
+function handlePipelineResume() {
+  pipelineBatchScheduler.value?.resume()
+  resumePipeline()
+}
+
+function handlePipelineCancel() {
+  pipelineBatchScheduler.value?.cancel()
+  finishPipeline()
+  ElMessage.info('一键续写已取消')
+}
+
+async function regenerateChapter() {
+  try {
+    await ElMessageBox.confirm(
+      '重新生成将覆盖当前章节内容，是否继续？',
+      '确认重新生成',
+      {
+        confirmButtonText: '确认重新生成',
+        cancelButtonText: '取消',
+        type: 'warning',
+      }
+    )
+    ElMessage.info('重新生成功能开发中...')
+  } catch {
+    // 用户取消
   }
-  return texts[status] || status
+}
+
+function handleChapterAction(cmd: string, chapter: Chapter) {
+  if (cmd === 'export-md') {
+    handleChapterExport(chapter, 'markdown')
+  } else if (cmd === 'export-pdf') {
+    handleChapterExport(chapter, 'pdf')
+  } else if (cmd === 'export-docx') {
+    handleChapterExport(chapter, 'docx')
+  } else if (cmd === 'export-txt') {
+    handleChapterExport(chapter, 'txt')
+  } else if (cmd === 'regenerate') {
+    regenerateChapter()
+  } else if (cmd === 'checkpoints') {
+    viewCheckpoints(chapter)
+  } else if (cmd === 'aigc-detect') {
+    handleAIGCDetect(chapter)
+  } else if (cmd === 'delete') {
+    confirmDeleteChapter(chapter)
+  } else if (cmd.startsWith('plugin:')) {
+    const buttonId = cmd.replace('plugin:', '')
+    const button = pluginToolbarButtons.value.find(b => b.id === buttonId)
+    if (button) handlePluginToolbarClick(chapter, button.handler)
+  }
 }
 
 function getContentPreview(content: string, maxLength: number = 100) {
   return truncateReadingPreviewText(content, maxLength, '暂无内容')
 }
 
-function formatDate(date: Date | string) {
-  const formattedDate = new Date(date)
-  return `${formattedDate.getFullYear()}-${String(formattedDate.getMonth() + 1).padStart(2, '0')}-${String(formattedDate.getDate()).padStart(2, '0')} ${String(formattedDate.getHours()).padStart(2, '0')}:${String(formattedDate.getMinutes()).padStart(2, '0')}`
+// AIGC 检测
+const aigcDetecting = ref(false)
+const aigcResult = ref<{ overallScore: number; aiProbability: number } | null>(null)
+const showAIGCDialog = ref(false)
+
+async function handleAIGCDetect(chapter: Chapter) {
+  if (!chapter.content || chapter.content.trim().length === 0) {
+    ElMessage.warning('章节内容为空，无法进行AI检测')
+    return
+  }
+  aigcDetecting.value = true
+  showAIGCDialog.value = true
+  aigcResult.value = null
+
+  try {
+    const { AIGCDetector } = await import('@/services/AIGCDetector')
+    const detector = new AIGCDetector({ provider: 'local' })
+    const result = await detector.detect(chapter.content)
+    aigcResult.value = { overallScore: result.overallScore, aiProbability: result.aiProbability }
+  } catch (error) {
+    logger.error('AIGC检测失败:', error)
+    ElMessage.error('AI检测失败，请稍后重试')
+    showAIGCDialog.value = false
+  } finally {
+    aigcDetecting.value = false
+  }
 }
 </script>
 
@@ -781,14 +1084,13 @@ function formatDate(date: Date | string) {
   position: relative;
   margin-bottom: 0;
   overflow: hidden;
-  border-radius: var(--ds-radius-lg);
+  border-radius: var(--ds-radius-md);
   background: var(--ds-surface);
   border: 1px solid var(--ds-surface-border);
   transition:
-    transform var(--ds-transition-normal),
-    opacity var(--ds-transition-normal),
-    border-color var(--ds-transition-normal),
-    box-shadow var(--ds-transition-normal);
+    border-color var(--ds-transition-fast),
+    box-shadow var(--ds-transition-fast);
+  will-change: border-color, box-shadow;
 }
 
 .chapter-card::before {
@@ -966,6 +1268,7 @@ function formatDate(date: Date | string) {
   color: var(--ds-text-tertiary);
 }
 
+/* breakpoint: md (768px) */
 @media (max-width: 768px) {
   .header,
   .chapter-header,

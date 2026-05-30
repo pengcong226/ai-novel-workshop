@@ -180,7 +180,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
 import { useProjectStore } from '@/stores/project'
-import { ElMessage } from 'element-plus'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import { MagicStick, Refresh } from '@element-plus/icons-vue'
 import { Chapter, ChapterSummaryData, SummaryDetail } from '@/types'
 import {
@@ -254,7 +254,7 @@ function getQualityCheck(chapter: Chapter): SummaryQualityCheck | null {
 
   const cacheKey = chapter.id
   if (!qualityChecks.value.has(cacheKey)) {
-    const check = checkSummaryQuality(chapter.summaryData as any)
+    const check = checkSummaryQuality(chapter.summaryData)
     qualityChecks.value.set(cacheKey, check)
   }
 
@@ -420,7 +420,20 @@ async function saveSummary() {
 }
 
 async function regenerateSummary(chapter: Chapter & { regenerating?: boolean }) {
-  await generateSummaryForChapter(chapter)
+  try {
+    await ElMessageBox.confirm(
+      `重新生成将覆盖第${chapter.number}章的现有摘要，是否继续？`,
+      '确认重新生成',
+      {
+        confirmButtonText: '确认重新生成',
+        cancelButtonText: '取消',
+        type: 'warning',
+      }
+    )
+    await generateSummaryForChapter(chapter)
+  } catch {
+    // 用户取消
+  }
 }
 
 function refreshSummaries() {
@@ -489,7 +502,7 @@ onMounted(() => {
 .chapter-number {
   font-size: 18px;
   font-weight: 600;
-  color: #409eff;
+  color: var(--ds-info);
 }
 
 .chapter-title {
@@ -500,7 +513,7 @@ onMounted(() => {
 .summary-stats {
   display: flex;
   gap: 20px;
-  color: #909399;
+  color: var(--ds-text-tertiary);
   font-size: 14px;
 }
 
@@ -511,10 +524,10 @@ onMounted(() => {
 }
 
 .summary-text {
-  color: #606266;
+  color: var(--ds-text-secondary);
   line-height: 1.8;
   padding: 15px;
-  background: #f5f7fa;
+  background: var(--ds-bg-tertiary);
   border-radius: 4px;
 }
 
@@ -525,12 +538,12 @@ onMounted(() => {
 }
 
 .detail-item {
-  color: #606266;
+  color: var(--ds-text-secondary);
   font-size: 14px;
 }
 
 .detail-item strong {
-  color: #303133;
+  color: var(--ds-text-primary);
   margin-right: 8px;
 }
 
@@ -539,26 +552,26 @@ onMounted(() => {
   align-items: center;
   gap: 15px;
   padding: 10px;
-  background: #f0f9ff;
+  background: color-mix(in srgb, var(--ds-info) 10%, var(--ds-surface));
   border-radius: 4px;
 }
 
 .quality-text {
   font-size: 12px;
-  color: #909399;
+  color: var(--ds-text-tertiary);
 }
 
 .summary-actions {
   display: flex;
   gap: 10px;
   padding-top: 10px;
-  border-top: 1px solid #e4e7ed;
+  border-top: 1px solid var(--ds-surface-border);
 }
 
 .no-summary {
   text-align: center;
   padding: 30px;
-  color: #909399;
+  color: var(--ds-text-tertiary);
 }
 
 .no-summary p {
@@ -572,13 +585,13 @@ onMounted(() => {
 
 .progress-text {
   margin-top: 15px;
-  color: #606266;
+  color: var(--ds-text-secondary);
   font-size: 14px;
 }
 
 .progress-chapter {
   margin-top: 10px;
-  color: #909399;
+  color: var(--ds-text-tertiary);
   font-size: 12px;
 }
 </style>

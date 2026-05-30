@@ -210,6 +210,7 @@ export interface RegexScript {
   scriptName: string
   disabled: boolean
   runOnEdit: boolean
+  comment?: string
   findRegex: string
   trimStrings: string[]
   replaceString: string
@@ -401,7 +402,7 @@ export interface CharacterCardImportOptions {
  */
 export interface CharacterCardExportOptions {
   /** 导出格式 */
-  format: 'v1' | 'v2' | 'v3' | 'sillytavern'
+  format: 'v1' | 'v2' | 'v3' | 'sillytavern' | 'png'
 
   /** 是否导出世界书 */
   includeWorldbook?: boolean
@@ -486,4 +487,5 @@ export interface CharacterCardExportResult {
   format: 'v1' | 'v2' | 'v3' | 'sillytavern' | 'png'
   data?: string | Blob
   size: number
+  errors?: string[]
 }

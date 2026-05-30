@@ -4,8 +4,10 @@
  * 演示如何创建一个完整的导出器插件
  */
 
-import type { ExporterContribution, ExportData, ExportOptions } from '../types'
-import type { PluginManifest } from '../types'
+import type { ExporterContribution, ExportData, ExportOptions, PluginContext, PluginManifest } from '../types'
+import { getLogger } from '@/utils/logger'
+
+const logger = getLogger('epub-exporter')
 
 /**
  * EPUB导出器实现
@@ -32,7 +34,7 @@ const epubExporter: ExporterContribution = {
    * 导出单个项目
    */
   async export(data: ExportData, options: ExportOptions): Promise<Blob> {
-    console.log('EPUB导出器: 开始导出', data.type)
+    logger.info('EPUB导出器: 开始导出', data.type)
 
     // 这里应该实现实际的EPUB导出逻辑
     // EPUB格式是一个ZIP文件，包含：
@@ -50,7 +52,7 @@ const epubExporter: ExporterContribution = {
       type: 'application/epub+zip'
     })
 
-    console.log('EPUB导出器: 导出完成')
+    logger.info('EPUB导出器: 导出完成')
     return blob
   },
 
@@ -58,7 +60,7 @@ const epubExporter: ExporterContribution = {
    * 批量导出
    */
   async exportBatch(items: ExportData[], options: ExportOptions): Promise<Blob> {
-    console.log(`EPUB导出器: 批量导出 ${items.length} 个项目`)
+    logger.info(`EPUB导出器: 批量导出 ${items.length} 个项目`)
 
     // 为每个项目生成章节
     const chapters = items.map((item, index) => ({
@@ -75,12 +77,6 @@ const epubExporter: ExporterContribution = {
     return new Blob([epubContent], { type: 'application/epub+zip' })
   },
 
-  /**
-   * 获取设置组件（可选）
-   */
-  getSettingsComponent() {
-    return undefined as any
-  }
 }
 
 /**
@@ -142,8 +138,8 @@ export const manifest: PluginManifest = {
 /**
  * 插件激活钩子
  */
-export async function activate(context: any) {
-  console.log('EPUB导出器插件已激活')
+export async function activate(context: PluginContext) {
+  logger.info('EPUB导出器插件已激活')
 
   // 注册导出器
   context.register.exporter(epubExporter)
@@ -151,7 +147,7 @@ export async function activate(context: any) {
   // 可以访问项目数据
   const project = context.project.getCurrentProject()
   if (project) {
-    console.log(`当前项目: ${project.name}`)
+    logger.info(`当前项目: ${project.title}`)
   }
 }
 
@@ -159,12 +155,12 @@ export async function activate(context: any) {
  * 插件停用钩子
  */
 export async function deactivate() {
-  console.log('EPUB导出器插件已停用')
+  logger.info('EPUB导出器插件已停用')
 }
 
 /**
  * 插件卸载钩子
  */
 export async function uninstall() {
-  console.log('EPUB导出器插件已卸载')
+  logger.info('EPUB导出器插件已卸载')
 }

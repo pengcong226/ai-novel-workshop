@@ -1,0 +1,12 @@
+{
+  "name": "@ai-novel-workshop/cli",
+  "version": "1.0.0",
+  "type": "module",
+  "bin": {
+    "workshop": "./src/cli.ts"
+  },
+  "dependencies": {
+    "commander": "^12.0.0"
+  },
+  "description": "AI Novel Workshop CLI - command-line novel writing interface"
+}

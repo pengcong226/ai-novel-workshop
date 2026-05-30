@@ -264,9 +264,10 @@ export class PluginLoader {
     // 验证配置
     if (manifest.configuration) {
       const validTypes = ['string', 'number', 'boolean', 'array', 'object']
-      for (const [key, config] of Object.entries(manifest.configuration)) {
-        if (!validTypes.includes((config as any).type)) {
-          warnings.push(`配置项 ${key} 的类型 ${(config as any).type} 可能不被支持`)
+      const configEntries = Object.entries(manifest.configuration) as Array<[string, { type: string }]>
+      for (const [key, config] of configEntries) {
+        if (!validTypes.includes(config.type)) {
+          warnings.push(`配置项 ${key} 的类型 ${config.type} 可能不被支持`)
         }
       }
     }

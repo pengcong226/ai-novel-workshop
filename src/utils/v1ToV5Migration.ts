@@ -8,6 +8,7 @@
 import type { Character, Ability, Relationship, WorldSetting } from '../types'
 import type { WorldbookEntry } from '../types/worldbook'
 import type { Entity, StateEvent, EntityImportance, EntityType } from '../types/sandbox'
+import { generateId } from '@/utils/generateId'
 
 /**
  * 迁移结果
@@ -20,8 +21,8 @@ export interface MigrationResult {
 /**
  * 生成唯一 ID
  */
-function generateId(): string {
-  return crypto.randomUUID()
+function generateLocalId(): string {
+  return generateId()
 }
 
 /**
@@ -110,7 +111,7 @@ function relationshipsToEvents(
   projectId: string
 ): StateEvent[] {
   return character.relationships.map((rel: Relationship) => ({
-    id: generateId(),
+    id: generateLocalId(),
     projectId,
     chapterNumber: rel.startChapter || 1,
     entityId: character.id,
@@ -132,7 +133,7 @@ function abilitiesToEvents(
   projectId: string
 ): StateEvent[] {
   return character.abilities.map((ability: Ability) => ({
-    id: generateId(),
+    id: generateLocalId(),
     projectId,
     chapterNumber: 1,
     entityId: character.id,
@@ -161,7 +162,7 @@ function currentStateToEvents(
   // 位置迁移
   if (currentState.location) {
     events.push({
-      id: generateId(),
+      id: generateLocalId(),
       projectId,
       chapterNumber: 1,
       entityId: character.id,
@@ -176,7 +177,7 @@ function currentStateToEvents(
   // 状态更新（健康状态、身体状况等）
   if (currentState.status || currentState.physicalState) {
     events.push({
-      id: generateId(),
+      id: generateLocalId(),
       projectId,
       chapterNumber: 1,
       entityId: character.id,
@@ -192,7 +193,7 @@ function currentStateToEvents(
   // 生存状态
   if (currentState.vitalStatus) {
     events.push({
-      id: generateId(),
+      id: generateLocalId(),
       projectId,
       chapterNumber: 1,
       entityId: character.id,
@@ -207,7 +208,7 @@ function currentStateToEvents(
   // 势力归属
   if (currentState.faction) {
     events.push({
-      id: generateId(),
+      id: generateLocalId(),
       projectId,
       chapterNumber: 1,
       entityId: character.id,
@@ -265,7 +266,7 @@ export function worldSettingToEntities(
   // Era PROPERTY_UPDATE events
   if (world.era?.time) {
     stateEvents.push({
-      id: generateId(),
+      id: generateLocalId(),
       projectId,
       chapterNumber: 0,
       entityId: worldEntityId,
@@ -276,7 +277,7 @@ export function worldSettingToEntities(
   }
   if (world.era?.techLevel) {
     stateEvents.push({
-      id: generateId(),
+      id: generateLocalId(),
       projectId,
       chapterNumber: 0,
       entityId: worldEntityId,
@@ -287,7 +288,7 @@ export function worldSettingToEntities(
   }
   if (world.era?.socialForm) {
     stateEvents.push({
-      id: generateId(),
+      id: generateLocalId(),
       projectId,
       chapterNumber: 0,
       entityId: worldEntityId,
@@ -318,7 +319,7 @@ export function worldSettingToEntities(
 
     // Preserve V1 faction ID for cross-referencing
     stateEvents.push({
-      id: generateId(),
+      id: generateLocalId(),
       projectId,
       chapterNumber: 0,
       entityId: factionEntityId,
@@ -353,7 +354,7 @@ export function worldSettingToEntities(
     // Faction association
     if (location.factionId) {
       stateEvents.push({
-        id: generateId(),
+        id: generateLocalId(),
         projectId,
         chapterNumber: 0,
         entityId: locationEntityId,
@@ -366,7 +367,7 @@ export function worldSettingToEntities(
     // Coordinates from position
     if (location.position) {
       stateEvents.push({
-        id: generateId(),
+        id: generateLocalId(),
         projectId,
         chapterNumber: 0,
         entityId: locationEntityId,
@@ -380,7 +381,7 @@ export function worldSettingToEntities(
   // 4. LORE entities for world rules
   for (const rule of world.rules) {
     entities.push({
-      id: generateId(),
+      id: generateLocalId(),
       projectId,
       type: 'LORE' as EntityType,
       name: rule.name,
@@ -404,7 +405,7 @@ export function worldSettingToEntities(
     ].filter(Boolean).join('\n')
 
     entities.push({
-      id: generateId(),
+      id: generateLocalId(),
       projectId,
       type: 'LORE' as EntityType,
       name: world.powerSystem.name || '力量体系',
@@ -450,7 +451,7 @@ export function worldbookEntriesToEntities(
     // Preserve worldbook UID for stable cross-referencing
     if (entry.uid != null) {
       stateEvents.push({
-        id: generateId(),
+        id: generateLocalId(),
         projectId,
         chapterNumber: 0,
         entityId,
@@ -463,7 +464,7 @@ export function worldbookEntriesToEntities(
     // Preserve worldbook position
     if (entry.position) {
       stateEvents.push({
-        id: generateId(),
+        id: generateLocalId(),
         projectId,
         chapterNumber: 0,
         entityId,
@@ -476,7 +477,7 @@ export function worldbookEntriesToEntities(
     // Preserve worldbook order
     if (entry.order != null) {
       stateEvents.push({
-        id: generateId(),
+        id: generateLocalId(),
         projectId,
         chapterNumber: 0,
         entityId,

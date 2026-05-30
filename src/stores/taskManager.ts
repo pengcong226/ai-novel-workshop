@@ -75,6 +75,7 @@ export const useTaskManager = defineStore('taskManager', () => {
 
   function completeTask(id: string, message?: string) {
     updateTask(id, { status: 'success', progress: 100, description: message || '完成' })
+    cleanupCompletedTasks()
   }
 
   function failTask(id: string, error: string) {
@@ -84,16 +85,28 @@ export const useTaskManager = defineStore('taskManager', () => {
     if (task) {
       addToast(`任务失败: ${task.title} - ${error}`, 'error')
     }
+    cleanupCompletedTasks()
   }
 
   function cancelTask(id: string) {
     const task = tasks.value.find(t => t.id === id)
-    if (task && task.status === 'running' || task?.status === 'pending') {
+    if (task && (task.status === 'running' || task.status === 'pending')) {
       if (task.onCancel) {
         task.onCancel()
       }
       updateTask(id, { status: 'cancelled', description: '已取消' })
       logger.info(`Task cancelled: ${task.title} [${task.id}]`)
+    }
+    cleanupCompletedTasks()
+  }
+
+  // 清理已完成的任务，保留最近的50个
+  function cleanupCompletedTasks() {
+    const MAX_COMPLETED = 50
+    const completed = tasks.value.filter(t => ['success', 'error', 'cancelled'].includes(t.status))
+    if (completed.length > MAX_COMPLETED) {
+      const toRemove = new Set(completed.slice(MAX_COMPLETED).map(t => t.id))
+      tasks.value = tasks.value.filter(t => !toRemove.has(t.id))
     }
   }
 

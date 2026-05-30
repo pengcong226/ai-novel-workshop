@@ -2,6 +2,7 @@ import JSZip from 'jszip'
 import { saveAs } from 'file-saver'
 import type { Chapter } from '@/types'
 import { escapeXml } from '@/utils/escapeXml'
+import { generateId } from '@/utils/generateId'
 
 export interface EpubExportOptions {
   author: string
@@ -22,7 +23,7 @@ export async function exportAllChaptersToEpub(
   onProgress?: (current: number, total: number) => void
 ): Promise<void> {
   const zip = new JSZip()
-  const bookId = `urn:uuid:${crypto.randomUUID()}`
+  const bookId = `urn:uuid:${generateId()}`
 
   // mimetype (must be first, uncompressed)
   zip.file('mimetype', 'application/epub+zip', { compression: 'STORE' })

@@ -81,7 +81,7 @@ async function handleStart() {
 <style scoped>
 .form-hint {
   margin-left: 8px;
-  color: #909399;
+  color: var(--ds-text-tertiary);
   font-size: 12px;
 }
 </style>

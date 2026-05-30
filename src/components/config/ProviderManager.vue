@@ -142,7 +142,7 @@
         </el-option-group>
       </el-select>
       <div v-if="selectedCommonProvider && commonModelsPreview[selectedCommonProvider]" style="margin-top: 16px;">
-        <div style="font-size: 14px; color: #606266; margin-bottom: 8px;">将导入以下模型：</div>
+        <div style="font-size: 14px; color: var(--ds-text-secondary); margin-bottom: 8px;">将导入以下模型：</div>
         <el-tag v-for="model in commonModelsPreview[selectedCommonProvider]" :key="model" size="small" style="margin-right: 8px; margin-bottom: 8px;">{{ model }}</el-tag>
       </div>
       <template #footer>
@@ -157,7 +157,7 @@
         <el-input v-model="fetchModelsSearchText" placeholder="搜索模型..." clearable style="width: 300px;">
           <template #prefix><el-icon><Search /></el-icon></template>
         </el-input>
-        <span style="margin-left: 16px; color: #909399;">已选择 {{ selectedModels.length }} / {{ filteredFetchedModels.length }} 个模型</span>
+        <span style="margin-left: 16px; color: var(--ds-text-tertiary);">已选择 {{ selectedModels.length }} / {{ filteredFetchedModels.length }} 个模型</span>
       </div>
       <div style="margin-bottom: 12px;">
         <el-button size="small" @click="selectAllModels">全选</el-button>
@@ -225,6 +225,7 @@ import { Plus, Upload, List, Download, Search } from '@element-plus/icons-vue'
 import { v4 as uuidv4 } from 'uuid'
 import type { ModelProvider, ModelInfo } from '@/types'
 import { enforceSecureAnthropicAccess } from '@/utils/anthropic-guard'
+import { formatDate } from '@/utils/formatters'
 
 function guardAnthropicProvider(): boolean {
   if (providerForm.value.type === 'anthropic') {
@@ -286,11 +287,6 @@ const filteredFetchedModels = computed(() => {
 })
 
 // --- 辅助函数 ---
-function formatDate(date: Date | string) {
-  const d = new Date(date)
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
-}
-
 function getDefaultBaseUrl() {
   switch (providerForm.value.type) {
     case 'openai': return 'https://api.openai.com/v1'
@@ -472,16 +468,16 @@ function confirmFetchedModels() {
 .provider-actions { display: flex; gap: 4px; flex-wrap: wrap; }
 .provider-details { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 12px; }
 .detail-item { display: flex; flex-direction: column; gap: 4px; }
-.detail-label { font-size: 12px; color: #909399; }
+.detail-label { font-size: 12px; color: var(--ds-text-tertiary); }
 .detail-value { font-size: 14px; word-break: break-all; }
 .models-preview { margin-top: 12px; }
-.models-label { font-size: 12px; color: #909399; margin-bottom: 8px; }
+.models-label { font-size: 12px; color: var(--ds-text-tertiary); margin-bottom: 8px; }
 .models-select-grid { max-height: 400px; overflow-y: auto; }
 .model-checkbox { display: block; margin-bottom: 8px; }
 .model-item { margin-bottom: 12px; }
 .model-header { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
 .model-details { display: flex; gap: 16px; margin-top: 12px; flex-wrap: wrap; }
 .detail-input { display: flex; flex-direction: column; gap: 4px; }
-.input-hint { font-size: 12px; color: #909399; }
+.input-hint { font-size: 12px; color: var(--ds-text-tertiary); }
 .empty-providers { padding: 20px 0; }
 </style>
