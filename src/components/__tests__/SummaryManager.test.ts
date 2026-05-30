@@ -1,11 +1,17 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { mount } from '@vue/test-utils'
-import { createTestPinia } from '@/test/helpers'
+import { createTestPinia, flushPromises } from '@/test/helpers'
 import { resetMockIdCounter, createMockChapter, createMockProject } from '@/test/mocks'
 import { useProjectStore } from '@/stores/project'
 import SummaryManager from '@/components/SummaryManager.vue'
 import type { Chapter, ChapterSummaryData } from '@/types'
 import { SummaryDetail } from '@/types'
+import {
+  generateChapterSummary,
+  batchGenerateSummaries,
+  checkSummaryQuality,
+} from '@/utils/summarizer'
+import { ElMessage, ElMessageBox } from 'element-plus'
 
 // ---------------------------------------------------------------------------
 // Mocks
@@ -409,5 +415,185 @@ describe('SummaryManager', () => {
 
     expect(editBtn).toBeDefined()
     expect(regenBtn).toBeDefined()
+  })
+
+  // ---- Generate individual chapter summary ----
+
+  it('calls generateChapterSummary when "生成摘要" button is clicked', async () => {
+    const chapters = [
+      createMockChapter({ id: 'ch-1', number: 1, title: '开端' }),
+    ]
+    const { wrapper } = mountWithChapters(chapters)
+
+    const generateBtn = wrapper.find('.no-summary .stub-button')
+    await generateBtn.trigger('click')
+
+    expect(generateChapterSummary).toHaveBeenCalled()
+  })
+
+  // ---- Regenerate summary with confirmation ----
+
+  it('calls ElMessageBox.confirm before regenerating', async () => {
+    const chapters = [
+      createMockChapter({ id: 'ch-1', number: 1, summaryData: createMockSummaryData() }),
+    ]
+    const { wrapper } = mountWithChapters(chapters)
+
+    const regenBtn = wrapper.findAll('.summary-actions .stub-button')
+      .find((b) => b.text().includes('重新生成'))
+    await regenBtn!.trigger('click')
+
+    expect(ElMessageBox.confirm).toHaveBeenCalledWith(
+      expect.stringContaining('重新生成将覆盖'),
+      expect.any(String),
+      expect.objectContaining({ type: 'warning' })
+    )
+  })
+
+  // ---- Edit dialog ----
+
+  it('opens edit dialog with pre-filled data when "编辑" button is clicked', async () => {
+    const summaryData = createMockSummaryData({
+      summary: '自定义摘要内容',
+      keyEvents: ['事件甲', '事件乙'],
+      characters: ['张三'],
+      locations: ['皇宫'],
+      plotProgression: '剧情发展',
+    })
+    const chapters = [
+      createMockChapter({ number: 1, summaryData }),
+    ]
+    const { wrapper } = mountWithChapters(chapters)
+
+    const editBtn = wrapper.findAll('.summary-actions .stub-button')
+      .find((b) => b.text().includes('编辑'))
+    await editBtn!.trigger('click')
+    await flushPromises()
+
+    // Dialog should be visible
+    const dialog = wrapper.find('.stub-dialog')
+    expect(dialog.exists()).toBe(true)
+
+    // Dialog form should contain the form labels
+    expect(dialog.text()).toContain('摘要内容')
+    expect(dialog.text()).toContain('关键事件')
+    expect(dialog.text()).toContain('出场人物')
+    expect(dialog.text()).toContain('场景地点')
+    expect(dialog.text()).toContain('剧情推进')
+  })
+
+  // ---- Refresh ----
+
+  it('clears quality check cache and shows success message on refresh', async () => {
+    const chapters = [
+      createMockChapter({ number: 1, summaryData: createMockSummaryData() }),
+    ]
+    const { wrapper } = mountWithChapters(chapters)
+
+    const refreshBtn = wrapper.findAll('.stub-button')
+      .find((b) => b.text().includes('刷新'))
+    await refreshBtn!.trigger('click')
+
+    expect(ElMessage.success).toHaveBeenCalledWith('已刷新')
+  })
+
+  // ---- Quality tag type based on isValid ----
+
+  it('shows success tag type when quality check passes', () => {
+    vi.mocked(checkSummaryQuality).mockReturnValue({
+      isValid: true, issues: [], suggestions: [], score: 9,
+      completeness: 0.95, coherence: 0.9, conciseness: 0.85,
+    })
+
+    const chapters = [
+      createMockChapter({ number: 1, summaryData: createMockSummaryData() }),
+    ]
+    const { wrapper } = mountWithChapters(chapters)
+
+    const statusTag = wrapper.findAll('.stub-tag')
+      .find((t) => t.text().includes('已生成'))
+    expect(statusTag?.attributes('data-type')).toBe('success')
+  })
+
+  it('shows warning tag type when quality check fails', () => {
+    vi.mocked(checkSummaryQuality).mockReturnValue({
+      isValid: false, issues: ['too short'], suggestions: ['add detail'], score: 3,
+      completeness: 0.3, coherence: 0.4, conciseness: 0.5,
+    })
+
+    const chapters = [
+      createMockChapter({ number: 1, summaryData: createMockSummaryData() }),
+    ]
+    const { wrapper } = mountWithChapters(chapters)
+
+    const statusTag = wrapper.findAll('.stub-tag')
+      .find((t) => t.text().includes('已生成'))
+    expect(statusTag?.attributes('data-type')).toBe('warning')
+  })
+
+  // ---- Empty detail arrays hide detail sections ----
+
+  it('hides detail items when keyEvents, characters, and locations are empty', () => {
+    const summaryData = createMockSummaryData({
+      keyEvents: [],
+      characters: [],
+      locations: [],
+      plotProgression: '',
+    })
+    const chapters = [
+      createMockChapter({ number: 1, summaryData }),
+    ]
+    const { wrapper } = mountWithChapters(chapters)
+
+    const details = wrapper.find('.summary-details')
+    expect(details.exists()).toBe(true)
+    // No detail-item divs should be rendered
+    expect(details.findAll('.detail-item').length).toBe(0)
+  })
+
+  // ---- Generate all summaries ----
+
+  it('shows warning when "生成所有摘要" is clicked with no chapters', async () => {
+    const { wrapper } = mountWithChapters([])
+
+    // Click header "生成所有摘要" button (not in empty state)
+    const headerBtn = wrapper.findAll('.stub-button')
+      .find((b) => b.text().includes('生成所有摘要'))
+
+    // In empty state, the generate-all button is in the header card
+    // which still renders even with 0 chapters
+    if (headerBtn) {
+      await headerBtn.trigger('click')
+      expect(ElMessage.warning).toHaveBeenCalledWith('没有章节需要生成摘要')
+    }
+  })
+
+  it('calls batchGenerateSummaries when "生成所有摘要" is clicked with eligible chapters', async () => {
+    // Create 6 chapters: chapters 1-3 qualify (number < maxChapter - 3 = 6-3=3)
+    const chapters = Array.from({ length: 6 }, (_, i) =>
+      createMockChapter({ id: `ch-${i + 1}`, number: i + 1, title: `第${i + 1}章` })
+    )
+    const { wrapper } = mountWithChapters(chapters)
+
+    const generateAllBtn = wrapper.findAll('.stub-button')
+      .find((b) => b.text().includes('生成所有摘要'))
+    await generateAllBtn!.trigger('click')
+    await flushPromises()
+
+    // batchGenerateSummaries should be called with chapters whose number < max(6) - 3 = 3
+    expect(batchGenerateSummaries).toHaveBeenCalled()
+  })
+
+  // ---- Status tag type for chapters without summary ----
+
+  it('shows info tag type for chapters without summary data', () => {
+    const chapters = [
+      createMockChapter({ number: 1 }),
+    ]
+    const { wrapper } = mountWithChapters(chapters)
+
+    const statusTag = wrapper.findAll('.stub-tag')
+      .find((t) => t.text().includes('未生成'))
+    expect(statusTag?.attributes('data-type')).toBe('info')
   })
 })

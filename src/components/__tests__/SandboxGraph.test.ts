@@ -471,4 +471,205 @@ describe('SandboxGraph', () => {
       expect.objectContaining({ source: 'entity-2', target: 'entity-1' }),
     )
   })
+
+  // --- Positive attitude edge coloring ---
+
+  it('colors edges green for positive attitude keywords', () => {
+    const store = useSandboxStore()
+    seedEntities(store, {
+      'entity-1': {
+        id: 'entity-1', name: '主角', type: 'CHARACTER', category: 'Protagonist',
+        isArchived: false, relations: [{ targetId: 'entity-2', type: 'lover', attitude: '倾心' }],
+        properties: {}, location: null, vitalStatus: 'alive', abilities: [],
+      },
+      'entity-2': {
+        id: 'entity-2', name: '恋人', type: 'CHARACTER', category: 'Support',
+        isArchived: false, relations: [],
+        properties: {}, location: null, vitalStatus: 'alive', abilities: [],
+      },
+    })
+
+    mountGraph()
+
+    const edge = mockSetData.mock.calls[0][0].edges[0]
+    expect(edge.style.stroke).toBe('rgba(16, 185, 129, 0.6)')
+  })
+
+  // --- Default edge color ---
+
+  it('uses default blue edge color when no attitude is specified', () => {
+    const store = useSandboxStore()
+    seedEntities(store, {
+      'entity-1': {
+        id: 'entity-1', name: '主角', type: 'CHARACTER', category: 'Protagonist',
+        isArchived: false, relations: [{ targetId: 'entity-2', type: 'acquaintance' }],
+        properties: {}, location: null, vitalStatus: 'alive', abilities: [],
+      },
+      'entity-2': {
+        id: 'entity-2', name: '熟人', type: 'CHARACTER', category: 'Support',
+        isArchived: false, relations: [],
+        properties: {}, location: null, vitalStatus: 'alive', abilities: [],
+      },
+    })
+
+    mountGraph()
+
+    const edge = mockSetData.mock.calls[0][0].edges[0]
+    expect(edge.style.stroke).toBe('rgba(60, 130, 246, 0.4)')
+    expect(edge.label).toBe('acquaintance')
+  })
+
+  // --- Draft edge rendering in wizard mode ---
+
+  it('renders draft relations as gold dashed edges in wizard mode', () => {
+    const store = useSandboxStore()
+    // Protagonist has a committed relation to entity-2 so both are visible nodes
+    seedEntities(store, {
+      'entity-1': {
+        id: 'entity-1', name: '主角', type: 'CHARACTER', category: 'Protagonist',
+        isArchived: false, relations: [{ targetId: 'entity-2', type: 'ally' }],
+        properties: {}, location: null, vitalStatus: 'alive', abilities: [],
+      },
+      'entity-2': {
+        id: 'entity-2', name: '盟友', type: 'CHARACTER', category: 'Ally',
+        isArchived: false, relations: [],
+        properties: {}, location: null, vitalStatus: 'alive', abilities: [],
+      },
+    })
+    store.isWizardMode = true
+    store.draftRelations = [{
+      sourceId: 'entity-1',
+      relation: { targetId: 'entity-2', type: 'draft-bond', attitude: '信任' },
+    }]
+
+    mountGraph()
+
+    const callData = mockSetData.mock.calls[0][0]
+    // 2 committed nodes visible (protagonist + connected ally)
+    expect(callData.nodes).toHaveLength(2)
+    // 2 edges: 1 committed (ally) + 1 draft (draft-bond)
+    expect(callData.edges).toHaveLength(2)
+    const draftEdge = callData.edges.find((e: { style: { stroke: string } }) =>
+      e.style.stroke === 'rgba(245, 158, 11, 0.8)',
+    )
+    expect(draftEdge).toBeDefined()
+    expect(draftEdge.source).toBe('entity-1')
+    expect(draftEdge.target).toBe('entity-2')
+    expect(draftEdge.style.lineDash).toEqual([4, 4])
+    expect(draftEdge.label).toBe('draft-bond (信任)')
+  })
+
+  // --- ResizeObserver ---
+
+  it('sets up a ResizeObserver on the graph container', () => {
+    const observeSpy = vi.fn()
+    const disconnectSpy = vi.fn()
+
+    const OriginalResizeObserver = globalThis.ResizeObserver
+    class MockResizeObserver {
+      observe = observeSpy
+      disconnect = disconnectSpy
+      unobserve = vi.fn()
+    }
+    // @ts-expect-error -- replacing global for test
+    globalThis.ResizeObserver = MockResizeObserver
+
+    const wrapper = mountGraph()
+    expect(observeSpy).toHaveBeenCalledTimes(1)
+
+    wrapper.unmount()
+    expect(disconnectSpy).toHaveBeenCalledTimes(1)
+
+    globalThis.ResizeObserver = OriginalResizeObserver
+  })
+
+  // --- Non-visible edge filtering ---
+
+  it('excludes edges whose targets are not in the visible set', () => {
+    const store = useSandboxStore()
+    // Protagonist connected to entity-2, but entity-2 points to disconnected entity-3
+    seedEntities(store, {
+      'entity-1': {
+        id: 'entity-1', name: '主角', type: 'CHARACTER', category: 'Protagonist',
+        isArchived: false, relations: [{ targetId: 'entity-2', type: 'ally' }],
+        properties: {}, location: null, vitalStatus: 'alive', abilities: [],
+      },
+      'entity-2': {
+        id: 'entity-2', name: '盟友', type: 'CHARACTER', category: 'Ally',
+        isArchived: false, relations: [{ targetId: 'entity-3', type: 'knows' }],
+        properties: {}, location: null, vitalStatus: 'alive', abilities: [],
+      },
+      'entity-3': {
+        id: 'entity-3', name: '路人', type: 'CHARACTER', category: 'Minor',
+        isArchived: false, relations: [],
+        properties: {}, location: null, vitalStatus: 'alive', abilities: [],
+      },
+    })
+
+    mountGraph()
+
+    const callData = mockSetData.mock.calls[0][0]
+    // entity-3 is 2 degrees away, not visible
+    expect(callData.nodes.map((n: { id: string }) => n.id)).not.toContain('entity-3')
+    // Edge entity-2 -> entity-3 should be excluded
+    const edgeTargets = callData.edges.map((e: { target: string }) => e.target)
+    expect(edgeTargets).not.toContain('entity-3')
+  })
+
+  // --- Graph interaction modes ---
+
+  it('initializes graph with drag-canvas, zoom-canvas, and drag-node modes', () => {
+    mountGraph()
+
+    const [options] = vi.mocked(Graph).mock.calls[0] as unknown[]
+    expect(options).toEqual(
+      expect.objectContaining({
+        modes: {
+          default: ['drag-canvas', 'zoom-canvas', 'drag-node'],
+        },
+      }),
+    )
+  })
+
+  // --- Node styling by category ---
+
+  it('assigns protagonist blue style to Protagonist category nodes', () => {
+    const store = useSandboxStore()
+    seedEntities(store, {
+      'entity-1': {
+        id: 'entity-1', name: '主角', type: 'CHARACTER', category: 'Protagonist',
+        isArchived: false, relations: [],
+        properties: {}, location: null, vitalStatus: 'alive', abilities: [],
+      },
+    })
+
+    mountGraph()
+
+    const node = mockSetData.mock.calls[0][0].nodes[0]
+    expect(node.style.stroke).toBe('#3b82f6')
+    expect(node.style.fill).toBe('rgba(59, 130, 246, 0.2)')
+  })
+
+  it('assigns antagonist red style to Antagonist category nodes', () => {
+    const store = useSandboxStore()
+    seedEntities(store, {
+      'entity-1': {
+        id: 'entity-1', name: '反派', type: 'CHARACTER', category: 'Antagonist',
+        isArchived: false, relations: [{ targetId: 'entity-2', type: 'enemy' }],
+        properties: {}, location: null, vitalStatus: 'alive', abilities: [],
+      },
+      'entity-2': {
+        id: 'entity-2', name: '主角', type: 'CHARACTER', category: 'Protagonist',
+        isArchived: false, relations: [],
+        properties: {}, location: null, vitalStatus: 'alive', abilities: [],
+      },
+    })
+
+    mountGraph()
+
+    const nodes = mockSetData.mock.calls[0][0].nodes
+    const antagonist = nodes.find((n: { id: string }) => n.id === 'entity-1')
+    expect(antagonist.style.stroke).toBe('#ef4444')
+    expect(antagonist.style.fill).toBe('rgba(239, 68, 68, 0.2)')
+  })
 })

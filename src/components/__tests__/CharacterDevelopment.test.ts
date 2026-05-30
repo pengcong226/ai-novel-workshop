@@ -861,4 +861,344 @@ describe('CharacterDevelopment', () => {
     expect(dialog.text()).toContain('所在章节')
     expect(dialog.text()).toContain('事件类型')
   })
+
+  // -----------------------------------------------------------------------
+  // 14. VITAL_STATUS_CHANGE event rendering
+  // -----------------------------------------------------------------------
+
+  it('renders VITAL_STATUS_CHANGE event with status text', async () => {
+    const char = makeCharacter({ id: 'c1', name: '貂蝉' })
+
+    const events = [
+      makeStateEvent({
+        id: 'evt1',
+        entityId: 'c1',
+        chapterNumber: 3,
+        eventType: 'VITAL_STATUS_CHANGE',
+        payload: { status: '昏迷' },
+      }),
+    ]
+
+    vi.mocked(buildStateEventIndexes).mockReturnValue({
+      eventsByEntity: new Map([['c1', events]]),
+      countsByEntity: new Map([['c1', 1]]),
+      chapterNumbersByEntity: new Map([['c1', new Set([3])]]),
+      entityIdsByChapterNumber: new Map(),
+    })
+
+    vi.mocked(replayReducer).mockReturnValue({
+      c1: {
+        entityId: 'c1',
+        entityName: 'test',
+        entityType: 'CHARACTER',
+        properties: {},
+        relations: [],
+        location: null,
+        vitalStatus: 'alive',
+        abilities: [],
+      },
+    })
+
+    seedEntities(store, [char])
+    seedStateEvents(store, events)
+
+    const wrapper = mountComponent()
+    await nextTick()
+    await nextTick()
+
+    // Should show the event label and status text
+    expect(wrapper.text()).toContain('生命事件')
+    expect(wrapper.text()).toContain('状态变化')
+    expect(wrapper.text()).toContain('昏迷')
+  })
+
+  // -----------------------------------------------------------------------
+  // 15. PROPERTY_UPDATE event rendering
+  // -----------------------------------------------------------------------
+
+  it('renders PROPERTY_UPDATE event with key and value', async () => {
+    const char = makeCharacter({ id: 'c1', name: '吕布' })
+
+    const events = [
+      makeStateEvent({
+        id: 'evt1',
+        entityId: 'c1',
+        chapterNumber: 1,
+        eventType: 'PROPERTY_UPDATE',
+        payload: { key: '武力', value: '100' },
+      }),
+    ]
+
+    vi.mocked(buildStateEventIndexes).mockReturnValue({
+      eventsByEntity: new Map([['c1', events]]),
+      countsByEntity: new Map([['c1', 1]]),
+      chapterNumbersByEntity: new Map([['c1', new Set([1])]]),
+      entityIdsByChapterNumber: new Map(),
+    })
+
+    vi.mocked(replayReducer).mockReturnValue({
+      c1: {
+        entityId: 'c1',
+        entityName: 'test',
+        entityType: 'CHARACTER',
+        properties: {},
+        relations: [],
+        location: null,
+        vitalStatus: 'alive',
+        abilities: [],
+      },
+    })
+
+    seedEntities(store, [char])
+    seedStateEvents(store, events)
+
+    const wrapper = mountComponent()
+    await nextTick()
+    await nextTick()
+
+    // Should display the event label, key, and value
+    expect(wrapper.text()).toContain('属性变化')
+    expect(wrapper.text()).toContain('武力')
+    expect(wrapper.text()).toContain('100')
+  })
+
+  // -----------------------------------------------------------------------
+  // 16. Character switching via selector
+  // -----------------------------------------------------------------------
+
+  it('switches displayed character when a different option is selected', async () => {
+    const char1 = makeCharacter({ id: 'c1', name: '曹操' })
+    const char2 = makeCharacter({ id: 'c2', name: '孙权' })
+
+    const events1 = [
+      makeStateEvent({ id: 'evt1', entityId: 'c1', chapterNumber: 1, eventType: 'PROPERTY_UPDATE', payload: { key: '称号', value: '枭雄' } }),
+    ]
+    const events2 = [
+      makeStateEvent({ id: 'evt2', entityId: 'c2', chapterNumber: 1, eventType: 'PROPERTY_UPDATE', payload: { key: '称号', value: '江东之主' } }),
+    ]
+
+    vi.mocked(buildStateEventIndexes).mockReturnValue({
+      eventsByEntity: new Map([['c1', events1], ['c2', events2]]),
+      countsByEntity: new Map([['c1', 1], ['c2', 1]]),
+      chapterNumbersByEntity: new Map([['c1', new Set([1])], ['c2', new Set([1])]]),
+      entityIdsByChapterNumber: new Map(),
+    })
+
+    // Return resolved state for both characters
+    vi.mocked(replayReducer).mockReturnValue({
+      c1: {
+        entityId: 'c1', entityName: '曹操', entityType: 'CHARACTER',
+        properties: {}, relations: [], location: null, vitalStatus: 'alive', abilities: [],
+      },
+      c2: {
+        entityId: 'c2', entityName: '孙权', entityType: 'CHARACTER',
+        properties: {}, relations: [], location: null, vitalStatus: 'alive', abilities: [],
+      },
+    })
+
+    seedEntities(store, [char1, char2])
+    seedStateEvents(store, [...events1, ...events2])
+
+    const wrapper = mountComponent()
+    await nextTick()
+    await nextTick()
+
+    // Initially c1 is auto-selected (first with events, or alphabetically first)
+    expect(wrapper.text()).toContain('枭雄')
+
+    // Simulate selecting the second character
+    const select = wrapper.find('.el-select-stub')
+    await select.setValue('c2')
+    await nextTick()
+
+    // Should now show the second character's data
+    expect(wrapper.text()).toContain('江东之主')
+  })
+
+  // -----------------------------------------------------------------------
+  // 17. RELATION_REMOVE event rendering
+  // -----------------------------------------------------------------------
+
+  it('renders RELATION_REMOVE event with target entity', async () => {
+    const char1 = makeCharacter({ id: 'c1', name: '宝玉' })
+    const char2 = makeCharacter({ id: 'c2', name: '黛玉' })
+
+    const events = [
+      makeStateEvent({
+        id: 'evt1',
+        entityId: 'c1',
+        chapterNumber: 4,
+        eventType: 'RELATION_REMOVE',
+        payload: { targetId: 'c2', relationType: 'lover' },
+      }),
+    ]
+
+    vi.mocked(buildStateEventIndexes).mockReturnValue({
+      eventsByEntity: new Map([['c1', events]]),
+      countsByEntity: new Map([['c1', 1]]),
+      chapterNumbersByEntity: new Map([['c1', new Set([4])]]),
+      entityIdsByChapterNumber: new Map(),
+    })
+
+    vi.mocked(replayReducer).mockReturnValue({
+      c1: {
+        entityId: 'c1', entityName: '宝玉', entityType: 'CHARACTER',
+        properties: {}, relations: [], location: null, vitalStatus: 'alive', abilities: [],
+      },
+    })
+
+    seedEntities(store, [char1, char2])
+    seedStateEvents(store, events)
+
+    const wrapper = mountComponent()
+    await nextTick()
+    await nextTick()
+
+    // Should show the relation event label and resolved entity name
+    expect(wrapper.text()).toContain('关系解除')
+    expect(wrapper.text()).toContain('黛玉')
+  })
+
+  // -----------------------------------------------------------------------
+  // 18. Edit node dialog opens with pre-populated form data
+  // -----------------------------------------------------------------------
+
+  it('opens edit node dialog with pre-populated form when "编辑" is clicked', async () => {
+    const char = makeCharacter({ id: 'c1', name: '周瑜' })
+
+    const events = [
+      makeStateEvent({
+        id: 'evt1',
+        entityId: 'c1',
+        chapterNumber: 2,
+        eventType: 'ABILITY_CHANGE',
+        payload: { abilityName: '火攻', abilityStatus: 'active' },
+      }),
+    ]
+
+    vi.mocked(buildStateEventIndexes).mockReturnValue({
+      eventsByEntity: new Map([['c1', events]]),
+      countsByEntity: new Map([['c1', 1]]),
+      chapterNumbersByEntity: new Map([['c1', new Set([2])]]),
+      entityIdsByChapterNumber: new Map(),
+    })
+
+    vi.mocked(replayReducer).mockReturnValue({
+      c1: {
+        entityId: 'c1', entityName: '周瑜', entityType: 'CHARACTER',
+        properties: {}, relations: [], location: null, vitalStatus: 'alive', abilities: [],
+      },
+    })
+
+    seedEntities(store, [char])
+    seedStateEvents(store, events)
+
+    const wrapper = mountComponent()
+    await nextTick()
+    await nextTick()
+
+    // Find and click the "编辑" button
+    const buttons = wrapper.findAll('.el-button-stub')
+    const editButton = buttons.find(b => b.text().includes('编辑'))
+    expect(editButton).toBeDefined()
+
+    await editButton!.trigger('click')
+    await nextTick()
+
+    // Dialog should be visible with form content
+    const dialog = wrapper.find('.el-dialog-stub')
+    expect(dialog.exists()).toBe(true)
+    // The form should contain the pre-populated event type fields
+    expect(dialog.text()).toContain('能力名称')
+    expect(dialog.text()).toContain('能力状态')
+  })
+
+  // -----------------------------------------------------------------------
+  // 19. RELATION_UPDATE event rendering
+  // -----------------------------------------------------------------------
+
+  it('renders RELATION_UPDATE event with attitude text', async () => {
+    const char1 = makeCharacter({ id: 'c1', name: '宋江' })
+    const char2 = makeCharacter({ id: 'c2', name: '李逵' })
+
+    const events = [
+      makeStateEvent({
+        id: 'evt1',
+        entityId: 'c1',
+        chapterNumber: 5,
+        eventType: 'RELATION_UPDATE',
+        payload: { targetId: 'c2', relationType: 'friend', attitude: '忠心耿耿' },
+      }),
+    ]
+
+    vi.mocked(buildStateEventIndexes).mockReturnValue({
+      eventsByEntity: new Map([['c1', events]]),
+      countsByEntity: new Map([['c1', 1]]),
+      chapterNumbersByEntity: new Map([['c1', new Set([5])]]),
+      entityIdsByChapterNumber: new Map(),
+    })
+
+    vi.mocked(replayReducer).mockReturnValue({
+      c1: {
+        entityId: 'c1', entityName: '宋江', entityType: 'CHARACTER',
+        properties: {}, relations: [], location: null, vitalStatus: 'alive', abilities: [],
+      },
+    })
+
+    seedEntities(store, [char1, char2])
+    seedStateEvents(store, events)
+
+    const wrapper = mountComponent()
+    await nextTick()
+    await nextTick()
+
+    // Should show the relation update label, target name, and attitude
+    expect(wrapper.text()).toContain('关系更新')
+    expect(wrapper.text()).toContain('李逵')
+    expect(wrapper.text()).toContain('忠心耿耿')
+  })
+
+  // -----------------------------------------------------------------------
+  // 20. Unique chapter count displayed correctly
+  // -----------------------------------------------------------------------
+
+  it('displays correct unique chapter count when events span multiple chapters', async () => {
+    const char = makeCharacter({ id: 'c1', name: '孙悟空' })
+
+    const events = [
+      makeStateEvent({ id: 'evt1', entityId: 'c1', chapterNumber: 1, eventType: 'PROPERTY_UPDATE', payload: { key: 'level', value: '1' } }),
+      makeStateEvent({ id: 'evt2', entityId: 'c1', chapterNumber: 1, eventType: 'ABILITY_CHANGE', payload: { abilityName: '火眼金睛', abilityStatus: 'active' } }),
+      makeStateEvent({ id: 'evt3', entityId: 'c1', chapterNumber: 3, eventType: 'PROPERTY_UPDATE', payload: { key: 'level', value: '5' } }),
+      makeStateEvent({ id: 'evt4', entityId: 'c1', chapterNumber: 5, eventType: 'LOCATION_MOVE', payload: { coordinates: { x: 0, y: 0 } } }),
+    ]
+
+    vi.mocked(buildStateEventIndexes).mockReturnValue({
+      eventsByEntity: new Map([['c1', events]]),
+      countsByEntity: new Map([['c1', 4]]),
+      chapterNumbersByEntity: new Map([['c1', new Set([1, 3, 5])]]),
+      entityIdsByChapterNumber: new Map(),
+    })
+
+    vi.mocked(replayReducer).mockReturnValue({
+      c1: {
+        entityId: 'c1', entityName: '孙悟空', entityType: 'CHARACTER',
+        properties: {}, relations: [], location: null, vitalStatus: 'alive', abilities: [],
+      },
+    })
+
+    seedEntities(store, [char])
+    seedStateEvents(store, events)
+
+    const wrapper = mountComponent()
+    await nextTick()
+    await nextTick()
+
+    // Should display 4 growth nodes and 3 unique chapters
+    const statValues = wrapper.findAll('.stat-value')
+    const growthNodeCount = statValues.find(el => el.text() === '4')
+    expect(growthNodeCount).toBeDefined()
+
+    const uniqueChapterEl = statValues.find(el => el.text() === '3')
+    expect(uniqueChapterEl).toBeDefined()
+  })
 })

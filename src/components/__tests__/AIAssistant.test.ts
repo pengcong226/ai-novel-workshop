@@ -3,6 +3,7 @@ import { mount, flushPromises } from '@vue/test-utils'
 import { ref, nextTick } from 'vue'
 import { createTestPinia } from '@/test/helpers'
 import AIAssistant from '@/components/AIAssistant.vue'
+import { createInitialAssistantMessages } from '@/assistant/commands/assistantChat'
 import type { AssistantMessage, AssistantAction } from '@/assistant/commands/assistantChat'
 
 // ---------------------------------------------------------------------------
@@ -192,7 +193,11 @@ const AssistantSuggestionsPanelStub = {
     'getPriorityLabel', 'getStatusLabel',
   ],
   emits: ['action', 'markRead', 'markAdopted', 'markIgnored', 'delete', 'batchRead', 'batchAdopted', 'batchIgnored', 'update:filter'],
-  template: '<div class="suggestions-panel-stub" />',
+  template: `
+    <div class="suggestions-panel-stub">
+      <span class="formatted-time">{{ formatTime(new Date()) }}</span>
+    </div>
+  `,
 }
 
 const AssistantStatisticsPanelStub = {
@@ -247,6 +252,19 @@ describe('AIAssistant', () => {
     mockCurrentProject.value = null
     mockSuggestions.unreadCount = 0
     vi.clearAllMocks()
+
+    // Reset mockRouteAssistantInput to clear any queued mockResolvedValueOnce/mockRejectedValueOnce
+    mockRouteAssistantInput.mockReset()
+    mockRouteAssistantInput.mockResolvedValue({ type: 'chat', text: 'test' })
+
+    // Return a fresh array each time to prevent cross-test mutation leaks
+    vi.mocked(createInitialAssistantMessages).mockReturnValue([
+      {
+        role: 'assistant',
+        content: '你好！我是AI创作助手。',
+        actions: [{ text: '查看当前设定', command: '查看当前设定' }],
+      },
+    ])
   })
 
   // --- Chat toggle ---
@@ -463,5 +481,250 @@ describe('AIAssistant', () => {
     expect(mockOn).toHaveBeenCalledWith('chapter:saved', expect.any(Function))
     expect(mockOn).toHaveBeenCalledWith('entity:updated', expect.any(Function))
     expect(mockOn).toHaveBeenCalledWith('outline:changed', expect.any(Function))
+  })
+
+  // --- Toggle chat close ---
+
+  it('closes drawer when float button is clicked twice', async () => {
+    const wrapper = mountAssistant()
+
+    // Open
+    await wrapper.find('.ai-float-button').trigger('click')
+    await nextTick()
+    expect(wrapper.find('.drawer-stub').exists()).toBe(true)
+
+    // Close
+    await wrapper.find('.ai-float-button').trigger('click')
+    await nextTick()
+    expect(wrapper.find('.drawer-stub').exists()).toBe(false)
+  })
+
+  it('calls suggestionsStore.updateActivity when opening the chat', async () => {
+    const wrapper = mountAssistant()
+
+    await wrapper.find('.ai-float-button').trigger('click')
+    await nextTick()
+
+    expect(mockSuggestions.updateActivity).toHaveBeenCalled()
+  })
+
+  it('does not call updateActivity when closing the chat', async () => {
+    const wrapper = mountAssistant()
+
+    // Open then close
+    await wrapper.find('.ai-float-button').trigger('click')
+    await nextTick()
+    vi.clearAllMocks()
+
+    await wrapper.find('.ai-float-button').trigger('click')
+    await nextTick()
+
+    expect(mockSuggestions.updateActivity).not.toHaveBeenCalled()
+  })
+
+  // --- formatTime ---
+
+  it('provides a formatTime function to suggestions panel that returns "刚刚" for recent dates', async () => {
+    const wrapper = mountAssistant()
+
+    // Open drawer so all child stubs are rendered
+    await wrapper.find('.ai-float-button').trigger('click')
+    await nextTick()
+
+    const suggestionsPanel = wrapper.findComponent(AssistantSuggestionsPanelStub)
+    expect(suggestionsPanel.exists()).toBe(true)
+
+    const timeSpan = suggestionsPanel.find('.formatted-time')
+    expect(timeSpan.text()).toBe('刚刚')
+  })
+
+  // --- sendQuickCommand appends user message ---
+
+  it('sendQuickCommand adds user message with quick command text before processing', async () => {
+    mockRouteAssistantInput.mockResolvedValueOnce({ type: 'chat', text: 'result' })
+
+    const wrapper = mountAssistant()
+    await wrapper.find('.ai-float-button').trigger('click')
+    await nextTick()
+
+    const chatPanel = wrapper.findComponent(AssistantChatPanelStub)
+    const quickBtns = chatPanel.findAll('.quick-btn')
+    expect(quickBtns.length).toBe(4)
+
+    await quickBtns[0].trigger('click')
+    await flushPromises()
+
+    // After quick command, messages should have initial + user message
+    const messages = chatPanel.props('messages')
+    const userMsgs = messages.filter((m: AssistantMessage) => m.role === 'user')
+    expect(userMsgs).toHaveLength(1)
+    expect(userMsgs[0].content).toBe('总结设定')
+  })
+
+  // --- handleSuggestionAction ---
+
+  it('handleSuggestionAction dismiss action marks suggestion as ignored', async () => {
+    const wrapper = mountAssistant()
+    await wrapper.find('.ai-float-button').trigger('click')
+    await nextTick()
+
+    const suggestionsPanel = wrapper.findComponent(AssistantSuggestionsPanelStub)
+    const testSuggestion = { id: 'sg-1', status: 'unread' } as unknown as import('@/types/suggestions').Suggestion
+    suggestionsPanel.vm.$emit('action', testSuggestion, { type: 'dismiss' })
+    await nextTick()
+
+    expect(mockSuggestions.markAsIgnored).toHaveBeenCalledWith('sg-1')
+  })
+
+  it('handleSuggestionAction marks unread suggestion as read', async () => {
+    const wrapper = mountAssistant()
+    await wrapper.find('.ai-float-button').trigger('click')
+    await nextTick()
+
+    const suggestionsPanel = wrapper.findComponent(AssistantSuggestionsPanelStub)
+    const testSuggestion = { id: 'sg-2', status: 'unread' } as unknown as import('@/types/suggestions').Suggestion
+    suggestionsPanel.vm.$emit('action', testSuggestion, { type: 'apply_fix' })
+    await nextTick()
+
+    expect(mockSuggestions.markAsRead).toHaveBeenCalledWith('sg-2')
+  })
+
+  it('handleSuggestionAction navigate action sets window.location.hash', async () => {
+    const wrapper = mountAssistant()
+    await wrapper.find('.ai-float-button').trigger('click')
+    await nextTick()
+
+    const suggestionsPanel = wrapper.findComponent(AssistantSuggestionsPanelStub)
+    const testSuggestion = { id: 'sg-3', status: 'read' } as unknown as import('@/types/suggestions').Suggestion
+    suggestionsPanel.vm.$emit('action', testSuggestion, {
+      type: 'navigate',
+      navigateTarget: '/chapters/5',
+    })
+    await nextTick()
+
+    expect(window.location.hash).toBe('#/chapters/5')
+  })
+
+  it('handleSuggestionAction navigate action rejects javascript: URIs', async () => {
+    const wrapper = mountAssistant()
+    await wrapper.find('.ai-float-button').trigger('click')
+    await nextTick()
+
+    const hashBefore = window.location.hash
+    const suggestionsPanel = wrapper.findComponent(AssistantSuggestionsPanelStub)
+    const testSuggestion = { id: 'sg-4', status: 'read' } as unknown as import('@/types/suggestions').Suggestion
+    suggestionsPanel.vm.$emit('action', testSuggestion, {
+      type: 'navigate',
+      navigateTarget: 'javascript:alert(1)',
+    })
+    await nextTick()
+
+    // hash should not have changed to the malicious URI
+    expect(window.location.hash).toBe(hashBefore)
+  })
+
+  it('handleSuggestionAction does not mark already-read suggestion again', async () => {
+    const wrapper = mountAssistant()
+    await wrapper.find('.ai-float-button').trigger('click')
+    await nextTick()
+
+    const suggestionsPanel = wrapper.findComponent(AssistantSuggestionsPanelStub)
+    const testSuggestion = { id: 'sg-5', status: 'read' } as unknown as import('@/types/suggestions').Suggestion
+    suggestionsPanel.vm.$emit('action', testSuggestion, { type: 'dismiss' })
+    await nextTick()
+
+    // markAsRead should NOT be called for an already-read suggestion
+    expect(mockSuggestions.markAsRead).not.toHaveBeenCalledWith('sg-5')
+    // But markAsIgnored IS called because it's a dismiss action
+    expect(mockSuggestions.markAsIgnored).toHaveBeenCalledWith('sg-5')
+  })
+
+  // --- processCommand error handling ---
+
+  it('processes command when sendMessage has input text (routeAssistantInput called)', async () => {
+    mockRouteAssistantInput.mockResolvedValueOnce({ type: 'command', output: '设定概览结果' })
+
+    const wrapper = mountAssistant()
+    await wrapper.find('.ai-float-button').trigger('click')
+    await nextTick()
+
+    const vm = wrapper.vm as unknown as { userInput: string }
+    vm.userInput = '查看当前设定'
+
+    const chatPanel = wrapper.findComponent(AssistantChatPanelStub)
+    await chatPanel.find('.send-btn').trigger('click')
+    await flushPromises()
+    await flushPromises()
+
+    expect(mockRouteAssistantInput).toHaveBeenCalledWith(
+      '查看当前设定',
+      expect.objectContaining({ messages: expect.any(Array) }),
+    )
+  })
+
+  it('processCommand with error type route result adds error message', async () => {
+    mockRouteAssistantInput.mockResolvedValueOnce({ type: 'error', error: '未知命令' })
+
+    const wrapper = mountAssistant()
+    await wrapper.find('.ai-float-button').trigger('click')
+    await nextTick()
+
+    const vm = wrapper.vm as unknown as { userInput: string }
+    vm.userInput = '/badcommand'
+
+    const chatPanel = wrapper.findComponent(AssistantChatPanelStub)
+    await chatPanel.find('.send-btn').trigger('click')
+    await flushPromises()
+    await flushPromises()
+
+    // The error message should be appended to messages
+    const messages = chatPanel.props('messages') as AssistantMessage[]
+    const assistantMsgs = messages.filter(m => m.role === 'assistant')
+    expect(assistantMsgs.some(m => m.content.includes('执行命令失败'))).toBe(true)
+  })
+
+  it('processCommand with command type output adds the output as assistant message', async () => {
+    mockRouteAssistantInput.mockResolvedValueOnce({ type: 'command', output: '设定概览结果' })
+
+    const wrapper = mountAssistant()
+    await wrapper.find('.ai-float-button').trigger('click')
+    await nextTick()
+
+    const vm = wrapper.vm as unknown as { userInput: string }
+    vm.userInput = '查看当前设定'
+
+    const chatPanel = wrapper.findComponent(AssistantChatPanelStub)
+    await chatPanel.find('.send-btn').trigger('click')
+    await flushPromises()
+    await flushPromises()
+
+    const messages = chatPanel.props('messages') as AssistantMessage[]
+    const assistantMsgs = messages.filter(m => m.role === 'assistant')
+    expect(assistantMsgs.some(m => m.content === '设定概览结果')).toBe(true)
+  })
+
+  // --- clearChat resets messages ---
+
+  it('clearChat resets messages to initial welcome content', async () => {
+    const wrapper = mountAssistant()
+    await wrapper.find('.ai-float-button').trigger('click')
+    await nextTick()
+
+    const chatPanel = wrapper.findComponent(AssistantChatPanelStub)
+    const messagesBefore = chatPanel.props('messages') as AssistantMessage[]
+    expect(messagesBefore).toHaveLength(1)
+
+    // Clear
+    await chatPanel.find('.clear-btn').trigger('click')
+    await nextTick()
+
+    // createInitialAssistantMessages should have been called again
+    expect(createInitialAssistantMessages).toHaveBeenCalled()
+
+    // Messages should still have 1 initial message (after reset)
+    const messagesAfter = chatPanel.props('messages') as AssistantMessage[]
+    expect(messagesAfter).toHaveLength(1)
+    expect(messagesAfter[0].role).toBe('assistant')
+    expect(messagesAfter[0].content).toBe('你好！我是AI创作助手。')
   })
 })

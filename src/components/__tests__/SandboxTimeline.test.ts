@@ -91,6 +91,7 @@ const MagicStickStub = { name: 'MagicStick', template: '<span class="icon-magic-
 
 import SandboxTimeline from '@/components/Sandbox/SandboxTimeline.vue'
 import { useProjectStore } from '@/stores/project'
+import { useSandboxStore } from '@/stores/sandbox'
 import { ElMessage } from 'element-plus'
 
 // --- Mount helper ---
@@ -473,5 +474,243 @@ describe('SandboxTimeline', () => {
 
     // No active-action-area should be visible
     expect(wrapper.findAll('.active-action-area')).toHaveLength(0)
+  })
+
+  // ===== Header Text =====
+
+  it('renders the volume header with title and description text', () => {
+    const chapters = [
+      createMockChapterOutline({ chapterId: 'ch-1', title: '第一章', status: 'planned' }),
+    ]
+    seedProject(chapters)
+    const wrapper = mountTimeline()
+
+    expect(wrapper.text()).toContain('当前大纲时间线 (状态流)')
+    expect(wrapper.text()).toContain('在这里可以基于宏观剧情线推演后续章节大纲')
+  })
+
+  // ===== All Planned Chapters =====
+
+  it('marks the first planned chapter as active when no completed chapters exist', () => {
+    const chapters = [
+      createMockChapterOutline({ chapterId: 'ch-1', title: '第一章', status: 'planned' }),
+      createMockChapterOutline({ chapterId: 'ch-2', title: '第二章', status: 'planned' }),
+      createMockChapterOutline({ chapterId: 'ch-3', title: '第三章', status: 'planned' }),
+    ]
+    seedProject(chapters)
+    const wrapper = mountTimeline()
+
+    const nodes = wrapper.findAll('.outline-node')
+    expect(nodes[0].classes()).toContain('active')
+    expect(nodes[1].classes()).toContain('pending')
+    expect(nodes[2].classes()).toContain('pending')
+
+    // Only the first node has action buttons
+    expect(wrapper.findAll('.active-action-area')).toHaveLength(1)
+  })
+
+  // ===== Timeline ARIA =====
+
+  it('renders the timeline with role="list" and aria-label', () => {
+    const chapters = [
+      createMockChapterOutline({ chapterId: 'ch-1', title: '第一章', status: 'completed' }),
+    ]
+    seedProject(chapters)
+    const wrapper = mountTimeline()
+
+    const timeline = wrapper.find('.el-timeline-stub')
+    expect(timeline.attributes('role')).toBe('list')
+    expect(timeline.attributes('aria-label')).toBe('大纲时间线')
+  })
+
+  // ===== State Change Display (Deterministic) =====
+
+  it('renders state change items for active node when random > 0.5', () => {
+    const randomSpy = vi.spyOn(Math, 'random').mockReturnValue(0.8)
+
+    const chapters = [
+      createMockChapterOutline({ chapterId: 'ch-1', title: '第一章', status: 'writing' }),
+    ]
+    seedProject(chapters)
+    const wrapper = mountTimeline()
+
+    // Debug: check what actually rendered
+    const html = wrapper.html()
+    // eslint-disable-next-line no-console
+    console.log('DEBUG rendered HTML:', html.substring(0, 2000))
+
+    expect(Math.random()).toBe(0.8)
+
+    expect(wrapper.find('.automated-state-changes').exists()).toBe(true)
+    expect(wrapper.find('.state-change-header').text()).toContain('正文落地，已触发底层引擎全盘同步')
+    expect(wrapper.find('.state-change-item').exists()).toBe(true)
+    expect(wrapper.find('.state-entity').text()).toContain('[系统]')
+    expect(wrapper.find('.state-diff').text()).toContain('完成')
+
+    randomSpy.mockRestore()
+  })
+
+  it('hides state change items for active node when random <= 0.5', () => {
+    const randomSpy = vi.spyOn(Math, 'random').mockReturnValue(0.3)
+
+    const chapters = [
+      createMockChapterOutline({ chapterId: 'ch-1', title: '第一章', status: 'writing' }),
+    ]
+    seedProject(chapters)
+    const wrapper = mountTimeline()
+
+    expect(wrapper.find('.automated-state-changes').exists()).toBe(false)
+
+    randomSpy.mockRestore()
+  })
+
+  // ===== Predicted States Display (Deterministic) =====
+
+  it('renders predicted states on pending node when random > 0.5', () => {
+    let randomSpy: MockInstance
+    randomSpy = vi.spyOn(Math, 'random').mockReturnValue(0.8)
+
+    const chapters = [
+      createMockChapterOutline({ chapterId: 'ch-1', title: '第一章', status: 'completed' }),
+      createMockChapterOutline({ chapterId: 'ch-2', title: '第二章', status: 'planned' }),
+      createMockChapterOutline({ chapterId: 'ch-3', title: '第三章', status: 'planned' }),
+    ]
+    seedProject(chapters)
+    const wrapper = mountTimeline()
+
+    // ch-3 is pending (not active), so predicted states should render
+    const predictedStates = wrapper.findAll('.predicted-states')
+    expect(predictedStates.length).toBeGreaterThanOrEqual(1)
+    expect(wrapper.text()).toContain('预测状态')
+    expect(wrapper.text()).toContain('可能产生物品或状态变更')
+
+    randomSpy.mockRestore()
+  })
+
+  it('hides predicted states on pending nodes when random <= 0.5', () => {
+    let randomSpy: MockInstance
+    randomSpy = vi.spyOn(Math, 'random').mockReturnValue(0.3)
+
+    const chapters = [
+      createMockChapterOutline({ chapterId: 'ch-1', title: '第一章', status: 'completed' }),
+      createMockChapterOutline({ chapterId: 'ch-2', title: '第二章', status: 'planned' }),
+      createMockChapterOutline({ chapterId: 'ch-3', title: '第三章', status: 'planned' }),
+    ]
+    seedProject(chapters)
+    const wrapper = mountTimeline()
+
+    expect(wrapper.findAll('.predicted-states')).toHaveLength(0)
+
+    randomSpy.mockRestore()
+  })
+
+  // ===== Enter Key on Active Node =====
+
+  it('triggers executeChapter when Enter is pressed on the active node', async () => {
+    vi.useFakeTimers()
+    const chapters = [
+      createMockChapterOutline({ chapterId: 'ch-1', title: '第一章', status: 'completed' }),
+      createMockChapterOutline({ chapterId: 'ch-2', title: '第二章', status: 'planned' }),
+    ]
+    seedProject(chapters)
+    const wrapper = mountTimeline()
+
+    const activeNode = wrapper.findAll('.outline-node')[1] // ch-2 is active
+    await activeNode.trigger('keydown.enter')
+
+    expect(ElMessage.info).toHaveBeenCalledWith(expect.stringContaining('正在生成并同步'))
+  })
+
+  it('does not trigger executeChapter when Enter is pressed on a non-active node', async () => {
+    const chapters = [
+      createMockChapterOutline({ chapterId: 'ch-1', title: '第一章', status: 'completed' }),
+      createMockChapterOutline({ chapterId: 'ch-2', title: '第二章', status: 'planned' }),
+    ]
+    seedProject(chapters)
+    const wrapper = mountTimeline()
+
+    const completedNode = wrapper.findAll('.outline-node')[0] // ch-1 is completed
+    await completedNode.trigger('keydown.enter')
+
+    expect(ElMessage.info).not.toHaveBeenCalled()
+  })
+
+  // ===== Execute Chapter Post-Completion =====
+
+  it('updates sandboxStore.currentChapter after executeChapter completes', async () => {
+    vi.useFakeTimers()
+    const chapters = [
+      createMockChapterOutline({ chapterId: 'ch-1', title: '第一章', status: 'planned' }),
+    ]
+    seedProject(chapters)
+    const sandboxStore = useSandboxStore()
+    mountTimeline()
+
+    // Trigger executeChapter via the AI generate button
+    const wrapper = mountTimeline()
+    const generateBtn = wrapper.findAll('.el-button-stub').find((b) => b.text().includes('AI 生成'))
+    await generateBtn!.trigger('click')
+
+    // Fast-forward the 2-second timeout
+    vi.advanceTimersByTime(2500)
+    await flushPromises()
+    await nextTick()
+
+    // currentChapter should have been set to 1 (the chapter number of ch-1)
+    expect(sandboxStore.currentChapter).toBe(1)
+    expect(ElMessage.success).toHaveBeenCalledWith('正文生成与状态同步完成！')
+  })
+
+  // ===== Timer Cleanup on Unmount =====
+
+  it('clears generation timers on unmount to prevent memory leaks', () => {
+    vi.useFakeTimers()
+    const clearTimeoutSpy = vi.spyOn(globalThis, 'clearTimeout')
+
+    const chapters = [
+      createMockChapterOutline({ chapterId: 'ch-1', title: '第一章', status: 'planned' }),
+    ]
+    seedProject(chapters)
+    const wrapper = mountTimeline()
+
+    // Trigger executeChapter to create a timer
+    const generateBtn = wrapper.findAll('.el-button-stub').find((b) => b.text().includes('AI 生成'))
+    generateBtn!.trigger('click')
+
+    wrapper.unmount()
+
+    // clearTimeout should have been called during onUnmounted cleanup
+    expect(clearTimeoutSpy).toHaveBeenCalled()
+
+    clearTimeoutSpy.mockRestore()
+  })
+
+  // ===== Chapter Status Text for Planned Status =====
+
+  it('displays raw status text for planned chapters with no special mapping', () => {
+    const chapters = [
+      createMockChapterOutline({ chapterId: 'ch-1', title: '第一章', status: 'planned' }),
+    ]
+    seedProject(chapters)
+    const wrapper = mountTimeline()
+
+    // 'planned' has no mapping in getChapterStatusText, so it returns the raw string
+    expect(wrapper.find('.outline-status').text()).toContain('planned')
+  })
+
+  // ===== Single Chapter Edge Case =====
+
+  it('handles a single chapter correctly as active node with actions', () => {
+    const chapters = [
+      createMockChapterOutline({ chapterId: 'ch-1', title: '独章', status: 'planned' }),
+    ]
+    seedProject(chapters)
+    const wrapper = mountTimeline()
+
+    expect(wrapper.findAll('.outline-node')).toHaveLength(1)
+    expect(wrapper.findAll('.outline-node')[0].classes()).toContain('active')
+    expect(wrapper.findAll('.active-action-area')).toHaveLength(1)
+    expect(wrapper.text()).toContain('AI 生成正文并全盘同步状态')
+    expect(wrapper.text()).toContain('手动撰写')
   })
 })

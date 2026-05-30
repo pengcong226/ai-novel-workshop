@@ -388,4 +388,195 @@ describe('WritingDashboard', () => {
     // With enabled provider, should show 已配置
     expect(wrapper.text()).toContain('已配置')
   })
+
+  // -----------------------------------------------------------------------
+  // 9. Next chapter section
+  // -----------------------------------------------------------------------
+
+  it('shows "all finalized" empty state when nextChapter is undefined', () => {
+    buildWritingDashboardMock.mockReturnValue(makeSummary({ nextChapter: undefined }))
+
+    const { wrapper } = mountDashboard()
+
+    expect(wrapper.text()).toContain('继续写作')
+    expect(wrapper.text()).toContain('所有章节都已定稿')
+  })
+
+  it('shows next chapter title and preview when available', () => {
+    const nextChapter = {
+      id: 'ch-next',
+      number: 2,
+      title: '发展',
+      content: '第二章的正文内容...',
+      summary: '主角遇到了新的挑战',
+      wordCount: 15000,
+      status: 'draft' as const,
+      generatedBy: 'ai' as const,
+      generationTime: new Date(),
+      checkpoints: [],
+    }
+
+    buildWritingDashboardMock.mockReturnValue(makeSummary({ nextChapter }))
+
+    const { wrapper } = mountDashboard()
+
+    expect(wrapper.text()).toContain('下一章')
+    expect(wrapper.text()).toContain('第2章 发展')
+    expect(wrapper.text()).toContain('主角遇到了新的挑战')
+    expect(wrapper.text()).toContain('继续写作')
+  })
+
+  // -----------------------------------------------------------------------
+  // 10. Pipeline running state
+  // -----------------------------------------------------------------------
+
+  it('shows "运行中" in pipeline when pipelineRunning is true', () => {
+    const { wrapper, aiStore } = mountDashboard()
+    ;(aiStore as any).pipelineRunning = true
+    // pipelineRunning is read as a computed from the store, so re-mount
+    const pinia = createTestPinia()
+    const ps = useProjectStore()
+    const ai = useAIStore()
+    ;(ps as any).currentProject = createMockProject({
+      title: 'Test Novel',
+      chapters: [],
+      config: createMockProjectConfig({
+        providers: [
+          { id: 'p1', name: 'OpenAI', type: 'openai' as const, baseUrl: 'https://api.openai.com', apiKey: '', isEnabled: true, models: [{ id: 'm1', name: 'gpt-4', type: 'all' as const, maxTokens: 4096, costPerInputToken: 0.01, costPerOutputToken: 0.03, isEnabled: true }] },
+        ],
+      }),
+    })
+    ;(ai as any).pipelineRunning = true
+
+    const w = mount(WritingDashboard, {
+      global: { plugins: [pinia], stubs },
+    })
+
+    expect(w.text()).toContain('运行中')
+  })
+
+  it('shows agent count when pipeline is not running', () => {
+    buildWritingDashboardMock.mockReturnValue(makeSummary({
+      chapterCount: 0,
+      completedChapterCount: 0,
+      statusCounts: { draft: 0, revised: 0, final: 0 },
+    }))
+
+    const { wrapper } = mountDashboard()
+
+    // When not running, shows N/M 已启用 pattern
+    expect(wrapper.text()).toContain('已启用')
+  })
+
+  // -----------------------------------------------------------------------
+  // 11. Storage display
+  // -----------------------------------------------------------------------
+
+  it('shows "检测中..." when storage estimate is not yet loaded', () => {
+    const { wrapper } = mountDashboard()
+
+    // estimateStorageUsage resolves to null in the mock, so storageEstimate stays null
+    expect(wrapper.text()).toContain('检测中...')
+  })
+
+  // -----------------------------------------------------------------------
+  // 12. Continue-writing emit from next chapter card
+  // -----------------------------------------------------------------------
+
+  it('emits continue-writing when next chapter card button is clicked', async () => {
+    const nextChapter = {
+      id: 'ch-next',
+      number: 3,
+      title: '高潮',
+      content: '',
+      summary: '决战时刻',
+      wordCount: 15000,
+      status: 'draft' as const,
+      generatedBy: 'manual' as const,
+      generationTime: new Date(),
+      checkpoints: [],
+    }
+
+    buildWritingDashboardMock.mockReturnValue(makeSummary({ nextChapter }))
+
+    const { wrapper } = mountDashboard()
+
+    // The next-chapter section has a "继续写作" button
+    const nextChapterCard = wrapper.findAll('.stub-card').find(card =>
+      card.text().includes('继续写作') && card.text().includes('第3章 高潮'),
+    )
+    expect(nextChapterCard).toBeDefined()
+
+    const continueBtns = nextChapterCard!.findAll('.stub-btn')
+    const btn = continueBtns.find(b => b.text().includes('继续写作'))
+    expect(btn).toBeDefined()
+
+    await btn!.trigger('click')
+    expect(wrapper.emitted('continue-writing')).toBeTruthy()
+  })
+
+  // -----------------------------------------------------------------------
+  // 13. Emit interactions from quick actions
+  // -----------------------------------------------------------------------
+
+  it('emits open-sandbox from quick actions button', async () => {
+    const { wrapper } = mountDashboard()
+
+    const quickSection = wrapper.find('.quick-actions')
+    const buttons = quickSection.findAll('.stub-btn')
+    const sandboxBtn = buttons.find(b => b.text().includes('设定沙盘'))
+
+    await sandboxBtn!.trigger('click')
+    expect(wrapper.emitted('open-sandbox')).toHaveLength(1)
+  })
+
+  it('emits open-agents from quick actions button', async () => {
+    const { wrapper } = mountDashboard()
+
+    const quickSection = wrapper.find('.quick-actions')
+    const buttons = quickSection.findAll('.stub-btn')
+    const agentsBtn = buttons.find(b => b.text().includes('Agent 控制台'))
+
+    await agentsBtn!.trigger('click')
+    expect(wrapper.emitted('open-agents')).toHaveLength(1)
+  })
+
+  it('emits open-config from quick actions button', async () => {
+    const { wrapper } = mountDashboard()
+
+    const quickSection = wrapper.find('.quick-actions')
+    const buttons = quickSection.findAll('.stub-btn')
+    const configBtn = buttons.find(b => b.text().includes('模型配置'))
+
+    await configBtn!.trigger('click')
+    expect(wrapper.emitted('open-config')).toHaveLength(1)
+  })
+
+  // -----------------------------------------------------------------------
+  // 14. Create first chapter button in empty recent chapters
+  // -----------------------------------------------------------------------
+
+  it('emits create-chapter when "创建第一章" button in empty state is clicked', async () => {
+    buildWritingDashboardMock.mockReturnValue(makeSummary({
+      recentChapters: [],
+      chapterCount: 0,
+      completedChapterCount: 0,
+      statusCounts: { draft: 0, revised: 0, final: 0 },
+    }))
+
+    const { wrapper } = mountDashboard()
+
+    // There are two empty states: "继续写作" card and "最近章节" card.
+    // Find the one with "暂无章节" text (the recent chapters empty state).
+    const emptySections = wrapper.findAll('.stub-empty')
+    const recentEmpty = emptySections.find(e => e.text().includes('暂无章节'))
+    expect(recentEmpty).toBeDefined()
+
+    const createBtn = recentEmpty!.find('.stub-btn')
+    expect(createBtn.exists()).toBe(true)
+    expect(createBtn.text()).toContain('创建第一章')
+
+    await createBtn.trigger('click')
+    expect(wrapper.emitted('create-chapter')).toBeTruthy()
+  })
 })

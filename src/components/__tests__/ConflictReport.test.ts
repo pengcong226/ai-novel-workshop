@@ -497,7 +497,87 @@ describe('ConflictReport.vue', () => {
   })
 
   // -----------------------------------------------------------------------
-  // 14. Evidence and suggestions rendering
+  // 15. Export report calls exportConflictsAsMarkdown and triggers download
+  // -----------------------------------------------------------------------
+
+  it('exports markdown report and creates download link', async () => {
+    const { exportConflictsAsMarkdown } = await import('@/utils/conflictDetector')
+    const conflicts = [makeConflict({ id: 'c1', title: 'Exported Conflict' })]
+    mockDetect.mockResolvedValue(makeResult(conflicts))
+
+    const wrapper = mountComponent()
+    await wrapper.findAll('.stub-elbutton.primary')[0].trigger('click')
+    await flushPromises()
+    await nextTick()
+
+    // Invoke the export function directly (stub button disabled state
+    // does not prevent vm method from running)
+    ;(wrapper.vm as any).exportReport()
+    await nextTick()
+
+    expect(exportConflictsAsMarkdown).toHaveBeenCalledTimes(1)
+    expect(URL.createObjectURL).toHaveBeenCalled()
+    expect(ElMessage.success).toHaveBeenCalledWith('报告已导出')
+  })
+
+  // -----------------------------------------------------------------------
+  // 16. Detection error shows error message
+  // -----------------------------------------------------------------------
+
+  it('shows error message when detection throws', async () => {
+    mockDetect.mockRejectedValueOnce(new Error('Detection engine failure'))
+
+    const wrapper = mountComponent()
+    await wrapper.findAll('.stub-elbutton.primary')[0].trigger('click')
+    await flushPromises()
+
+    expect(ElMessage.error).toHaveBeenCalledWith('冲突检测失败：Detection engine failure')
+    // Detecting flag should be reset
+    expect((wrapper.vm as any).detecting).toBe(false)
+  })
+
+  // -----------------------------------------------------------------------
+  // 18. Config save persists to localStorage and closes dialog
+  // -----------------------------------------------------------------------
+
+  it('saves config to localStorage and closes dialog on "保存配置"', async () => {
+    const wrapper = mountComponent()
+
+    // Open config dialog via vm
+    ;(wrapper.vm as any).showConfigDialog = true
+    await nextTick()
+
+    // Invoke saveConfig
+    ;(wrapper.vm as any).saveConfig()
+    await nextTick()
+
+    expect(localStorage.getItem('conflict-detection-config')).toBeTruthy()
+    expect((wrapper.vm as any).showConfigDialog).toBe(false)
+    expect(ElMessage.success).toHaveBeenCalledWith('配置已保存')
+  })
+
+  // -----------------------------------------------------------------------
+  // 19. Config load from localStorage on mount
+  // -----------------------------------------------------------------------
+
+  it('loads saved config overrides from localStorage on mount', () => {
+    const savedConfig = {
+      personalityChangeThreshold: 0.3,
+      enableCharacterConflicts: false,
+    }
+    localStorage.setItem('conflict-detection-config', JSON.stringify(savedConfig))
+
+    const wrapper = mountComponent()
+
+    const cfg = (wrapper.vm as any).config
+    expect(cfg.personalityChangeThreshold).toBe(0.3)
+    expect(cfg.enableCharacterConflicts).toBe(false)
+    // Other defaults should still be present
+    expect(cfg.enableTimelineConflicts).toBe(true)
+  })
+
+  // -----------------------------------------------------------------------
+  // 20. Evidence and suggestions rendering
   // -----------------------------------------------------------------------
 
   it('renders evidences and suggestions for each conflict', async () => {

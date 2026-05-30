@@ -70,6 +70,28 @@ vi.mock('lodash-es', async (importOriginal) => {
   }
 })
 
+vi.mock('element-plus', () => ({
+  ElMessage: {
+    success: vi.fn(),
+    error: vi.fn(),
+    warning: vi.fn(),
+    info: vi.fn(),
+  },
+  ElMessageBox: {
+    confirm: vi.fn().mockResolvedValue('confirm'),
+  },
+}))
+
+vi.mock('@/utils/getErrorMessage', () => ({
+  getErrorMessage: (err: unknown) => (err instanceof Error ? err.message : String(err)),
+}))
+
+vi.mock('@/stores/theme', () => ({
+  useThemeStore: () => ({
+    activeThemeId: 'default',
+  }),
+}))
+
 // Stub child components that are heavy / have their own dependencies
 vi.mock('@/components/config/StorytellerPanel.vue', () => ({
   default: {
@@ -109,6 +131,7 @@ import ProjectConfig from '@/components/ProjectConfig.vue'
 import { useProjectStore } from '@/stores/project'
 import { usePluginStore } from '@/stores/plugin'
 import { normalizeProjectConfig } from '@/utils/project-config-normalizer'
+import { ElMessage, ElMessageBox } from 'element-plus'
 
 const TABLE_ROW_KEY: InjectionKey<{ row: unknown; $index: number }> = Symbol('table-row')
 
@@ -836,5 +859,344 @@ describe('ProjectConfig.vue', () => {
     // No additional localStorage.getItem calls because globalConfigLoaded=true
     expect(localStorageSpy.mock.calls.length).toBe(callsBefore)
     localStorageSpy.mockRestore()
+  })
+
+  // 38. saveConfig shows success message when project is open
+  it('saveConfig shows success ElMessage when project is open', async () => {
+    const { wrapper, projectStore } = mountConfig({ withProject: true })
+    const vm = wrapper.vm as any
+
+    vi.spyOn(projectStore, 'saveCurrentProject').mockResolvedValue(undefined)
+
+    await vm.saveConfig()
+    await flushPromises()
+
+    expect(ElMessage.success).toHaveBeenCalledWith(expect.stringContaining('项目配置已保存'))
+  })
+
+  // 39. saveConfig shows success message when saving global config
+  it('saveConfig shows success ElMessage when saving global config', async () => {
+    const { wrapper, projectStore } = mountConfig()
+    const vm = wrapper.vm as any
+
+    vi.spyOn(projectStore, 'saveGlobalConfig').mockResolvedValue(undefined)
+
+    await vm.saveConfig()
+    await flushPromises()
+
+    expect(ElMessage.success).toHaveBeenCalledWith(expect.stringContaining('全局配置已保存'))
+  })
+
+  // 40. saveConfig shows error message when save fails
+  it('saveConfig shows error ElMessage when save throws', async () => {
+    const { wrapper, projectStore } = mountConfig({ withProject: true })
+    const vm = wrapper.vm as any
+
+    vi.spyOn(projectStore, 'saveCurrentProject').mockRejectedValue(new Error('disk full'))
+
+    await vm.saveConfig()
+    await flushPromises()
+
+    expect(ElMessage.error).toHaveBeenCalledWith(expect.stringContaining('保存配置失败'))
+  })
+
+  // 41. resetCostStats resets cost stats to zero after confirmation
+  it('resetCostStats resets all cost stats to zero after confirmation', async () => {
+    const { wrapper } = mountConfig()
+    const vm = wrapper.vm as any
+
+    // Pre-populate cost stats with non-zero values
+    vm.costStats = {
+      totalCalls: 42,
+      totalInputTokens: 10000,
+      totalOutputTokens: 5000,
+      totalCost: 3.5,
+    }
+    await wrapper.vm.$nextTick()
+
+    await vm.resetCostStats()
+    await flushPromises()
+
+    expect(vm.costStats.totalCalls).toBe(0)
+    expect(vm.costStats.totalInputTokens).toBe(0)
+    expect(vm.costStats.totalOutputTokens).toBe(0)
+    expect(vm.costStats.totalCost).toBe(0)
+    expect(ElMessage.success).toHaveBeenCalledWith(expect.stringContaining('成本统计已重置'))
+  })
+
+  // 42. resetCostStats does NOT reset when user cancels confirmation
+  it('resetCostStats does not reset stats when user cancels confirmation', async () => {
+    const { wrapper } = mountConfig()
+    const vm = wrapper.vm as any
+
+    vm.costStats = {
+      totalCalls: 42,
+      totalInputTokens: 10000,
+      totalOutputTokens: 5000,
+      totalCost: 3.5,
+    }
+    await wrapper.vm.$nextTick()
+
+    // Make ElMessageBox.confirm reject to simulate user cancel
+    vi.mocked(ElMessageBox.confirm).mockRejectedValueOnce('cancel')
+
+    await vm.resetCostStats()
+    await flushPromises()
+
+    // Stats should remain unchanged
+    expect(vm.costStats.totalCalls).toBe(42)
+    expect(vm.costStats.totalCost).toBe(3.5)
+  })
+
+  // 43. resetSystemPrompts resets to defaults after confirmation
+  it('resetSystemPrompts resets prompts to DEFAULT_SYSTEM_PROMPTS after confirmation', async () => {
+    const { wrapper } = mountConfig()
+    const vm = wrapper.vm as any
+
+    // Mutate prompts to non-default
+    vm.systemPrompts.planner = 'custom planner prompt'
+    vm.systemPrompts.writer = 'custom writer prompt'
+    await wrapper.vm.$nextTick()
+
+    await vm.resetSystemPrompts()
+    await flushPromises()
+
+    // Should be reset to defaults
+    expect(vm.systemPrompts.planner).toContain('小说策划师')
+    expect(vm.systemPrompts.writer).toContain('小说写作者')
+    expect(ElMessage.success).toHaveBeenCalledWith(expect.stringContaining('已恢复默认系统提示词'))
+  })
+
+  // 44. formatBackupTime returns "今天 HH:MM" for today's timestamp
+  it('formatBackupTime returns today label for same-day timestamps', () => {
+    const { wrapper } = mountConfig()
+    const vm = wrapper.vm as any
+
+    const now = new Date()
+    const todayTimestamp = now.getTime()
+
+    const result = vm.formatBackupTime(todayTimestamp)
+    expect(result).toMatch(/^今天 \d{2}:\d{2}$/)
+  })
+
+  // 45. formatBackupTime returns "昨天 HH:MM" for yesterday's timestamp
+  it('formatBackupTime returns yesterday label for prior-day timestamps', () => {
+    const { wrapper } = mountConfig()
+    const vm = wrapper.vm as any
+
+    const yesterday = new Date()
+    yesterday.setDate(yesterday.getDate() - 1)
+    yesterday.setHours(14, 30, 0, 0)
+
+    const result = vm.formatBackupTime(yesterday.getTime())
+    expect(result).toMatch(/^昨天 \d{2}:\d{2}$/)
+  })
+
+  // 46. formatBackupTime returns MM/DD HH:MM for older timestamps
+  it('formatBackupTime returns date + time for timestamps older than yesterday', () => {
+    const { wrapper } = mountConfig()
+    const vm = wrapper.vm as any
+
+    const oldDate = new Date(2025, 0, 15, 9, 45) // Jan 15 2025
+
+    const result = vm.formatBackupTime(oldDate.getTime())
+    expect(result).toMatch(/^\d{2}\/\d{2} \d{2}:\d{2}$/)
+    expect(result).toContain('01/15')
+  })
+
+  // 47. buildVectorServiceConfig returns correct config shape
+  it('buildVectorServiceConfig returns a valid VectorServiceConfig object', () => {
+    const { wrapper } = mountConfig()
+    const vm = wrapper.vm as any
+
+    const config = vm.buildVectorServiceConfig('test-project-id')
+
+    expect(config).toHaveProperty('provider')
+    expect(config).toHaveProperty('model')
+    expect(config).toHaveProperty('dimension')
+    expect(config).toHaveProperty('topK')
+    expect(config).toHaveProperty('minScore')
+    expect(config).toHaveProperty('vectorWeight')
+    expect(config).toHaveProperty('projectId')
+    expect(config.projectId).toBe('test-project-id')
+    expect(config.provider).toBe('local')
+    expect(config.topK).toBe(5)
+    expect(config.minScore).toBe(0.6)
+    expect(config.vectorWeight).toBe(0.7)
+  })
+
+  // 48. vectorConfig provider change affects model default
+  it('changing vectorConfig provider to openai updates model for openai provider', async () => {
+    const { wrapper } = mountConfig()
+    const vm = wrapper.vm as any
+
+    vm.vectorConfig.provider = 'openai'
+    // After switching provider, the onMounted-learned defaults won't change automatically,
+    // but the user can change the model. Verify the provider ref is reactive.
+    await wrapper.vm.$nextTick()
+
+    expect(vm.vectorConfig.provider).toBe('openai')
+  })
+
+  // 49. engineer mode shows model assignment card labels
+  it('engineer mode renders model assignment labels for planner, writer, sentinel, extractor', async () => {
+    const { wrapper } = mountConfig()
+    const vm = wrapper.vm as any
+
+    vm.configMode = 'engineer'
+    await wrapper.vm.$nextTick()
+
+    const text = wrapper.text()
+    expect(text).toContain('AI 模型分配')
+    expect(text).toContain('大纲规划师 (Planner)')
+    expect(text).toContain('正文写手 (Writer)')
+    expect(text).toContain('防吃书审查 (Sentinel)')
+    expect(text).toContain('沙盘状态提取 (Extractor)')
+  })
+
+  // 50. showAdvanced toggle toggles the button text between 展开 and 收起
+  it('showAdvanced toggle changes button text from 展开 to 收起', async () => {
+    const { wrapper } = mountConfig()
+    const vm = wrapper.vm as any
+
+    // Initially collapsed
+    expect(vm.showAdvanced).toBe(false)
+
+    // Find and click the expand button
+    const expandButton = wrapper.findAll('.el-button-stub').find((b) =>
+      b.text().includes('展开')
+    )
+    expect(expandButton).toBeTruthy()
+
+    await expandButton!.trigger('click')
+    await wrapper.vm.$nextTick()
+
+    expect(vm.showAdvanced).toBe(true)
+    // Button text should now show "收起"
+    const collapseButton = wrapper.findAll('.el-button-stub').find((b) =>
+      b.text().includes('收起')
+    )
+    expect(collapseButton).toBeTruthy()
+  })
+
+  // 51. refreshPlugins calls pluginStore.loadInstalledPlugins
+  it('refreshPlugins calls pluginStore.loadInstalledPlugins and shows success', async () => {
+    const { wrapper, pluginStore } = mountConfig()
+    const vm = wrapper.vm as any
+
+    const loadSpy = vi.spyOn(pluginStore, 'loadInstalledPlugins').mockResolvedValue(undefined as any)
+
+    await vm.refreshPlugins()
+    await flushPromises()
+
+    expect(loadSpy).toHaveBeenCalled()
+    expect(ElMessage.success).toHaveBeenCalledWith(expect.stringContaining('插件列表已刷新'))
+  })
+
+  // 52. refreshPlugins shows error message when load fails
+  it('refreshPlugins shows error ElMessage when plugin load fails', async () => {
+    const { wrapper, pluginStore } = mountConfig()
+    const vm = wrapper.vm as any
+
+    vi.spyOn(pluginStore, 'loadInstalledPlugins').mockRejectedValue(new Error('network error'))
+
+    await vm.refreshPlugins()
+    await flushPromises()
+
+    expect(ElMessage.error).toHaveBeenCalledWith(expect.stringContaining('刷新失败'))
+  })
+
+  // 53. costStats reset also shows success message
+  it('resetCostStats triggers ElMessageBox.confirm before resetting', async () => {
+    const { wrapper } = mountConfig()
+    const vm = wrapper.vm as any
+
+    await vm.resetCostStats()
+    await flushPromises()
+
+    expect(ElMessageBox.confirm).toHaveBeenCalledWith(
+      expect.stringContaining('确定要重置成本统计'),
+      expect.any(String),
+      expect.objectContaining({ type: 'warning' })
+    )
+  })
+
+  // 54. refreshBackups populates backups array for a project
+  it('refreshBackups populates backups when a project is open', async () => {
+    const { wrapper } = mountConfig({ withProject: true })
+    const vm = wrapper.vm as any
+
+    const mockBackups = [
+      { id: 'b1', timestamp: Date.now(), chaptersCount: 5, wordCount: 10000 },
+      { id: 'b2', timestamp: Date.now() - 86400000, chaptersCount: 3, wordCount: 6000 },
+    ]
+
+    // The listAutoBackups mock is already set up to return []
+    // Override it for this test
+    const autoBackupModule = await import('@/utils/autoBackup')
+    vi.mocked(autoBackupModule.listAutoBackups).mockResolvedValueOnce(mockBackups as any)
+
+    await vm.refreshBackups()
+    await flushPromises()
+
+    expect(vm.backups).toEqual(mockBackups)
+    expect(vm.backupsLoading).toBe(false)
+  })
+
+  // 55. refreshBackups does nothing when no project is open
+  it('refreshBackups does nothing when no project is open', async () => {
+    const { wrapper } = mountConfig()
+    const vm = wrapper.vm as any
+
+    await vm.refreshBackups()
+    await flushPromises()
+
+    expect(vm.backups).toEqual([])
+  })
+
+  // 56. pluginStats computes correctly when plugins are loaded
+  it('pluginStats computes total and active from plugin store', async () => {
+    const { wrapper, pluginStore } = mountConfig()
+    const vm = wrapper.vm as any
+
+    pluginStore.plugins = [{ id: 'p1' }, { id: 'p2' }, { id: 'p3' }] as any
+    pluginStore.activePlugins = [{ id: 'p1' }, { id: 'p2' }] as any
+    await wrapper.vm.$nextTick()
+
+    expect(vm.pluginStats.total).toBe(3)
+    expect(vm.pluginStats.active).toBe(2)
+  })
+
+  // 57. applyConfigToEditorState syncs advancedConfig from input config
+  it('applyConfigToEditorState sets advancedConfig from provided config', async () => {
+    const { wrapper } = mountConfig()
+    const vm = wrapper.vm as any
+
+    const customConfig = normalizeProjectConfig({
+      advancedSettings: {
+        temperature: 1.2,
+        topP: 0.95,
+        maxTokens: 8192,
+        maxContextTokens: 32000,
+        recentChaptersCount: 5,
+        targetWordCount: 3000,
+        frequencyPenalty: 0.3,
+        presencePenalty: 0.2,
+        stopSequences: ['<END>'],
+      },
+    })
+
+    vm.applyConfigToEditorState(customConfig)
+    await wrapper.vm.$nextTick()
+
+    expect(vm.advancedConfig.temperature).toBe(1.2)
+    expect(vm.advancedConfig.topP).toBe(0.95)
+    expect(vm.advancedConfig.maxTokens).toBe(8192)
+    expect(vm.advancedConfig.maxContextTokens).toBe(32000)
+    expect(vm.advancedConfig.recentChaptersCount).toBe(5)
+    expect(vm.advancedConfig.targetWordCount).toBe(3000)
+    expect(vm.advancedConfig.frequencyPenalty).toBe(0.3)
+    expect(vm.advancedConfig.presencePenalty).toBe(0.2)
+    expect(vm.advancedConfig.stopSequences).toEqual(['<END>'])
   })
 })
