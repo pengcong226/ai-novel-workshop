@@ -470,7 +470,7 @@ describe('Chapters.vue', () => {
     const chapterCards = wrapper.findAll('.chapter-card')
     for (const card of chapterCards) {
       const buttons = card.findAll('.stub-button')
-      const _buttonTexts = buttons.map(b => b.text())
+      const buttonTexts = buttons.map(b => b.text())
       expect(buttonTexts.some(t => t.includes('编辑'))).toBe(true)
       expect(buttonTexts.some(t => t.includes('预览'))).toBe(true)
     }

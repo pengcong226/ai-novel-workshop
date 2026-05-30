@@ -37,7 +37,7 @@ vi.mock('@/schemas/stateEventSchema', () => ({
   },
 }))
 
-// Mock localStorage
+// Mock localStorage using vi.stubGlobal for proper cleanup
 const localStorageMock = (() => {
   let store: Record<string, string> = {}
   return {
@@ -47,7 +47,7 @@ const localStorageMock = (() => {
     clear: vi.fn(() => { store = {} }),
   }
 })()
-Object.defineProperty(globalThis, 'localStorage', { value: localStorageMock })
+vi.stubGlobal('localStorage', localStorageMock)
 
 import { useSandboxStore } from '@/stores/sandbox'
 import type { Entity, StateEvent, EntityType, EntityImportance } from '@/types/sandbox'

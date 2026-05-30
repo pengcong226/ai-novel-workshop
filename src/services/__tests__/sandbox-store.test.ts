@@ -36,10 +36,7 @@ const localStorageMock = vi.hoisted(() => {
   }
 })
 
-Object.defineProperty(globalThis, 'localStorage', {
-  value: localStorageMock,
-  configurable: true,
-})
+vi.stubGlobal('localStorage', localStorageMock)
 
 function buildEntity(overrides: Partial<Entity> = {}): Entity {
   return {

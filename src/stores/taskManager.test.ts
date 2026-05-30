@@ -302,7 +302,7 @@ describe('taskManager store', () => {
 
     it('completedTasks returns success, error, and cancelled tasks', () => {
       const store = useTaskManager()
-      const _t1 = store.createTask({ title: 'Success' })
+      const t1 = store.createTask({ title: 'Success' })
       const t2 = store.createTask({ title: 'Error' })
       const t3 = store.createTask({ title: 'Cancelled' })
       const t4 = store.createTask({ title: 'Running' })

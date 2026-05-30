@@ -1,7 +1,12 @@
-import { describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { Chapter } from '@/types'
 
-// Mock external dependencies before importing the module under test
+// Mock external dependencies before importing the module under test.
+// The logger module creates a singleton LoggerManager at module scope that
+// reads from localStorage. If the mock is not in place before the module
+// loads, the real logger will try to access localStorage, which may have
+// been replaced by another test file's module-level code (e.g.
+// responseCache.test.ts or Sandbox.test.ts) — causing the import to fail.
 
 vi.mock('@/utils/novelImporter', () => ({
   importNovel: vi.fn(async () => ({
@@ -36,6 +41,10 @@ vi.mock('@/utils/logger', () => ({
     warn: vi.fn(),
     error: vi.fn(),
     debug: vi.fn(),
+    debugWithContext: vi.fn(),
+    infoWithContext: vi.fn(),
+    warnWithContext: vi.fn(),
+    errorWithContext: vi.fn(),
   }),
 }))
 
@@ -48,6 +57,12 @@ import {
   type ConflictInfo,
 } from '@/utils/importManager'
 import type { ParsedChapter } from '@/utils/chapterParser'
+
+// Ensure mock call state is clean between tests so that any future tests
+// that exercise the mocked modules do not inherit stale call records.
+afterEach(() => {
+  vi.restoreAllMocks()
+})
 
 // ---------------------------------------------------------------------------
 // Helpers

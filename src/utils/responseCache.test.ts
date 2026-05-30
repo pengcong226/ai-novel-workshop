@@ -1,8 +1,11 @@
-import { describe, expect, it, beforeAll, beforeEach } from 'vitest'
+import { afterAll, describe, expect, it, beforeAll, beforeEach, vi } from 'vitest'
 
 // Mock localStorage on globalThis BEFORE the module is dynamically imported.
 // The module-level `responseCache = new ResponseCache()` singleton runs during
 // import and calls `loadFromStorage()` which needs `localStorage`.
+//
+// Use vi.stubGlobal so the original is automatically restored when the file
+// finishes, preventing cross-file pollution in the Vitest thread pool.
 const store: Record<string, string> = {}
 const localStorageMock: Storage = {
   getItem: (key: string) => store[key] ?? null,
@@ -12,7 +15,11 @@ const localStorageMock: Storage = {
   get length() { return Object.keys(store).length },
   key: (index: number) => Object.keys(store)[index] ?? null,
 }
-globalThis.localStorage = localStorageMock
+vi.stubGlobal('localStorage', localStorageMock)
+
+afterAll(() => {
+  vi.unstubAllGlobals()
+})
 
 // Use dynamic import so the module is loaded AFTER the localStorage mock is in place.
 let ResponseCache: typeof import('@/utils/responseCache').ResponseCache
