@@ -1,7 +1,7 @@
 <template>
-  <div class="entity-tree">
+  <div class="entity-tree" role="navigation" aria-label="实体库导航">
     <div class="tree-header">
-      <span class="tree-title">实体库</span>
+      <span class="tree-title" id="entity-tree-title">实体库</span>
       <el-button type="primary" text size="small" @click="createEntity">
         <el-icon><Plus /></el-icon>
       </el-button>
@@ -17,10 +17,10 @@
       <template #prefix><el-icon><Search /></el-icon></template>
     </el-input>
 
-    <div v-if="filteredGroups.length === 0 && searchQuery" class="tree-empty">
+    <div v-if="filteredGroups.length === 0 && searchQuery" class="tree-empty" role="status" aria-live="polite">
       <span>未找到匹配实体</span>
     </div>
-    <div v-else-if="allEntities.length === 0" class="tree-empty">
+    <div v-else-if="allEntities.length === 0" class="tree-empty" role="status" aria-live="polite">
       <span>暂无实体</span>
       <el-button type="primary" text size="small" @click="createEntity">
         创建第一个实体
@@ -28,27 +28,56 @@
     </div>
 
     <el-scrollbar v-else class="tree-scroll">
-      <div v-for="group in filteredGroups" :key="group.type" class="tree-group">
-        <div class="group-header" @click="toggleGroup(group.type)">
-          <el-icon class="group-arrow" :class="{ collapsed: collapsedGroups.has(group.type) }">
+      <div
+        v-for="group in filteredGroups"
+        :key="group.type"
+        class="tree-group"
+        role="group"
+        :aria-label="typeLabels[group.type]"
+      >
+        <div
+          class="group-header"
+          role="button"
+          tabindex="0"
+          :aria-expanded="!collapsedGroups.has(group.type)"
+          :aria-label="`${typeLabels[group.type]}，${group.entities.length}个实体`"
+          @click="toggleGroup(group.type)"
+          @keydown.enter.prevent="toggleGroup(group.type)"
+          @keydown.space.prevent="toggleGroup(group.type)"
+        >
+          <el-icon class="group-arrow" :class="{ collapsed: collapsedGroups.has(group.type) }" aria-hidden="true">
             <ArrowDown />
           </el-icon>
-          <span class="group-icon">{{ typeIcons[group.type] }}</span>
+          <span class="group-icon" aria-hidden="true">{{ typeIcons[group.type] }}</span>
           <span class="group-label">{{ typeLabels[group.type] }}</span>
-          <span class="group-count">{{ group.entities.length }}</span>
+          <span class="group-count" :aria-label="`${group.entities.length}个实体`">{{ group.entities.length }}</span>
         </div>
         <transition name="slide">
-          <div v-show="!collapsedGroups.has(group.type)" class="group-items">
+          <div
+            v-show="!collapsedGroups.has(group.type)"
+            class="group-items"
+            role="tree"
+            :aria-label="`${typeLabels[group.type]}列表`"
+          >
             <div
-              v-for="entity in group.entities"
+              v-for="(entity, entityIndex) in group.entities"
               :key="entity.id"
               class="tree-item"
               :class="{ active: entity.id === selectedEntityId }"
+              role="treeitem"
+              tabindex="0"
+              :aria-selected="entity.id === selectedEntityId"
+              :aria-label="`${entity.name}${entity.importance === 'critical' ? '，核心实体' : entity.importance === 'major' ? '，重要实体' : ''}`"
               @click="selectEntity(entity.id)"
+              @keydown.enter.prevent="selectEntity(entity.id)"
+              @keydown.space.prevent="selectEntity(entity.id)"
+              @keydown.down.prevent="focusNextItem($event, group.type, entityIndex, 1)"
+              @keydown.up.prevent="focusNextItem($event, group.type, entityIndex, -1)"
             >
               <span
                 class="item-dot"
                 :style="{ background: entity.visualMeta?.color || importanceColors[entity.importance] }"
+                aria-hidden="true"
               ></span>
               <span class="item-name" :title="entity.name">{{ entity.name }}</span>
               <el-tag
@@ -99,7 +128,7 @@ const typeLabels: Record<EntityType, string> = {
 }
 
 const typeIcons: Record<EntityType, string> = {
-  CHARACTER: '👤',
+  CHARACTER: '\u{1F464}',
   FACTION: '⚔️',
   LOCATION: '📍',
   LORE: '📜',
@@ -173,6 +202,24 @@ function toggleGroup(type: EntityType) {
 function selectEntity(entityId: string) {
   selectedEntityId.value = entityId
   emit('select', entityId)
+}
+
+/**
+ * Keyboard arrow navigation within a tree group.
+ * Moves focus to the next/previous tree item in the same group.
+ */
+function focusNextItem(event: KeyboardEvent, groupType: EntityType, currentIndex: number, direction: number) {
+  const group = filteredGroups.value.find(g => g.type === groupType)
+  if (!group) return
+
+  const nextIndex = currentIndex + direction
+  if (nextIndex < 0 || nextIndex >= group.entities.length) return
+
+  const groupItems = (event.target as HTMLElement).closest('.group-items')
+  if (!groupItems) return
+
+  const items = groupItems.querySelectorAll<HTMLElement>('[role="treeitem"]')
+  items[nextIndex]?.focus()
 }
 
 async function createEntity() {
@@ -258,6 +305,13 @@ async function createEntity() {
   color: var(--ds-text-primary);
 }
 
+.group-header:focus-visible {
+  outline: 2px solid var(--ds-accent);
+  outline-offset: -2px;
+  border-radius: var(--ds-radius-sm);
+  color: var(--ds-text-primary);
+}
+
 .group-arrow {
   transition: transform var(--ds-transition-fast);
   font-size: 12px;
@@ -312,6 +366,13 @@ async function createEntity() {
 .tree-item.active {
   background: color-mix(in srgb, var(--ds-accent) 12%, transparent);
   color: var(--ds-accent-text);
+}
+
+.tree-item:focus-visible {
+  outline: 2px solid var(--ds-accent);
+  outline-offset: -2px;
+  background: var(--ds-bg-hover);
+  color: var(--ds-text-primary);
 }
 
 .item-dot {

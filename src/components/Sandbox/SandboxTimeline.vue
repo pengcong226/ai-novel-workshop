@@ -8,14 +8,24 @@
     <!-- Empty State -->
     <el-empty v-if="!projectStore.currentProject || chapters.length === 0" description="大纲为空，请点击底部推演生成" />
 
-    <el-timeline v-else class="custom-timeline">
+    <el-timeline v-else class="custom-timeline" role="list" aria-label="大纲时间线">
       <el-timeline-item
-        v-for="chapter in chapters"
+        v-for="(chapter, chapterIndex) in chapters"
         :key="chapter.chapterId"
         :type="getNodeType(chapter)"
         :color="getNodeColor(chapter)"
       >
-        <div class="outline-node" :class="getNodeClass(chapter)">
+        <div
+          class="outline-node"
+          :class="getNodeClass(chapter)"
+          role="listitem"
+          tabindex="0"
+          :aria-label="`第${chapterIndex + 1}章 ${chapter.title || '未命名章节'}，${getChapterStatusText(chapter.status)}`"
+          :aria-current="isActiveNode(chapter) ? 'step' : undefined"
+          @keydown.enter.prevent="isActiveNode(chapter) ? executeChapter(chapter) : undefined"
+          @keydown.down.prevent="focusNextNode($event, chapterIndex, 1)"
+          @keydown.up.prevent="focusNextNode($event, chapterIndex, -1)"
+        >
           <div class="outline-header">
             <div class="outline-title">{{ chapter.title || '未命名章节' }}</div>
             <div class="outline-status" :style="{ color: getNodeColor(chapter) }">
@@ -228,6 +238,20 @@ function writeManually(_chapter: ChapterOutline) {
   ElMessage.info('切换到手动章节编辑器')
 }
 
+/**
+ * Keyboard arrow navigation between timeline nodes.
+ */
+function focusNextNode(event: KeyboardEvent, currentIndex: number, direction: number) {
+  const nextIndex = currentIndex + direction
+  if (nextIndex < 0 || nextIndex >= chapters.value.length) return
+
+  const timelineContainer = (event.target as HTMLElement).closest('.custom-timeline')
+  if (!timelineContainer) return
+
+  const nodes = timelineContainer.querySelectorAll<HTMLElement>('.outline-node')
+  nodes[nextIndex]?.focus()
+}
+
 // -----------------------
 // Mock Data Helpers (Replace with real computed getters later)
 // -----------------------
@@ -269,7 +293,7 @@ function getPredictedStates(_chapter: ChapterOutline) {
 }
 
 .volume-title { font-size: 18px; color: #fff; font-weight: bold; margin-bottom: 8px;}
-.volume-desc { color: var(--text-muted); font-size: 13px; line-height: 1.5;}
+.volume-desc { color: var(--ds-text-secondary); font-size: 13px; line-height: 1.5;}
 
 .custom-timeline {
   padding-left: 20px;
@@ -306,6 +330,12 @@ function getPredictedStates(_chapter: ChapterOutline) {
 .outline-title { font-weight: bold; color: var(--accent-glow); font-size: 15px;}
 .outline-text { color: var(--text-main); font-size: 14px; line-height: 1.6; margin-bottom: 12px; }
 
+/* Focus-visible for keyboard users */
+.outline-node:focus-visible {
+  outline: 2px solid var(--accent-primary);
+  outline-offset: 2px;
+}
+
 .outline-node.completed .outline-title { color: var(--text-main); }
 .outline-node.pending .outline-title { color: var(--accent-warning); }
 
@@ -315,7 +345,7 @@ function getPredictedStates(_chapter: ChapterOutline) {
   border-radius: 6px;
   padding: 10px;
   font-size: 12px;
-  color: var(--text-muted);
+  color: var(--ds-text-secondary);
   margin-top: 10px;
 }
 
@@ -328,7 +358,7 @@ function getPredictedStates(_chapter: ChapterOutline) {
   margin-top: 12px;
 }
 .state-change-header { color: var(--accent-success); display: flex; align-items: center; gap: 6px; margin-bottom: 8px; font-weight: bold;}
-.state-change-item { display: flex; gap: 12px; margin-bottom: 4px; color: var(--text-muted); }
+.state-change-item { display: flex; gap: 12px; margin-bottom: 4px; color: var(--ds-text-secondary); }
 .state-entity { color: #fff; width: 60px; }
 .state-diff { color: var(--accent-success); }
 

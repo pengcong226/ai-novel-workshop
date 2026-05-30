@@ -41,19 +41,28 @@
       @close="clearError"
     />
 
+    <!-- Screen reader error announcements -->
+    <div
+      v-if="currentError"
+      class="sr-only"
+      role="alert"
+      aria-live="assertive"
+    >{{ errorTitle }}：{{ errorMessage }}</div>
+
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted, defineAsyncComponent } from 'vue'
 import { ElConfigProvider, ElNotification } from 'element-plus'
 import zhCn from 'element-plus/es/locale/lang/zh-cn'
 import { setupGlobalErrorHandler, errorHandler, ErrorSeverity, type AppError, getFriendlyMessage } from '@/utils/errorHandler'
 import GlobalTaskObserver from '@/components/GlobalTaskObserver.vue'
 import GlobalMutator from '@/components/GlobalMutator.vue'
-import SearchDialog from '@/components/SearchDialog.vue'
-import OnboardingDialog from '@/components/OnboardingDialog.vue'
 import ErrorBoundary from '@/components/ErrorBoundary.vue'
+
+const SearchDialog = defineAsyncComponent(() => import('@/components/SearchDialog.vue'))
+const OnboardingDialog = defineAsyncComponent(() => import('@/components/OnboardingDialog.vue'))
 import { useKeyboardShortcuts } from '@/composables/useKeyboardShortcuts'
 import { useOnboarding } from '@/composables/useOnboarding'
 import { useOnlineStatus } from '@/composables/useOnlineStatus'

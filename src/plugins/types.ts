@@ -57,6 +57,39 @@ export type PluginStatus =
   | 'inactive'         // 未激活
   | 'error'            // 错误状态
 
+/**
+ * 沙盒配置 - 控制插件可访问的API范围
+ */
+export interface SandboxConfig {
+  /** 允许的 API 命名空间（为空则全部拒绝） */
+  allowedNamespaces: Array<keyof PluginContext>
+  /** 允许的全局对象访问 */
+  allowedGlobals?: Array<'fetch' | 'setTimeout' | 'setInterval' | 'crypto'>
+  /** 最大并发网络请求数（仅 network 权限有效） */
+  maxConcurrentRequests?: number
+  /** 单次 AI 调用最大 token 数 */
+  maxAiTokensPerCall?: number
+  /** 存储配额（字节，仅 storage 权限有效） */
+  storageQuotaBytes?: number
+}
+
+/**
+ * 插件错误隔离策略
+ */
+export type ErrorIsolationStrategy =
+  | 'log-and-continue'   // 记录错误并继续
+  | 'deactivate-plugin'  // 停用出错的插件
+  | 'propagate'          // 向上抛出
+
+/**
+ * 生命周期钩子校验结果
+ */
+export interface LifecycleValidationResult {
+  valid: boolean
+  errors: string[]
+  warnings: string[]
+}
+
 // ==================== 扩展点贡献类型 ====================
 
 /**
@@ -288,6 +321,14 @@ export interface PluginManifest {
   homepage?: string             // 主页URL
   repository?: string           // 代码仓库
 
+  // 版本兼容性声明
+  /** 插件要求的最低应用版本 (semver, 含下限) */
+  minAppVersion?: string
+  /** 插件兼容的最高应用版本 (semver, 含上限, 不填则不限) */
+  maxAppVersion?: string
+  /** 插件所基于的插件API协议版本 */
+  pluginApiVersion?: string
+
   // 依赖管理
   dependencies?: {
     [pluginId: string]: string  // 插件ID: 版本范围
@@ -295,6 +336,12 @@ export interface PluginManifest {
 
   // 权限声明
   permissions?: PluginPermission[]
+
+  // 沙盒配置（由宿主在安装时注入，也可由插件声明偏好）
+  sandbox?: SandboxConfig
+
+  // 错误隔离策略
+  errorIsolation?: ErrorIsolationStrategy
 
   // 扩展点声明
   contributes?: PluginContributions

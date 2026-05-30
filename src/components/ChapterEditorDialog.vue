@@ -231,6 +231,7 @@ import { getLogger } from '@/utils/logger'
 import { escapeXml } from '@/utils/escapeXml'
 import { runReview } from '@/assistant/review/reviewRunner'
 import { getErrorMessage } from '@/utils/getErrorMessage'
+import { eventBus } from '@/utils/eventBus'
 
 interface Props {
   modelValue: boolean
@@ -669,10 +670,7 @@ async function saveChapter() {
       )
     }
 
-    const chapterSaveEvent = new CustomEvent('chapter-save', {
-      detail: { chapter: chapterData }
-    })
-    window.dispatchEvent(chapterSaveEvent)
+    eventBus.emit('chapter:saved', { chapter: chapterData })
   } catch (error) {
     saveStatus.value = 'error'
     logger.error('章节保存失败', error)

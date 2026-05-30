@@ -36,15 +36,19 @@ const analyzePlugin = isAnalyze
     })
   : null
 
+const isTest = process.env.VITEST === 'true'
+
 export default defineConfig({
   plugins: [
     vue(),
-    AutoImport({
-      resolvers: [ElementPlusResolver()],
-    }),
-    Components({
-      resolvers: [ElementPlusResolver()],
-    }),
+    ...(!isTest ? [
+      AutoImport({
+        resolvers: [ElementPlusResolver()],
+      }),
+      Components({
+        resolvers: [ElementPlusResolver()],
+      }),
+    ] : []),
     ...(analyzePlugin ? [analyzePlugin] : []),
   ],
   css: {

@@ -12,12 +12,12 @@
         </div>
         <div class="field-row">
           <div class="field">
-            <label>实体名称</label>
-            <input type="text" v-model="activeEntity.name" @blur="saveEntity" />
+            <label for="entity-name">实体名称</label>
+            <input id="entity-name" type="text" v-model="activeEntity.name" @blur="saveEntity" aria-required="true" />
           </div>
           <div class="field">
-            <label>分类类型</label>
-            <select v-model="activeEntity.category" @change="saveEntity">
+            <label for="entity-category">分类类型</label>
+            <select id="entity-category" v-model="activeEntity.category" @change="saveEntity">
               <option value="Protagonist">核心人物 (Protagonist)</option>
               <option value="Supporting">重要配角 (Supporting)</option>
               <option value="Antagonist">反派 (Antagonist)</option>
@@ -29,8 +29,9 @@
         </div>
         <div class="field-row">
           <div class="field">
-            <label>核心设定 (喂给大模型的硬性System约束)</label>
+            <label for="entity-system-prompt">核心设定 (喂给大模型的硬性System约束)</label>
             <textarea
+              id="entity-system-prompt"
               rows="4"
               v-model="activeEntity.systemPrompt"
               placeholder="请输入实体的背景、性格或世界观规则..."
@@ -41,7 +42,7 @@
       </div>
 
       <!-- Bottom Section: Dynamic Computed State -->
-      <div class="field-group state-group">
+      <div class="field-group state-group" aria-live="polite" aria-atomic="true">
         <div class="field-title state-title">
           <i class="ri-node-tree"></i> 动态状态快照
         </div>
@@ -200,13 +201,13 @@ async function saveEntity() {
 }
 .state-desc {
   font-size: 12px;
-  color: var(--text-muted);
+  color: var(--ds-text-secondary);
   margin-bottom: 16px;
 }
 
 .field-row { display: flex; gap: 16px; margin-bottom: 16px; }
 .field { flex: 1; }
-.field label { display: block; font-size: 12px; color: var(--text-muted); margin-bottom: 8px; }
+.field label { display: block; font-size: 12px; color: var(--ds-text-secondary); margin-bottom: 8px; }
 .field input, .field textarea, .field select {
   width: 100%;
   background: rgba(0,0,0,0.4);
@@ -238,7 +239,7 @@ async function saveEntity() {
 }
 .prop-key {
   font-size: 10px;
-  color: var(--text-muted);
+  color: var(--ds-text-secondary);
   text-transform: uppercase;
 }
 .prop-val {
@@ -271,6 +272,6 @@ async function saveEntity() {
 .empty-tag {
   background: transparent;
   border: 1px dashed rgba(255,255,255,0.2);
-  color: var(--text-muted);
+  color: var(--ds-text-secondary);
 }
 </style>

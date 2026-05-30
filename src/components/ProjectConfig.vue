@@ -841,7 +841,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
+import { ref, computed, onMounted, onUnmounted, watch, defineAsyncComponent } from 'vue'
 import { debounce } from 'lodash-es'
 import StorytellerPanel from './config/StorytellerPanel.vue'
 import StyleProfilePanel from './config/StyleProfilePanel.vue'
@@ -864,7 +864,7 @@ import { getVectorService, resetVectorService as clearVectorServiceCache } from 
 import { getVectorDimensionByModel } from '@/utils/vector-dimension'
 import { normalizeProjectConfig, getDefaultProjectConfig } from '@/utils/project-config-normalizer'
 import { getLogger } from '@/utils/logger'
-import PluginManager from './PluginManager.vue'
+const PluginManager = defineAsyncComponent(() => import('./PluginManager.vue'))
 import { useThemeStore } from '@/stores/theme'
 
 const projectStore = useProjectStore()

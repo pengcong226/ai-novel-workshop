@@ -66,7 +66,7 @@
     </el-card>
 
     <!-- Search and filters -->
-    <div v-if="chapters.length > 0" class="chapter-search-bar">
+    <div v-if="chapters.length > 0" class="chapter-search-bar" role="search" aria-label="章节搜索与筛选">
       <el-input v-model="chapterSearchQuery" placeholder="搜索章节标题或内容..." clearable size="default" class="chapter-search-input">
         <template #prefix><el-icon><Search /></el-icon></template>
       </el-input>
@@ -86,7 +86,7 @@
         <el-option label="良好 (5-7分)" value="medium" />
         <el-option label="待改进 (0-4分)" value="low" />
       </el-select>
-      <span class="filter-count" v-if="isChapterFilterActive">
+      <span class="filter-count" v-if="isChapterFilterActive" role="status" aria-live="polite">
         {{ filteredChapters.length }} / {{ chapters.length }} 章
       </span>
     </div>
@@ -102,8 +102,8 @@
         <el-button @click="clearChapterFilters">清除筛选</el-button>
       </el-empty>
 
-      <div v-else class="chapters-container" ref="scrollContainerRef" style="height: calc(100vh - 280px); overflow-y: auto;">
-        <div class="chapters-list" :style="{ height: `${rowVirtualizer.getTotalSize()}px`, position: 'relative' }">
+      <div v-else class="chapters-container" ref="scrollContainerRef" style="height: calc(100vh - 280px); overflow-y: auto;" role="region" aria-label="章节列表" aria-live="polite" aria-atomic="false">
+        <div class="chapters-list" :style="{ height: `${rowVirtualizer.getTotalSize()}px`, position: 'relative' }" role="list">
           <div
             v-for="virtualRow in rowVirtualizer.getVirtualItems()"
             :key="virtualRow.index"
@@ -120,6 +120,8 @@
                 v-if="chapter"
                 class="chapter-card"
                 :class="{ 'is-dragging': draggingChapterId === chapter.id, 'is-drag-over': dragOverChapterId === chapter.id }"
+                role="listitem"
+                :aria-label="`第${chapter.number}章 ${chapter.title}，${chapter.wordCount}字，${getChapterStatusText(chapter.status)}`"
                 @dragover.prevent="handleChapterDragOver(chapter.id, $event)"
                 @drop="handleChapterDrop(chapter.id)"
               >
@@ -386,7 +388,7 @@
         />
       </div>
 
-      <div v-else class="validation-issues">
+      <div v-else class="validation-issues" role="alert" aria-live="assertive">
         <el-alert
           type="warning"
           :closable="false"
@@ -1264,6 +1266,11 @@ async function handleAIGCDetect(chapter: Chapter) {
 
 .chapter-card.is-drag-over {
   box-shadow: 0 0 0 2px var(--ds-accent) inset;
+}
+
+.chapter-card:focus-visible {
+  outline: 2px solid var(--ds-accent);
+  outline-offset: 2px;
 }
 
 .chapter-header {

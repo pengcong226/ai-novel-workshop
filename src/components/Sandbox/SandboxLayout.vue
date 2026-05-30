@@ -1,6 +1,6 @@
 <template>
   <div class="sandbox-layout">
-    <div class="sidebar" ref="sidebarRef">
+    <div class="sidebar" ref="sidebarRef" role="complementary" aria-label="实体库侧边栏">
       <ErrorBoundary name="SandboxEntityTree" :show-retry="true">
         <EntityTree @select="handleEntitySelect" />
       </ErrorBoundary>
@@ -24,7 +24,7 @@
         </el-tabs>
       </ErrorBoundary>
     </div>
-    <div class="right-sidebar" ref="chatRef">
+    <div class="right-sidebar" ref="chatRef" role="complementary" aria-label="AI助手面板">
       <ErrorBoundary name="SandboxRightPanel" :show-retry="true">
         <NovelDeepImportDialog v-if="showDeepImport" @close="showDeepImport = false" @done="handleDeepImportDone" />
         <WorldGenWizard v-else-if="sandboxStore.isWizardMode" @close="sandboxStore.isWizardMode = false" />
@@ -49,7 +49,8 @@ import { useSandboxStore } from '@/stores/sandbox'
 import ChapterScrubber from './ChapterScrubber.vue'
 import ErrorBoundary from '@/components/ErrorBoundary.vue'
 import { getLogger } from '@/utils/logger'
-import AppTour from '@/components/AppTour.vue'
+
+const AppTour = defineAsyncComponent(() => import('@/components/AppTour.vue'))
 
 const logger = getLogger('SandboxLayout')
 

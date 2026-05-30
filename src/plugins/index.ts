@@ -75,6 +75,10 @@ export type { ProcessorStage } from './registries'
 export { validateManifest, hasRequiredFields, isValidSemver, isValidPluginId } from './plugin-validator'
 export type { ValidationResult } from './plugin-validator'
 
+// 安全守卫
+export { PluginSecurityGuard, createDefaultSecurityGuard, createStrictSecurityGuard } from './plugin-security'
+export type { SecurityCheckResult, SecurityGuardConfig } from './plugin-security'
+
 // 上下文
 export { createPluginContext, enhancePluginContext } from './context'
 

@@ -75,9 +75,11 @@ import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useProjectStore } from '@/stores/project'
 import { useSuggestionsStore } from '@/stores/suggestions'
 import { useSandboxStore } from '@/stores/sandbox'
+import { useEventBus } from '@/composables/useEventBus'
 import { ElMessage, ElNotification } from 'element-plus'
 import { ChatDotRound } from '@element-plus/icons-vue'
 import type { Suggestion, SuggestionAction, SuggestionCategory, SuggestionPriority, SuggestionStatus } from '@/types/suggestions'
+import type { Chapter } from '@/types'
 import type { AssistantAction, AssistantMessage } from '@/assistant/commands/assistantChat'
 import {
   buildAssistantChatMessages,
@@ -100,6 +102,7 @@ const projectStore = useProjectStore()
 const suggestionsStore = useSuggestionsStore()
 const sandboxStore = useSandboxStore()
 const themeStore = useThemeStore()
+const { on } = useEventBus()
 const project = computed(() => projectStore.currentProject)
 
 // ECharts主题感知配色
@@ -166,12 +169,17 @@ const highPrioritySuggestions = computed(() => suggestionsStore.suggestions.filt
 onMounted(() => {
   initMessages()
   suggestionsStore.init()
-  setupEventListeners()
+
+  // Typed event bus listeners - auto-cleaned on unmount by useEventBus
+  on('chapter:saved', handleChapterSaved)
+  on('entity:updated', handleEntityUpdated)
+  on('outline:changed', handleOutlineChanged)
+
   startSuggestionPolling()
 })
 
 onUnmounted(() => {
-  removeEventListeners()
+  // Event bus listeners are auto-cleaned by useEventBus
   if (pollingIntervalId !== null) {
     clearInterval(pollingIntervalId)
     pollingIntervalId = null
@@ -190,21 +198,8 @@ function initMessages(): void {
   messages.value = createInitialAssistantMessages(project.value?.title)
 }
 
-function setupEventListeners(): void {
-  window.addEventListener('chapter-save', handleChapterSave)
-  window.addEventListener('character-update', handleCharacterUpdate)
-  window.addEventListener('outline-change', handleOutlineChange)
-}
-
-function removeEventListeners(): void {
-  window.removeEventListener('chapter-save', handleChapterSave)
-  window.removeEventListener('character-update', handleCharacterUpdate)
-  window.removeEventListener('outline-change', handleOutlineChange)
-}
-
-async function handleChapterSave(event: Event): Promise<void> {
-  const customEvent = event as CustomEvent
-  const { chapter } = customEvent.detail
+async function handleChapterSaved(payload: { chapter: Chapter }): Promise<void> {
+  const { chapter } = payload
   await suggestionsStore.triggerCheck('chapter_save', { chapter })
 
   if (chapter.wordCount > 0 && chapter.qualityScore && chapter.qualityScore < 7) {
@@ -222,16 +217,12 @@ async function handleChapterSave(event: Event): Promise<void> {
   }
 }
 
-async function handleCharacterUpdate(event: Event): Promise<void> {
-  const customEvent = event as CustomEvent
-  const { character } = customEvent.detail
-  await suggestionsStore.triggerCheck('character_update', { character })
+async function handleEntityUpdated(payload: { entity: unknown }): Promise<void> {
+  await suggestionsStore.triggerCheck('character_update', { character: payload.entity })
 }
 
-async function handleOutlineChange(event: Event): Promise<void> {
-  const customEvent = event as CustomEvent
-  const { outline } = customEvent.detail
-  await suggestionsStore.triggerCheck('outline_change', { outline })
+async function handleOutlineChanged(payload: { outline: unknown }): Promise<void> {
+  await suggestionsStore.triggerCheck('outline_change', { outline: payload.outline })
 }
 
 function startSuggestionPolling(): void {

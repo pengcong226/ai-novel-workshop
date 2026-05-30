@@ -180,13 +180,28 @@ describe('NotificationContainer', () => {
   // --- Overflow indicator ---
 
   it('shows overflow indicator when hasOverflow is true', async () => {
-    // Add more than MAX_VISIBLE (5) notifications
+    // The store's notify() caps active at MAX_VISIBLE (5), so we must
+    // directly push into the reactive array to simulate overflow.
     for (let i = 0; i < 7; i++) {
-      store.notify({ message: `msg-${i}`, type: 'info' })
+      store.active.push({
+        id: `overflow-${i}`,
+        type: 'info',
+        message: `overflow-msg-${i}`,
+        duration: 0,
+        closable: true,
+        actions: [],
+        persistent: false,
+        createdAt: Date.now(),
+        read: false,
+        paused: false,
+      })
     }
 
     const wrapper = mountContainer()
     await nextTick()
+
+    expect(store.hasOverflow).toBe(true)
+    expect(store.overflowCount).toBe(2)
 
     const overflow = wrapper.find('.notification-container__overflow')
     expect(overflow.exists()).toBe(true)

@@ -292,7 +292,7 @@ import { h } from 'vue'
 import { getAIMockEnabled } from '@/utils/devFlags'
 import { getLogger } from '@/utils/logger'
 import { formatNumber } from '@/utils/formatters'
-import AppTour from '@/components/AppTour.vue'
+const AppTour = defineAsyncComponent(() => import('@/components/AppTour.vue'))
 import ErrorBoundary from '@/components/ErrorBoundary.vue'
 const logger = getLogger('views:ProjectEditor')
 
@@ -307,8 +307,8 @@ const AIAssistant = defineAsyncComponent(() => import('@/components/AIAssistant.
 const SummaryManager = defineAsyncComponent(() => import('@/components/SummaryManager.vue'))
 const DeveloperPanel = defineAsyncComponent(() => import('@/components/DeveloperPanel.vue'))
 const AgentConsole = defineAsyncComponent(() => import('@/components/AgentConsole.vue'))
-import SearchDialog from '@/components/SearchDialog.vue'
-import KeyboardShortcutsDialog from '@/components/KeyboardShortcutsDialog.vue'
+const SearchDialog = defineAsyncComponent(() => import('@/components/SearchDialog.vue'))
+const KeyboardShortcutsDialog = defineAsyncComponent(() => import('@/components/KeyboardShortcutsDialog.vue'))
 import { useKeyboardShortcuts } from '@/composables/useKeyboardShortcuts'
 
 const route = useRoute()

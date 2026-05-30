@@ -1,6 +1,6 @@
 <template>
-  <div v-if="hasError" class="error-boundary-fallback">
-    <div class="error-boundary-icon">!</div>
+  <div v-if="hasError" class="error-boundary-fallback" role="alert" aria-live="assertive">
+    <div class="error-boundary-icon" aria-hidden="true">!</div>
     <div class="error-boundary-title">{{ title || '组件渲染出错' }}</div>
     <div class="error-boundary-message">{{ errorMessage }}</div>
     <el-button v-if="showRetry" size="small" type="primary" @click="handleRetry">

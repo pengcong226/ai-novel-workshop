@@ -1,13 +1,15 @@
 <template>
   <div class="global-task-observer">
     <!-- 飘窗 Toast 区域 -->
-    <div class="task-toasts">
+    <div class="task-toasts" role="status" aria-live="polite" aria-atomic="false">
       <transition-group name="toast-list">
-        <div 
-          v-for="toast in manager.toasts" 
-          :key="toast.id" 
+        <div
+          v-for="toast in manager.toasts"
+          :key="toast.id"
           class="task-toast"
           :class="'toast-' + toast.type"
+          :role="toast.type === 'error' ? 'alert' : 'status'"
+          :aria-live="toast.type === 'error' ? 'assertive' : 'polite'"
         >
           <el-icon class="toast-icon">
             <InfoFilled v-if="toast.type === 'info'" />
@@ -21,7 +23,7 @@
     </div>
 
     <!-- 左下角/底部任务队列面板 -->
-    <div class="task-panel" v-if="manager.tasks.length > 0">
+    <div class="task-panel" v-if="manager.tasks.length > 0" role="region" aria-label="任务队列">
       <div class="panel-header" @click="isExpanded = !isExpanded">
         <div class="header-left">
           <el-icon :class="{'is-spinning': manager.hasActiveTasks}"><Loading v-if="manager.hasActiveTasks" /><Operation v-else /></el-icon>

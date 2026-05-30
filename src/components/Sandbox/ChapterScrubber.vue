@@ -1,6 +1,6 @@
 <template>
-  <div class="chapter-scrubber">
-    <span class="scrubber-label">第 {{ modelValue }} 章</span>
+  <div class="chapter-scrubber" role="group" aria-label="章节进度控制">
+    <span class="scrubber-label" aria-live="polite" id="scrubber-label">第 {{ modelValue }} 章</span>
     <el-slider
       :model-value="modelValue"
       :min="1"
@@ -8,9 +8,15 @@
       :step="1"
       :show-tooltip="true"
       :format-tooltip="(val: number) => `第${val}章`"
+      role="slider"
+      :aria-valuemin="1"
+      :aria-valuemax="totalChapters"
+      :aria-valuenow="modelValue"
+      :aria-valuetext="`第${modelValue}章，共${totalChapters}章`"
+      aria-labelledby="scrubber-label"
       @update:model-value="$emit('update:modelValue', $event)"
     />
-    <span class="scrubber-info">
+    <span class="scrubber-info" aria-live="polite">
       {{ entityCount }} 实体 / {{ eventCount }} 事件
     </span>
   </div>

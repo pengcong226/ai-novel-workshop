@@ -1,7 +1,7 @@
 <template>
   <div class="sandbox-map-container">
     <div style="display:flex; justify-content: space-between; align-items:center; margin-bottom: 10px;">
-      <p style="font-size: 12px; color: var(--text-muted);">
+      <p style="font-size: 12px; color: var(--ds-text-secondary);">
         <i class="ri-information-line"></i> 角色位置根据时间线中提取的 @地点 自动同步。基于地理坐标系百分比渲染。
       </p>
     </div>
@@ -250,5 +250,11 @@ const avatarPaths = computed<AvatarPath[]>(() => {
   font-weight: bold;
   z-index: var(--ds-z-dropdown);
   transition: top 1.5s cubic-bezier(0.45, 0, 0.15, 1), left 1.5s cubic-bezier(0.45, 0, 0.15, 1);
+}
+
+.map-pin:focus-visible,
+.map-avatar:focus-visible {
+  outline: 2px solid var(--accent-primary);
+  outline-offset: 2px;
 }
 </style>
