@@ -176,8 +176,7 @@ export class EventBus {
 
     for (const entry of snapshot) {
       try {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        entry.fn(payload as any)
+        entry.fn(payload as AppEventPayload<AppEventName>)
       } catch (err) {
         console.error(`[EventBus] Listener error for "${event}":`, err)
       }

@@ -86,6 +86,8 @@ export class AppError extends Error {
   readonly context: Record<string, unknown>
   /** ISO timestamp of when the error was created. */
   readonly timestamp: string
+  /** Original cause (ES2020 compatibility). */
+  readonly cause?: Error
 
   constructor(detail: ErrorDetail) {
     super(detail.message)
@@ -96,7 +98,7 @@ export class AppError extends Error {
 
     // Store cause separately (ES2020 compatibility)
     if (detail.cause) {
-      (this as any).cause = detail.cause
+      this.cause = detail.cause
     }
 
     // Maintain proper prototype chain for instanceof checks
@@ -114,9 +116,9 @@ export class AppError extends Error {
       context: this.context,
       timestamp: this.timestamp,
       stack: this.stack,
-      cause: (this as any).cause instanceof Error
-        ? { message: ((this as any).cause as Error).message, stack: ((this as any).cause as Error).stack }
-        : (this as any).cause,
+      cause: this.cause instanceof Error
+        ? { message: this.cause.message, stack: this.cause.stack }
+        : this.cause,
     }
   }
 }
@@ -307,7 +309,7 @@ export function reportError(
     try {
       // Dynamic import is intentional: errorHandler may not be available in all contexts
       import('@/utils/errorHandler').then(({ errorHandler, ErrorSeverity, ErrorCategory }) => {
-        const categoryMap: Record<string, string> = {
+        const categoryMap = {
           [ErrorCode.NETWORK_UNREACHABLE]: ErrorCategory.NETWORK,
           [ErrorCode.REQUEST_TIMEOUT]: ErrorCategory.NETWORK,
           [ErrorCode.RATE_LIMITED]: ErrorCategory.NETWORK,
@@ -323,10 +325,10 @@ export function reportError(
           [ErrorCode.IPC_TIMEOUT]: ErrorCategory.STORAGE,
           [ErrorCode.VALIDATION_FAILED]: ErrorCategory.VALIDATION,
         }
-        const category = categoryMap[appError.code] ?? ErrorCategory.UNKNOWN
+        const category = categoryMap[appError.code as keyof typeof categoryMap] ?? ErrorCategory.UNKNOWN
         errorHandler.handleError(appError, {
           severity: ErrorSeverity.MEDIUM,
-          category: category as any,
+          category,
           context: appError.context,
         })
       }).catch(() => { /* silent */ })

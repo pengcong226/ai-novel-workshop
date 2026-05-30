@@ -5,7 +5,7 @@ import { ElMessage } from "element-plus"
  */
 
 import { v4 as uuidv4 } from 'uuid'
-import type { Project, Character, Chapter, WorldSetting, Relationship } from '@/types'
+import type { Project, Character, Chapter, WorldSetting, Relationship, Outline } from '@/types'
 import type { GeneratedOutline } from './outlineGenerator'
 import type { QualityMetrics } from './qualityAnalyzer'
 import { parseNovelText, type ParsedChapter, type ChapterPattern } from './chapterParser'
@@ -448,7 +448,7 @@ export async function importNovel(
   })
 
   // 转换大纲数据
-  const projectOutline: GeneratedOutline = outlineData.chapters && outlineData.chapters.length > 0
+  const projectOutline = (outlineData.chapters && outlineData.chapters.length > 0
     ? convertToOutline(outlineData, chapters)
     : {
         structure: '导入的结构',
@@ -465,7 +465,7 @@ export async function importNovel(
           location: '',
           characters: []
         }))
-      }
+      }) as unknown as GeneratedOutline
 
   // 构建项目描述
   let description = `导入自文件: ${file.name}\n总字数: ${stats.totalWords}\n章节数: ${stats.totalChapters}`
@@ -488,7 +488,7 @@ export async function importNovel(
     world: worldTemplate as WorldSetting,
     characters: fullCharacters,
     chapters: chapters,
-    outline: projectOutline as any,
+    outline: projectOutline as unknown as Outline,
     createdAt: now,
     updatedAt: now
   }

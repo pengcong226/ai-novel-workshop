@@ -225,14 +225,16 @@ export function createPluginContext(
     async showDialog(options: DialogOptions): Promise<unknown> {
       return new Promise((resolve, _reject) => {
         ElMessageBox.confirm(
-          options.message as string,
+          options.message,
           options.title || '提示',
           {
             confirmButtonText: options.confirmText || '确定',
             cancelButtonText: options.cancelText || '取消',
             type: options.type || 'info',
             showCancelButton: options.showCancel !== false,
-            inputValue: options.input?.defaultValue
+            inputValue: options.input?.defaultValue != null
+              ? String(options.input.defaultValue)
+              : undefined
           }
         ).then(() => {
           resolve(true)

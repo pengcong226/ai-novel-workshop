@@ -1041,7 +1041,7 @@ async function processWithLLM(text: string) {
           title: ch.title,
           content: ch.content || '',
           wordCount: ch.wordCount || 0,
-          status: 'completed' as const,
+          status: 'draft' as const,
           generatedBy: 'ai' as const,
           generationTime: new Date(),
           checkpoints: [],
@@ -1054,7 +1054,7 @@ async function processWithLLM(text: string) {
             goals: [],
             conflicts: [],
             resolutions: [],
-            status: 'completed' as const
+            status: 'planned' as const
           }
         })),
       characters: llmResult.value.characters.map(char => ({

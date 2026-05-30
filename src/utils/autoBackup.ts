@@ -34,7 +34,6 @@ interface BackupableProject {
   title?: string
   chapters?: unknown[]
   currentWords?: number
-  [key: string]: unknown
 }
 
 // 上次备份时间缓存

@@ -606,7 +606,7 @@ const batchForm = ref({
 const showContinuationPanel = ref(false)
 const showRewritePanel = ref(false)
 const { diffReport: readonlyDiffReport, acceptRewrite, rejectRewrite } = useRewriteContinuation()
-const diffReport = computed(() => readonlyDiffReport.value as any)
+const diffReport = computed(() => readonlyDiffReport.value as import('@/types/rewrite-continuation').StateDiffReport | null)
 
 // 一键续写（Pipeline）相关状态（含 IndexedDB 持久化）
 const showWriteNextDialog = ref(false)

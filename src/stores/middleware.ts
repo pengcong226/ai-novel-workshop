@@ -240,13 +240,19 @@ export function storeDevtoolsPlugin({ store }: PiniaPluginContext): void {
 
   // Attach metadata for Vue DevTools inspection
   // Pinia devtools reads this via store._customProperties
-  const customProperties = (store as any)._customProperties as Set<string> | undefined
+  // Pinia internals are not typed; cast through a narrow interface
+  interface PiniaDevtoolsInternals {
+    _customProperties?: Set<string>
+    __devtoolsMeta?: Record<string, unknown>
+  }
+  const devtoolsStore = store as unknown as PiniaDevtoolsInternals
+  const customProperties = devtoolsStore._customProperties
   if (customProperties instanceof Set) {
     customProperties.add('__devtoolsMeta')
   }
 
   // Provide a lightweight meta object for devtools
-  (store as any).__devtoolsMeta = {
+  devtoolsStore.__devtoolsMeta = {
     label,
     storeId: store.$id,
     registeredAt: Date.now(),

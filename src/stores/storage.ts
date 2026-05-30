@@ -56,6 +56,7 @@ interface StoredChapter {
 interface StoredTemplate {
   id: string
   name?: string
+  [key: string]: unknown
 }
 
 // 使用IndexedDB存储大数据，LocalStorage存储元数据
@@ -710,7 +711,7 @@ class IndexedDBStorage {
     })
   }
 
-  async saveTemplates(templates: StoredTemplate[]): Promise<void> {
+  async saveTemplates(templates: unknown[]): Promise<void> {
     if (!this.db) await this.init()
 
     return new Promise<void>((resolve, reject) => {
@@ -1122,7 +1123,7 @@ export const useStorage = defineStore('storage', () => {
     }
   }
 
-  async function saveTemplates(templates: StoredTemplate[]): Promise<void> {
+  async function saveTemplates(templates: unknown[]): Promise<void> {
     await init()
     if (storage instanceof IndexedDBStorage) {
       return await storage.saveTemplates(templates)

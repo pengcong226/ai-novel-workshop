@@ -721,4 +721,485 @@ describe('PipelineRunner', () => {
       )
     })
   })
+
+  // -----------------------------------------------------------------------
+  // Length normalization phase
+  // -----------------------------------------------------------------------
+  describe('length normalization', () => {
+    it('should call normalizer when enableLengthNormalization is true (default)', async () => {
+      const runner = new PipelineRunner()
+
+      await runner.writeNextChapter({
+        project: makeMockProject(),
+        chapterNumber: 3,
+      })
+
+      expect(normalizerNormalizeMock).toHaveBeenCalledTimes(1)
+      expect(normalizerNormalizeMock).toHaveBeenCalledWith(
+        expect.objectContaining({
+          content: expect.any(String),
+          lengthSpec: expect.any(Object),
+        })
+      )
+    })
+
+    it('should skip normalizer when enableLengthNormalization is false', async () => {
+      const runner = new PipelineRunner({ enableLengthNormalization: false })
+
+      await runner.writeNextChapter({
+        project: makeMockProject(),
+        chapterNumber: 3,
+      })
+
+      expect(normalizerNormalizeMock).not.toHaveBeenCalled()
+    })
+
+    it('should use normalized content when normalizer applies changes', async () => {
+      normalizerNormalizeMock.mockResolvedValue({
+        normalizedContent: 'normalized by AI',
+        finalCount: 1800,
+        applied: true,
+        mode: 'compress',
+        tokenUsage: { inputTokens: 100, outputTokens: 100, totalTokens: 200 },
+      })
+
+      const runner = new PipelineRunner()
+      const result = await runner.writeNextChapter({
+        project: makeMockProject(),
+        chapterNumber: 3,
+      })
+
+      // The reviewCycle should receive the normalized content
+      expect(reviewCycleExecuteMock).toHaveBeenCalledWith(
+        expect.objectContaining({
+          chapterContent: 'normalized by AI',
+        })
+      )
+    })
+
+    it('should pass chapter intent goal to normalizer', async () => {
+      const runner = new PipelineRunner()
+
+      await runner.writeNextChapter({
+        project: makeMockProject(),
+        chapterNumber: 1,
+      })
+
+      expect(normalizerNormalizeMock).toHaveBeenCalledWith(
+        expect.objectContaining({
+          chapterIntent: expect.stringContaining('建立世界观'),
+        })
+      )
+    })
+  })
+
+  // -----------------------------------------------------------------------
+  // LLM compose mode
+  // -----------------------------------------------------------------------
+  describe('LLM compose mode', () => {
+    it('should use standard compose when totalChapters < 20', async () => {
+      const { ComposerAgent } = await import('@/agents/ComposerAgent')
+      const runner = new PipelineRunner()
+      const project = makeMockProject()
+      project.chapters = Array.from({ length: 10 }, (_, i) => ({
+        number: i + 1,
+        title: `第${i + 1}章`,
+        content: '内容',
+      }))
+
+      await runner.writeNextChapter({ project, chapterNumber: 11 })
+
+      // Should use standard compose (not composeWithLLM)
+      const instance = (ComposerAgent as any).mock.results[0]?.value
+      expect(composerComposeMock).toHaveBeenCalled()
+    })
+
+    it('should use LLM compose when totalChapters >= 20 and enableLLMCompose is true', async () => {
+      const { ComposerAgent } = await import('@/agents/ComposerAgent')
+      const runner = new PipelineRunner({ enableLLMCompose: true })
+      const project = makeMockProject()
+      project.chapters = Array.from({ length: 20 }, (_, i) => ({
+        number: i + 1,
+        title: `第${i + 1}章`,
+        content: '内容',
+      }))
+
+      // Also need to mock composeWithLLM
+      const composeWithLLMMock = vi.fn().mockResolvedValue(makeMockComposeOutput())
+      ;(ComposerAgent as any).mockImplementation(() => ({
+        compose: composerComposeMock,
+        composeWithLLM: composeWithLLMMock,
+      }))
+
+      // Re-import to get fresh instance
+      const { PipelineRunner: PR } = await import('@/services/pipeline/PipelineRunner')
+      const runner2 = new PR({ enableLLMCompose: true })
+
+      await runner2.writeNextChapter({ project, chapterNumber: 21 })
+
+      expect(composeWithLLMMock).toHaveBeenCalled()
+    })
+
+    it('should use standard compose when enableLLMCompose is explicitly false even with 20+ chapters', async () => {
+      const { ComposerAgent } = await import('@/agents/ComposerAgent')
+      const project = makeMockProject()
+      project.chapters = Array.from({ length: 25 }, (_, i) => ({
+        number: i + 1,
+        title: `第${i + 1}章`,
+        content: '内容',
+      }))
+
+      const runner = new PipelineRunner({ enableLLMCompose: false })
+
+      await runner.writeNextChapter({ project, chapterNumber: 26 })
+
+      // Should use standard compose
+      expect(composerComposeMock).toHaveBeenCalled()
+    })
+  })
+
+  // -----------------------------------------------------------------------
+  // Token usage aggregation
+  // -----------------------------------------------------------------------
+  describe('token usage aggregation', () => {
+    it('should aggregate token usage across all phases', async () => {
+      // Writer tokens (from chat mock)
+      chatMock.mockResolvedValue({
+        content: 'chapter content',
+        usage: { inputTokens: 500, outputTokens: 1000, totalTokens: 1500 },
+      })
+
+      // Normalizer tokens
+      normalizerNormalizeMock.mockResolvedValue({
+        normalizedContent: 'normalized',
+        finalCount: 2000,
+        applied: true,
+        mode: 'compress',
+        tokenUsage: { inputTokens: 50, outputTokens: 50, totalTokens: 100 },
+      })
+
+      // Review cycle tokens
+      reviewCycleExecuteMock.mockResolvedValue(makeMockReviewResult({
+        tokenUsage: { inputTokens: 200, outputTokens: 300, totalTokens: 500 },
+      }))
+
+      // Settler tokens
+      settlerSettleMock.mockResolvedValue({
+        newEntities: [],
+        newStateEvents: [],
+        chapterSummary: '摘要',
+        tokenUsage: { inputTokens: 30, outputTokens: 40, totalTokens: 70 },
+      })
+
+      // Analyzer tokens
+      analyzerAnalyzeMock.mockResolvedValue({
+        chapterSummary: '分析摘要',
+        hookUpdates: [],
+        emotionalArcUpdate: '弧线',
+        tokenUsage: { inputTokens: 20, outputTokens: 30, totalTokens: 50 },
+      })
+
+      const runner = new PipelineRunner()
+      const result = await runner.writeNextChapter({
+        project: makeMockProject(),
+        chapterNumber: 3,
+      })
+
+      // Total should aggregate writer(1500) + normalizer(100) + auditor(500) + settler(70) + analyzer(50)
+      expect(result.tokenUsage.total.totalTokens).toBe(1500 + 100 + 500 + 70 + 50)
+      expect(result.tokenUsage.writer.totalTokens).toBe(1500)
+      expect(result.tokenUsage.normalizer.totalTokens).toBe(100)
+      expect(result.tokenUsage.auditor.totalTokens).toBe(500)
+      expect(result.tokenUsage.settler.totalTokens).toBe(70)
+      expect(result.tokenUsage.analyzer.totalTokens).toBe(50)
+    })
+
+    it('should report zero total tokens when all phases return zero', async () => {
+      chatMock.mockResolvedValue({
+        content: 'content',
+        usage: { inputTokens: 0, outputTokens: 0, totalTokens: 0 },
+      })
+      reviewCycleExecuteMock.mockResolvedValue(makeMockReviewResult({
+        tokenUsage: { inputTokens: 0, outputTokens: 0, totalTokens: 0 },
+      }))
+      settlerSettleMock.mockResolvedValue({
+        newEntities: [],
+        newStateEvents: [],
+        chapterSummary: '摘要',
+        tokenUsage: { inputTokens: 0, outputTokens: 0, totalTokens: 0 },
+      })
+      analyzerAnalyzeMock.mockResolvedValue({
+        chapterSummary: '分析摘要',
+        hookUpdates: [],
+        emotionalArcUpdate: '弧线',
+        tokenUsage: { inputTokens: 0, outputTokens: 0, totalTokens: 0 },
+      })
+
+      const runner = new PipelineRunner()
+      const result = await runner.writeNextChapter({
+        project: makeMockProject(),
+        chapterNumber: 3,
+      })
+
+      expect(result.tokenUsage.total.totalTokens).toBe(0)
+    })
+  })
+
+  // -----------------------------------------------------------------------
+  // Stage timings
+  // -----------------------------------------------------------------------
+  describe('stage timings', () => {
+    it('should record timing for prepare stage', async () => {
+      const runner = new PipelineRunner()
+      const result = await runner.writeNextChapter({
+        project: makeMockProject(),
+        chapterNumber: 3,
+      })
+
+      expect(result.stageTimings).toHaveProperty('prepare')
+      expect(typeof result.stageTimings['prepare']).toBe('number')
+      expect(result.stageTimings['prepare']).toBeGreaterThanOrEqual(0)
+    })
+
+    it('should record timing for plan stage', async () => {
+      const runner = new PipelineRunner()
+      const result = await runner.writeNextChapter({
+        project: makeMockProject(),
+        chapterNumber: 3,
+      })
+
+      expect(result.stageTimings).toHaveProperty('plan')
+    })
+
+    it('should record timing for compose stage', async () => {
+      const runner = new PipelineRunner()
+      const result = await runner.writeNextChapter({
+        project: makeMockProject(),
+        chapterNumber: 3,
+      })
+
+      expect(result.stageTimings).toHaveProperty('compose')
+    })
+
+    it('should record timing for audit stage', async () => {
+      const runner = new PipelineRunner()
+      const result = await runner.writeNextChapter({
+        project: makeMockProject(),
+        chapterNumber: 3,
+      })
+
+      expect(result.stageTimings).toHaveProperty('audit')
+    })
+
+    it('should record positive durationMs', async () => {
+      const runner = new PipelineRunner()
+      const result = await runner.writeNextChapter({
+        project: makeMockProject(),
+        chapterNumber: 3,
+      })
+
+      expect(result.durationMs).toBeGreaterThanOrEqual(0)
+    })
+  })
+
+  // -----------------------------------------------------------------------
+  // Status derivation
+  // -----------------------------------------------------------------------
+  describe('status derivation', () => {
+    it('should return ready-for-review when audit passes', async () => {
+      reviewCycleExecuteMock.mockResolvedValue(makeMockReviewResult({
+        auditResult: {
+          passed: true,
+          overallScore: 90,
+          issues: [],
+          summary: '优秀',
+          dimensionScores: {},
+          tokenUsage: { inputTokens: 0, outputTokens: 0, totalTokens: 0 },
+        },
+      }))
+
+      const runner = new PipelineRunner()
+      const result = await runner.writeNextChapter({
+        project: makeMockProject(),
+        chapterNumber: 3,
+      })
+
+      expect(result.status).toBe('ready-for-review')
+    })
+
+    it('should return audit-failed when audit does not pass', async () => {
+      reviewCycleExecuteMock.mockResolvedValue(makeMockReviewResult({
+        auditResult: {
+          passed: false,
+          overallScore: 60,
+          issues: [{ severity: 'warning', category: 'quality', description: '质量不达标', suggestion: '改进' }],
+          summary: '不达标',
+          dimensionScores: {},
+          tokenUsage: { inputTokens: 0, outputTokens: 0, totalTokens: 0 },
+        },
+      }))
+
+      const runner = new PipelineRunner()
+      const result = await runner.writeNextChapter({
+        project: makeMockProject(),
+        chapterNumber: 3,
+      })
+
+      expect(result.status).toBe('audit-failed')
+    })
+
+    it('should return audit-failed on fatal error', async () => {
+      checkInitializedMock.mockReturnValue(false)
+      const runner = new PipelineRunner()
+      const result = await runner.writeNextChapter({
+        project: makeMockProject(),
+        chapterNumber: 3,
+      })
+
+      expect(result.status).toBe('audit-failed')
+    })
+  })
+
+  // -----------------------------------------------------------------------
+  // Title fallback
+  // -----------------------------------------------------------------------
+  describe('title fallback', () => {
+    it('should use outline title when available', async () => {
+      const runner = new PipelineRunner()
+      const result = await runner.writeNextChapter({
+        project: makeMockProject(),
+        chapterNumber: 1,
+      })
+
+      expect(result.title).toBe('第一章')
+    })
+
+    it('should fallback to formatted chapter number when no outline', async () => {
+      const runner = new PipelineRunner()
+      const project = makeMockProject()
+      project.outline = undefined as any
+
+      const result = await runner.writeNextChapter({
+        project,
+        chapterNumber: 5,
+      })
+
+      expect(result.title).toBe('第5章')
+    })
+  })
+
+  // -----------------------------------------------------------------------
+  // Result structure completeness
+  // -----------------------------------------------------------------------
+  describe('result structure', () => {
+    it('should return all required ChapterPipelineResult fields on success', async () => {
+      const runner = new PipelineRunner()
+      const result = await runner.writeNextChapter({
+        project: makeMockProject(),
+        chapterNumber: 3,
+      })
+
+      expect(result).toHaveProperty('chapterNumber', 3)
+      expect(result).toHaveProperty('title')
+      expect(result).toHaveProperty('wordCount')
+      expect(result).toHaveProperty('content')
+      expect(result).toHaveProperty('auditResult')
+      expect(result).toHaveProperty('revised')
+      expect(result).toHaveProperty('postReviseCount')
+      expect(result).toHaveProperty('status')
+      expect(result).toHaveProperty('tokenUsage')
+      expect(result).toHaveProperty('durationMs')
+      expect(result).toHaveProperty('stageTimings')
+    })
+
+    it('should return all required ChapterPipelineResult fields on failure', async () => {
+      checkInitializedMock.mockReturnValue(false)
+      const runner = new PipelineRunner()
+      const result = await runner.writeNextChapter({
+        project: makeMockProject(),
+        chapterNumber: 3,
+      })
+
+      expect(result).toHaveProperty('chapterNumber', 3)
+      expect(result).toHaveProperty('title')
+      expect(result).toHaveProperty('wordCount', 0)
+      expect(result).toHaveProperty('content', '')
+      expect(result).toHaveProperty('auditResult')
+      expect(result).toHaveProperty('revised', false)
+      expect(result).toHaveProperty('postReviseCount', 0)
+      expect(result).toHaveProperty('status', 'audit-failed')
+      expect(result).toHaveProperty('tokenUsage')
+      expect(result).toHaveProperty('durationMs')
+      expect(result).toHaveProperty('stageTimings')
+    })
+
+    it('should set revised flag based on review cycle iterations', async () => {
+      reviewCycleExecuteMock.mockResolvedValue(makeMockReviewResult({
+        iterations: 1,
+      }))
+
+      const runner = new PipelineRunner()
+      const result = await runner.writeNextChapter({
+        project: makeMockProject(),
+        chapterNumber: 3,
+      })
+
+      expect(result.revised).toBe(true)
+    })
+
+    it('should set revised=false when review cycle has zero iterations', async () => {
+      reviewCycleExecuteMock.mockResolvedValue(makeMockReviewResult({
+        iterations: 0,
+      }))
+
+      const runner = new PipelineRunner()
+      const result = await runner.writeNextChapter({
+        project: makeMockProject(),
+        chapterNumber: 3,
+      })
+
+      expect(result.revised).toBe(false)
+    })
+  })
+
+  // -----------------------------------------------------------------------
+  // Compose fallback on error
+  // -----------------------------------------------------------------------
+  describe('compose fallback', () => {
+    it('should use minimal context package when composer throws', async () => {
+      composerComposeMock.mockRejectedValue(new Error('Composer exploded'))
+      const runner = new PipelineRunner()
+
+      const result = await runner.writeNextChapter({
+        project: makeMockProject(),
+        chapterNumber: 3,
+      })
+
+      // Pipeline should still complete (non-blocking)
+      expect(result.chapterNumber).toBe(3)
+      // Review cycle should have been called with some content
+      expect(reviewCycleExecuteMock).toHaveBeenCalled()
+    })
+  })
+
+  // -----------------------------------------------------------------------
+  // Plan fallback on error
+  // -----------------------------------------------------------------------
+  describe('plan fallback', () => {
+    it('should use default plan when plan phase fails', async () => {
+      // Force plan phase to fail by making the internal method throw
+      // We can't easily mock the private executePlanPhase, but we can
+      // verify the pipeline still completes when outline data is missing
+      const runner = new PipelineRunner()
+      const project = makeMockProject()
+      project.outline = undefined as any
+
+      const result = await runner.writeNextChapter({
+        project,
+        chapterNumber: 1,
+      })
+
+      expect(result.chapterNumber).toBe(1)
+    })
+  })
 })

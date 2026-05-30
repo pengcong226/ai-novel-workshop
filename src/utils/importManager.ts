@@ -113,10 +113,13 @@ function detectFormat(file: File): ImportFormat | null {
  */
 async function extractTextFromDocx(file: File): Promise<string> {
   try {
-    // @ts-ignore mammoth is an optional peer dependency
-    const mammoth = await import('mammoth')
+    // mammoth is an optional peer dependency without installed type declarations
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const mammoth: { extractRawText(input: { arrayBuffer: ArrayBuffer }): Promise<{ value: string; messages: Array<{ type: string; message: string }> }> } =
+      // @ts-expect-error mammoth is an optional peer dependency without @types/mammoth
+      await import('mammoth')
     const arrayBuffer = await file.arrayBuffer()
-    const result = await (mammoth as any).extractRawText({ arrayBuffer })
+    const result = await mammoth.extractRawText({ arrayBuffer })
 
     if (result.messages.length > 0) {
       const warnings = (result.messages as Array<{ type: string; message: string }>)

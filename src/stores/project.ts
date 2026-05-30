@@ -65,7 +65,7 @@ export const useProjectStore = defineStore('project', () => {
     const proj = currentProject.value
     if (!proj) return { chapterCount: 0, totalWords: 0, avgWordsPerChapter: 0 }
     const chapters = proj.chapters || []
-    const totalWords = chapters.reduce((sum, c) => sum + ((c as any).wordCount || 0), 0)
+    const totalWords = chapters.reduce((sum, c) => sum + (c.wordCount || 0), 0)
     return {
       chapterCount: chapters.length,
       totalWords,
@@ -402,7 +402,7 @@ export const useProjectStore = defineStore('project', () => {
         // 自动定期备份（不阻断主流程）
         try {
           const { maybeAutoBackup } = await import('@/utils/autoBackup')
-          void maybeAutoBackup(project as any)
+          void maybeAutoBackup(project)
         } catch { /* 静默 */ }
 
         // 更新项目列表
