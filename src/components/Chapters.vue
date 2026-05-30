@@ -92,7 +92,9 @@
     </div>
 
     <div class="content">
-      <el-empty v-if="chapters.length === 0" description="还没有章节">
+      <LoadingSkeleton v-if="chaptersLoading" variant="list" :count="4" />
+
+      <el-empty v-else-if="chapters.length === 0" description="还没有章节">
         <el-button type="primary" @click="addChapter">创建第一章</el-button>
       </el-empty>
 
@@ -469,6 +471,7 @@ import { buildReadingPreview, truncateReadingPreviewText } from '@/utils/reading
 import { getChapterStatusType, getChapterStatusText, formatDate } from '@/utils/formatters'
 import { getFriendlyMessage } from '@/utils/errorHandler'
 import ErrorBoundary from '@/components/ErrorBoundary.vue'
+import LoadingSkeleton from '@/components/LoadingSkeleton.vue'
 const ExportSettings = defineAsyncComponent(() => import('./ExportSettings.vue'))
 const ChapterEditorDialog = defineAsyncComponent(() => import('./ChapterEditorDialog.vue'))
 const ChapterReadingPreview = defineAsyncComponent(() => import('./ChapterReadingPreview.vue'))
@@ -489,6 +492,21 @@ const chapterSearchQuery = ref('')
 const chapterStatusFilter = ref('')
 const chapterWordCountFilter = ref('')
 const chapterQualityFilter = ref('')
+
+// Loading state for chapter list skeleton
+const chaptersLoading = ref(true)
+let loadingResolved = false
+
+watch(
+  () => ({ loading: projectStore.loading, project: project.value, chapters: chapters.value }),
+  ({ loading, project: proj, chapters: chs }) => {
+    if (!loadingResolved && (!loading || (proj && chs.length >= 0))) {
+      loadingResolved = true
+      chaptersLoading.value = false
+    }
+  },
+  { immediate: true }
+)
 
 const filteredChapters = computed(() => {
   let result = chapters.value

@@ -91,6 +91,8 @@
     title="质量检查报告"
     width="70%"
     top="5vh"
+    aria-modal="true"
+    aria-labelledby="quality-report-title"
   >
     <div v-if="currentQualityReport" class="quality-report-dialog">
       <el-row :gutter="20">

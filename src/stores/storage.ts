@@ -6,6 +6,39 @@ import type { ChapterSnapshot } from '@/types/chapter-version'
 
 const logger = getLogger('storage')
 
+/** Minimum shape for project data stored in IndexedDB / Tauri */
+interface StoredProject {
+  id: string
+  title?: string
+  genre?: string
+  targetWords?: number
+  currentWords?: number
+  status?: string
+  createdAt?: string | number | Date
+  updatedAt?: string | number | Date
+  chapters?: StoredChapter[]
+  characters?: unknown[]
+  worldbook?: { entries?: unknown[] } | Record<string, unknown>
+  [key: string]: unknown
+}
+
+/** Chapter record shape as stored (content may be absent for metadata-only views) */
+interface StoredChapter {
+  id: string
+  projectId?: string
+  number?: number
+  title?: string
+  content?: string
+  wordCount?: number
+  [key: string]: unknown
+}
+
+/** Minimal shape for template records persisted in IndexedDB */
+interface StoredTemplate {
+  id: string
+  [key: string]: unknown
+}
+
 // 使用IndexedDB存储大数据，LocalStorage存储元数据
 const DB_NAME = 'AI_Novel_Workshop'
 const DB_VERSION = 4 // 升级数据库版本以支持模板存储
@@ -142,7 +175,7 @@ class IndexedDBStorage {
   }
 
   // 保存项目元数据到LocalStorage
-  async saveProjectsList(projects: any[]) {
+  async saveProjectsList(projects: StoredProject[]) {
     const projectsList = projects.map(p => ({
       id: p.id,
       title: p.title,
@@ -171,11 +204,11 @@ class IndexedDBStorage {
   }
 
   // 保存项目（分离章节存储）
-  async saveProject(project: any) {
+  async saveProject(project: StoredProject) {
     if (!this.db) await this.init()
 
     // 确保数据是普通对象
-    let projectData: any
+    let projectData: StoredProject
     try {
       projectData = JSON.parse(JSON.stringify(project))
     } catch (error) {
@@ -265,14 +298,14 @@ class IndexedDBStorage {
   async loadChapters(projectId: string) {
     if (!this.db) await this.init()
 
-    return new Promise<any[]>((resolve, reject) => {
+    return new Promise<StoredChapter[]>((resolve, reject) => {
       const transaction = this.db!.transaction([CHAPTERS_STORE], 'readonly')
       const store = transaction.objectStore(CHAPTERS_STORE)
       const index = store.index('projectId')
       const request = index.getAll(IDBKeyRange.only(projectId))
 
       request.onsuccess = () => {
-        const chapters = request.result || []
+        const chapters: StoredChapter[] = request.result || []
         // 按章节号排序
         chapters.sort((a, b) => (a.number || 0) - (b.number || 0))
         resolve(chapters)
@@ -330,13 +363,13 @@ class IndexedDBStorage {
   ) {
     if (!this.db) await this.init()
 
-    return new Promise<{ chapters: any[], total: number }>((resolve, reject) => {
+    return new Promise<{ chapters: StoredChapter[], total: number }>((resolve, reject) => {
       const transaction = this.db!.transaction([CHAPTERS_STORE], 'readonly')
       const store = transaction.objectStore(CHAPTERS_STORE)
       const index = store.index('projectId')
       const request = index.openCursor(IDBKeyRange.only(projectId))
 
-      const allChapters: any[] = []
+      const allChapters: StoredChapter[] = []
 
       request.onsuccess = (event) => {
         const cursor = (event.target as IDBRequest).result
@@ -362,7 +395,7 @@ class IndexedDBStorage {
   }
 
   // 保存单个章节（增量更新）
-  async saveChapter(chapter: any) {
+  async saveChapter(chapter: StoredChapter) {
     if (!this.db) await this.init()
     if (!isValidId(chapter?.id) || !isValidId(chapter?.projectId)) {
       throw new Error('章节标识无效')
@@ -562,7 +595,7 @@ class IndexedDBStorage {
   async loadChaptersMeta(projectId: string) {
     if (!this.db) await this.init()
 
-    return new Promise<any[]>((resolve, reject) => {
+    return new Promise<StoredChapter[]>((resolve, reject) => {
       const transaction = this.db!.transaction([CHAPTERS_STORE], 'readonly')
       const store = transaction.objectStore(CHAPTERS_STORE)
       const index = store.index('projectId')
@@ -570,7 +603,7 @@ class IndexedDBStorage {
 
       request.onsuccess = () => {
         const chapters = (request.result || [])
-          .map(({ content, ...meta }) => meta) // 剥离content
+          .map(({ content, ...meta }: StoredChapter) => meta)
           .sort((a, b) => (a.number || 0) - (b.number || 0))
         resolve(chapters)
       }
@@ -583,7 +616,7 @@ class IndexedDBStorage {
   async loadSingleChapter(projectId: string, chapterId: string) {
     if (!this.db) await this.init()
 
-    return new Promise<any>((resolve, reject) => {
+    return new Promise<StoredChapter | null>((resolve, reject) => {
       const transaction = this.db!.transaction([CHAPTERS_STORE], 'readonly')
       const store = transaction.objectStore(CHAPTERS_STORE)
       const request = store.get(chapterId)
@@ -645,10 +678,10 @@ class IndexedDBStorage {
 
   // ============ 模板存储 ============
 
-  async loadTemplates(): Promise<any[]> {
+  async loadTemplates(): Promise<StoredTemplate[]> {
     if (!this.db) await this.init()
 
-    return new Promise<any[]>((resolve, reject) => {
+    return new Promise<StoredTemplate[]>((resolve, reject) => {
       const transaction = this.db!.transaction([TEMPLATES_STORE], 'readonly')
       const store = transaction.objectStore(TEMPLATES_STORE)
       const request = store.getAll()
@@ -658,7 +691,7 @@ class IndexedDBStorage {
     })
   }
 
-  async saveTemplates(templates: any[]): Promise<void> {
+  async saveTemplates(templates: StoredTemplate[]): Promise<void> {
     if (!this.db) await this.init()
 
     return new Promise<void>((resolve, reject) => {
@@ -706,7 +739,7 @@ class TauriStorage {
     }
   }
 
-  async saveProjectsList(projects: any[]) {
+  async saveProjectsList(projects: StoredProject[]) {
     const { invoke } = await import('@tauri-apps/api/core');
     const projectsList = projects.map(p => ({
       id: p.id,
@@ -738,7 +771,7 @@ class TauriStorage {
       
       // 按章节号排序保障时序
       if (Array.isArray(project.chapters)) {
-        project.chapters.sort((a: any, b: any) => (a.number || 0) - (b.number || 0));
+        project.chapters.sort((a: StoredChapter, b: StoredChapter) => (a.number || 0) - (b.number || 0));
       }
 
       return project;
@@ -759,7 +792,7 @@ class TauriStorage {
     }
   }
 
-  async saveProject(project: any) {
+  async saveProject(project: StoredProject) {
     const { invoke } = await import('@tauri-apps/api/core');
     const projectCopy = { ...project };
     const chapters = projectCopy.chapters || [];
@@ -781,25 +814,25 @@ class TauriStorage {
         await invoke('save_project_with_chapters', {
           id: project.id,
           projectData: JSON.stringify(projectCopy),
-          chaptersData: chapters.map((c: any) => JSON.stringify(c)),
-          charactersData: characters.map((c: any) => JSON.stringify(c)),
-          worldbookData: worldbook.map((w: any) => JSON.stringify(w))
+          chaptersData: chapters.map((c: StoredChapter) => JSON.stringify(c)),
+          charactersData: characters.map((c: unknown) => JSON.stringify(c)),
+          worldbookData: worldbook.map((w: unknown) => JSON.stringify(w))
         });
       } else {
         await invoke('save_project', {
           id: project.id,
           data: JSON.stringify(projectCopy),
-          characters: characters.map((c: any) => JSON.stringify(c)),
-          worldbook: worldbook.map((w: any) => JSON.stringify(w))
+          characters: characters.map((c: unknown) => JSON.stringify(c)),
+          worldbook: worldbook.map((w: unknown) => JSON.stringify(w))
         });
       }
-    } catch (e: any) {
+    } catch (e: unknown) {
       logger.error('保存项目完整包失败:', e);
       throw new Error(`桌面端保存项目失败：${e.message || String(e)}`);
     }
   }
 
-  async saveChapter(chapter: any, projectId?: string) {
+  async saveChapter(chapter: StoredChapter, projectId?: string) {
     const { invoke } = await import('@tauri-apps/api/core');
     if (!projectId) {
       throw new Error("缺少 projectId，无法直接保存对应章节");

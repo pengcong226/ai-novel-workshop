@@ -1,13 +1,17 @@
 <template>
-  <div class="app-container">
-    <div v-if="onlineStatus.isOffline.value" class="offline-banner" role="status">
+  <div class="app-container" lang="zh-CN">
+    <a href="#main-content" class="skip-link">跳转到主要内容</a>
+
+    <div v-if="onlineStatus.isOffline.value" class="offline-banner" role="status" aria-live="polite">
       当前处于离线状态，AI 生成与同步功能可能不可用。
     </div>
 
     <!-- 全局错误提示 -->
     <el-config-provider :locale="zhCn">
       <ErrorBoundary name="RouterView" :show-retry="true">
-        <router-view />
+        <div id="main-content" role="main" aria-label="主要内容">
+          <router-view />
+        </div>
       </ErrorBoundary>
       <ErrorBoundary name="OnboardingDialog">
         <OnboardingDialog />
@@ -16,6 +20,9 @@
 
     <!-- 全局任务观察器 -->
     <GlobalTaskObserver />
+
+    <!-- 全局搜索 -->
+    <SearchDialog ref="searchDialogRef" />
 
     <!-- 核弹级全局替换器 -->
     <GlobalMutator ref="globalMutatorRef" />
@@ -40,6 +47,7 @@ import zhCn from 'element-plus/es/locale/lang/zh-cn'
 import { setupGlobalErrorHandler, errorHandler, ErrorSeverity, type AppError, getFriendlyMessage } from '@/utils/errorHandler'
 import GlobalTaskObserver from '@/components/GlobalTaskObserver.vue'
 import GlobalMutator from '@/components/GlobalMutator.vue'
+import SearchDialog from '@/components/SearchDialog.vue'
 import OnboardingDialog from '@/components/OnboardingDialog.vue'
 import ErrorBoundary from '@/components/ErrorBoundary.vue'
 import { useKeyboardShortcuts } from '@/composables/useKeyboardShortcuts'
@@ -51,6 +59,7 @@ const logger = getLogger('src:App')
 
 const currentError = ref<AppError | null>(null)
 const globalMutatorRef = ref<InstanceType<typeof GlobalMutator> | null>(null)
+const searchDialogRef = ref<InstanceType<typeof SearchDialog> | null>(null)
 const { registerShortcuts } = useKeyboardShortcuts()
 const onboarding = useOnboarding()
 const onlineStatus = useOnlineStatus()
@@ -62,6 +71,13 @@ registerShortcuts([
     keys: ['ctrl', 'shift', 'h'],
     scope: 'global',
     handler: () => globalMutatorRef.value?.open(),
+  },
+  {
+    id: 'workspace.search',
+    label: '全局搜索',
+    keys: ['mod', 'k'],
+    scope: 'workspace',
+    handler: () => searchDialogRef.value?.open(),
   },
 ])
 
@@ -172,6 +188,23 @@ html, body, #app, .app-container {
   height: 100%;
   width: 100%;
   overflow: hidden;
+}
+
+.skip-link {
+  position: absolute;
+  top: -100%;
+  left: var(--ds-space-4);
+  z-index: 9999;
+  padding: var(--ds-space-2) var(--ds-space-4);
+  background: var(--ds-accent);
+  color: var(--ds-text-on-accent, #fff);
+  border-radius: var(--ds-radius-md);
+  text-decoration: none;
+  font-size: var(--ds-text-sm);
+}
+
+.skip-link:focus {
+  top: var(--ds-space-2);
 }
 
 .offline-banner {

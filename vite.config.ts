@@ -107,39 +107,43 @@ export default defineConfig({
         chunkFileNames: 'assets/[name]-[hash].js',
         assetFileNames: 'assets/[name]-[hash].[ext]',
         manualChunks(id: string) {
-          const normalizedId = id.split('\\').join('/')
+          // vendor-vue: vue, vue-router, pinia
           if (
-            normalizedId.includes('/node_modules/vue/') ||
-            normalizedId.includes('/node_modules/vue-router/') ||
-            normalizedId.includes('/node_modules/pinia/')
-          ) return 'vue-vendor'
-          if (normalizedId.includes('/node_modules/element-plus/')) return 'element-plus'
+            id.includes('/node_modules/vue/') ||
+            id.includes('/node_modules/vue-router/') ||
+            id.includes('/node_modules/pinia/')
+          ) return 'vendor-vue'
+          // vendor-element: element-plus + icons
+          if (id.includes('/node_modules/element-plus/')) return 'vendor-element'
+          // vendor-echarts: echarts, vue-echarts, zrender
           if (
-            normalizedId.includes('/node_modules/echarts/') ||
-            normalizedId.includes('/node_modules/vue-echarts/') ||
-            normalizedId.includes('/node_modules/zrender/')
-          ) return 'echarts'
+            id.includes('/node_modules/echarts/') ||
+            id.includes('/node_modules/vue-echarts/') ||
+            id.includes('/node_modules/zrender/')
+          ) return 'vendor-echarts'
+          // vendor-tiptap: tiptap + prosemirror ecosystem
           if (
-            normalizedId.includes('/node_modules/@tiptap/') ||
-            normalizedId.includes('/node_modules/prosemirror-')
-          ) return 'tiptap'
-          if (normalizedId.includes('/node_modules/@antv/')) return 'g6'
-          if (normalizedId.includes('/node_modules/vis-')) return 'vis-timeline'
-          if (normalizedId.includes('/node_modules/xlsx/')) return 'xlsx'
-          if (normalizedId.includes('/node_modules/@xenova/')) return 'transformers'
+            id.includes('/node_modules/@tiptap/') ||
+            id.includes('/node_modules/prosemirror-')
+          ) return 'vendor-tiptap'
+          // vendor-g6: AntV G6
+          if (id.includes('/node_modules/@antv/')) return 'vendor-g6'
+          // vendor-vis: vis-timeline, vis-data
+          if (id.includes('/node_modules/vis-')) return 'vendor-vis'
+          // vendor-misc: xlsx, transformers, konva, utils
           if (
-            normalizedId.includes('/node_modules/konva/') ||
-            normalizedId.includes('/node_modules/vue-konva/')
-          ) return 'konva'
-          if (
-            normalizedId.includes('/node_modules/lodash-es/') ||
-            normalizedId.includes('/node_modules/marked/') ||
-            normalizedId.includes('/node_modules/js-yaml/') ||
-            normalizedId.includes('/node_modules/jszip/') ||
-            normalizedId.includes('/node_modules/ajv/') ||
-            normalizedId.includes('/node_modules/dompurify/') ||
-            normalizedId.includes('/node_modules/gpt-tokenizer/')
-          ) return 'vendor-utils'
+            id.includes('/node_modules/xlsx/') ||
+            id.includes('/node_modules/@xenova/') ||
+            id.includes('/node_modules/konva/') ||
+            id.includes('/node_modules/vue-konva/') ||
+            id.includes('/node_modules/lodash-es/') ||
+            id.includes('/node_modules/marked/') ||
+            id.includes('/node_modules/js-yaml/') ||
+            id.includes('/node_modules/jszip/') ||
+            id.includes('/node_modules/ajv/') ||
+            id.includes('/node_modules/dompurify/') ||
+            id.includes('/node_modules/gpt-tokenizer/')
+          ) return 'vendor-misc'
         }
       }
     },

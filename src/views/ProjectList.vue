@@ -20,21 +20,23 @@
       </div>
     </header>
 
-    <main class="main" v-loading="projectStore.loading">
+    <main class="main">
+      <LoadingSkeleton v-if="projectStore.loading" variant="card" :count="4" />
+
       <div
-        v-if="!projectStore.loading && projectStore.projects.length === 0"
+        v-else-if="!projectStore.loading && projectStore.projects.length === 0"
         class="empty-state glass-panel fade-in"
       >
         <div class="empty-icon"><el-icon :size="56" color="var(--ds-accent-text)"><EditPen /></el-icon></div>
         <h2>开始你的第一部作品</h2>
         <p>从空白项目或模板出发，把设定、章节和审校流程集中到一个创作空间。</p>
         <div class="empty-actions">
-          <el-button type="primary" round @click="quickStartDemo" :loading="demoLoading">
+          <el-button type="primary" round @click="quickStartDemo" :loading="demoLoading" aria-label="一键体验示例项目">
             <el-icon><MagicStick /></el-icon>
             一键体验示例
           </el-button>
-          <el-button round @click="showCreateDialog = true">新建项目</el-button>
-          <el-button round @click="showTemplateCreateDialog = true">从模板创建</el-button>
+          <el-button round @click="showCreateDialog = true" aria-label="新建项目">新建项目</el-button>
+          <el-button round @click="showTemplateCreateDialog = true" aria-label="从模板创建项目">从模板创建</el-button>
         </div>
       </div>
 
@@ -44,14 +46,18 @@
           :key="project.id"
           class="project-card fade-in"
           :style="{ animationDelay: `${idx * 60}ms` }"
+          :aria-label="`打开项目：${project.title}`"
+          role="link"
+          tabindex="0"
           @click="openProject(project.id)"
+          @keydown.enter="openProject(project.id)"
         >
           <div class="card-accent" :style="{ background: getAccentGradient(project.genre) }"></div>
           <div class="card-body">
             <div class="card-header">
               <h3 class="card-title" :title="project.title">{{ project.title }}</h3>
               <el-dropdown @click.stop trigger="click" @command="(cmd: string) => handleCommand(cmd, project.id)">
-                <el-icon class="more-btn" aria-label="更多操作"><MoreFilled /></el-icon>
+                <el-icon class="more-btn" role="button" aria-haspopup="menu" aria-label="更多操作"><MoreFilled /></el-icon>
                 <template #dropdown>
                   <el-dropdown-menu>
                     <el-dropdown-item command="edit">
@@ -88,7 +94,14 @@
                 <span class="progress-text">{{ formatNumber(project.currentWords) }} / {{ formatNumber(project.targetWords) }} 字</span>
                 <span class="progress-percent">{{ getProgress(project.currentWords, project.targetWords) }}%</span>
               </div>
-              <div class="progress-bar">
+              <div
+                class="progress-bar"
+                role="progressbar"
+                :aria-valuenow="getProgress(project.currentWords, project.targetWords)"
+                aria-valuemin="0"
+                aria-valuemax="100"
+                :aria-label="`写作进度 ${getProgress(project.currentWords, project.targetWords)}%`"
+              >
                 <div
                   class="progress-fill"
                   :style="{ width: getProgress(project.currentWords, project.targetWords) + '%' }"
@@ -304,6 +317,7 @@ import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'elem
 import { Plus, Edit, Download, Delete, EditPen, MoreFilled, UploadFilled, Upload, MagicStick } from '@element-plus/icons-vue'
 import { templateManager } from '@/utils/templateManager'
 import { useSandboxStore } from '@/stores/sandbox'
+import LoadingSkeleton from '@/components/LoadingSkeleton.vue'
 const TemplateLibrary = defineAsyncComponent(() => import('@/components/TemplateLibrary.vue'))
 import type { NovelTemplate, Project, ProjectConfig } from '@/types'
 import { getLogger } from '@/utils/logger'
