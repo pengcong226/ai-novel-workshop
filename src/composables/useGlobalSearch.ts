@@ -1,4 +1,22 @@
-import { ref, watch } from 'vue'
+/**
+ * Global Search Composable
+ *
+ * Provides a full-text search across project chapters, sandbox entities,
+ * and outline data using the internal `SearchEngine`. Features debounced
+ * search, recent search history (persisted to localStorage), and keyboard
+ * navigation support.
+ *
+ * @example
+ * ```vue
+ * <script setup lang="ts">
+ * import { useGlobalSearch } from '@/composables/useGlobalSearch'
+ *
+ * const { query, visible, results, open, close, activate } = useGlobalSearch()
+ * </script>
+ * ```
+ */
+
+import { ref, readonly, watch, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useProjectStore } from '@/stores/project'
 import { useSandboxStore } from '@/stores/sandbox'
@@ -112,6 +130,14 @@ export function useGlobalSearch() {
 
   // Debounce timer
   let searchTimer: ReturnType<typeof setTimeout> | null = null
+
+  // Cleanup on unmount
+  onUnmounted(() => {
+    if (searchTimer !== null) {
+      clearTimeout(searchTimer)
+      searchTimer = null
+    }
+  })
 
   // ---- indexing ----
 
@@ -253,8 +279,10 @@ export function useGlobalSearch() {
   return {
     query,
     visible,
-    results,
-    recentSearches,
+    /** Search results (read-only) */
+    results: readonly(results),
+    /** Recent search terms (read-only) */
+    recentSearches: readonly(recentSearches),
     commitRecent,
     deleteRecent,
     open,

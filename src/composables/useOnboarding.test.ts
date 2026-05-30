@@ -121,7 +121,8 @@ describe('createOnboardingState', () => {
     const onboarding = createOnboardingState(storage)
 
     onboarding.complete()
-    onboarding.currentStep.value = 2
+    onboarding.nextStep()
+    onboarding.nextStep()
     onboarding.reset()
 
     expect(storage.removeItem).toHaveBeenCalledWith(ONBOARDING_COMPLETED_KEY)

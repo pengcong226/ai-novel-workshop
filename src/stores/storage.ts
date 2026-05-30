@@ -828,7 +828,7 @@ class TauriStorage {
       }
     } catch (e: unknown) {
       logger.error('保存项目完整包失败:', e);
-      throw new Error(`桌面端保存项目失败：${e.message || String(e)}`);
+      throw new Error(`桌面端保存项目失败：${e instanceof Error ? e.message : String(e)}`);
     }
   }
 
@@ -941,7 +941,7 @@ export const useStorage = defineStore('storage', () => {
     return await storage.loadProjectsList()
   }
 
-  async function saveProjects(projects: any[]) {
+  async function saveProjects(projects: StoredProject[]) {
     await init()
     return await storage.saveProjectsList(projects)
   }
@@ -958,7 +958,7 @@ export const useStorage = defineStore('storage', () => {
       if (!project) return null
 
       const chapters = await Promise.all(
-        (project.chapters || []).map(async (chapter: any) => {
+        (project.chapters || []).map(async (chapter: StoredChapter) => {
           const fullChapter = await storage.loadChapter(projectId, chapter.id)
           return fullChapter || chapter
         })
@@ -976,7 +976,7 @@ export const useStorage = defineStore('storage', () => {
     return project
   }
 
-  async function saveProject(project: any) {
+  async function saveProject(project: StoredProject) {
     await init()
     return await storage.saveProject(project)
   }
@@ -1026,10 +1026,10 @@ export const useStorage = defineStore('storage', () => {
     }
     // Tauri和其他后端回退到全量加载并剥离content
     const chapters = await loadChapters(projectId)
-    return chapters.map(({ content, ...meta }: any) => meta)
+    return chapters.map(({ content, ...meta }: StoredChapter) => meta)
   }
 
-  async function saveChapter(chapter: any, projectId?: string) {
+  async function saveChapter(chapter: StoredChapter, projectId?: string) {
     await init()
     if (storage instanceof IndexedDBStorage) {
       if (!projectId) throw new Error('保存章节需要 projectId')
@@ -1088,7 +1088,7 @@ export const useStorage = defineStore('storage', () => {
 
   // ============ 模板存储 ============
 
-  async function loadTemplates(): Promise<any[]> {
+  async function loadTemplates(): Promise<StoredTemplate[]> {
     await init()
     if (storage instanceof IndexedDBStorage) {
       return await storage.loadTemplates()
@@ -1102,7 +1102,7 @@ export const useStorage = defineStore('storage', () => {
     }
   }
 
-  async function saveTemplates(templates: any[]): Promise<void> {
+  async function saveTemplates(templates: StoredTemplate[]): Promise<void> {
     await init()
     if (storage instanceof IndexedDBStorage) {
       return await storage.saveTemplates(templates)
@@ -1120,7 +1120,7 @@ export const useStorage = defineStore('storage', () => {
     try {
       const stored = localStorage.getItem('ai-novel-templates')
       if (stored) {
-        const templates = JSON.parse(stored).filter((t: any) => t.id !== templateId)
+        const templates = JSON.parse(stored).filter((t: StoredTemplate) => t.id !== templateId)
         localStorage.setItem('ai-novel-templates', JSON.stringify(templates))
       }
     } catch {

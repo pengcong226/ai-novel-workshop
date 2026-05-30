@@ -1,5 +1,21 @@
+/**
+ * Project aggregate store.
+ *
+ * Manages the project list, current open project, global config,
+ * chapter-level CRUD, import/export, and lifecycle operations.
+ *
+ * ### storeToRefs usage
+ * ```ts
+ * import { useProjectStore } from '@/stores/project'
+ * import { storeToRefs } from 'pinia'
+ * const { currentProject, projects, loading } = storeToRefs(useProjectStore())
+ * ```
+ *
+ * @module stores/project
+ */
+
 import { defineStore } from 'pinia'
-import { ref, computed, shallowRef } from 'vue'
+import { ref, computed, shallowRef, type Ref, type ComputedRef } from 'vue'
 import type { Project, ProjectConfig } from '@/types'
 import { v4 as uuidv4 } from 'uuid'
 import { decryptProjectConfig, encryptProjectConfig } from '@/utils/crypto'
@@ -12,25 +28,52 @@ import { reorderChaptersByIds } from '@/utils/chapterReorder'
 import { createProjectBackup, parseProjectBackupJson, reassignProjectBackupIds } from '@/utils/projectBackup'
 
 export const useProjectStore = defineStore('project', () => {
-  // 状态
-  const projects = shallowRef<Project[]>([])
-  const currentProject = shallowRef<Project | null>(null)
-  const loading = ref(false)
-  const error = ref<string | null>(null)
+  // State
+  const projects: Ref<Project[]> = shallowRef([])
+  const currentProject: Ref<Project | null> = shallowRef(null)
+  const loading: Ref<boolean> = ref(false)
+  const error: Ref<string | null> = ref(null)
 
-  // 全局配置（当没有打开项目时使用）
-  const globalConfig = ref<ProjectConfig | null>(null)
+  /** Global config used when no project is open. */
+  const globalConfig: Ref<ProjectConfig | null> = ref(null)
+  let globalConfigLoaded = false
 
   // 存储服务
   const storage = useStorage()
   const logger = getLogger('project:store')
 
-  // 计算属性
-  const projectCount = computed(() => projects.value.length)
-  const hasCurrentProject = computed(() => currentProject.value !== null)
+  // Getters
+  /** Number of projects in the list. */
+  const projectCount: ComputedRef<number> = computed(
+    (): number => projects.value.length
+  )
+  /** Whether a project is currently open. */
+  const hasCurrentProject: ComputedRef<boolean> = computed(
+    (): boolean => currentProject.value !== null
+  )
 
-  // 加载全局配置
-  async function loadGlobalConfig() {
+  // Cached derived state from current project
+  const currentChaptersSorted = computed(() => {
+    const proj = currentProject.value
+    if (!proj?.chapters) return []
+    return [...proj.chapters].sort((a, b) => (a.number || 0) - (b.number || 0))
+  })
+
+  const currentProjectStats = computed(() => {
+    const proj = currentProject.value
+    if (!proj) return { chapterCount: 0, totalWords: 0, avgWordsPerChapter: 0 }
+    const chapters = proj.chapters || []
+    const totalWords = chapters.reduce((sum, c) => sum + ((c as any).wordCount || 0), 0)
+    return {
+      chapterCount: chapters.length,
+      totalWords,
+      avgWordsPerChapter: chapters.length > 0 ? Math.round(totalWords / chapters.length) : 0,
+    }
+  })
+
+  // 加载全局配置（幂等：已加载时跳过网络读取）
+  async function loadGlobalConfig(force = false) {
+    if (globalConfigLoaded && !force) return
     try {
       const configData = localStorage.getItem('global-config')
       if (configData) {
@@ -38,6 +81,7 @@ export const useProjectStore = defineStore('project', () => {
         const decryptedConfig = await decryptProjectConfig(parsedConfig)
         globalConfig.value = normalizeProjectConfig(decryptedConfig)
       }
+      globalConfigLoaded = true
     } catch (e) {
       logger.error('加载全局配置失败', e)
     }
@@ -50,6 +94,7 @@ export const useProjectStore = defineStore('project', () => {
       const encryptedConfig = await encryptProjectConfig(normalizedConfig)
       localStorage.setItem('global-config', JSON.stringify(encryptedConfig))
       globalConfig.value = normalizedConfig
+      globalConfigLoaded = true
     } catch (e) {
       logger.error('保存全局配置失败', e)
       throw e
@@ -631,19 +676,34 @@ export const useProjectStore = defineStore('project', () => {
     logger.info('[ProjectStore] 已从备份恢复项目数据')
   }
 
+  /**
+   * Reset the project store to its initial state. Calls `cleanup()`
+   * first to clear timers and event listeners.
+   */
+  function $reset(): void {
+    cleanup()
+    projects.value = []
+    currentProject.value = null
+    loading.value = false
+    error.value = null
+    globalConfig.value = null
+  }
+
   return {
-    // 状态
+    // State
     projects,
     currentProject,
     loading,
     error,
     globalConfig,
 
-    // 计算属性
+    // Getters
     projectCount,
     hasCurrentProject,
+    currentChaptersSorted,
+    currentProjectStats,
 
-    // 方法
+    // Actions
     loadProjects,
     createProject,
     openProject,
@@ -656,13 +716,14 @@ export const useProjectStore = defineStore('project', () => {
     saveGlobalConfig,
     restoreFromBackup,
 
-    // 章节级新接口
+    // Chapter-level API
     loadChapter,
     saveChapter,
     deleteChapter,
     reorderChapters,
 
-    // 清理
-    cleanup
+    // Lifecycle
+    cleanup,
+    $reset
   }
 })

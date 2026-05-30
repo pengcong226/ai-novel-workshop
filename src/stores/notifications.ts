@@ -1,10 +1,22 @@
 /**
- * 通知状态管理 Store
- * 管理全局通知队列、历史记录和未读计数
+ * Notification state management store.
+ *
+ * Manages the global notification queue, history, and unread count.
+ * Supports deduplication by group key, pause/resume on hover, and
+ * configurable position.
+ *
+ * ### storeToRefs usage
+ * ```ts
+ * import { useNotificationsStore } from '@/stores/notifications'
+ * import { storeToRefs } from 'pinia'
+ * const { active, history, unreadCount } = storeToRefs(useNotificationsStore())
+ * ```
+ *
+ * @module stores/notifications
  */
 
 import { defineStore } from 'pinia'
-import { ref, computed } from 'vue'
+import { ref, computed, type Ref, type ComputedRef } from 'vue'
 import { v4 as uuidv4 } from 'uuid'
 
 // ── Types ───────────────────────────────────────────────────────────────
@@ -60,15 +72,27 @@ const MAX_HISTORY = 200
 
 export const useNotificationsStore = defineStore('notifications', () => {
   // State
-  const active = ref<NotificationItem[]>([])
-  const history = ref<NotificationItem[]>([])
-  const position = ref<NotificationPosition>('top-right')
+  const active: Ref<NotificationItem[]> = ref([])
+  const history: Ref<NotificationItem[]> = ref([])
+  const position: Ref<NotificationPosition> = ref('top-right')
 
   // Getters
-  const unreadCount = computed(() => history.value.filter(n => !n.read).length)
-  const visibleNotifications = computed(() => active.value.slice(0, MAX_VISIBLE))
-  const hasOverflow = computed(() => active.value.length > MAX_VISIBLE)
-  const overflowCount = computed(() => Math.max(0, active.value.length - MAX_VISIBLE))
+  /** Number of notifications that have not yet been read. */
+  const unreadCount: ComputedRef<number> = computed((): number =>
+    history.value.filter(n => !n.read).length
+  )
+  /** Visible slice of active notifications (capped to MAX_VISIBLE). */
+  const visibleNotifications: ComputedRef<NotificationItem[]> = computed(
+    (): NotificationItem[] => active.value.slice(0, MAX_VISIBLE)
+  )
+  /** Whether more active notifications exist than can be shown. */
+  const hasOverflow: ComputedRef<boolean> = computed(
+    (): boolean => active.value.length > MAX_VISIBLE
+  )
+  /** Count of active notifications hidden beyond the visible limit. */
+  const overflowCount: ComputedRef<number> = computed(
+    (): number => Math.max(0, active.value.length - MAX_VISIBLE)
+  )
 
   // ── Actions ─────────────────────────────────────────────────────────
 
@@ -241,6 +265,16 @@ export const useNotificationsStore = defineStore('notifications', () => {
     position.value = p
   }
 
+  /**
+   * Reset the store to its initial state, clearing all active
+   * notifications, history, and restoring the default position.
+   */
+  function $reset(): void {
+    active.value = []
+    history.value = []
+    position.value = 'top-right'
+  }
+
   return {
     // State
     active,
@@ -268,5 +302,6 @@ export const useNotificationsStore = defineStore('notifications', () => {
     clearHistory,
     getHistoryByType,
     setPosition,
+    $reset,
   }
 })

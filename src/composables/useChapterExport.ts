@@ -1,3 +1,23 @@
+/**
+ * Chapter Export Composable
+ *
+ * Handles exporting chapters to multiple formats (Markdown, PDF, TXT, DOCX,
+ * EPUB, JSON) with both single-chapter and batch export support. Integrates
+ * with Element Plus for user feedback and `file-saver` for downloads.
+ *
+ * @example
+ * ```vue
+ * <script setup lang="ts">
+ * import { useChapterExport } from '@/composables/useChapterExport'
+ *
+ * const {
+ *   exporting, showExportSettings,
+ *   handleExportCommand, handleChapterExport,
+ * } = useChapterExport(projectRef, chaptersRef)
+ * </script>
+ * ```
+ */
+
 import { ref, type Ref } from 'vue'
 import { ElMessage } from 'element-plus'
 import { saveAs } from 'file-saver'

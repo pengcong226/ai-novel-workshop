@@ -212,7 +212,7 @@ function base64Encode(data: Uint8Array): string {
 async function deflate(data: Uint8Array): Promise<Uint8Array> {
   try {
     // 尝试使用pako (如果可用)
-    // @ts-ignore - pako是可选依赖
+    // @ts-expect-error pako is an optional peer dependency; fallback to CompressionStream if unavailable
     const pako = await import('pako')
     return pako.deflate(data)
   } catch {
@@ -220,7 +220,7 @@ async function deflate(data: Uint8Array): Promise<Uint8Array> {
     // 如果pako不可用，使用浏览器原生CompressionStream
     const stream = new CompressionStream('deflate')
     const writer = stream.writable.getWriter()
-    await writer.write(data as BufferSource)
+    await writer.write(data)
     await writer.close()
 
     const reader = stream.readable.getReader()
@@ -648,7 +648,7 @@ export class WorldbookPngWriter {
     })
 
     // 构建角色卡数据
-    let cardData: any
+    let cardData: Record<string, unknown>
     let metadataKey: string
 
     switch (cardFormat) {

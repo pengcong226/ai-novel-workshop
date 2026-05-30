@@ -2,7 +2,7 @@
  * 地图导出工具
  */
 
-import type { MapData, Location, MapRegion} from '@/types'
+import type { MapData, Location, MapRegion, WorldSetting} from '@/types'
 
 /**
  * 导出地图为 JSON 数据
@@ -178,8 +178,8 @@ export function exportLocationsToCSV(locations: Location[]): string {
 /**
  * 从 WorldSetting 提取地图数据
  */
-export function extractMapDataFromWorld(worldSetting: any): Partial<MapData> {
-  const locations: Location[] = (worldSetting.geography?.locations || []).map((loc: any) => ({
+export function extractMapDataFromWorld(worldSetting: WorldSetting): Partial<MapData> {
+  const locations: Location[] = (worldSetting.geography?.locations || []).map((loc) => ({
     ...loc,
     position: {
       x: Math.random() * 800 + 100,
@@ -190,7 +190,7 @@ export function extractMapDataFromWorld(worldSetting: any): Partial<MapData> {
   }))
 
   // 提取势力范围作为区域
-  const regions: MapRegion[] = (worldSetting.factions || []).map((faction: any, index: number) => {
+  const regions: MapRegion[] = (worldSetting.factions || []).map((faction, index) => {
     // 生成随机多边形区域
     const centerX = 100 + (index % 3) * 300
     const centerY = 100 + Math.floor(index / 3) * 250

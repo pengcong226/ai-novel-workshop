@@ -1,8 +1,23 @@
 /**
  * Unified search composable with debounced input, fuzzy matching,
  * multi-field search, result highlighting, and filter support.
+ *
+ * @example
+ * ```vue
+ * <script setup lang="ts">
+ * import { useSearch } from '@/composables/useSearch'
+ *
+ * const { query, results, searching, isEmpty, addDocuments } = useSearch({
+ *   fieldWeights: { title: 3, content: 1 },
+ *   debounceMs: 300,
+ * })
+ *
+ * // Add documents to the index
+ * addDocuments([{ id: '1', type: 'note', fields: { title: 'Hello' } }])
+ * </script>
+ * ```
  */
-import { ref, computed, watch, type Ref } from 'vue'
+import { ref, readonly, computed, watch, onUnmounted, type Ref } from 'vue'
 import { SearchEngine, type SearchableDocument, type ScoredResult, type SearchEngineOptions } from '@/utils/searchEngine'
 
 export interface SearchFilter {
@@ -21,9 +36,9 @@ export interface UseSearchReturn {
   /** Current search query */
   query: Ref<string>
   /** Whether a search is in progress */
-  searching: Ref<boolean>
+  searching: Readonly<Ref<boolean>>
   /** Search results */
-  results: Ref<ScoredResult[]>
+  results: Readonly<Ref<ScoredResult[]>>
   /** Active filters */
   filters: Ref<SearchFilter[]>
   /** Update a filter value */
@@ -35,7 +50,7 @@ export interface UseSearchReturn {
   /** Clear the index (optionally by type) */
   clearIndex: (type?: string) => void
   /** Total indexed document count */
-  indexSize: Ref<number>
+  indexSize: Readonly<Ref<number>>
   /** Whether the search query is empty */
   isEmpty: Ref<boolean>
 }
@@ -50,6 +65,14 @@ export function useSearch(options?: UseSearchOptions): UseSearchReturn {
 
   let debounceTimer: ReturnType<typeof setTimeout> | null = null
   const debounceMs = options?.debounceMs ?? 200
+
+  // Cleanup on unmount
+  onUnmounted(() => {
+    if (debounceTimer !== null) {
+      clearTimeout(debounceTimer)
+      debounceTimer = null
+    }
+  })
 
   const isEmpty = computed(() => !query.value.trim())
 
@@ -114,14 +137,18 @@ export function useSearch(options?: UseSearchOptions): UseSearchReturn {
 
   return {
     query,
-    searching,
-    results,
+    /** Whether a search is in progress (read-only) */
+    searching: readonly(searching),
+    /** Search results (read-only) */
+    results: readonly(results),
     filters,
     setFilter,
     clearFilters,
     addDocuments,
     clearIndex,
-    indexSize,
+    /** Total indexed document count (read-only) */
+    indexSize: readonly(indexSize),
+    /** Whether the search query is empty */
     isEmpty,
   }
 }

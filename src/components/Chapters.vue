@@ -1161,7 +1161,11 @@ async function handleAIGCDetect(chapter: Chapter) {
 }
 .chapter-search-input {
   flex: 1;
-  min-width: 200px;
+  min-width: 100%;
+
+  @include tablet {
+    min-width: 200px;
+  }
 }
 .filter-count {
   font-size: 12px;
@@ -1176,11 +1180,10 @@ async function handleAIGCDetect(chapter: Chapter) {
   align-items: flex-start;
   gap: var(--ds-space-3);
 
-  @include mobile {
+  @include tablet {
     flex-direction: row;
     justify-content: space-between;
     align-items: center;
-    gap: var(--ds-space-4);
   }
 }
 
@@ -1196,7 +1199,7 @@ async function handleAIGCDetect(chapter: Chapter) {
   flex-wrap: wrap;
   width: 100%;
 
-  @include mobile {
+  @include tablet {
     width: auto;
     justify-content: flex-end;
   }
@@ -1245,9 +1248,11 @@ async function handleAIGCDetect(chapter: Chapter) {
 }
 
 .chapter-card:hover {
-  transform: translateY(-2px);
-  border-color: color-mix(in srgb, var(--ds-accent) 28%, var(--ds-surface-border));
-  box-shadow: var(--ds-shadow-md);
+  @include can-hover {
+    transform: translateY(-2px);
+    border-color: color-mix(in srgb, var(--ds-accent) 28%, var(--ds-surface-border));
+    box-shadow: var(--ds-shadow-md);
+  }
 }
 
 .chapter-card.is-dragging {
@@ -1264,11 +1269,10 @@ async function handleAIGCDetect(chapter: Chapter) {
   gap: var(--ds-space-3);
   margin-bottom: var(--ds-space-4);
 
-  @include mobile {
+  @include tablet {
     flex-direction: row;
     justify-content: space-between;
     align-items: center;
-    gap: var(--ds-space-4);
   }
 }
 
@@ -1279,7 +1283,7 @@ async function handleAIGCDetect(chapter: Chapter) {
   min-width: 0;
   flex-wrap: wrap;
 
-  @include mobile {
+  @include tablet {
     gap: var(--ds-space-3);
     flex-wrap: nowrap;
   }
@@ -1335,7 +1339,7 @@ async function handleAIGCDetect(chapter: Chapter) {
   font-size: var(--ds-text-sm);
   flex-shrink: 0;
 
-  @include mobile {
+  @include tablet {
     gap: var(--ds-space-4);
   }
 }

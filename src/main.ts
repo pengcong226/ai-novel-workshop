@@ -1,5 +1,6 @@
 import { createApp } from 'vue'
 import { createPinia } from 'pinia'
+import { storeLoggingMiddleware, storeDevtoolsPlugin } from './stores/middleware'
 import 'element-plus/theme-chalk/dark/css-vars.css'
 import '@/assets/styles/design-system.css'
 import VueKonva from 'vue-konva'
@@ -85,7 +86,10 @@ app.config.errorHandler = (err, instance, info) => {
   })
 }
 
-app.use(createPinia())
+const pinia = createPinia()
+pinia.use(storeLoggingMiddleware)
+pinia.use(storeDevtoolsPlugin)
+app.use(pinia)
 app.use(router)
 app.use(i18n)
 app.use(VueKonva)

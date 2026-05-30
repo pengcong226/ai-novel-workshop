@@ -1,10 +1,21 @@
 /**
- * 知识库状态管理
+ * Knowledge base store.
+ *
+ * Manages knowledge entries with CRUD, search, category/tag grouping,
+ * usage tracking, and project-scoped persistence through the project store.
+ *
+ * ### storeToRefs usage
+ * ```ts
+ * import { useKnowledgeStore } from '@/stores/knowledge'
+ * import { storeToRefs } from 'pinia'
+ * const { entries, totalEntries, allTags } = storeToRefs(useKnowledgeStore())
+ * ```
+ *
  * @module stores/knowledge
  */
 
 import { defineStore } from 'pinia'
-import { ref, computed } from 'vue'
+import { ref, computed, type Ref, type ComputedRef } from 'vue'
 import type { KnowledgeEntry, KnowledgeMetadata } from '@/types/knowledge-base'
 import { KnowledgeCategory } from '@/types/knowledge-base'
 import { getLogger } from '@/utils/logger'
@@ -13,42 +24,44 @@ import { v4 as uuidv4 } from 'uuid'
 const logger = getLogger('knowledge:store')
 
 export const useKnowledgeStore = defineStore('knowledge', () => {
-  // ============ 状态 ============
+  // ============ State ============
 
-  /** 所有知识条目 */
-  const entries = ref<KnowledgeEntry[]>([])
+  /** All knowledge entries */
+  const entries: Ref<KnowledgeEntry[]> = ref([])
 
-  /** 加载状态 */
-  const loading = ref(false)
+  /** Loading state */
+  const loading: Ref<boolean> = ref(false)
 
-  /** 错误信息 */
-  const error = ref<string | null>(null)
+  /** Error message */
+  const error: Ref<string | null> = ref(null)
 
-  /** 当前项目ID */
-  const projectId = ref<string | null>(null)
+  /** Current project ID */
+  const projectId: Ref<string | null> = ref(null)
 
-  // ============ 计算属性 ============
+  // ============ Getters ============
 
-  /** 总条目数 */
-  const totalEntries = computed(() => entries.value.length)
-
-  /** 已启用条目数 */
-  const enabledEntries = computed(() =>
-    entries.value.filter(e => !e.disable).length
+  /** Total entry count */
+  const totalEntries: ComputedRef<number> = computed(
+    (): number => entries.value.length
   )
 
-  /** 禁用条目数 */
-  const disabledEntries = computed(() =>
-    entries.value.filter(e => e.disable).length
+  /** Enabled (non-disabled) entry count */
+  const enabledEntries: ComputedRef<number> = computed(
+    (): number => entries.value.filter(e => !e.disable).length
   )
 
-  /** 常量条目数 */
-  const constantEntries = computed(() =>
-    entries.value.filter(e => e.constant).length
+  /** Disabled entry count */
+  const disabledEntries: ComputedRef<number> = computed(
+    (): number => entries.value.filter(e => e.disable).length
   )
 
-  /** 按分类分组 */
-  const entriesByCategory = computed(() => {
+  /** Constant entry count */
+  const constantEntries: ComputedRef<number> = computed(
+    (): number => entries.value.filter(e => e.constant).length
+  )
+
+  /** Entries grouped by category */
+  const entriesByCategory: ComputedRef<Map<KnowledgeCategory, KnowledgeEntry[]>> = computed((): Map<KnowledgeCategory, KnowledgeEntry[]> => {
     const grouped = new Map<KnowledgeCategory, KnowledgeEntry[]>()
     entries.value.forEach(entry => {
       const cat = entry.category || 'custom'
@@ -60,8 +73,8 @@ export const useKnowledgeStore = defineStore('knowledge', () => {
     return grouped
   })
 
-  /** 按标签分组 */
-  const entriesByTag = computed(() => {
+  /** Entries grouped by tag */
+  const entriesByTag: ComputedRef<Map<string, KnowledgeEntry[]>> = computed((): Map<string, KnowledgeEntry[]> => {
     const grouped = new Map<string, KnowledgeEntry[]>()
     entries.value.forEach(entry => {
       entry.tags?.forEach(tag => {
@@ -74,8 +87,8 @@ export const useKnowledgeStore = defineStore('knowledge', () => {
     return grouped
   })
 
-  /** 所有标签 */
-  const allTags = computed(() => {
+  /** All unique tags across entries */
+  const allTags: ComputedRef<string[]> = computed((): string[] => {
     const tags = new Set<string>()
     entries.value.forEach(entry => {
       entry.tags?.forEach(tag => tags.add(tag))
@@ -83,16 +96,18 @@ export const useKnowledgeStore = defineStore('knowledge', () => {
     return Array.from(tags).sort()
   })
 
-  /** 最常用条目 */
-  const mostUsedEntries = computed(() => {
+  /** Top 10 most-used entries (by usage count) */
+  const mostUsedEntries: ComputedRef<KnowledgeEntry[]> = computed(
+    (): KnowledgeEntry[] => {
     return [...entries.value]
       .filter(e => e.usageCount && e.usageCount > 0)
       .sort((a, b) => (b.usageCount || 0) - (a.usageCount || 0))
       .slice(0, 10)
   })
 
-  /** 最近更新条目 */
-  const recentlyUpdated = computed(() => {
+  /** Top 10 most recently updated entries */
+  const recentlyUpdated: ComputedRef<KnowledgeEntry[]> = computed(
+    (): KnowledgeEntry[] => {
     return [...entries.value]
       .filter(e => e.metadata?.updatedAt)
       .sort((a, b) =>
@@ -447,7 +462,7 @@ export const useKnowledgeStore = defineStore('knowledge', () => {
   }
 
   /**
-   * 导出知识库
+   * Export the entire knowledge base as a formatted JSON string.
    */
   function exportKnowledge(): string {
     return JSON.stringify({
@@ -461,14 +476,25 @@ export const useKnowledgeStore = defineStore('knowledge', () => {
     }, null, 2)
   }
 
+  /**
+   * Reset the knowledge store to its initial state, clearing all entries
+   * and project association.
+   */
+  function $reset(): void {
+    entries.value = []
+    loading.value = false
+    error.value = null
+    projectId.value = null
+  }
+
   return {
-    // 状态
+    // State
     entries,
     loading,
     error,
     projectId,
 
-    // 计算属性
+    // Getters
     totalEntries,
     enabledEntries,
     disabledEntries,
@@ -479,7 +505,7 @@ export const useKnowledgeStore = defineStore('knowledge', () => {
     mostUsedEntries,
     recentlyUpdated,
 
-    // 方法
+    // Actions
     loadKnowledge,
     saveKnowledge,
     addEntry,
@@ -492,6 +518,7 @@ export const useKnowledgeStore = defineStore('knowledge', () => {
     getEntriesByCategory,
     getEntriesByTag,
     clearKnowledge,
-    exportKnowledge
+    exportKnowledge,
+    $reset
   }
 })

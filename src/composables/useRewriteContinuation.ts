@@ -1,11 +1,23 @@
 /**
- * Rewrite/Continuation Composable
+ * Rewrite / Continuation Composable
  *
  * Reactive Vue wrapper around RewriteContinuationService.
- * Module-scope refs ensure all consumers share the same reactive state.
+ * This is a **module-scope singleton** -- all consumers share the same state.
+ *
+ * @example
+ * ```vue
+ * <script setup lang="ts">
+ * import { useRewriteContinuation } from '@/composables/useRewriteContinuation'
+ *
+ * const {
+ *   isRunning, mode, diffReport, error,
+ *   startRewrite, acceptRewrite, rejectRewrite, cancel,
+ * } = useRewriteContinuation()
+ * </script>
+ * ```
  */
 
-import { ref } from 'vue'
+import { ref, readonly } from 'vue'
 import { rewriteContinuationService } from '@/services/rewrite-continuation'
 import type {
   ContinuationOptions,
@@ -84,7 +96,14 @@ export function useRewriteContinuation() {
   }
 
   return {
-    isRunning, mode, diffReport, error,
+    /** Whether a rewrite/continuation is in progress (read-only) */
+    isRunning: readonly(isRunning),
+    /** Current mode: 'continuation', 'rewrite', or null (read-only) */
+    mode: readonly(mode),
+    /** State diff report for rewrite operations (read-only) */
+    diffReport: readonly(diffReport),
+    /** Current error message or null (read-only) */
+    error: readonly(error),
     startContinuation, startRewrite, acceptRewrite, rejectRewrite, cancel
   }
 }

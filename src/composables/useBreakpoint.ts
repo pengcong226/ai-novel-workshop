@@ -1,4 +1,4 @@
-import { ref, onMounted, onUnmounted, computed } from 'vue'
+import { ref, readonly, onMounted, onUnmounted, computed } from 'vue'
 
 /**
  * Canonical breakpoint values matching responsive.scss:
@@ -25,6 +25,28 @@ type CanonicalKey = 'mobile' | 'tablet' | 'desktop'
 type LegacyKey = 'sm' | 'md' | 'lg' | 'xl' | '2xl'
 type BreakpointKey = CanonicalKey | LegacyKey
 
+/**
+ * Responsive breakpoint composable.
+ *
+ * Tracks `window.innerWidth` and exposes canonical breakpoint flags
+ * (`isMobile`, `isTablet`, `isDesktop`), "above" and "below" helpers,
+ * and a `current` label. Handles SSR by defaulting to 1280px.
+ *
+ * @example
+ * ```vue
+ * <script setup lang="ts">
+ * import { useBreakpoint } from '@/composables/useBreakpoint'
+ *
+ * const { isMobile, isDesktop, current, width } = useBreakpoint()
+ * </script>
+ *
+ * <template>
+ *   <nav v-if="isDesktop">Desktop Nav</nav>
+ *   <nav v-else-if="isMobile">Mobile Nav</nav>
+ *   <p>Current: {{ current }}, Width: {{ width }}</p>
+ * </template>
+ * ```
+ */
 export function useBreakpoint() {
   const width = ref(typeof window !== 'undefined' ? window.innerWidth : 1280)
 
@@ -81,7 +103,8 @@ export function useBreakpoint() {
   const isDesktop = computed(() => width.value >= BREAKPOINTS.desktop)
 
   return {
-    width,
+    /** Current viewport width in pixels (read-only) */
+    width: readonly(width),
     // Canonical flags (>= breakpoint)
     isMobileUp,
     isTabletUp,

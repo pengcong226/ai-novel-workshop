@@ -14,10 +14,49 @@ import type {
   RegexScript,
   PromptConfig
 } from '@/types/character-card'
-import { createWorldbookPng, downloadPng } from './worldbook-png-writer'
+import type { Worldbook } from '@/types/worldbook'
+import { createWorldbookPng, type PngWriterOptions, downloadPng } from './worldbook-png-writer'
 import { getLogger } from '@/utils/logger'
 
 const logger = getLogger('character-card-exporter')
+
+/**
+ * 角色卡导出数据结构
+ */
+interface CharacterCardExportData {
+  character?: {
+    name: string
+    description?: string
+    personality?: string
+    scenario?: string
+    first_mes?: string
+    mes_example?: string
+    creator_notes?: string
+    system_prompt?: string
+    post_history_instructions?: string
+    tags?: string[]
+    creator?: string
+  }
+  worldbook?: {
+    entries: CharacterBookEntry[]
+    name?: string
+    description?: string
+  }
+  regexScripts?: RegexScript[]
+  prompts?: PromptConfig[]
+  aiSettings?: {
+    temperature?: number
+    top_p?: number
+    top_k?: number
+    repetition_penalty?: number
+    [key: string]: unknown
+  }
+}
+
+/**
+ * 角色卡导出格式类型
+ */
+type CharacterCardFormattedOutput = CharacterCardV1 | CharacterCardV2 | CharacterCardV3 | SillyTavernCharacterCard
 
 /**
  * 角色卡导出器
@@ -27,41 +66,13 @@ export class CharacterCardExporter {
    * 导出角色卡
    */
   async exportCharacterCard(
-    data: {
-      character?: {
-        name: string
-        description?: string
-        personality?: string
-        scenario?: string
-        first_mes?: string
-        mes_example?: string
-        creator_notes?: string
-        system_prompt?: string
-        post_history_instructions?: string
-        tags?: string[]
-        creator?: string
-      }
-      worldbook?: {
-        entries: CharacterBookEntry[]
-        name?: string
-        description?: string
-      }
-      regexScripts?: RegexScript[]
-      prompts?: PromptConfig[]
-      aiSettings?: {
-        temperature?: number
-        top_p?: number
-        top_k?: number
-        repetition_penalty?: number
-        [key: string]: unknown
-      }
-    },
+    data: CharacterCardExportData,
     options: CharacterCardExportOptions
   ): Promise<CharacterCardExportResult> {
     try {
       const { format } = options
 
-      let exportData: any
+      let exportData: CharacterCardFormattedOutput
       let size = 0
 
       switch (format) {
@@ -111,7 +122,7 @@ export class CharacterCardExporter {
    * 创建V1格式
    */
   private createV1Format(
-    data: any,
+    data: CharacterCardExportData,
     options: CharacterCardExportOptions
   ): CharacterCardV1 {
     const v1: CharacterCardV1 = {
@@ -143,7 +154,7 @@ export class CharacterCardExporter {
    * 创建V2格式
    */
   private createV2Format(
-    data: any,
+    data: CharacterCardExportData,
     options: CharacterCardExportOptions
   ): CharacterCardV2 {
     const v2: CharacterCardV2 = {
@@ -185,7 +196,7 @@ export class CharacterCardExporter {
    * 创建V3格式
    */
   private createV3Format(
-    data: any,
+    data: CharacterCardExportData,
     options: CharacterCardExportOptions
   ): CharacterCardV3 {
     const v3: CharacterCardV3 = {
@@ -227,7 +238,7 @@ export class CharacterCardExporter {
    * 创建SillyTavern扩展格式
    */
   private createSillyTavernFormat(
-    data: any,
+    data: CharacterCardExportData,
     options: CharacterCardExportOptions
   ): SillyTavernCharacterCard {
     const st: SillyTavernCharacterCard = {}
@@ -277,20 +288,21 @@ export class CharacterCardExporter {
    * 导出为PNG
    */
   private async exportAsPNG(
-    data: any,
+    data: CharacterCardExportData,
     options: CharacterCardExportOptions
   ): Promise<CharacterCardExportResult> {
     try {
       // 创建V2格式数据
       const v2Data = this.createV2Format(data, options)
 
-      // 生成PNG
-      const blob = await createWorldbookPng(v2Data as any, {
+      // 生成PNG - v2Data is a CharacterCardV2 but createWorldbookPng expects Worldbook;
+      // the cast works at runtime because the writer only accesses .name and .entries
+      const pngOptions: PngWriterOptions = {
         width: options.imageOptions?.width || 512,
         height: options.imageOptions?.height || 512,
-        backgroundColor: options.imageOptions?.backgroundColor || '#667eea',
-        customImage: options.imageOptions?.customImage
-      } as any)
+        backgroundColor: options.imageOptions?.backgroundColor || '#667eea'
+      }
+      const blob = await createWorldbookPng(v2Data as unknown as Worldbook, pngOptions)
 
       logger.info('PNG角色卡导出成功', { size: blob.size })
 
@@ -350,7 +362,7 @@ export function createCharacterCardExporter(): CharacterCardExporter {
  * 便捷函数：导出角色卡
  */
 export async function exportCharacterCard(
-  data: any,
+  data: CharacterCardExportData,
   options: CharacterCardExportOptions
 ): Promise<CharacterCardExportResult> {
   const exporter = new CharacterCardExporter()

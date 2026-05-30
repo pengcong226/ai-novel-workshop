@@ -1,5 +1,21 @@
+/**
+ * AI service store.
+ *
+ * Manages AI service initialization, chat/streaming, model routing,
+ * pipeline configuration, intent-driven execution, and daemon lifecycle.
+ *
+ * ### storeToRefs usage
+ * ```ts
+ * import { useAIStore } from '@/stores/ai'
+ * import { storeToRefs } from 'pinia'
+ * const { isInitialized, error, daemonState } = storeToRefs(useAIStore())
+ * ```
+ *
+ * @module stores/ai
+ */
+
 import { defineStore } from 'pinia'
-import { ref, shallowRef } from 'vue'
+import { ref, shallowRef, type Ref } from 'vue'
 import { AIService } from '@/services/ai-service'
 import type { AIServiceConfig, BudgetConfig, ChatMessage, ChatRequest, TaskContext, ChatResponse, StreamEvent } from '@/types/ai'
 import { getAIMockEnabled } from '@/utils/devFlags'
@@ -12,12 +28,22 @@ import type { IntentType, IntentMatch } from '@/types/interactionIntents'
 import type { DaemonConfig, DaemonState, DaemonEvent } from '@/services/DaemonService'
 
 export const useAIStore = defineStore('ai', () => {
-  const aiService = shallowRef<AIService | null>(null)
-  const isInitialized = ref(false)
-  const error = ref<string | null>(null)
-  const configuredModel = ref<string | null>(null) // 存储配置的模型ID
+  const aiService: Ref<AIService | null> = shallowRef(null)
+  const isInitialized: Ref<boolean> = ref(false)
+  const error: Ref<string | null> = ref(null)
+  /** Stores the configured model ID for quick access. */
+  const configuredModel: Ref<string | null> = ref(null)
   const logger = getLogger('ai:store')
   const MOCK_MODEL_ID = 'mock-dev-model'
+
+  // ── Request deduplication for non-streaming chat ──
+  // Key: hash of messages + context, Value: in-flight promise
+  const inflightChatRequests = new Map<string, Promise<ChatResponse>>()
+
+  // ── Model resolution cache (invalidated on config/override change) ──
+  let modelResolutionCacheVersion = 0
+  let lastOverrideSnapshot = ''
+  const modelResolutionCache = new Map<string, { version: number; model: string | null }>()
 
   function sleep(ms: number) {
     return new Promise(resolve => setTimeout(resolve, ms))
@@ -313,7 +339,26 @@ export const useAIStore = defineStore('ai', () => {
   }
 
   /**
-   * 发送聊天请求
+   * Build a stable dedup hash for chat request deduplication.
+   * Only hashes messages + context type/model; ignores callback options.
+   */
+  function chatDedupHash(messages: ChatMessage[], context?: TaskContext): string {
+    const key = JSON.stringify({
+      messages: messages.map(m => ({ role: m.role, content: m.content })),
+      type: context?.type,
+      model: context?.preferredModel,
+    })
+    // Simple fast hash (djb2)
+    let hash = 5381
+    for (let i = 0; i < key.length; i++) {
+      hash = ((hash << 5) + hash) + key.charCodeAt(i)
+      hash |= 0
+    }
+    return hash.toString(36)
+  }
+
+  /**
+   * 发送聊天请求（with deduplication for identical in-flight requests）
    */
   async function chat(
     messages: ChatMessage[],
@@ -335,17 +380,32 @@ export const useAIStore = defineStore('ai', () => {
       }
     }
 
-    const requestContext = buildRequestContext(context, 'ai-store')
-    try {
-      const response = await aiService.value.chat(messages, requestContext, options)
-      if (error.value) error.value = null
-      recordTokenUsage(response, requestContext, 'chat')
-      return response
-    } catch (err) {
-      error.value = err instanceof Error ? err.message : String(err)
-      logger.error('chat 请求失败', { error: error.value, type: context?.type })
-      throw err
+    // Deduplicate identical in-flight requests
+    const dedupKey = chatDedupHash(messages, context)
+    const existing = inflightChatRequests.get(dedupKey)
+    if (existing) {
+      logger.info('AI chat 请求去重', { dedupKey })
+      return existing
     }
+
+    const requestContext = buildRequestContext(context, 'ai-store')
+    const requestPromise = (async () => {
+      try {
+        const response = await aiService.value!.chat(messages, requestContext, options)
+        if (error.value) error.value = null
+        recordTokenUsage(response, requestContext, 'chat')
+        return response
+      } catch (err) {
+        error.value = err instanceof Error ? err.message : String(err)
+        logger.error('chat 请求失败', { error: error.value, type: context?.type })
+        throw err
+      } finally {
+        inflightChatRequests.delete(dedupKey)
+      }
+    })()
+
+    inflightChatRequests.set(dedupKey, requestPromise)
+    return requestPromise
   }
 
   /**
@@ -434,6 +494,8 @@ export const useAIStore = defineStore('ai', () => {
    */
   function setAgentModelOverride(agentRole: string, override: AgentModelOverride): void {
     agentModelOverrides.value[agentRole] = { ...agentModelOverrides.value[agentRole], ...override }
+    // Invalidate model resolution cache when overrides change
+    modelResolutionCacheVersion++
     logger.info(`Agent ${agentRole} 模型覆盖已更新`, override)
   }
 
@@ -461,23 +523,38 @@ export const useAIStore = defineStore('ai', () => {
 
   /**
    * 扩展 resolvePreferredModel 以支持 10-Agent 路由
+   * Uses a versioned cache to avoid repeated config lookups.
    */
   function resolveAgentModel(agentRole: string, contextType?: string): string | null {
+    const cacheKey = `${agentRole}:${contextType || ''}`
+    const cached = modelResolutionCache.get(cacheKey)
+    if (cached && cached.version === modelResolutionCacheVersion) {
+      return cached.model
+    }
+
     const projectStore = useProjectStore()
     const config = projectStore.currentProject?.config || projectStore.globalConfig
 
     // 1. 先检查 Agent 独立配置
     const override = agentModelOverrides.value[agentRole]
-    if (override?.model) return override.model
+    if (override?.model) {
+      modelResolutionCache.set(cacheKey, { version: modelResolutionCacheVersion, model: override.model })
+      return override.model
+    }
 
     // 2. 检查项目配置中的 Agent 级别配置
     if (config) {
       const agentConfig = config.agentConfigs?.find(c => c.role === agentRole)
-      if (agentConfig?.model) return agentConfig.model
+      if (agentConfig?.model) {
+        modelResolutionCache.set(cacheKey, { version: modelResolutionCacheVersion, model: agentConfig.model })
+        return agentConfig.model
+      }
     }
 
     // 3. 按角色映射到传统的模型配置
-    return resolvePreferredModel(config, contextType, configuredModel.value)
+    const result = resolvePreferredModel(config, contextType, configuredModel.value)
+    modelResolutionCache.set(cacheKey, { version: modelResolutionCacheVersion, model: result })
+    return result
   }
 
   // ============================================================================
@@ -678,6 +755,36 @@ export const useAIStore = defineStore('ai', () => {
     return { ...daemonState.value }
   }
 
+  /**
+   * Reset the AI store to its initial state. Stops any running daemon
+   * before clearing state.
+   */
+  function $reset(): void {
+    stopDaemon()
+    aiService.value = null
+    isInitialized.value = false
+    error.value = null
+    configuredModel.value = null
+    daemonState.value = {
+      status: 'idle',
+      chaptersCompletedToday: 0,
+      tokensUsedToday: 0,
+      lastRunTimestamp: 0,
+      consecutiveFailures: 0,
+    }
+    pipelineConfig.value = {
+      maxAuditRetries: 1,
+      passScoreThreshold: 85,
+      netImprovementEpsilon: 3,
+      temperatureBase: 0.7,
+      temperatureRetryStep: 0.1,
+      maxTemperature: 1.2,
+      enableLengthNormalization: true,
+      enableHookPromotion: true,
+    }
+    agentModelOverrides.value = {}
+  }
+
   return {
     aiService,
     isInitialized,
@@ -703,5 +810,7 @@ export const useAIStore = defineStore('ai', () => {
     pauseDaemon,
     resumeDaemon,
     getDaemonState,
+    // Reset
+    $reset,
   }
 })

@@ -4,6 +4,8 @@
  * 优先级：P0 + P1
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import type { ChapterPipelineResult, PipelineProgressEvent } from '@/services/pipeline/BatchContinueScheduler'
+import type { Project } from '@/types'
 
 // ---------------------------------------------------------------------------
 // Hoisted mocks
@@ -116,7 +118,7 @@ describe('BatchContinueScheduler 接口自动化测试', { timeout: 30000 }, () 
     it('P0: 续写1章成功完成', async () => {
       const scheduler = new BatchContinueScheduler()
       const result = await scheduler.executeBatchContinue(
-        makeMockProject() as any,
+        makeMockProject() as unknown as Project,
         1,
         { chapterCount: 1, autoSave: false }
       )
@@ -136,7 +138,7 @@ describe('BatchContinueScheduler 接口自动化测试', { timeout: 30000 }, () 
     it('P0: 续写多章成功完成', async () => {
       const scheduler = new BatchContinueScheduler()
       const result = await scheduler.executeBatchContinue(
-        makeMockProject() as any,
+        makeMockProject() as unknown as Project,
         1,
         { chapterCount: 3, autoSave: false }
       )
@@ -152,7 +154,7 @@ describe('BatchContinueScheduler 接口自动化测试', { timeout: 30000 }, () 
   // =========================================================================
   describe('TC-6.4 取消操作', () => {
     it('P0: cancel()终止批量任务', async () => {
-      let scheduler: any
+      let scheduler!: BatchContinueScheduler
 
       pipelineWriteNextChapterMock.mockImplementation(async (opts: { chapterNumber: number }) => {
         // 在第2章时取消
@@ -164,7 +166,7 @@ describe('BatchContinueScheduler 接口自动化测试', { timeout: 30000 }, () 
 
       scheduler = new BatchContinueScheduler()
       const result = await scheduler.executeBatchContinue(
-        makeMockProject() as any,
+        makeMockProject() as unknown as Project,
         1,
         { chapterCount: 5, autoSave: false }
       )
@@ -197,7 +199,7 @@ describe('BatchContinueScheduler 接口自动化测试', { timeout: 30000 }, () 
       })
 
       const result = await scheduler.executeBatchContinue(
-        makeMockProject() as any,
+        makeMockProject() as unknown as Project,
         1,
         { chapterCount: 5, autoSave: false }
       )
@@ -216,7 +218,7 @@ describe('BatchContinueScheduler 接口自动化测试', { timeout: 30000 }, () 
 
       const scheduler = new BatchContinueScheduler()
       const result = await scheduler.executeBatchContinue(
-        makeMockProject() as any,
+        makeMockProject() as unknown as Project,
         1,
         { chapterCount: 5, autoSave: false }
       )
@@ -231,11 +233,11 @@ describe('BatchContinueScheduler 接口自动化测试', { timeout: 30000 }, () 
   // =========================================================================
   describe('TC-6.10 章节完成回调', () => {
     it('P1: 每章完成时触发onChapterComplete', async () => {
-      const completedResults: any[] = []
+      const completedResults: ChapterPipelineResult[] = []
 
       const scheduler = new BatchContinueScheduler()
       await scheduler.executeBatchContinue(
-        makeMockProject() as any,
+        makeMockProject() as unknown as Project,
         1,
         {
           chapterCount: 2,
@@ -256,11 +258,11 @@ describe('BatchContinueScheduler 接口自动化测试', { timeout: 30000 }, () 
   // =========================================================================
   describe('TC-6.11 进度事件', () => {
     it('P2: 触发进度事件回调', async () => {
-      const progressEvents: any[] = []
+      const progressEvents: PipelineProgressEvent[] = []
 
       const scheduler = new BatchContinueScheduler()
       await scheduler.executeBatchContinue(
-        makeMockProject() as any,
+        makeMockProject() as unknown as Project,
         1,
         {
           chapterCount: 2,
@@ -283,11 +285,11 @@ describe('BatchContinueScheduler 接口自动化测试', { timeout: 30000 }, () 
   // =========================================================================
   describe('TC-6.9 检查点回调', () => {
     it('P1: 达到检查点间隔时触发回调', async () => {
-      const checkpointResults: any[] = []
+      const checkpointResults: ChapterPipelineResult[][] = []
 
       const scheduler = new BatchContinueScheduler()
       await scheduler.executeBatchContinue(
-        makeMockProject() as any,
+        makeMockProject() as unknown as Project,
         1,
         {
           chapterCount: 4,
@@ -306,7 +308,7 @@ describe('BatchContinueScheduler 接口自动化测试', { timeout: 30000 }, () 
     it('P1: 检查点回调返回false时停止', async () => {
       const scheduler = new BatchContinueScheduler()
       const result = await scheduler.executeBatchContinue(
-        makeMockProject() as any,
+        makeMockProject() as unknown as Project,
         1,
         {
           chapterCount: 6,
@@ -334,7 +336,7 @@ describe('BatchContinueScheduler 接口自动化测试', { timeout: 30000 }, () 
       }, 100)
 
       const result = await scheduler.executeBatchContinue(
-        makeMockProject() as any,
+        makeMockProject() as unknown as Project,
         1,
         { chapterCount: 3, autoSave: false }
       )

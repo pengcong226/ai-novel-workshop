@@ -1,15 +1,21 @@
 /**
- * 向量服务 Pinia Store (V5 架构版)
- * @module stores/vector
+ * Vector retrieval service store (V5 architecture).
  *
- * V5 变更：
- * - 只索引章节正文 (段落级切片)，不再索引世界观/人物/大纲
- * - 检索使用 vectorSearch / retrieveRelevantContext
- * - 移除按集合分类的增删查方法 (V4 多集合模式已废弃)
+ * Manages the vector search service lifecycle, document indexing,
+ * and retrieval for chapter-level paragraph slicing.
+ *
+ * ### storeToRefs usage
+ * ```ts
+ * import { useVectorStore } from '@/stores/vector'
+ * import { storeToRefs } from 'pinia'
+ * const { isReady, isLoading, documentCount } = storeToRefs(useVectorStore())
+ * ```
+ *
+ * @module stores/vector
  */
 
 import { defineStore } from 'pinia'
-import { ref, shallowRef, computed } from 'vue'
+import { ref, shallowRef, computed, type Ref, type ComputedRef } from 'vue'
 import { getLogger } from '@/utils/logger'
 
 const logger = getLogger('vector')
@@ -25,16 +31,18 @@ import {
  * 向量服务 Store
  */
 export const useVectorStore = defineStore('vector', () => {
-  // 状态
-  const service = shallowRef<VectorService | null>(null)
-  const isInitialized = ref(false)
-  const isLoading = ref(false)
-  const error = ref<string | null>(null)
-  const currentProjectId = ref<string | null>(null)
-  const documentCount = ref<number>(0)
+  // State
+  const service: Ref<VectorService | null> = shallowRef(null)
+  const isInitialized: Ref<boolean> = ref(false)
+  const isLoading: Ref<boolean> = ref(false)
+  const error: Ref<string | null> = ref(null)
+  const currentProjectId: Ref<string | null> = ref(null)
+  const documentCount: Ref<number> = ref<number>(0)
 
-  // 计算属性
-  const isReady = computed(() => isInitialized.value && service.value !== null)
+  /** Whether the vector service is ready to accept requests. */
+  const isReady: ComputedRef<boolean> = computed(
+    (): boolean => isInitialized.value && service.value !== null
+  )
 
   /**
    * 初始化向量服务
@@ -194,6 +202,13 @@ export const useVectorStore = defineStore('vector', () => {
     resetVectorService()
   }
 
+  /**
+   * Reset the vector store and underlying service to initial state.
+   */
+  function $reset(): void {
+    reset()
+  }
+
   return {
     // 状态
     service,
@@ -224,5 +239,6 @@ export const useVectorStore = defineStore('vector', () => {
 
     // 辅助
     reset,
+    $reset,
   }
 })

@@ -71,6 +71,10 @@ export {
 // 注册表类型
 export type { ProcessorStage } from './registries'
 
+// 验证器
+export { validateManifest, hasRequiredFields, isValidSemver, isValidPluginId } from './plugin-validator'
+export type { ValidationResult } from './plugin-validator'
+
 // 上下文
 export { createPluginContext, enhancePluginContext } from './context'
 

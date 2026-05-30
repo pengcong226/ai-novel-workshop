@@ -1,5 +1,22 @@
+/**
+ * V5 Sandbox store -- the canonical Entity + StateEvent data backbone.
+ *
+ * Manages entities (CHARACTER, FACTION, LOCATION, LORE, etc.) and
+ * append-only state event records. Provides computed `activeEntitiesState`
+ * via the replay reducer for chapter-level "current truth".
+ *
+ * ### storeToRefs usage
+ * ```ts
+ * import { useSandboxStore } from '@/stores/sandbox'
+ * import { storeToRefs } from 'pinia'
+ * const { entities, stateEvents, activeEntitiesState } = storeToRefs(useSandboxStore())
+ * ```
+ *
+ * @module stores/sandbox
+ */
+
 import { defineStore } from 'pinia';
-import { ref, computed } from 'vue';
+import { ref, computed, shallowRef, type Ref, type ComputedRef } from 'vue';
 import { v4 as uuidv4 } from 'uuid';
 import type { Entity, StateEvent, EntityRelation } from '../types/sandbox';
 import type { EntityStateSnapshot } from '../types/rewrite-continuation';
@@ -202,17 +219,22 @@ function saveWebSandboxStateEvents(projectId: string, nextEvents: StateEvent[]):
 }
 
 export const useSandboxStore = defineStore('sandbox', () => {
-  const entities = ref<Entity[]>([]);
-  const stateEvents = ref<StateEvent[]>([]);
-  const pendingStateEvents = ref<StateEvent[]>([]);
+  // shallowRef for large arrays: avoids deep reactivity overhead on each item.
+  // Consumers must reassign (not mutate in-place) to trigger updates.
+  const entities = shallowRef<Entity[]>([]);
+  const stateEvents = shallowRef<StateEvent[]>([]);
+  const pendingStateEvents = shallowRef<StateEvent[]>([]);
   const isLoading = ref(false);
   const isLoaded = ref(false);
   const loadedProjectId = ref<string | null>(null);
   const currentChapter = ref<number>(1);
-  const draftEntities = ref<Entity[]>([]);
-  const draftRelations = ref<{ sourceId: string; relation: EntityRelation }[]>([]);
+  const draftEntities = shallowRef<Entity[]>([]);
+  const draftRelations = shallowRef<{ sourceId: string; relation: EntityRelation }[]>([]);
   const isWizardMode = ref(false);
   const deltaRollbackMap = ref<Map<string, { entities: Entity[]; stateEvents: StateEvent[] }>>(new Map());
+
+  // Cached name-to-ID map (invalidated when entities change)
+  const nameToIdMap = computed(() => buildNameToIdMapFromEntities(entities.value));
 
   // Pre-filtered entity views by type (non-archived)
   const activeEntities = computed(() => entities.value.filter(e => !e.isArchived));
@@ -447,12 +469,25 @@ export const useSandboxStore = defineStore('sandbox', () => {
     draftRelations.value = [];
   }
 
+  /** Add a single draft entity (batched with reassignment for shallowRef). */
   function addDraftEntity(entity: Entity) {
-    draftEntities.value.push(entity);
+    draftEntities.value = [...draftEntities.value, entity];
+  }
+
+  /** Add multiple draft entities in a single reassignment (one reactivity trigger). */
+  function batchAddDraftEntities(newEntities: Entity[]) {
+    if (newEntities.length === 0) return;
+    draftEntities.value = [...draftEntities.value, ...newEntities];
   }
 
   function addDraftRelation(sourceId: string, relation: EntityRelation) {
-    draftRelations.value.push({ sourceId, relation });
+    draftRelations.value = [...draftRelations.value, { sourceId, relation }];
+  }
+
+  /** Add multiple draft relations in a single reassignment (one reactivity trigger). */
+  function batchAddDraftRelations(newRelations: Array<{ sourceId: string; relation: EntityRelation }>) {
+    if (newRelations.length === 0) return;
+    draftRelations.value = [...draftRelations.value, ...newRelations];
   }
 
   async function commitDrafts() {
@@ -756,7 +791,7 @@ export const useSandboxStore = defineStore('sandbox', () => {
   }
 
   function buildNameToIdMap(): Record<string, string> {
-    return buildNameToIdMapFromEntities(entities.value);
+    return nameToIdMap.value;
   }
 
   function applyDelta(projectId: string, delta: DeltaPayload): DeltaResult {
@@ -789,41 +824,50 @@ export const useSandboxStore = defineStore('sandbox', () => {
       stateEvents: [...stateEvents.value],
     };
 
-    // Apply delta
+    // ── Batch entity mutations (one reassignment for all adds + updates) ──
     let entitiesAdded = 0;
     let entitiesUpdated = 0;
     let eventsAdded = 0;
 
-    // Add entities
-    if (delta.entitiesToAdd && delta.entitiesToAdd.length > 0) {
-      const merged = new Map(entities.value.map(e => [e.id, e]));
-      for (const entity of delta.entitiesToAdd) {
-        merged.set(entity.id, entity);
-      }
-      entities.value = [...merged.values()];
-      entitiesAdded = delta.entitiesToAdd.length;
-    }
+    const hasEntityChanges = (delta.entitiesToAdd && delta.entitiesToAdd.length > 0)
+      || (delta.entitiesToUpdate && delta.entitiesToUpdate.length > 0);
 
-    // Update entities
-    if (delta.entitiesToUpdate && delta.entitiesToUpdate.length > 0) {
-      for (const { id, updates } of delta.entitiesToUpdate) {
-        const index = entities.value.findIndex(e => e.id === id);
-        if (index !== -1) {
-          entities.value[index] = { ...entities.value[index], ...updates };
-          entitiesUpdated++;
-        } else {
-          errors.push(`Entity with id "${id}" not found for update`);
+    if (hasEntityChanges) {
+      // Build a mutable map from current entities
+      const entityMap = new Map(entities.value.map(e => [e.id, e] as const));
+
+      // Add new entities
+      if (delta.entitiesToAdd && delta.entitiesToAdd.length > 0) {
+        for (const entity of delta.entitiesToAdd) {
+          entityMap.set(entity.id, entity);
+        }
+        entitiesAdded = delta.entitiesToAdd.length;
+      }
+
+      // Apply in-place updates on the map
+      if (delta.entitiesToUpdate && delta.entitiesToUpdate.length > 0) {
+        for (const { id, updates } of delta.entitiesToUpdate) {
+          const existing = entityMap.get(id);
+          if (existing) {
+            entityMap.set(id, { ...existing, ...updates });
+            entitiesUpdated++;
+          } else {
+            errors.push(`Entity with id "${id}" not found for update`);
+          }
         }
       }
+
+      // Single reactivity trigger for all entity changes
+      entities.value = [...entityMap.values()];
     }
 
-    // Add state events
+    // ── Batch state event mutations (one reassignment) ──
     if (eventsToAdd.length > 0) {
-      const merged = new Map(stateEvents.value.map(e => [e.id, e]));
+      const eventMap = new Map(stateEvents.value.map(e => [e.id, e] as const));
       for (const event of eventsToAdd) {
-        merged.set(event.id, event);
+        eventMap.set(event.id, event);
       }
-      stateEvents.value = sortStateEventsByChapter([...merged.values()]);
+      stateEvents.value = sortStateEventsByChapter([...eventMap.values()]);
       eventsAdded = eventsToAdd.length;
     }
 
@@ -875,8 +919,11 @@ export const useSandboxStore = defineStore('sandbox', () => {
   return {
     entities, stateEvents, pendingStateEvents, currentChapter, activeEntitiesState, stateEventIndexes,
     activeEntities, characterEntities, loreEntities, locationEntities, factionEntities, entitiesByType,
+    nameToIdMap,
     isLoading, isLoaded, loadedProjectId, loadData,
-    draftEntities, draftRelations, isWizardMode, clearDrafts, addDraftEntity, addDraftRelation, commitDrafts,
+    draftEntities, draftRelations, isWizardMode, clearDrafts, addDraftEntity, addDraftRelation,
+    batchAddDraftEntities, batchAddDraftRelations,
+    commitDrafts,
     addEntity, updateEntity, deleteEntity, addStateEvent, deleteStateEvent,
     batchAddEntities, batchAddStateEvents,
     replaceProjectData,

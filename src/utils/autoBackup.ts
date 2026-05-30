@@ -26,6 +26,17 @@ export interface AutoBackup {
   data: string
 }
 
+/**
+ * 可备份项目的最小接口
+ */
+interface BackupableProject {
+  id: string
+  title?: string
+  chapters?: unknown[]
+  currentWords?: number
+  [key: string]: unknown
+}
+
 // 上次备份时间缓存
 const lastBackupTime = new Map<string, number>()
 
@@ -60,7 +71,7 @@ function openDB(): Promise<IDBDatabase> {
 /**
  * 检查是否需要自动备份，如果需要则执行
  */
-export async function maybeAutoBackup(project: any): Promise<boolean> {
+export async function maybeAutoBackup(project: BackupableProject): Promise<boolean> {
   if (!project?.id) return false
 
   const now = Date.now()
@@ -134,7 +145,7 @@ export async function listAutoBackups(projectId: string): Promise<AutoBackup[]> 
 /**
  * 恢复指定的自动备份
  */
-export async function restoreAutoBackup(backupId: string): Promise<any | null> {
+export async function restoreAutoBackup(backupId: string): Promise<Record<string, unknown> | null> {
   try {
     const db = await openDB()
     const tx = db.transaction(STORE_NAME, 'readonly')

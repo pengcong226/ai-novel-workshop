@@ -148,7 +148,7 @@ export interface ProcessorContribution {
   onError?: 'continue' | 'abort'      // 失败时继续或中断
 
   // 处理方法
-  process(data: any, context: ProcessorContext): Promise<unknown>
+  process(data: unknown, context: ProcessorContext): Promise<unknown>
 
   // 可选：UI配置组件
   getSettingsComponent?(): Component
@@ -226,7 +226,7 @@ export interface QuickCommandContribution {
 export interface AIActionHandlerContribution {
   type: string  // 动作类型标识
 
-  handler: (data: any, context: ActionContext) => Promise<void>
+  handler: (data: unknown, context: ActionContext) => Promise<void>
 }
 
 /**
@@ -303,10 +303,10 @@ export interface PluginManifest {
   configuration?: {
     [key: string]: {
       type: 'string' | 'number' | 'boolean' | 'array' | 'object'
-      default?: any
+      default?: unknown
       description?: string
       required?: boolean
-      options?: Array<{ label: string; value: any }>
+      options?: Array<{ label: string; value: unknown }>
     }
   }
 }
@@ -317,9 +317,9 @@ export interface PluginManifest {
 export interface PluginInstance {
   manifest: PluginManifest
   active: boolean
-  module: any
+  module: unknown
   context: PluginContext
-  settings?: Record<string, any>
+  settings?: Record<string, unknown>
 }
 
 /**
@@ -386,9 +386,9 @@ export interface PluginContext {
 
   // 事件系统
   events: {
-    on(event: string, handler: (payload: any) => void): void
-    off(event: string, handler: (payload: any) => void): void
-    emit(event: string, payload?: any): void
+    on(event: string, handler: (payload: unknown) => void): void
+    off(event: string, handler: (payload: unknown) => void): void
+    emit(event: string, payload?: unknown): void
   }
 
   // 注册API
@@ -498,7 +498,7 @@ export interface CostEstimate {
  */
 export interface ExportData {
   type: 'chapter' | 'project' | 'character' | 'world' | 'outline'
-  content: any
+  content: unknown
 }
 
 /**
@@ -539,7 +539,7 @@ export interface ProcessorContext {
   characters?: ResolvedEntity[]
   worldSetting?: Record<string, unknown>
   outline?: Outline
-  config?: Record<string, any>
+  config?: Record<string, unknown>
 }
 
 /**
@@ -572,7 +572,7 @@ export interface VectorQuery {
   query: string
   topK?: number
   minScore?: number
-  filter?: (metadata: any) => boolean
+  filter?: (metadata: Record<string, unknown>) => boolean
 }
 
 /**
@@ -581,7 +581,7 @@ export interface VectorQuery {
 export interface VectorDocument {
   id: string
   content: string
-  metadata: any
+  metadata: Record<string, unknown>
   embedding?: number[]
 }
 
@@ -591,7 +591,7 @@ export interface VectorDocument {
 export interface VectorSearchResult {
   id: string
   content: string
-  metadata: any
+  metadata: Record<string, unknown>
   score: number
   source: string
 }
@@ -618,8 +618,8 @@ export interface DialogOptions {
   input?: {
     type: 'text' | 'textarea' | 'number' | 'select'
     placeholder?: string
-    defaultValue?: any
-    options?: Array<{ label: string; value: any }>
+    defaultValue?: unknown
+    options?: Array<{ label: string; value: unknown }>
   }
 }
 

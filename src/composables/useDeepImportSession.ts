@@ -3,9 +3,23 @@
  *
  * Reactive wrapper around NovelExtractor for use in Vue components.
  * Manages session state, progress tracking, and commit operations.
+ * This is a **module-scope singleton** -- all consumers share the same state.
+ *
+ * @example
+ * ```vue
+ * <script setup lang="ts">
+ * import { useDeepImportSession } from '@/composables/useDeepImportSession'
+ *
+ * const {
+ *   session, isRunning, progress, error,
+ *   start, pause, resume, abort, commitDirect,
+ *   allExtractedEntities, totalEntitiesCount,
+ * } = useDeepImportSession()
+ * </script>
+ * ```
  */
 
-import { ref, computed } from 'vue'
+import { ref, readonly, computed } from 'vue'
 import { useSandboxStore } from '@/stores/sandbox'
 import { useProjectStore } from '@/stores/project'
 import { getErrorMessage } from '@/utils/getErrorMessage'
@@ -262,19 +276,21 @@ export function useDeepImportSession() {
     const ops = extractor.value.resolveToSandboxOps(session.value)
 
     try {
-      for (const entity of ops.newEntities) {
-        sandboxStore.addDraftEntity(entity)
-      }
+      // Batch all draft entities in one reassignment (was N individual push calls)
+      sandboxStore.batchAddDraftEntities(ops.newEntities)
 
-      for (const event of ops.stateEvents) {
-        if (event.eventType === 'RELATION_ADD' && event.payload.targetId && event.payload.relationType) {
-          sandboxStore.addDraftRelation(event.entityId, {
-            targetId: event.payload.targetId,
-            type: event.payload.relationType,
-            attitude: event.payload.attitude
-          })
-        }
-      }
+      // Batch all draft relations in one reassignment
+      const relationDrafts = ops.stateEvents
+        .filter(e => e.eventType === 'RELATION_ADD' && e.payload.targetId && e.payload.relationType)
+        .map(e => ({
+          sourceId: e.entityId,
+          relation: {
+            targetId: e.payload.targetId as string,
+            type: e.payload.relationType as string,
+            attitude: e.payload.attitude as string | undefined
+          }
+        }))
+      sandboxStore.batchAddDraftRelations(relationDrafts)
 
       await sandboxStore.commitDrafts()
 
@@ -567,15 +583,15 @@ export function useDeepImportSession() {
   }
 
   return {
-    // State
-    session,
-    extractor,
-    isRunning,
-    isPaused,
-    progress,
-    parsedChapters,
-    currentStep,
-    error,
+    // State (read-only to prevent external mutation)
+    session: readonly(session),
+    extractor: readonly(extractor),
+    isRunning: readonly(isRunning),
+    isPaused: readonly(isPaused),
+    progress: readonly(progress),
+    parsedChapters: readonly(parsedChapters),
+    currentStep: readonly(currentStep),
+    error: readonly(error),
 
     // Computed
     allExtractedEntities,

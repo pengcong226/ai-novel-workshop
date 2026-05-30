@@ -1,26 +1,37 @@
 /**
- * 插件状态管理 Pinia Store
+ * Plugin state management store.
  *
- * 管理插件的安装、激活、设置等状态
+ * Manages plugin installation, activation, settings, and provides
+ * access to plugin registries (menus, sidebar panels, toolbar buttons,
+ * quick commands).
+ *
+ * ### storeToRefs usage
+ * ```ts
+ * import { usePluginStore } from '@/stores/plugin'
+ * import { storeToRefs } from 'pinia'
+ * const { plugins, activePlugins, loading } = storeToRefs(usePluginStore())
+ * ```
+ *
+ * @module stores/plugin
  */
 
 import { defineStore } from 'pinia'
-import { ref, computed } from 'vue'
+import { ref, computed, type Ref, type ComputedRef } from 'vue'
 import { pluginManager } from '@/plugins/manager'
 import { PluginStorage } from '@/plugins/storage'
 import { getLogger } from '@/utils/logger'
 import type { PluginManifest, PluginInstance} from '@/plugins/types'
 
 export const usePluginStore = defineStore('plugin', () => {
-  // 状态
-  const plugins = ref<PluginManifest[]>([])
-  const activePlugins = ref<string[]>([])
-  const pluginSettings = ref<Record<string, unknown>>({})
-  const loading = ref(false)
-  const error = ref<string | null>(null)
-  
-  // 实验模式开关（安全版）
-  const experimentalMode = ref(
+  // State
+  const plugins: Ref<PluginManifest[]> = ref([])
+  const activePlugins: Ref<string[]> = ref([])
+  const pluginSettings: Ref<Record<string, unknown>> = ref({})
+  const loading: Ref<boolean> = ref(false)
+  const error: Ref<string | null> = ref(null)
+
+  /** Experimental mode toggle (persisted to localStorage). */
+  const experimentalMode: Ref<boolean> = ref(
     typeof window !== 'undefined'
       ? localStorage.getItem('plugin-experimental-mode') === 'true'
       : false
@@ -28,11 +39,19 @@ export const usePluginStore = defineStore('plugin', () => {
 
   const logger = getLogger('plugin:store')
 
-  // 计算属性
-  const pluginCount = computed(() => plugins.value.length)
-  const activePluginCount = computed(() => activePlugins.value.length)
-
-  const installedPluginIds = computed(() => plugins.value.map(p => p.id))
+  // Getters
+  /** Total number of installed plugins. */
+  const pluginCount: ComputedRef<number> = computed(
+    (): number => plugins.value.length
+  )
+  /** Total number of currently active (enabled) plugins. */
+  const activePluginCount: ComputedRef<number> = computed(
+    (): number => activePlugins.value.length
+  )
+  /** Set of all installed plugin IDs for quick lookup. */
+  const installedPluginIds: ComputedRef<string[]> = computed(
+    (): string[] => plugins.value.map(p => p.id)
+  )
 
   /**
    * 加载已安装插件
@@ -331,6 +350,19 @@ export const usePluginStore = defineStore('plugin', () => {
     }
   }
 
+  /**
+   * Reset the store to its initial state. Deactivates all plugins
+   * first (best-effort), then clears state.
+   */
+  function $reset(): void {
+    plugins.value = []
+    activePlugins.value = []
+    pluginSettings.value = {}
+    loading.value = false
+    error.value = null
+    experimentalMode.value = false
+  }
+
   return {
     // 状态
     plugins,
@@ -367,6 +399,7 @@ export const usePluginStore = defineStore('plugin', () => {
     exportPluginConfig,
     importPluginConfig,
     executeQuickCommand,
-    clearAllPlugins
+    clearAllPlugins,
+    $reset
   }
 })

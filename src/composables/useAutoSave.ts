@@ -1,4 +1,27 @@
-import { ref, onMounted, onUnmounted } from 'vue'
+/**
+ * Auto-Save Composable
+ *
+ * Provides dirty-tracking, debounced persistence, and a beforeunload guard.
+ * Integrates with the project store's `debouncedSaveCurrentProject` for
+ * automatic saves and exposes manual `save()` for explicit persistence.
+ *
+ * @example
+ * ```vue
+ * <script setup lang="ts">
+ * import { useAutoSave } from '@/composables/useAutoSave'
+ *
+ * const { isDirty, isSaving, lastSavedAt, markDirty, save } = useAutoSave()
+ *
+ * // Call markDirty() when content changes
+ * function onContentChange() { markDirty() }
+ *
+ * // Save explicitly on button click
+ * async function handleSave() { await save() }
+ * </script>
+ * ```
+ */
+
+import { ref, readonly, onMounted, onUnmounted } from 'vue'
 import { useProjectStore } from '@/stores/project'
 import { getLogger } from '@/utils/logger'
 
@@ -11,12 +34,14 @@ export function useAutoSave() {
   const isSaving = ref(false)
   const lastSavedAt = ref<Date | null>(null)
 
-  function markDirty() {
+  /** Mark content as dirty and trigger a debounced save. */
+  function markDirty(): void {
     isDirty.value = true
     projectStore.debouncedSaveCurrentProject()
   }
 
-  async function save() {
+  /** Manually persist dirty content. No-op when not dirty. */
+  async function save(): Promise<void> {
     if (!isDirty.value) return
     isSaving.value = true
     try {
@@ -30,7 +55,7 @@ export function useAutoSave() {
     }
   }
 
-  function onBeforeUnload(e: BeforeUnloadEvent) {
+  function onBeforeUnload(e: BeforeUnloadEvent): void {
     if (isDirty.value) {
       e.preventDefault()
     }
@@ -45,9 +70,12 @@ export function useAutoSave() {
   })
 
   return {
-    isDirty,
-    isSaving,
-    lastSavedAt,
+    /** Whether content has unsaved changes (read-only) */
+    isDirty: readonly(isDirty),
+    /** Whether a save is in progress (read-only) */
+    isSaving: readonly(isSaving),
+    /** Timestamp of the last successful save (read-only) */
+    lastSavedAt: readonly(lastSavedAt),
     markDirty,
     save
   }

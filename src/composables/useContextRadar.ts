@@ -1,4 +1,26 @@
-import { ref, watch, onUnmounted, type Ref } from 'vue'
+/**
+ * Context Radar Composable
+ *
+ * Scans the current editor text against sandbox entities (CHARACTER and LORE)
+ * to find active context matches by name or alias. Uses debounced scanning
+ * to avoid excessive computation during rapid typing.
+ *
+ * @example
+ * ```vue
+ * <script setup lang="ts">
+ * import { toRef } from 'vue'
+ * import { useContextRadar } from '@/composables/useContextRadar'
+ *
+ * const { activeContextCharacters, activeContextWorldbook } = useContextRadar(
+ *   toRef(projectStore, 'currentProject'),
+ *   editorText,
+ *   isActive
+ * )
+ * </script>
+ * ```
+ */
+
+import { ref, readonly, watch, onUnmounted, type Ref } from 'vue'
 import { debounce } from 'lodash-es'
 import { useSandboxStore, type ResolvedEntity } from '@/stores/sandbox'
 import type { Entity } from '@/types/sandbox'
@@ -9,8 +31,8 @@ export function useContextRadar(
   textRef: Ref<string>,
   isActiveRef: Ref<boolean>
 ): {
-  activeContextCharacters: Ref<ResolvedEntity[]>
-  activeContextWorldbook: Ref<Entity[]>
+  activeContextCharacters: Readonly<Ref<ResolvedEntity[]>>
+  activeContextWorldbook: Readonly<Ref<Entity[]>>
 } {
   const sandboxStore = useSandboxStore()
 
@@ -71,5 +93,10 @@ export function useContextRadar(
     scanContextDebounced.cancel()
   })
 
-  return { activeContextCharacters, activeContextWorldbook }
+  return {
+    /** Matched CHARACTER entities resolved through state reducer (read-only) */
+    activeContextCharacters: readonly(activeContextCharacters),
+    /** Matched LORE entities (read-only) */
+    activeContextWorldbook: readonly(activeContextWorldbook)
+  }
 }

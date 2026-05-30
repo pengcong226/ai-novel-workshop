@@ -1,3 +1,24 @@
+/**
+ * Online Status Composable
+ *
+ * Tracks browser online/offline state using `navigator.onLine` and
+ * `online`/`offline` window events. Returns read-only computed refs.
+ * This is a **module-scope singleton** -- listeners are attached once.
+ *
+ * @example
+ * ```vue
+ * <script setup lang="ts">
+ * import { useOnlineStatus } from '@/composables/useOnlineStatus'
+ *
+ * const { isOnline, isOffline, lastChangedAt } = useOnlineStatus()
+ * </script>
+ *
+ * <template>
+ *   <div v-if="isOffline" class="offline-banner">You are offline</div>
+ * </template>
+ * ```
+ */
+
 import { computed, ref } from 'vue'
 
 const isOnline = ref(readInitialOnlineState())

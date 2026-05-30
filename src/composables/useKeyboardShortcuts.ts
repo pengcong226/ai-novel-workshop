@@ -1,3 +1,28 @@
+/**
+ * Keyboard Shortcuts Composable
+ *
+ * Provides a centralized keyboard shortcut registration system with scope
+ * management, modifier key normalization (macOS/Windows), input field
+ * awareness, and automatic cleanup on component unmount.
+ *
+ * @example
+ * ```vue
+ * <script setup lang="ts">
+ * import { useKeyboardShortcuts } from '@/composables/useKeyboardShortcuts'
+ *
+ * const { registerShortcuts } = useKeyboardShortcuts()
+ *
+ * registerShortcuts([{
+ *   id: 'save',
+ *   label: 'Save',
+ *   keys: ['mod', 's'],
+ *   scope: 'global',
+ *   handler: () => saveDocument(),
+ * }])
+ * </script>
+ * ```
+ */
+
 import { computed, onMounted, onUnmounted, shallowRef } from 'vue'
 import { getLogger } from '@/utils/logger'
 

@@ -1,5 +1,26 @@
+/**
+ * AI review suggestions store.
+ *
+ * Manages suggestion lifecycle (add / read / adopt / ignore), periodic
+ * checks for expired suggestions and idle reminders, queue-based push
+ * scheduling, and localStorage persistence with debounced writes.
+ *
+ * ### Potential memory leak note
+ * The store creates a `setInterval` for periodic checks. Call
+ * `stopPeriodicCheck()` or `$reset()` before teardown to avoid leaks.
+ *
+ * ### storeToRefs usage
+ * ```ts
+ * import { useSuggestionsStore } from '@/stores/suggestions'
+ * import { storeToRefs } from 'pinia'
+ * const { suggestions, unreadCount, statistics } = storeToRefs(useSuggestionsStore())
+ * ```
+ *
+ * @module stores/suggestions
+ */
+
 import { defineStore } from 'pinia'
-import { ref, computed } from 'vue'
+import { ref, computed, type Ref, type ComputedRef } from 'vue'
 import { v4 as uuidv4 } from 'uuid'
 import { getLogger } from '@/utils/logger'
 import type {
@@ -715,6 +736,35 @@ export const useSuggestionsStore = defineStore('suggestions', () => {
     return suggestions.value.filter(s => s.location.characterId === characterId)
   }
 
+  /**
+   * Reset the store to its initial state. Stops the periodic check
+   * interval, clears all suggestions and queue items, and flushes
+   * any pending save timer.
+   */
+  function $reset(): void {
+    stopPeriodicCheck()
+
+    // Clear pending save timer to prevent leak
+    if (saveTimer) {
+      clearTimeout(saveTimer)
+      saveTimer = null
+    }
+
+    suggestions.value = []
+    queue.value = []
+    isInitialized.value = false
+    lastActivity.value = new Date()
+    config.value = {
+      maxLength: 50,
+      similarityThreshold: 0.8,
+      autoExpireTime: 7 * 24 * 60 * 60 * 1000,
+      highPriorityInterval: 5 * 60 * 1000,
+      mediumPriorityInterval: 30 * 60 * 1000,
+      lowPriorityInterval: 2 * 60 * 60 * 1000,
+      idleThreshold: 30 * 60 * 1000
+    }
+  }
+
   return {
     // 状态
     suggestions,
@@ -753,6 +803,7 @@ export const useSuggestionsStore = defineStore('suggestions', () => {
     loadFromStorage,
     saveToStorage,
     flushSave,
-    stopPeriodicCheck
+    stopPeriodicCheck,
+    $reset
   }
 })

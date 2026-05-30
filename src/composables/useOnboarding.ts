@@ -1,4 +1,25 @@
-import { computed, ref, type ComputedRef, type Ref } from 'vue'
+/**
+ * Onboarding Composable
+ *
+ * Manages a multi-step onboarding flow with localStorage persistence.
+ * Supports dismiss (with 24h cooldown), completion, and reset.
+ * This is a **module-scope singleton** -- all consumers share the same state.
+ *
+ * @example
+ * ```vue
+ * <script setup lang="ts">
+ * import { useOnboarding } from '@/composables/useOnboarding'
+ *
+ * const { isVisible, currentStep, nextStep, complete, dismiss } = useOnboarding()
+ * </script>
+ *
+ * <template>
+ *   <OnboardingDialog v-if="isVisible" :step="currentStep" @next="nextStep" @dismiss="dismiss" />
+ * </template>
+ * ```
+ */
+
+import { computed, ref, readonly, type ComputedRef, type Ref } from 'vue'
 
 export const ONBOARDING_COMPLETED_KEY = 'ai-novel-workshop:onboarding:c2:completed'
 export const ONBOARDING_DISMISSED_KEY = 'ai-novel-workshop:onboarding:c2:dismissed-at'
@@ -10,8 +31,8 @@ interface OnboardingStorage {
 }
 
 export interface OnboardingState {
-  isVisible: Ref<boolean>
-  currentStep: Ref<number>
+  isVisible: Readonly<Ref<boolean>>
+  currentStep: Readonly<Ref<number>>
   isCompleted: ComputedRef<boolean>
   initialize: () => void
   nextStep: () => void
@@ -83,8 +104,8 @@ export function createOnboardingState(storage = getDefaultStorage(), stepCount =
   }
 
   return {
-    isVisible,
-    currentStep,
+    isVisible: readonly(isVisible),
+    currentStep: readonly(currentStep),
     isCompleted,
     initialize,
     nextStep,

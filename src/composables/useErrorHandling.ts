@@ -1,9 +1,29 @@
 /**
- * 统一错误处理 Composable
- * 提供 toast 通知、指数退避重试、错误上报集成点
+ * Unified Error Handling Composable
+ *
+ * Provides toast notifications, exponential-backoff retry with jitter,
+ * structured error handling via `errorHandler`, and an optional external
+ * error reporting integration point.
+ *
+ * Active retry timers are automatically cleaned up on component unmount.
+ *
+ * @example
+ * ```vue
+ * <script setup lang="ts">
+ * import { useErrorHandling } from '@/composables/useErrorHandling'
+ *
+ * const { withRetry, handleError, isRetrying } = useErrorHandling()
+ *
+ * // Retry an API call with exponential backoff
+ * const data = await withRetry(() => fetch('/api/data').then(r => r.json()), {
+ *   maxRetries: 3,
+ *   onRetry: (attempt, delay) => console.log(`Retry #${attempt} in ${delay}ms`)
+ * })
+ * </script>
+ * ```
  */
 
-import { ref, onUnmounted } from 'vue'
+import { ref, readonly, onUnmounted } from 'vue'
 import { ElMessage, ElNotification } from 'element-plus'
 import { errorHandler, ErrorSeverity, ErrorCategory, type AppError } from '@/utils/errorHandler'
 import { getLogger } from '@/utils/logger'
@@ -292,22 +312,22 @@ export function useErrorHandling() {
   }
 
   return {
-    // 状态
-    isRetrying,
-    retryCount,
-    lastError,
+    // Status (read-only to prevent external mutation)
+    isRetrying: readonly(isRetrying),
+    retryCount: readonly(retryCount),
+    lastError: readonly(lastError),
 
-    // 核心方法
+    // Core methods
     withRetry,
     handleError,
     showErrorMessage,
 
-    // 快捷方法
+    // Convenience methods
     handleNetworkError,
     handleAIError,
     handleStorageError,
 
-    // 工具方法
+    // Utility methods
     resetRetryState,
     reportError,
   }

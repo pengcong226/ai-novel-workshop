@@ -1,4 +1,20 @@
-import { computed, ref } from 'vue'
+/**
+ * Token usage tracking store.
+ *
+ * Records per-request token consumption and cost, persists per-project
+ * usage history to localStorage, and provides project-scoped summaries.
+ *
+ * ### storeToRefs usage
+ * ```ts
+ * import { useTokenUsageStore } from '@/stores/tokenUsage'
+ * import { storeToRefs } from 'pinia'
+ * const { records, summary } = storeToRefs(useTokenUsageStore())
+ * ```
+ *
+ * @module stores/tokenUsage
+ */
+
+import { computed, ref, type Ref, type ComputedRef } from 'vue'
 import { defineStore } from 'pinia'
 import type { ChatResponse, TaskContext } from '@/types/ai'
 import type { TokenUsageRecord, TokenUsageSource, TokenUsageTaskType } from '@/types/token-usage'
@@ -23,10 +39,20 @@ interface RecordFromChatResponseInput {
 }
 
 export const useTokenUsageStore = defineStore('tokenUsage', () => {
-  const records = ref<TokenUsageRecord[]>([])
+  const records: Ref<TokenUsageRecord[]> = ref([])
 
-  const summary = computed(() => records.value)
+  /** Full list of all usage records (all projects). */
+  const summary: ComputedRef<TokenUsageRecord[]> = computed(
+    (): TokenUsageRecord[] => records.value
+  )
 
+  /**
+   * Record a token usage entry. Returns null if projectId is missing.
+   * Automatically trims to HISTORY_LIMIT and persists to localStorage.
+   *
+   * @param input - Usage data (id and timestamp are auto-generated if absent)
+   * @returns The created record, or null if skipped
+   */
   function recordUsage(input: RecordUsageInput): TokenUsageRecord | null {
     if (!input.projectId) return null
 
@@ -45,6 +71,13 @@ export const useTokenUsageStore = defineStore('tokenUsage', () => {
     return record
   }
 
+  /**
+   * Record token usage from a ChatResponse object, extracting usage
+   * and cost data automatically.
+   *
+   * @param input - Chat response context with project/source info
+   * @returns The created record, or null if usage/cost data is missing
+   */
   function recordFromChatResponse(input: RecordFromChatResponseInput): TokenUsageRecord | null {
     if (!input.response.usage || !input.response.cost) return null
 
@@ -71,10 +104,19 @@ export const useTokenUsageStore = defineStore('tokenUsage', () => {
     })
   }
 
+  /**
+   * Get all usage records for a specific project.
+   * @param projectId - Project to filter by
+   * @returns Array of matching records
+   */
   function getProjectRecords(projectId: string): TokenUsageRecord[] {
     return records.value.filter(record => record.projectId === projectId)
   }
 
+  /**
+   * Load persisted usage records for a project from localStorage.
+   * @param projectId - Project to load
+   */
   function loadProjectUsage(projectId: string): void {
     try {
       const raw = localStorage.getItem(getStorageKey(projectId))
@@ -105,6 +147,10 @@ export const useTokenUsageStore = defineStore('tokenUsage', () => {
     }
   }
 
+  /**
+   * Persist usage records for a project to localStorage.
+   * @param projectId - Project to persist
+   */
   function persistProjectUsage(projectId: string): void {
     try {
       localStorage.setItem(getStorageKey(projectId), JSON.stringify(getProjectRecords(projectId).slice(-HISTORY_LIMIT)))
@@ -113,6 +159,10 @@ export const useTokenUsageStore = defineStore('tokenUsage', () => {
     }
   }
 
+  /**
+   * Remove all usage records for a project from memory and localStorage.
+   * @param projectId - Project to clear
+   */
   function clearProjectUsage(projectId: string): void {
     records.value = records.value.filter(record => record.projectId !== projectId)
     try {
@@ -122,8 +172,20 @@ export const useTokenUsageStore = defineStore('tokenUsage', () => {
     }
   }
 
+  /**
+   * Export all usage records for a project as a JSON string.
+   * @param projectId - Project to export
+   * @returns Formatted JSON string
+   */
   function exportProjectUsage(projectId: string): string {
     return JSON.stringify(getProjectRecords(projectId), null, 2)
+  }
+
+  /**
+   * Reset the store to its initial state, clearing all records.
+   */
+  function $reset(): void {
+    records.value = []
   }
 
   return {
@@ -136,6 +198,7 @@ export const useTokenUsageStore = defineStore('tokenUsage', () => {
     persistProjectUsage,
     clearProjectUsage,
     exportProjectUsage,
+    $reset,
   }
 })
 

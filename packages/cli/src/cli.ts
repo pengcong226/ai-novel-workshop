@@ -5,10 +5,24 @@ import * as path from 'path'
 
 const program = new Command()
 
+/** Commander.js options shared across CLI sub-commands */
+interface CommanderOptions {
+  project?: string
+  json?: boolean
+  wordCount?: string
+  direction?: string
+  genre?: string
+  format?: string
+  platform?: string
+  output?: string
+  input?: string
+  depth?: string
+}
+
 /**
  * 读取项目配置
  */
-function readProjectConfig(projectPath: string): any {
+function readProjectConfig(projectPath: string): unknown {
   const configPath = path.join(projectPath, 'project.json')
   if (!fs.existsSync(configPath)) {
     throw new Error(`项目配置文件不存在: ${configPath}`)
@@ -19,7 +33,7 @@ function readProjectConfig(projectPath: string): any {
 /**
  * 读取章节数据
  */
-function readChapter(projectPath: string, chapterNum: number): any {
+function readChapter(projectPath: string, chapterNum: number): unknown {
   const chapterPath = path.join(projectPath, 'chapters', `chapter-${chapterNum}.json`)
   if (!fs.existsSync(chapterPath)) {
     throw new Error(`章节 ${chapterNum} 不存在`)
@@ -30,7 +44,7 @@ function readChapter(projectPath: string, chapterNum: number): any {
 /**
  * 格式化输出
  */
-function output(data: any, message: string, jsonMode: boolean): void {
+function output(data: unknown, message: string, jsonMode: boolean): void {
   if (jsonMode) {
     console.log(JSON.stringify(data, null, 2))
   } else {
@@ -49,7 +63,7 @@ program
   .description('规划指定章节的意图和备忘')
   .option('--project <path>', '项目路径', '.')
   .option('--json', 'JSON格式输出')
-  .action(async (chapter: string, options: any) => {
+  .action(async (chapter: string, options: CommanderOptions) => {
     try {
       const chapterNum = parseInt(chapter, 10)
       if (isNaN(chapterNum)) {
@@ -68,8 +82,8 @@ program
       }
 
       output(planResult, `✓ 第 ${chapterNum} 章规划完成`, options.json)
-    } catch (error: any) {
-      console.error(`错误: ${error.message}`)
+    } catch (error: unknown) {
+      console.error(`错误: ${error instanceof Error ? error.message : String(error)}`)
       process.exit(1)
     }
   })
@@ -82,7 +96,7 @@ program
   .option('--word-count <n>', '目标字数', '2000')
   .option('--direction <text>', '方向指导')
   .option('--json', 'JSON格式输出')
-  .action(async (chapter: string, options: any) => {
+  .action(async (chapter: string, options: CommanderOptions) => {
     try {
       const chapterNum = parseInt(chapter, 10)
       if (isNaN(chapterNum)) {
@@ -106,8 +120,8 @@ program
       }
 
       output(writeResult, `✓ 第 ${chapterNum} 章撰写完成`, options.json)
-    } catch (error: any) {
-      console.error(`错误: ${error.message}`)
+    } catch (error: unknown) {
+      console.error(`错误: ${error instanceof Error ? error.message : String(error)}`)
       process.exit(1)
     }
   })
@@ -119,7 +133,7 @@ program
   .option('--project <path>', '项目路径', '.')
   .option('--direction <text>', '方向指导')
   .option('--json', 'JSON格式输出')
-  .action(async (count: string | undefined, options: any) => {
+  .action(async (count: string | undefined, options: CommanderOptions) => {
     try {
       const chapterCount = count ? parseInt(count, 10) : 1
       if (isNaN(chapterCount) || chapterCount < 1) {
@@ -142,8 +156,8 @@ program
       }
 
       output(writeNextResult, `✓ 成功续写 ${chapterCount} 章`, options.json)
-    } catch (error: any) {
-      console.error(`错误: ${error.message}`)
+    } catch (error: unknown) {
+      console.error(`错误: ${error instanceof Error ? error.message : String(error)}`)
       process.exit(1)
     }
   })
@@ -155,7 +169,7 @@ program
   .option('--project <path>', '项目路径', '.')
   .option('--genre <genre>', '题材')
   .option('--json', 'JSON格式输出')
-  .action(async (chapter: string, options: any) => {
+  .action(async (chapter: string, options: CommanderOptions) => {
     try {
       const chapterNum = parseInt(chapter, 10)
       if (isNaN(chapterNum)) {
@@ -179,8 +193,8 @@ program
       }
 
       output(auditResult, `✓ 第 ${chapterNum} 章审计完成，评分: ${auditResult.score}`, options.json)
-    } catch (error: any) {
-      console.error(`错误: ${error.message}`)
+    } catch (error: unknown) {
+      console.error(`错误: ${error instanceof Error ? error.message : String(error)}`)
       process.exit(1)
     }
   })
@@ -191,7 +205,7 @@ program
   .description('审计所有章节质量')
   .option('--project <path>', '项目路径', '.')
   .option('--json', 'JSON格式输出')
-  .action(async (options: any) => {
+  .action(async (options: CommanderOptions) => {
     try {
       console.log('正在审计所有章节...')
 
@@ -204,8 +218,8 @@ program
       }
 
       output(auditAllResult, '✓ 所有章节审计完成', options.json)
-    } catch (error: any) {
-      console.error(`错误: ${error.message}`)
+    } catch (error: unknown) {
+      console.error(`错误: ${error instanceof Error ? error.message : String(error)}`)
       process.exit(1)
     }
   })
@@ -219,7 +233,7 @@ program
   .option('--platform <platform>', '平台格式 (qidian|fanqie|ciweimao|jjwxc)', 'qidian')
   .option('--output <path>', '输出路径')
   .option('--json', 'JSON格式输出')
-  .action(async (options: any) => {
+  .action(async (options: CommanderOptions) => {
     try {
       console.log(`正在导出小说 (格式: ${options.format})...`)
 
@@ -239,8 +253,8 @@ program
       }
 
       output(exportResult, `✓ 小说导出完成: ${outputPath}`, options.json)
-    } catch (error: any) {
-      console.error(`错误: ${error.message}`)
+    } catch (error: unknown) {
+      console.error(`错误: ${error instanceof Error ? error.message : String(error)}`)
       process.exit(1)
     }
   })
@@ -250,7 +264,7 @@ program
   .command('genre list')
   .description('列出所有可用题材Profile')
   .option('--json', 'JSON格式输出')
-  .action(async (options: any) => {
+  .action(async (options: CommanderOptions) => {
     try {
       console.log('正在获取题材列表...')
 
@@ -266,8 +280,8 @@ program
       }
 
       output(genreList, `可用题材: ${genreList.genres.map(g => g.name).join(', ')}`, options.json)
-    } catch (error: any) {
-      console.error(`错误: ${error.message}`)
+    } catch (error: unknown) {
+      console.error(`错误: ${error instanceof Error ? error.message : String(error)}`)
       process.exit(1)
     }
   })
@@ -279,7 +293,7 @@ program
   .option('--input <path>', '输入文件路径')
   .option('--depth <depth>', '分析深度 (quick|standard|deep)', 'standard')
   .option('--json', 'JSON格式输出')
-  .action(async (options: any) => {
+  .action(async (options: CommanderOptions) => {
     try {
       if (!options.input) {
         throw new Error('请指定输入文件路径')
@@ -301,8 +315,8 @@ program
       }
 
       output(styleResult, '✓ 文风分析完成', options.json)
-    } catch (error: any) {
-      console.error(`错误: ${error.message}`)
+    } catch (error: unknown) {
+      console.error(`错误: ${error instanceof Error ? error.message : String(error)}`)
       process.exit(1)
     }
   })
@@ -313,7 +327,7 @@ program
   .description('显示项目状态')
   .option('--project <path>', '项目路径', '.')
   .option('--json', 'JSON格式输出')
-  .action(async (options: any) => {
+  .action(async (options: CommanderOptions) => {
     try {
       console.log('正在获取项目状态...')
 
@@ -329,8 +343,8 @@ program
       }
 
       output(statusResult, `项目状态: 已规划 ${statusResult.chapters.planned} 章, 已撰写 ${statusResult.chapters.written} 章, 已审计 ${statusResult.chapters.audited} 章`, options.json)
-    } catch (error: any) {
-      console.error(`错误: ${error.message}`)
+    } catch (error: unknown) {
+      console.error(`错误: ${error instanceof Error ? error.message : String(error)}`)
       process.exit(1)
     }
   })

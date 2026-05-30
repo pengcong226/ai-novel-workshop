@@ -266,7 +266,7 @@ export function generateContinuationSuggestions(
         priority: 'high',
         title: '按照大纲继续',
         description: `下一章: ${nextChapterOutline.title}`,
-        context: String((nextChapterOutline as unknown as Record<string, unknown>).summary || ''),
+        context: nextChapterOutline.notes || '',
         suggestions: [
           ...(nextChapterOutline.goals || []).map(g => `目标：${g}`),
           ...(nextChapterOutline.conflicts || []).map(c => `冲突：${c}`)

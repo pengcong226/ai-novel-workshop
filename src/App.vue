@@ -10,7 +10,11 @@
     <el-config-provider :locale="zhCn">
       <ErrorBoundary name="RouterView" :show-retry="true">
         <div id="main-content" role="main" aria-label="主要内容">
-          <router-view />
+          <router-view v-slot="{ Component, route }">
+            <transition :name="route.meta.transition as string || 'fade'" mode="out-in">
+              <component :is="Component" :key="route.path" />
+            </transition>
+          </router-view>
         </div>
       </ErrorBoundary>
       <ErrorBoundary name="OnboardingDialog">
@@ -255,5 +259,31 @@ html, body, #app, .app-container {
 .error-actions {
   display: flex;
   gap: var(--ds-space-3);
+}
+
+/* Route transitions */
+.fade-enter-active,
+.fade-leave-active {
+  transition: opacity 0.2s ease;
+}
+
+.fade-enter-from,
+.fade-leave-to {
+  opacity: 0;
+}
+
+.fade-slide-enter-active,
+.fade-slide-leave-active {
+  transition: opacity 0.25s ease, transform 0.25s ease;
+}
+
+.fade-slide-enter-from {
+  opacity: 0;
+  transform: translateX(12px);
+}
+
+.fade-slide-leave-to {
+  opacity: 0;
+  transform: translateX(-12px);
 }
 </style>

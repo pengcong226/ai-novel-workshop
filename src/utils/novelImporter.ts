@@ -400,9 +400,21 @@ export async function importNovel(
     content: parsed.content,
     wordCount: parsed.wordCount,
     status: 'draft' as const,
-    createdAt: now,
-    updatedAt: now
-  } as unknown as Chapter))
+    outline: {
+      chapterId: '',
+      title: parsed.title,
+      scenes: [],
+      characters: [],
+      location: '',
+      goals: [],
+      conflicts: [],
+      resolutions: [],
+      status: 'planned' as const
+    },
+    generatedBy: 'manual' as const,
+    generationTime: now,
+    checkpoints: []
+  }))
 
   // 创建人物数据
   const fullCharacters: Character[] = characters.map(char => {
@@ -411,13 +423,14 @@ export async function importNovel(
       id: uuidv4(),
       name: char.name || '',
       aliases: char.aliases || [],
-      description: extras.description || '',
-      background: char.background || '',
-      personality: char.personality || [],
+      gender: 'other' as const,
+      age: 0,
       appearance: char.appearance || '',
+      personality: char.personality || [],
+      values: [],
+      background: char.background || '',
       motivation: char.motivation || '',
-      tags: char.tags || ['other'],
-      appearances: [],
+      abilities: [],
       relationships: relations
         .filter(r => r.from === char.name || r.to === char.name)
         .map(r => ({
@@ -425,14 +438,16 @@ export async function importNovel(
           type: r.type as Relationship['type'],
           description: ''
         })),
-      notes: extras.notes || '',
-      createdAt: now,
-      updatedAt: now
-    } as unknown as Character
+      appearances: [],
+      development: [],
+      tags: char.tags || ['other'],
+      stateHistory: [],
+      aiGenerated: false
+    }
   })
 
   // 转换大纲数据
-  const projectOutline: any = outlineData.chapters && outlineData.chapters.length > 0
+  const projectOutline: GeneratedOutline = outlineData.chapters && outlineData.chapters.length > 0
     ? convertToOutline(outlineData, chapters)
     : {
         structure: '导入的结构',

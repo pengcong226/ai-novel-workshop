@@ -1,11 +1,28 @@
 /**
- * usePipelineStatePersistence
+ * Pipeline State Persistence Composable
  *
- * 将 Pipeline 运行状态持久化到 IndexedDB，刷新页面后可恢复进度。
- * 存储内容：pipelineEvents、currentPipelineEvent、isRunning、isPaused 等。
+ * Persists Pipeline runtime state to IndexedDB so progress survives page
+ * refreshes. State older than 30 minutes is automatically discarded.
+ * Uses throttled writes (2s) with hash-based change detection to avoid
+ * unnecessary I/O.
+ *
+ * @example
+ * ```vue
+ * <script setup lang="ts">
+ * import { usePipelineStatePersistence } from '@/composables/usePipelineStatePersistence'
+ *
+ * const {
+ *   isPipelineRunning, isPipelinePaused,
+ *   startPipeline, pushEvent, finishPipeline,
+ *   restoreState, pipelineEvents,
+ * } = usePipelineStatePersistence(() => project.value?.id)
+ *
+ * onMounted(async () => { await restoreState() })
+ * </script>
+ * ```
  */
 
-import { ref, watch, onMounted } from 'vue'
+import { ref, readonly, watch, onMounted, onUnmounted } from 'vue'
 import { getLogger } from '@/utils/logger'
 
 const logger = getLogger('composable:pipeline-persist')
@@ -125,6 +142,14 @@ export function usePipelineStatePersistence(projectId: () => string | undefined)
   let saveTimer: ReturnType<typeof setTimeout> | null = null
   let lastSavedHash = ''
 
+  // Cleanup on unmount
+  onUnmounted(() => {
+    if (saveTimer !== null) {
+      clearTimeout(saveTimer)
+      saveTimer = null
+    }
+  })
+
   /**
    * 从 IndexedDB 恢复状态
    */
@@ -242,13 +267,13 @@ export function usePipelineStatePersistence(projectId: () => string | undefined)
   }
 
   return {
-    // 状态
-    pipelineEvents,
-    currentPipelineEvent,
-    isPipelinePaused,
-    isPipelineRunning,
-    showPipelineProgress,
-    // 方法
+    // State (read-only to prevent external mutation)
+    pipelineEvents: readonly(pipelineEvents),
+    currentPipelineEvent: readonly(currentPipelineEvent),
+    isPipelinePaused: readonly(isPipelinePaused),
+    isPipelineRunning: readonly(isPipelineRunning),
+    showPipelineProgress: readonly(showPipelineProgress),
+    // Methods
     restoreState,
     pushEvent,
     startPipeline,
