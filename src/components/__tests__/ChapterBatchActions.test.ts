@@ -15,7 +15,7 @@ const ElButtonStub = {
   name: 'ElButton',
   props: ['type', 'loading'],
   emits: ['click'],
-  template: '<button class="stub-button" @click="$emit(\'click\')"><slot /></button>',
+  template: '<button class="stub-button" :data-loading="loading" @click="$emit(\'click\')"><slot /></button>',
 }
 const ElDropdownStub = {
   name: 'ElDropdown',
@@ -213,8 +213,8 @@ describe('ChapterBatchActions', () => {
     const buttons = wrapper.findAll('.stub-button')
     const validateBtn = buttons.find((b) => b.text().includes('验证章节'))
     expect(validateBtn).toBeDefined()
-    // The stub receives the loading prop
-    expect(validateBtn!.props('loading')).toBe(true)
+    // The stub exposes loading via data-loading attribute
+    expect(validateBtn!.attributes('data-loading')).toBe('true')
   })
 
   it('validate button has loading=false when not validating', () => {
@@ -223,7 +223,7 @@ describe('ChapterBatchActions', () => {
     const buttons = wrapper.findAll('.stub-button')
     const validateBtn = buttons.find((b) => b.text().includes('验证章节'))
     expect(validateBtn).toBeDefined()
-    expect(validateBtn!.props('loading')).toBe(false)
+    expect(validateBtn!.attributes('data-loading')).toBe('false')
   })
 
   // ---- Export command emission ----
@@ -239,7 +239,7 @@ describe('ChapterBatchActions', () => {
     // We can trigger it via the component's internal handler by emitting from the dropdown stub
     // Since the stub doesn't auto-trigger, we call the handler via the emitted event
     // Verify that the exportCommand event type is wired
-    const vm = wrapper.vm as any
+    const _vm = wrapper.vm as any
     // The template emits exportCommand when the dropdown fires command
     // We'll just verify the event is defined on the component
     expect(wrapper.emitted('exportCommand')).toBeUndefined() // not emitted yet

@@ -41,7 +41,7 @@ const AI_TELL_WORDS = [
 ]
 
 /** AI 标记词密度阈值（次/千字） */
-const AI_TELL_DENSITY_THRESHOLD = 5
+const _AI_TELL_DENSITY_THRESHOLD = 5
 
 /** 敏感词正则模式（与 PostWriteValidator 保持一致） */
 const SENSITIVE_WORDS_PATTERNS = [

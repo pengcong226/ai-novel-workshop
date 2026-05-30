@@ -605,14 +605,15 @@ const batchForm = ref({
 
 const showContinuationPanel = ref(false)
 const showRewritePanel = ref(false)
-const { diffReport, acceptRewrite, rejectRewrite } = useRewriteContinuation()
+const { diffReport: readonlyDiffReport, acceptRewrite, rejectRewrite } = useRewriteContinuation()
+const diffReport = computed(() => readonlyDiffReport.value as any)
 
 // 一键续写（Pipeline）相关状态（含 IndexedDB 持久化）
 const showWriteNextDialog = ref(false)
 const pipelineBatchScheduler = ref<any>(null)
 
 const {
-  pipelineEvents,
+  pipelineEvents: readonlyPipelineEvents,
   currentPipelineEvent,
   isPipelinePaused,
   isPipelineRunning,
@@ -624,6 +625,8 @@ const {
   pausePipeline,
   resumePipeline,
 } = usePipelineStatePersistence(() => project.value?.id)
+
+const pipelineEvents = computed(() => [...readonlyPipelineEvents.value])
 
 // 页面加载时尝试恢复 Pipeline 运行状态
 onMounted(async () => {
@@ -979,7 +982,7 @@ async function handleWriteNextStart(options: {
         directionPrompt: options.directionPrompt || undefined,
         checkpointInterval: options.checkpointInterval || undefined,
         autoSave: options.autoSave,
-        onChapterComplete: async (chapterResult, index) => {
+        onChapterComplete: async (chapterResult, _index) => {
           if (options.autoSave && chapterResult.content) {
             const chapter: Chapter = {
               id: `pipeline-${chapterResult.chapterNumber}-${Date.now()}`,

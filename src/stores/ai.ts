@@ -48,7 +48,7 @@ export const useAIStore = defineStore('ai', () => {
   // ── Model resolution cache (invalidated on config/override change) ──
   const MODEL_CACHE_MAX_SIZE = 200
   let modelResolutionCacheVersion = 0
-  let lastOverrideSnapshot = ''
+  let _lastOverrideSnapshot = ''
   const modelResolutionCache = new Map<string, { version: number; model: string | null }>()
 
   function sleep(ms: number) {
@@ -835,7 +835,7 @@ export const useAIStore = defineStore('ai', () => {
     // Clear growing caches and dangling references
     modelResolutionCache.clear()
     modelResolutionCacheVersion = 0
-    lastOverrideSnapshot = ''
+    _lastOverrideSnapshot = ''
     inflightChatRequests.clear()
     daemonServiceInstance = null
     daemonEventUnsubscribe = null

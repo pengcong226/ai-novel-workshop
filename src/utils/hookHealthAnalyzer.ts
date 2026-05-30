@@ -20,7 +20,7 @@ const logger = getLogger('utils:hook-health')
 const MAX_ACTIVE_HOOKS = 15
 
 /** 伏笔超过此章数未推进则标记为 stale */
-const STALE_AFTER_CHAPTERS = 10
+const _STALE_AFTER_CHAPTERS = 10
 
 /** 连续 N 章无真实推进则告警 */
 const NO_ADVANCE_WINDOW = 5

@@ -337,8 +337,8 @@ const showShortcutsDialog = ref(false)
 // Pipeline 新手引导
 const PIPELINE_TOUR_KEY = 'ai-novel-workshop:pipeline-tour:completed'
 const pipelineTourOpen = ref(false)
-const sidebarNavRef = ref<HTMLElement>()
-const agentsMenuRef = ref<HTMLElement>()
+const _sidebarNavRef = ref<HTMLElement>()
+const _agentsMenuRef = ref<HTMLElement>()
 
 const pipelineTourSteps = computed(() => [
   {

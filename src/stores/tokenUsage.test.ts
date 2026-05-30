@@ -285,6 +285,9 @@ describe('tokenUsage store', () => {
       store.recordUsage(makeRecordInput({ projectId: 'proj-empty' }))
       expect(store.getProjectRecords('proj-empty')).toHaveLength(1)
 
+      // Clear the localStorage entry that recordUsage created
+      localStorage.removeItem('token_usage:proj-empty')
+
       store.loadProjectUsage('proj-empty')
 
       expect(store.getProjectRecords('proj-empty')).toHaveLength(0)

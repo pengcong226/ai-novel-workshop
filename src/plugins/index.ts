@@ -89,7 +89,4 @@ export { localProviderContribution, manifest as localManifest } from './builtin/
 export { createCharacterActionContribution, manifest as assistantActionsManifest } from './builtin/assistant-actions'
 
 // 示例插件
-// export { epubExporterContribution, manifest as epubManifest } from './examples/epub-exporter'
-// export { pdfExporter, manifest as pdfManifest } from './examples/pdf-exporter'
-// export { textCleanerProcessor, styleConverterProcessor, manifest as textProcessorManifest } from './examples/text-cleaner'
 export { zhipuGLMProviderContribution, manifest as zhipuManifest } from './examples/zhipu-provider'

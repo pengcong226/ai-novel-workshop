@@ -56,7 +56,7 @@ export interface ChapterSummaryData {
   tokenCount: number           // token数估算
   createdAt: Date              // 创建时间
   updatedAt: Date              // 更新时间
-  level: SummaryLevel
+  level?: SummaryLevel
   detail: SummaryDetail
   sourceHash?: string          // 正文哈希
   summaryVersion?: number      // 摘要版本

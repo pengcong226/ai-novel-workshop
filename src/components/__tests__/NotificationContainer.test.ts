@@ -80,7 +80,7 @@ describe('NotificationContainer', () => {
   // --- Dismiss ---
 
   it('dismisses a notification when NotificationItem emits dismiss', async () => {
-    const id = store.notify({ message: 'to dismiss', type: 'info' })
+    const _id = store.notify({ message: 'to dismiss', type: 'info' })
 
     const wrapper = mountContainer()
     await nextTick()

@@ -331,7 +331,7 @@ describe('Import/Export Flows', () => {
       const badEvent = createMockStateEvent({ id: 'evt1', entityId: 'e1', projectId: 'other-project' })
       const backup = createProjectBackup(project, [entity], [badEvent])
       const json = JSON.stringify(backup)
-      const parsed = parseProjectBackupJson(json)
+      const _parsed = parseProjectBackupJson(json)
 
       // badEvent should be filtered out during creation, so parse succeeds
       // But if we manually construct one with bad IDs:

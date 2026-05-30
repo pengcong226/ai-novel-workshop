@@ -35,7 +35,7 @@ interface StoredProject {
   chapters?: StoredChapter[]
   characters?: unknown[]
   worldbook?: { entries?: unknown[] } | Record<string, unknown>
-  [key: string]: unknown
+  config?: Record<string, unknown>
 }
 
 /** Chapter record shape as stored (content may be absent for metadata-only views) */
@@ -46,13 +46,16 @@ interface StoredChapter {
   title?: string
   content?: string
   wordCount?: number
-  [key: string]: unknown
+  status?: string
+  generatedBy?: string
+  createdAt?: string | number | Date
+  updatedAt?: string | number | Date
 }
 
 /** Minimal shape for template records persisted in IndexedDB */
 interface StoredTemplate {
   id: string
-  [key: string]: unknown
+  name?: string
 }
 
 // 使用IndexedDB存储大数据，LocalStorage存储元数据
@@ -619,7 +622,7 @@ class IndexedDBStorage {
 
       request.onsuccess = () => {
         const chapters = (request.result || [])
-          .map(({ content, ...meta }: StoredChapter) => meta)
+          .map(({ content: _content, ...meta }: StoredChapter) => meta)
           .sort((a, b) => (a.number || 0) - (b.number || 0))
         resolve(chapters)
       }
@@ -812,9 +815,9 @@ class TauriStorage {
   async saveProject(project: StoredProject) {
     const { invoke } = await import('@tauri-apps/api/core');
     const projectCopy = { ...project };
-    const chapters = projectCopy.chapters || [];
-    const characters = projectCopy.characters || [];
-    const worldbook = projectCopy.worldbook?.entries || [];
+    const chapters = (projectCopy.chapters || []) as StoredChapter[]
+    const characters = (projectCopy.characters || []) as unknown[]
+    const worldbook = (projectCopy.worldbook?.entries || []) as unknown[]
 
     delete projectCopy.chapters;
     delete projectCopy.characters;
@@ -1043,7 +1046,7 @@ export const useStorage = defineStore('storage', () => {
     }
     // Tauri和其他后端回退到全量加载并剥离content
     const chapters = await loadChapters(projectId)
-    return chapters.map(({ content, ...meta }: StoredChapter) => meta)
+    return chapters.map(({ content: _content, ...meta }: StoredChapter) => meta)
   }
 
   async function saveChapter(chapter: StoredChapter, projectId?: string) {

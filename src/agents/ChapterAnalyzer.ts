@@ -144,7 +144,7 @@ ${input.existingSummary ? `## Writer已生成的摘要\n${input.existingSummary}
    */
   private buildFallback(input: ChapterAnalysisInput, tokenUsage: TokenUsage): ChapterAnalysisOutput {
     // 从正文中提取前200字作为基础摘要
-    const plainText = input.chapterContent.replace(/[#*\-\[\]()]/g, '').trim()
+    const plainText = input.chapterContent.replace(/[#*\-\]()]/g, '').trim()
     const summary = plainText.slice(0, 200) + (plainText.length > 200 ? '...' : '')
 
     return {

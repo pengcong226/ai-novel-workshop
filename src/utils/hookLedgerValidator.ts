@@ -229,7 +229,7 @@ function extractContext(text: string, keyword: string): string {
 function checkOperationExecuted(
   op: HookOperation,
   content: string,
-  hookPool?: HookEntry[],
+  _hookPool?: HookEntry[],
 ): boolean {
   // 如果有具体的伏笔ID，检查该伏笔内容是否在正文中被提及
   if (op.hookContent) {
@@ -281,7 +281,7 @@ function checkOperationExecuted(
 function detectUnmentionedHookPlants(
   content: string,
   memo: ChapterMemo,
-  hookPool?: HookEntry[],
+  _hookPool?: HookEntry[],
 ): string[] {
   const plants: string[] = []
   const memoText = `${memo.currentTasks} ${memo.payoffOrHold} ${memo.bodySkeleton}`

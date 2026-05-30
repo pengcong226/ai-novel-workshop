@@ -172,7 +172,7 @@ function getStageStatus(stage: PipelineStage): 'pending' | 'running' | 'complete
   return 'pending'
 }
 
-function getStageClass(stage: PipelineStage, idx: number): string {
+function getStageClass(stage: PipelineStage, _idx: number): string {
   const status = getStageStatus(stage)
   return `stage-${status}`
 }

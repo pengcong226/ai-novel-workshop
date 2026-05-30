@@ -273,7 +273,7 @@ export function useGlobalSearch() {
 
     // Navigate to the appropriate section
     const [type, ...idParts] = result.id.split(':')
-    const rawId = idParts.join(':')
+    const _rawId = idParts.join(':')
 
     if (type === 'chapter') {
       // Navigate to chapter editor - just push to project route, chapters tab

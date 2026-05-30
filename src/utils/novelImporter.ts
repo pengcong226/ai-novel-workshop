@@ -38,7 +38,7 @@ const logger = getLogger('utils:novelImporter')
 const MAX_FILE_SIZE = 100 * 1024 * 1024
 
 /** 分块读取阈值：4MB */
-const CHUNK_SIZE = 4 * 1024 * 1024
+const _CHUNK_SIZE = 4 * 1024 * 1024
 
 export interface ImportOptions {
   title: string
@@ -418,7 +418,7 @@ export async function importNovel(
 
   // 创建人物数据
   const fullCharacters: Character[] = characters.map(char => {
-    const extras = char as { description?: string; notes?: string }
+    const _extras = char as { description?: string; notes?: string }
     return {
       id: uuidv4(),
       name: char.name || '',

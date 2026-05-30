@@ -640,8 +640,8 @@ export class PipelineRunner {
     chapterOutline: ChapterOutline | undefined,
     previousEndingExcerpt: string | undefined,
     externalContext: string | undefined,
-    hookPool: HookEntry[],
-    recentSummaries: string[],
+    _hookPool: HookEntry[],
+    _recentSummaries: string[],
   ): Promise<PlanChapterOutput> {
     // 构建 ChapterIntent（从大纲提取）
     const intent = {

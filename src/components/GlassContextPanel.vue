@@ -64,12 +64,11 @@
 import { computed } from 'vue'
 import type { ResolvedEntity } from '@/stores/sandbox'
 import type { Entity } from '@/types/sandbox'
+import type { Chapter } from '@/types'
 
-interface ChapterFormData {
-  number?: number
+interface ChapterFormData extends Partial<Chapter> {
   generatedBy?: 'ai' | 'manual' | 'hybrid'
   aiSuggestions?: string[]
-  [key: string]: unknown
 }
 
 const props = defineProps<{

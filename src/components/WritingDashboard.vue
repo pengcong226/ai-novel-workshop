@@ -311,7 +311,7 @@ const enabledAgentCount = computed(() =>
 const totalAgentCount = computed(() =>
   agentConfigs.value.filter(a => ACTIVE_AGENT_ROLES.includes(a.role)).length
 )
-const hasChapters = computed(() => summary.value.chapterCount > 0)
+const _hasChapters = computed(() => summary.value.chapterCount > 0)
 const pipelineRunning = computed(() => ((aiStore as unknown) as Record<string, unknown>).pipelineRunning as boolean || false)
 const writeProgressPercent = computed(() => {
   if (summary.value.chapterCount === 0) return 0
@@ -390,8 +390,9 @@ function onDaemonModeChange(mode: string) {
 
 async function startDaemon() {
   try {
-    const daemonService = (aiStore as Record<string, unknown>).getDaemonService
-      ? ((aiStore as Record<string, unknown>).getDaemonService as () => { start: () => Promise<void>; pause: () => void; resume: () => void; stop: () => void } | null)()
+    const storeAny = aiStore as unknown as Record<string, unknown>
+    const daemonService = storeAny.getDaemonService
+      ? (storeAny.getDaemonService as () => { start: () => Promise<void>; pause: () => void; resume: () => void; stop: () => void } | null)()
       : null
     if (daemonService) {
       await daemonService.start()
@@ -407,8 +408,9 @@ async function startDaemon() {
 
 function pauseDaemon() {
   try {
-    const daemonService = (aiStore as Record<string, unknown>).getDaemonService
-      ? ((aiStore as Record<string, unknown>).getDaemonService as () => { start: () => Promise<void>; pause: () => void; resume: () => void; stop: () => void } | null)()
+    const storeAny = aiStore as unknown as Record<string, unknown>
+    const daemonService = storeAny.getDaemonService
+      ? (storeAny.getDaemonService as () => { start: () => Promise<void>; pause: () => void; resume: () => void; stop: () => void } | null)()
       : null
     if (daemonService) {
       daemonService.pause()
@@ -422,8 +424,9 @@ function pauseDaemon() {
 
 function resumeDaemon() {
   try {
-    const daemonService = (aiStore as Record<string, unknown>).getDaemonService
-      ? ((aiStore as Record<string, unknown>).getDaemonService as () => { start: () => Promise<void>; pause: () => void; resume: () => void; stop: () => void } | null)()
+    const storeAny = aiStore as unknown as Record<string, unknown>
+    const daemonService = storeAny.getDaemonService
+      ? (storeAny.getDaemonService as () => { start: () => Promise<void>; pause: () => void; resume: () => void; stop: () => void } | null)()
       : null
     if (daemonService) {
       daemonService.resume()
@@ -437,8 +440,9 @@ function resumeDaemon() {
 
 function stopDaemon() {
   try {
-    const daemonService = (aiStore as Record<string, unknown>).getDaemonService
-      ? ((aiStore as Record<string, unknown>).getDaemonService as () => { start: () => Promise<void>; pause: () => void; resume: () => void; stop: () => void } | null)()
+    const storeAny = aiStore as unknown as Record<string, unknown>
+    const daemonService = storeAny.getDaemonService
+      ? (storeAny.getDaemonService as () => { start: () => Promise<void>; pause: () => void; resume: () => void; stop: () => void } | null)()
       : null
     if (daemonService) {
       daemonService.stop()

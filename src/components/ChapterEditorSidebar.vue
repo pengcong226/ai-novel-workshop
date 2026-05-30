@@ -1,8 +1,8 @@
 <template>
   <GlassContextPanel
     v-if="!showReviewPanel"
-    v-model:activeTab="activeTab"
-    v-model:chapterForm="chapterForm"
+    v-model:activeTab="activeTabModel"
+    v-model:chapterForm="chapterFormModel"
     :characters="characters"
     :worldbook="worldbook"
   />
@@ -11,8 +11,8 @@
     v-else
     :visible="showReviewPanel"
     :project-id="projectId"
-    :chapter-id="chapterForm.id"
-    :chapter-number="chapterForm.number"
+    :chapter-id="chapterFormModel.id"
+    :chapter-number="chapterFormModel.number"
     @navigate-to="(idx: number) => $emit('navigateTo', idx)"
     @apply-fix="(payload) => $emit('applyFix', payload)"
     @dismiss="(id: string) => $emit('dismiss', id)"
@@ -20,12 +20,13 @@
 </template>
 
 <script setup lang="ts">
+import { useModel } from 'vue'
 import type { Chapter } from '@/types'
-import type { ResolvedEntity } from '@/types/sandbox'
+import type { ResolvedEntity } from '@/stores/sandbox'
 import GlassContextPanel from './GlassContextPanel.vue'
 import ReviewSidePanel from './editor/ReviewSidePanel.vue'
 
-defineProps<{
+const props = defineProps<{
   activeTab: string
   chapterForm: Chapter
   characters: ResolvedEntity[]
@@ -34,9 +35,10 @@ defineProps<{
   projectId?: string
 }>()
 
+const activeTabModel = useModel(props, 'activeTab')
+const chapterFormModel = useModel(props, 'chapterForm')
+
 defineEmits<{
-  'update:activeTab': [value: string]
-  'update:chapterForm': [value: Chapter]
   'navigateTo': [paragraphIndex: number]
   'applyFix': [payload: { suggestionId: string; paragraphIndex?: number; originalSnippet: string; fixContent: string }]
   'dismiss': [suggestionId: string]

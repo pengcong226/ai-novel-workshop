@@ -9,18 +9,23 @@ import ChapterList from '@/components/ChapterList.vue'
 // Mocks
 // ---------------------------------------------------------------------------
 
-// Stub virtualizer so it renders all items without scroll math
+// Stub virtualizer so it renders all items without scroll math.
+// The component passes a `computed()` ref, so we must read `.value`.
 vi.mock('@tanstack/vue-virtual', () => ({
-  useVirtualizer: vi.fn((options: { count: number }) => ({
-    getTotalSize: () => options.count * 200,
-    getVirtualItems: () =>
-      Array.from({ length: options.count }, (_, i) => ({
-        index: i,
-        start: i * 200,
-        size: 200,
-        end: (i + 1) * 200,
-      })),
-  })),
+  useVirtualizer: vi.fn((optionsOrRef: any) => {
+    const opts = optionsOrRef?.value ?? optionsOrRef
+    const count = opts?.count ?? 0
+    return {
+      getTotalSize: () => count * 200,
+      getVirtualItems: () =>
+        Array.from({ length: count }, (_, i) => ({
+          index: i,
+          start: i * 200,
+          size: 200,
+          end: (i + 1) * 200,
+        })),
+    }
+  }),
 }))
 
 vi.mock('@/utils/readingPreview', () => ({

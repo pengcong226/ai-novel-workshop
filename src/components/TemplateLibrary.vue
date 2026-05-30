@@ -572,7 +572,7 @@ ${aiGenForm.value.extraPrompt ? '附加要求：' + aiGenForm.value.extraPrompt 
 
     const response = await aiStore.chat(
       [{ role: 'user', content: prompt }],
-      { type: 'planning', complexity: 'high', priority: 'quality' },
+      { type: 'outline', complexity: 'high', priority: 'quality' },
       { maxTokens: 4000 }
     )
 
@@ -665,7 +665,7 @@ async function confirmDelete(template: NovelTemplate) {
       }
     )
 
-    const success = templateManager.deleteTemplate(template.meta.id)
+    const success = await templateManager.deleteTemplate(template.meta.id)
     if (success) {
       loadTemplates()
       ElMessage.success('删除成功')

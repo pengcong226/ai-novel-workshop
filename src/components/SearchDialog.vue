@@ -115,7 +115,7 @@ const {
   visible,
   results,
   recentSearches,
-  commitRecent,
+  commitRecent: _commitRecent,
   deleteRecent,
   open,
   close,
@@ -205,12 +205,10 @@ function highlightMatch(text: string): string {
   const lower = text.toLowerCase()
   const qLower = q.toLowerCase()
   const indices: [number, number][] = []
-  let start = 0
-  while (true) {
-    const idx = lower.indexOf(qLower, start)
-    if (idx === -1) break
+  let idx = 0
+  while ((idx = lower.indexOf(qLower, idx)) !== -1) {
     indices.push([idx, idx + q.length])
-    start = idx + 1
+    idx += 1
   }
   return indices.length > 0 ? highlightText(text, indices) : escapeHtml(text)
 }

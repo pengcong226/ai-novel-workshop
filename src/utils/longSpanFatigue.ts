@@ -27,7 +27,7 @@ const OPENING_SIMILARITY_THRESHOLD = 0.6
 const CLOSING_SIMILARITY_THRESHOLD = 0.6
 
 /** 连续同类型场景的最大章数 */
-const MAX_CONSECUTIVE_SAME_TYPE = 3
+const _MAX_CONSECUTIVE_SAME_TYPE = 3
 
 // ============================================================================
 // 类型

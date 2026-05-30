@@ -114,7 +114,7 @@ export class ShortFictionAgent {
   async generateOutline(config: ShortFictionConfig): Promise<{ outline: ShortFictionOutline; tokenUsage: TokenUsage }> {
     logger.info(`[短篇Agent] 开始生成大纲，题材: ${config.genre}，主题: ${config.theme}`)
 
-    const emptyUsage: TokenUsage = { inputTokens: 0, outputTokens: 0, totalTokens: 0 }
+    const _emptyUsage: TokenUsage = { inputTokens: 0, outputTokens: 0, totalTokens: 0 }
 
     try {
       const aiStore = await this.getAIStore()
@@ -218,7 +218,7 @@ ${config.style ? `## 文风要求\n${config.style}\n` : ''}
 
     logger.info(`[短篇Agent] 开始撰写第${chapter.number}章: "${chapter.title}"`)
 
-    const emptyUsage: TokenUsage = { inputTokens: 0, outputTokens: 0, totalTokens: 0 }
+    const _emptyUsage: TokenUsage = { inputTokens: 0, outputTokens: 0, totalTokens: 0 }
 
     try {
       const aiStore = await this.getAIStore()

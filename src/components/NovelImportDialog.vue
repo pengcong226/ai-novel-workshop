@@ -1036,22 +1036,26 @@ async function processWithLLM(text: string) {
       title: importForm.value.title,
       author: importForm.value.author,
       chapters: llmResult.value.chapters.map((ch: LLMChapter) => ({
-        id: uuidv4(),
-        number: ch.number,
-        title: ch.title,
-        content: ch.content || '',
-        wordCount: ch.wordCount || 0,
-        status: 'completed' as const,
-        generatedBy: 'ai' as const,
-        generationTime: new Date(),
-        checkpoints: [],
-        outline: {
           chapterId: uuidv4(),
           title: ch.title,
-          scenes: [],
-          status: 'completed' as const
-        }
-      })),
+          content: ch.content || '',
+          wordCount: ch.wordCount || 0,
+          status: 'completed' as const,
+          generatedBy: 'ai' as const,
+          generationTime: new Date(),
+          checkpoints: [],
+          outline: {
+            chapterId: uuidv4(),
+            title: ch.title,
+            scenes: [],
+            characters: [],
+            location: '',
+            goals: [],
+            conflicts: [],
+            resolutions: [],
+            status: 'completed' as const
+          }
+        })),
       characters: llmResult.value.characters.map(char => ({
         id: uuidv4(),
         name: char.name,
@@ -1100,7 +1104,7 @@ async function processWithLLM(text: string) {
         })),
         volumes: [],
         chapters: llmResult.value.chapters.map((ch: LLMChapter) => ({
-          chapterId: ch.id || uuidv4(),
+          chapterId: uuidv4(),
           title: ch.title || `第${ch.number}章`,
           scenes: [],
           characters: [],
@@ -1121,7 +1125,7 @@ async function processWithLLM(text: string) {
 
     // 保存完整结果用于导入
     importResult.value = {
-      project: previewData.value,
+      project: previewData.value!,
       stats: llmResult.value.stats
     }
 
@@ -1180,7 +1184,7 @@ async function processTraditional() {
   // 保存完整的导入结果
   importResult.value = result
   previewData.value = result.project
-  qualityMetrics.value = result.qualityMetrics || null
+  qualityMetrics.value = (result.qualityMetrics as unknown as QualityMetricsData) || null
 
   progress.value.status = 'success'
   progress.value.message = '处理完成!'
@@ -1247,7 +1251,7 @@ async function handleImport() {
             })),
             volumes: [],
             chapters: llmResult.value.chapters.map((ch: LLMChapter) => ({
-              chapterId: ch.id || uuidv4(),
+              chapterId: uuidv4(),
               title: ch.title || `第${ch.number}章`,
               scenes: [],
               characters: [],
@@ -1269,7 +1273,7 @@ async function handleImport() {
       }
       emit('imported', llmImportResult)
     } else {
-      emit('imported', importResult.value.project || importResult.value)
+      emit('imported', importResult.value!.project || importResult.value)
     }
     emit('update:modelValue', false)
     ElMessage.success('导入成功!')

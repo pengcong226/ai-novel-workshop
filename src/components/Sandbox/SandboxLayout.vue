@@ -151,7 +151,7 @@ const totalChapters = computed(() => {
   return projectStore.currentProject?.chapters.length || 1
 })
 
-function handleEntitySelect(entityId: string) {
+function handleEntitySelect(_entityId: string) {
   if (activeTab.value !== 'doc') {
     activeTab.value = 'doc'
   }

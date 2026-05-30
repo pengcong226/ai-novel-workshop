@@ -238,6 +238,12 @@ export enum SummaryDetail {
   MINIMAL = 'minimal'      // 极简摘要（100字，30章前）
 }
 
+export enum SummaryLevel {
+  CHAPTER = 'chapter',     // 章节摘要
+  VOLUME = 'volume',       // 卷摘要
+  BOOK = 'book'            // 全书摘要
+}
+
 // 章节摘要数据
 export interface ChapterSummaryData {
   id: string
@@ -256,6 +262,7 @@ export interface ChapterSummaryData {
   tokenCount: number           // token数估算
   createdAt: Date              // 创建时间
   updatedAt: Date              // 更新时间
+  level?: SummaryLevel         // 摘要级别
   detail: SummaryDetail        // 摘要详细度
   sourceHash?: string          // 正文哈希
   summaryVersion?: number      // 摘要版本

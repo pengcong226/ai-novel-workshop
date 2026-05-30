@@ -166,7 +166,7 @@
                 <p style="margin: 0; font-size: 13px;">{{ log.description }}</p>
                 <div v-if="log.metadata?.violations" style="margin-top: 10px;">
                   <el-tag
-                    v-for="(v, idx) in log.metadata.violations"
+                    v-for="(v, idx) in getViolations(log.metadata)"
                     :key="idx"
                     type="danger"
                     size="small"
@@ -470,6 +470,11 @@ const { logs } = useAuditLog()
 const cedLogs = computed(() => {
   return logs.value.filter(log => log.type === 'warning' && log.title.includes('哨兵'))
 })
+
+function getViolations(metadata?: Record<string, unknown>): Array<{ category?: string; description?: string }> {
+  if (!metadata?.violations || !Array.isArray(metadata.violations)) return []
+  return metadata.violations as Array<{ category?: string; description?: string }>
+}
 
 // 检查进度
 const showProgressDialog = ref(false)

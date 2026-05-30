@@ -23,8 +23,8 @@ const STALE_CHAPTERS = 10
 /** 伏笔在 MAX_PLANTED_CHAPTERS 章后未回收则标记为过期风险 */
 const MAX_PLANTED_CHAPTERS = 30
 
-/** 推进次数达到 PROMOTE_THRESHOLD 则升级为核心伏笔 */
-const PROMOTE_THRESHOLD = 3
+/** 推进次数达到 _PROMOTE_THRESHOLD 则升级为核心伏笔 */
+const _PROMOTE_THRESHOLD = 3
 
 // ============================================================================
 // 类型

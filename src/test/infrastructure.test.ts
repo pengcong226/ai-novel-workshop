@@ -77,7 +77,7 @@ describe('setup.ts – global mocks', () => {
 
   it('provides Tauri IPC mock', () => {
     expect((window as Record<string, unknown>).__TAURI_INTERNALS__).toBeDefined()
-    const internals = (window as Record<string, { invoke: Function }>).__TAURI_INTERNALS__
+    const internals = (window as Record<string, { invoke: (...args: unknown[]) => unknown }>).__TAURI_INTERNALS__
     expect(typeof internals.invoke).toBe('function')
   })
 

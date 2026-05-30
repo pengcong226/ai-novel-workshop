@@ -472,7 +472,7 @@ export class DaemonService {
 
       // 动态导入 PipelineRunner 和 BatchContinueScheduler
       const { PipelineRunner } = await import('@/services/pipeline/PipelineRunner')
-      const { BatchContinueScheduler } = await import('@/services/pipeline/BatchContinueScheduler')
+      const { BatchContinueScheduler: _BatchContinueScheduler } = await import('@/services/pipeline/BatchContinueScheduler')
 
       // 构建 Pipeline 配置
       const pipelineConfig: Partial<PipelineConfig> = {

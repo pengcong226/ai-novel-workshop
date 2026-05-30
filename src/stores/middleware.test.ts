@@ -16,29 +16,18 @@ vi.mock('@/utils/logger', () => ({
   }),
 }))
 
-// ── Helper store used in tests ─────────────────────────────────────────
-
-function defineTestStore() {
-  return defineStore('test', {
-    state: () => ({ count: 0 }),
-    actions: {
-      increment() {
-        this.count++
-      },
-      async incrementAsync() {
-        await Promise.resolve()
-        this.count++
-        return this.count
-      },
-      failSync() {
-        throw new Error('sync boom')
-      },
-      async failAsync() {
-        await Promise.resolve()
-        throw new Error('async boom')
-      },
-    },
-  })
+/**
+ * Helper: create a Pinia instance with the given plugins pushed directly
+ * to `_p` (Pinia's plugin array). In Pinia 2.x, `pinia.use()` defers
+ * registration until `install(app)` which never runs in tests.
+ */
+function createTestPiniaWithPlugins(...plugins: ((...args: unknown[]) => unknown)[]) {
+  const pinia = createPinia()
+  for (const plugin of plugins) {
+    (pinia as any)._p.push(plugin)
+  }
+  setActivePinia(pinia)
+  return pinia
 }
 
 // ── Tests ──────────────────────────────────────────────────────────────
@@ -47,18 +36,41 @@ describe('storeLoggingMiddleware', () => {
   beforeEach(() => {
     vi.useFakeTimers()
     resetActionMetrics()
-    const pinia = createPinia()
-    pinia.use(storeLoggingMiddleware)
-    setActivePinia(pinia)
   })
 
   afterEach(() => {
     vi.useRealTimers()
   })
 
+  function createStoreWithMiddleware() {
+    createTestPiniaWithPlugins(storeLoggingMiddleware)
+
+    const useStore = defineStore('test', {
+      state: () => ({ count: 0 }),
+      actions: {
+        increment() {
+          this.count++
+        },
+        async incrementAsync() {
+          await Promise.resolve()
+          this.count++
+          return this.count
+        },
+        failSync() {
+          throw new Error('sync boom')
+        },
+        async failAsync() {
+          await Promise.resolve()
+          throw new Error('async boom')
+        },
+      },
+    })
+
+    return useStore()
+  }
+
   it('tracks call count for a synchronous action', () => {
-    const useStore = defineTestStore()
-    const store = useStore()
+    const store = createStoreWithMiddleware()
 
     store.increment()
     store.increment()
@@ -68,8 +80,7 @@ describe('storeLoggingMiddleware', () => {
   })
 
   it('tracks call count for an async action', async () => {
-    const useStore = defineTestStore()
-    const store = useStore()
+    const store = createStoreWithMiddleware()
 
     await store.incrementAsync()
 
@@ -78,6 +89,8 @@ describe('storeLoggingMiddleware', () => {
   })
 
   it('preserves the return value of synchronous actions', () => {
+    createTestPiniaWithPlugins(storeLoggingMiddleware)
+
     const useExtraStore = defineStore('extra', {
       state: () => ({ value: 0 }),
       actions: {
@@ -87,10 +100,6 @@ describe('storeLoggingMiddleware', () => {
         },
       },
     })
-    // Re-create pinia with middleware
-    const pinia = createPinia()
-    pinia.use(storeLoggingMiddleware)
-    setActivePinia(pinia)
 
     const store = useExtraStore()
     const result = store.compute()
@@ -99,8 +108,7 @@ describe('storeLoggingMiddleware', () => {
   })
 
   it('preserves the return value of async actions', async () => {
-    const useStore = defineTestStore()
-    const store = useStore()
+    const store = createStoreWithMiddleware()
 
     const result = await store.incrementAsync()
 
@@ -108,8 +116,7 @@ describe('storeLoggingMiddleware', () => {
   })
 
   it('records error count for sync action failures', () => {
-    const useStore = defineTestStore()
-    const store = useStore()
+    const store = createStoreWithMiddleware()
 
     expect(() => store.failSync()).toThrow('sync boom')
 
@@ -118,8 +125,7 @@ describe('storeLoggingMiddleware', () => {
   })
 
   it('records error count for async action failures', async () => {
-    const useStore = defineTestStore()
-    const store = useStore()
+    const store = createStoreWithMiddleware()
 
     await expect(store.failAsync()).rejects.toThrow('async boom')
 
@@ -128,15 +134,13 @@ describe('storeLoggingMiddleware', () => {
   })
 
   it('re-throws async errors to the caller', async () => {
-    const useStore = defineTestStore()
-    const store = useStore()
+    const store = createStoreWithMiddleware()
 
     await expect(store.failAsync()).rejects.toThrow('async boom')
   })
 
   it('accumulates totalTime across multiple calls', () => {
-    const useStore = defineTestStore()
-    const store = useStore()
+    const store = createStoreWithMiddleware()
 
     store.increment()
     store.increment()
@@ -148,8 +152,7 @@ describe('storeLoggingMiddleware', () => {
   })
 
   it('initialises metric entry for every action on the store', () => {
-    const useStore = defineTestStore()
-    useStore() // trigger registration
+    createStoreWithMiddleware()
 
     const metrics = getActionMetrics()
     expect(metrics).toHaveProperty('test/increment')
@@ -159,6 +162,8 @@ describe('storeLoggingMiddleware', () => {
   })
 
   it('does not fail when store has no actions', () => {
+    createTestPiniaWithPlugins(storeLoggingMiddleware)
+
     const useNoActionsStore = defineStore('noActions', {
       state: () => ({ x: 1 }),
     })
@@ -171,13 +176,23 @@ describe('storeLoggingMiddleware', () => {
   })
 
   it('maxTime is tracked after calls', () => {
-    const useStore = defineTestStore()
-    const store = useStore()
+    const store = createStoreWithMiddleware()
 
     store.increment()
 
     const metrics = getActionMetrics()
     expect(metrics['test/increment'].maxTime).toBeGreaterThanOrEqual(0)
+  })
+
+  it('metrics accumulate across multiple calls to the same action', () => {
+    const store = createStoreWithMiddleware()
+
+    store.increment()
+    store.increment()
+
+    const metrics = getActionMetrics()
+    expect(metrics['test/increment'].count).toBe(2)
+    expect(metrics['test/increment'].totalTime).toBeGreaterThanOrEqual(0)
   })
 })
 
@@ -192,13 +207,16 @@ describe('resetActionMetrics', () => {
   })
 
   it('clears all accumulated metrics', () => {
-    const pinia = createPinia()
-    pinia.use(storeLoggingMiddleware)
-    setActivePinia(pinia)
+    createTestPiniaWithPlugins(storeLoggingMiddleware)
 
-    const useStore = defineTestStore()
+    const useStore = defineStore('resetTest', {
+      state: () => ({ x: 0 }),
+      actions: {
+        doWork() { this.x++ },
+      },
+    })
     const store = useStore()
-    store.increment()
+    store.doWork()
 
     expect(Object.keys(getActionMetrics()).length).toBeGreaterThan(0)
 
@@ -209,30 +227,44 @@ describe('resetActionMetrics', () => {
 })
 
 describe('storeDevtoolsPlugin', () => {
-  beforeEach(() => {
-    const pinia = createPinia()
-    pinia.use(storeDevtoolsPlugin)
-    setActivePinia(pinia)
-  })
-
   it('attaches __devtoolsMeta to the store', () => {
-    const useStore = defineTestStore()
+    createTestPiniaWithPlugins(storeDevtoolsPlugin)
+
+    const useStore = defineStore('testDev', {
+      state: () => ({ x: 0 }),
+    })
     const store = useStore()
 
     const meta = (store as any).__devtoolsMeta
     expect(meta).toBeDefined()
-    expect(meta.label).toContain('test')
-    expect(meta.storeId).toBe('test')
+    expect(meta.label).toContain('testDev')
+    expect(meta.storeId).toBe('testDev')
     expect(typeof meta.registeredAt).toBe('number')
   })
 
   it('uses known label for recognized store IDs', () => {
+    createTestPiniaWithPlugins(storeDevtoolsPlugin)
+
     const useSandboxStore = defineStore('sandbox', {
       state: () => ({}),
     })
     const store = useSandboxStore()
 
     const meta = (store as any).__devtoolsMeta
+    expect(meta).toBeDefined()
     expect(meta.label).toBe('V5 Entity + StateEvent backbone')
+  })
+
+  it('uses default label format for unknown store IDs', () => {
+    createTestPiniaWithPlugins(storeDevtoolsPlugin)
+
+    const useCustomStore = defineStore('myCustomStore', {
+      state: () => ({}),
+    })
+    const store = useCustomStore()
+
+    const meta = (store as any).__devtoolsMeta
+    expect(meta).toBeDefined()
+    expect(meta.label).toBe('Store: myCustomStore')
   })
 })

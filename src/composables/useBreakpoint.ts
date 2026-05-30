@@ -23,7 +23,7 @@ const BREAKPOINTS = {
 
 type CanonicalKey = 'mobile' | 'tablet' | 'desktop'
 type LegacyKey = 'sm' | 'md' | 'lg' | 'xl' | '2xl'
-type BreakpointKey = CanonicalKey | LegacyKey
+type _BreakpointKey = CanonicalKey | LegacyKey
 
 /**
  * Responsive breakpoint composable.

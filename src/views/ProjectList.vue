@@ -319,7 +319,7 @@ import { templateManager } from '@/utils/templateManager'
 import { useSandboxStore } from '@/stores/sandbox'
 import LoadingSkeleton from '@/components/LoadingSkeleton.vue'
 const TemplateLibrary = defineAsyncComponent(() => import('@/components/TemplateLibrary.vue'))
-import type { NovelTemplate, Project, ProjectConfig } from '@/types'
+import type { NovelTemplate, Project, ProjectConfig, AdvancedSettings } from '@/types'
 import { getLogger } from '@/utils/logger'
 import { getChapterStatusType, getChapterStatusText, formatNumber, formatRelativeTime } from '@/utils/formatters'
 import { getFriendlyMessage } from '@/utils/errorHandler'
@@ -459,7 +459,7 @@ async function handleFanficCreate() {
       if (!projectStore.currentProject.config) {
         projectStore.currentProject.config = {} as ProjectConfig
       }
-      (projectStore.currentProject.config as Record<string, unknown>).fanfic = {
+      (projectStore.currentProject.config as unknown as Record<string, unknown>).fanfic = {
         sourceMaterial: fanficForm.sourceMaterial,
         mode: fanficForm.mode,
         characters,
@@ -539,7 +539,7 @@ const handleCreate = async () => {
             if (!projectStore.currentProject.config) {
               projectStore.currentProject.config = {} as ProjectConfig
             }
-            (projectStore.currentProject.config as Record<string, unknown>).genreId = genreProfile.id
+            (projectStore.currentProject.config as unknown as Record<string, unknown>).genreId = genreProfile.id
             await projectStore.saveCurrentProject()
           }
         }
@@ -551,12 +551,12 @@ const handleCreate = async () => {
             if (!projectStore.currentProject.config) {
               projectStore.currentProject.config = {} as ProjectConfig
             }
-            (projectStore.currentProject.config as Record<string, unknown>).projectType = 'short_fiction'
+            (projectStore.currentProject.config as unknown as Record<string, unknown>).projectType = 'short_fiction'
             projectStore.currentProject.config.advancedSettings = {
               ...projectStore.currentProject.config.advancedSettings,
               targetWordCount: Math.min(createForm.targetWords, 30000),
               targetChapters: 1,
-            }
+            } as AdvancedSettings
             await projectStore.saveCurrentProject()
           }
           creating.value = false

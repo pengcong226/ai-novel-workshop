@@ -1,5 +1,12 @@
 export type LogLevel = 'debug' | 'info' | 'warn' | 'error' | 'silent'
 
+/** Lightweight context bag for structured log enrichment. */
+export interface LogContext {
+  module?: string
+  projectId?: string
+  [key: string]: unknown
+}
+
 export interface LoggerConfig {
   enabled: boolean
   level: LogLevel

@@ -17,8 +17,23 @@
  * ```
  */
 import { getCurrentInstance, onUnmounted } from 'vue'
-import { getLogger, type LogContext, type Logger } from '@/utils/logger'
+import { getLogger } from '@/utils/logger'
 import { useProjectStore } from '@/stores/project'
+
+/** Lightweight context bag attached to every log entry. */
+export interface LogContext {
+  module?: string
+  projectId?: string
+  [key: string]: unknown
+}
+
+/** Shape returned by useLogger — mirrors the base logger with lazy context. */
+export interface Logger {
+  debug: (message: string, ...args: unknown[]) => void
+  info: (message: string, ...args: unknown[]) => void
+  warn: (message: string, ...args: unknown[]) => void
+  error: (message: string, ...args: unknown[]) => void
+}
 
 /**
  * @param componentLabel  Human-readable label. If omitted, the name is
@@ -59,7 +74,7 @@ export function useLogger(componentLabel?: string, extraContext?: LogContext): L
     context.projectId = projectId
   }
 
-  const baseLogger = getLogger(`component:${resolvedLabel}`, context)
+  const baseLogger = getLogger(`component:${resolvedLabel}`)
 
   // Wrap each level so projectId is lazily re-resolved if it was not
   // available at setup time (e.g. before the project store is hydrated).
@@ -85,26 +100,7 @@ export function useLogger(componentLabel?: string, extraContext?: LogContext): L
     error: (message: string, ...args: unknown[]) => {
       ensureProjectId()
       return baseLogger.error(message, ...args)
-    },
-    debugWithContext: (message: string, ctx: LogContext, ...args: unknown[]) => {
-      ensureProjectId()
-      return baseLogger.debugWithContext(message, ctx, ...args)
-    },
-    infoWithContext: (message: string, ctx: LogContext, ...args: unknown[]) => {
-      ensureProjectId()
-      return baseLogger.infoWithContext(message, ctx, ...args)
-    },
-    warnWithContext: (message: string, ctx: LogContext, ...args: unknown[]) => {
-      ensureProjectId()
-      return baseLogger.warnWithContext(message, ctx, ...args)
-    },
-    errorWithContext: (message: string, ctx: LogContext, ...args: unknown[]) => {
-      ensureProjectId()
-      return baseLogger.errorWithContext(message, ctx, ...args)
-    },
-    time: (label: string) => baseLogger.time(label),
-    timeEnd: (label: string) => baseLogger.timeEnd(label),
-    child: (namespace: string, childContext?: LogContext) => baseLogger.child(namespace, childContext)
+    }
   }
 
   // Cleanup on unmount: clear the projectId cache so it does not leak across

@@ -120,7 +120,7 @@ function detectSustainedTension(
 
 function extractWords(text: string): string[] {
   // 简单的中文分词：按标点和空格拆分后，取长度 >=2 且非停用词的 token
-  const tokens = text.split(/[，。！？、；：""''（）《》\s,\.!\?\-—…\[\]【】]+/).filter(Boolean)
+  const tokens = text.split(/[，。！？、；：""''（）《》\s,.!?\-—…[]【】]+/).filter(Boolean)
   const words: string[] = []
   for (const token of tokens) {
     // 对中文逐字提取长度为2的滑动窗口作为"词"

@@ -22,7 +22,7 @@ interface CommanderOptions {
 /**
  * 读取项目配置
  */
-function readProjectConfig(projectPath: string): unknown {
+function _readProjectConfig(projectPath: string): unknown {
   const configPath = path.join(projectPath, 'project.json')
   if (!fs.existsSync(configPath)) {
     throw new Error(`项目配置文件不存在: ${configPath}`)
@@ -33,7 +33,7 @@ function readProjectConfig(projectPath: string): unknown {
 /**
  * 读取章节数据
  */
-function readChapter(projectPath: string, chapterNum: number): unknown {
+function _readChapter(projectPath: string, chapterNum: number): unknown {
   const chapterPath = path.join(projectPath, 'chapters', `chapter-${chapterNum}.json`)
   if (!fs.existsSync(chapterPath)) {
     throw new Error(`章节 ${chapterNum} 不存在`)

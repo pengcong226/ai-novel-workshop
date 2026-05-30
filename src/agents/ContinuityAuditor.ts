@@ -414,7 +414,7 @@ function runDeterministicChecks(content: string): AuditIssue[] {
       }
     }
     if (maxConsecutive >= 6) {
-      const dominatedType = maxConsecutive === paraTypes.filter((_, i, arr) => i > 0 && arr[i] === arr[i - 1]).length + 1
+      const _dominatedType = maxConsecutive === paraTypes.filter((_, i, arr) => i > 0 && arr[i] === arr[i - 1]).length + 1
       issues.push({
         severity: 'warning',
         category: '节奏检查',

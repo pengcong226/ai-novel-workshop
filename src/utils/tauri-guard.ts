@@ -338,7 +338,7 @@ export async function invoke<T = unknown>(
   }
 
   // 所有重试都失败了
-  const overallElapsed = performance.now() - overallStart
+  const _overallElapsed = performance.now() - overallStart
   const errMsg = lastError instanceof Error ? lastError.message : String(lastError)
 
   if (isTransientError(lastError)) {

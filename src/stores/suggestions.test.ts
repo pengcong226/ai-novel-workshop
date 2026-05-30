@@ -489,7 +489,7 @@ describe('suggestions store', () => {
         priority: 'high',
         message: 'hp-msg-1-unique',
       })!
-      const s2 = store.addSuggestion({
+      const _s2 = store.addSuggestion({
         ...baseSuggestionParams,
         priority: 'high',
         message: 'hp-msg-2-unique',
@@ -528,7 +528,7 @@ describe('suggestions store', () => {
   describe('updateConfig', () => {
     it('merges partial config with existing config', () => {
       const store = useSuggestionsStore()
-      const originalMaxLength = store.config.maxLength
+      const _originalMaxLength = store.config.maxLength
 
       store.updateConfig({ maxLength: 10 })
 

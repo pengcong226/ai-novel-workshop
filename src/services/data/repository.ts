@@ -508,7 +508,7 @@ export class TauriChapterRepository implements Repository<Entity> {
 // -- TauriSnapshotRepository -----------------------------------------------
 
 export class TauriSnapshotRepository implements Repository<Entity> {
-  async findById(id: string): Promise<Entity | null> {
+  async findById(_id: string): Promise<Entity | null> {
     // Snapshot lookup requires projectId + chapterId scoping;
     // prefer findByScopedId() for correctness.
     logger.warn(
@@ -573,7 +573,7 @@ export class TauriSnapshotRepository implements Repository<Entity> {
     return this.create(partial as Entity)
   }
 
-  async delete(id: string): Promise<void> {
+  async delete(_id: string): Promise<void> {
     logger.warn('TauriSnapshotRepository.delete() requires projectId and chapterId; use deleteScoped()')
     throw new Error('Use deleteScoped(snapshotId, projectId, chapterId) instead')
   }

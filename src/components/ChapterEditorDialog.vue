@@ -224,7 +224,7 @@ import { useKeyboardShortcuts } from '@/composables/useKeyboardShortcuts'
 import { useProjectStore } from '@/stores/project'
 import { useSuggestionsStore } from '@/stores/suggestions'
 import { executeParagraphAI, isParagraphAction } from '@/services/paragraph-ai'
-import { generationScheduler } from '@/services/generation-scheduler'
+import { runExtractionInBackground } from '@/services/generation/agent-orchestrator'
 import { normalizeProjectConfig } from '@/utils/project-config-normalizer'
 import { createSnapshot, pruneSnapshots } from '@/utils/chapterVersioning'
 import { getLogger } from '@/utils/logger'
@@ -665,7 +665,7 @@ async function saveChapter() {
     resetForm()
 
     if (autoUpdateSettings.value) {
-      generationScheduler.runExtractionInBackground(chapterData).catch(error =>
+      runExtractionInBackground(chapterData).catch((error: unknown) =>
         logger.warn('后台设定提取失败', error)
       )
     }
@@ -826,7 +826,7 @@ async function generateContent() {
         const postResult = await processorRegistry.processPipeline(
           'post-generation',
           { chapter: chapterForm.value, project: currentProject },
-          { project: currentProject, chapter: chapterForm.value, config: currentProject.config }
+          { project: currentProject, chapter: chapterForm.value, config: currentProject.config as unknown as Record<string, unknown> }
         )
         if (postResult && typeof postResult === 'object' && 'chapter' in postResult) {
           const processedChapter = postResult.chapter as Partial<Chapter>
