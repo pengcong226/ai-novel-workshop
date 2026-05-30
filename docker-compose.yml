@@ -1,0 +1,74 @@
+# ============================================================
+# Docker Compose - Development Environment
+# Usage: docker compose up
+# ============================================================
+
+services:
+  # ----------------------------------------------------------
+  # Frontend: Vite dev server with HMR
+  # ----------------------------------------------------------
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    container_name: ai-novel-workshop-frontend
+    ports:
+      - "3000:3000"
+    volumes:
+      # Mount source for hot reload
+      - .:/app
+      # Persist node_modules inside the container (anonymous volume)
+      # so that host bind-mount does not shadow the container's copy
+      - node_modules:/app/node_modules
+    environment:
+      - VITE_DEV_SERVER_HOST=0.0.0.0
+      - VITE_DEV_ALLOWED_HOSTS=all
+      # Uncomment and set to proxy custom AI endpoints:
+      # - VITE_CUSTOM_PROXY_TARGET=https://your-proxy.example.com
+    restart: unless-stopped
+
+  # ----------------------------------------------------------
+  # Backend: FastAPI (Python)
+  # Only started if backend/ directory contains app code
+  # ----------------------------------------------------------
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: ai-novel-workshop-backend
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./backend:/app
+      - backend_data:/app/data
+    environment:
+      - DATABASE_URL=sqlite:///./data/app.db
+      - ENVIRONMENT=development
+      # Set your AI API keys here or in a .env file
+      # - OPENAI_API_KEY=sk-...
+      # - ANTHROPIC_API_KEY=sk-ant-...
+    restart: unless-stopped
+
+  # ----------------------------------------------------------
+  # Nginx reverse proxy (optional, for unified access)
+  # Access the full app at http://localhost:80
+  # ----------------------------------------------------------
+  nginx:
+    image: nginx:1.27-alpine
+    container_name: ai-novel-workshop-proxy
+    ports:
+      - "80:80"
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+    depends_on:
+      - frontend
+      - backend
+    restart: unless-stopped
+    profiles:
+      - proxy
+
+volumes:
+  node_modules:
+    driver: local
+  backend_data:
+    driver: local

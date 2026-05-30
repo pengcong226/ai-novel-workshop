@@ -41,7 +41,7 @@ export interface DocumentMetadata {
   chunkIndex?: number;        // 段落切片在原章节中的序号
   entityNames?: string[];     // 切片中涉及的人名/地名 (用于图谱命中重排)
   timestamp: number;
-  [key: string]: any;
+  [key: string]: unknown;
 }
 
 export interface SearchOptions {

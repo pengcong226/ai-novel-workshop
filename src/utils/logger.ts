@@ -132,10 +132,10 @@ class LoggerManager {
 
   createLogger(namespace: string) {
     return {
-      debug: (message: string, ...args: any[]) => this.log('debug', namespace, message, ...args),
-      info: (message: string, ...args: any[]) => this.log('info', namespace, message, ...args),
-      warn: (message: string, ...args: any[]) => this.log('warn', namespace, message, ...args),
-      error: (message: string, ...args: any[]) => this.log('error', namespace, message, ...args)
+      debug: (message: string, ...args: unknown[]) => this.log('debug', namespace, message, ...args),
+      info: (message: string, ...args: unknown[]) => this.log('info', namespace, message, ...args),
+      warn: (message: string, ...args: unknown[]) => this.log('warn', namespace, message, ...args),
+      error: (message: string, ...args: unknown[]) => this.log('error', namespace, message, ...args)
     }
   }
 
@@ -155,7 +155,7 @@ class LoggerManager {
     }
   }
 
-  private log(level: RuntimeLogLevel, namespace: string, message: string, ...args: any[]): void {
+  private log(level: RuntimeLogLevel, namespace: string, message: string, ...args: unknown[]): void {
     if (!this.canLog(level, namespace)) {
       return
     }

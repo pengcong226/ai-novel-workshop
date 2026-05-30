@@ -16,7 +16,8 @@
       :append-to-body="true"
     >
       <div class="chat-container">
-        <AssistantShellTabs v-model="activeTab">
+        <ErrorBoundary name="AIAssistantChat" :show-retry="true" :show-detail="true">
+          <AssistantShellTabs v-model="activeTab">
           <template #chat>
             <AssistantChatPanel
               ref="chatPanelRef"
@@ -61,7 +62,8 @@
               :format-time="formatTime"
             />
           </template>
-        </AssistantShellTabs>
+          </AssistantShellTabs>
+        </ErrorBoundary>
       </div>
     </el-drawer>
 
@@ -88,6 +90,7 @@ import AssistantChatPanel from '@/components/assistant/AssistantChatPanel.vue'
 import AssistantShellTabs from '@/components/assistant/AssistantShellTabs.vue'
 import AssistantStatisticsPanel from '@/components/assistant/AssistantStatisticsPanel.vue'
 import AssistantSuggestionsPanel from '@/components/assistant/AssistantSuggestionsPanel.vue'
+import ErrorBoundary from '@/components/ErrorBoundary.vue'
 import { getLogger } from '@/utils/logger'
 import { useThemeStore } from '@/stores/theme'
 

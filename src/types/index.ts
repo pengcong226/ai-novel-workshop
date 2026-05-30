@@ -444,7 +444,7 @@ export interface VectorDocumentMetadata {
   /** 时间戳 */
   timestamp: number
   /** 额外字段 */
-  [key: string]: any
+  [key: string]: unknown
 }
 
 /**

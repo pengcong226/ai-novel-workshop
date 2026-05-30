@@ -95,7 +95,7 @@ vi.mock('@/agents/HookPromoter', () => ({
 }))
 
 vi.mock('@/services/pipeline/ChapterReviewCycle', () => ({
-  ChapterReviewCycle: vi.fn().mockImplementation((...args: any[]) => {
+  ChapterReviewCycle: vi.fn().mockImplementation((...args: unknown[]) => {
     reviewCycleCtorMock(...args)
     return { execute: reviewCycleExecuteMock }
   }),

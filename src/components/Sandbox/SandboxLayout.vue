@@ -1,7 +1,9 @@
 <template>
   <div class="sandbox-layout">
     <div class="sidebar" ref="sidebarRef">
-      <EntityTree @select="handleEntitySelect" />
+      <ErrorBoundary name="SandboxEntityTree" :show-retry="true">
+        <EntityTree @select="handleEntitySelect" />
+      </ErrorBoundary>
     </div>
     <div class="main-view" ref="mainViewRef">
       <div style="margin-bottom: 10px;" ref="actionBarRef">
@@ -13,17 +15,21 @@
         :total-chapters="totalChapters"
         ref="scrubberRef"
       />
-      <el-tabs v-model="activeTab" ref="tabsRef">
-        <el-tab-pane label="文档视图" name="doc"><SandboxDocument /></el-tab-pane>
-        <el-tab-pane label="命运织布机" name="timeline"><PlotLoomBoard /></el-tab-pane>
-        <el-tab-pane label="关系图" name="graph"><SandboxGraph /></el-tab-pane>
-        <el-tab-pane label="势力图" name="map"><SandboxMap /></el-tab-pane>
-      </el-tabs>
+      <ErrorBoundary name="SandboxMainView" :show-retry="true" :show-detail="true">
+        <el-tabs v-model="activeTab" ref="tabsRef">
+          <el-tab-pane label="文档视图" name="doc"><SandboxDocument /></el-tab-pane>
+          <el-tab-pane label="命运织布机" name="timeline"><PlotLoomBoard /></el-tab-pane>
+          <el-tab-pane label="关系图" name="graph"><SandboxGraph /></el-tab-pane>
+          <el-tab-pane label="势力图" name="map"><SandboxMap /></el-tab-pane>
+        </el-tabs>
+      </ErrorBoundary>
     </div>
     <div class="right-sidebar" ref="chatRef">
-      <NovelDeepImportDialog v-if="showDeepImport" @close="showDeepImport = false" @done="handleDeepImportDone" />
-      <WorldGenWizard v-else-if="sandboxStore.isWizardMode" @close="sandboxStore.isWizardMode = false" />
-      <AutomatonChat v-else />
+      <ErrorBoundary name="SandboxRightPanel" :show-retry="true">
+        <NovelDeepImportDialog v-if="showDeepImport" @close="showDeepImport = false" @done="handleDeepImportDone" />
+        <WorldGenWizard v-else-if="sandboxStore.isWizardMode" @close="sandboxStore.isWizardMode = false" />
+        <AutomatonChat v-else />
+      </ErrorBoundary>
     </div>
 
     <!-- 上下文引导（自定义实现，替代 el-tour） -->
@@ -41,6 +47,7 @@ import { ref, computed, onMounted, onBeforeUnmount, watch, defineAsyncComponent 
 import { useProjectStore } from '@/stores/project'
 import { useSandboxStore } from '@/stores/sandbox'
 import ChapterScrubber from './ChapterScrubber.vue'
+import ErrorBoundary from '@/components/ErrorBoundary.vue'
 import { getLogger } from '@/utils/logger'
 import AppTour from '@/components/AppTour.vue'
 

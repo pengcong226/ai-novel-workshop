@@ -24,6 +24,17 @@ function getCustomProxyTarget(): string | undefined {
 }
 
 const customProxyTarget = getCustomProxyTarget()
+const isAnalyze = process.env.ANALYZE === 'true'
+
+// Conditionally load bundle visualizer for build:analyze
+const analyzePlugin = isAnalyze
+  ? (await import('rollup-plugin-visualizer')).visualizer({
+      open: true,
+      filename: 'dist/stats.html',
+      gzipSize: true,
+      brotliSize: true,
+    })
+  : null
 
 export default defineConfig({
   plugins: [
@@ -34,7 +45,15 @@ export default defineConfig({
     Components({
       resolvers: [ElementPlusResolver()],
     }),
+    ...(analyzePlugin ? [analyzePlugin] : []),
   ],
+  css: {
+    preprocessorOptions: {
+      scss: {
+        additionalData: `@use "@/styles/responsive.scss" as *;\n`,
+      },
+    },
+  },
   define: {
     __APP_IS_TAURI__: Boolean(process.env.TAURI_ENV_PLATFORM)
   },
@@ -52,7 +71,6 @@ export default defineConfig({
     },
     allowedHosts: devAllowedHosts,
     proxy: {
-      // Claude API代理
       '/api/claude': {
         target: 'https://api.anthropic.com',
         changeOrigin: true,
@@ -61,7 +79,6 @@ export default defineConfig({
           'anthropic-version': '2023-06-01'
         }
       },
-      // OpenAI API代理
       '/api/openai': {
         target: 'https://api.openai.com',
         changeOrigin: true,
@@ -81,35 +98,53 @@ export default defineConfig({
   },
   build: {
     sourcemap: true,
-    // 优化代码分割
+    cssCodeSplit: true,
+    cssMinify: 'esbuild',
+    assetsInlineLimit: 4096,
     rollupOptions: {
       output: {
+        entryFileNames: 'assets/[name]-[hash].js',
+        chunkFileNames: 'assets/[name]-[hash].js',
+        assetFileNames: 'assets/[name]-[hash].[ext]',
         manualChunks(id: string) {
           const normalizedId = id.split('\\').join('/')
-          if (normalizedId.includes('/node_modules/element-plus/')) return 'element-plus'
-          if (
-            normalizedId.includes('/node_modules/@tiptap/') ||
-            normalizedId.includes('/node_modules/prosemirror-')
-          ) return 'tiptap'
-          if (
-            normalizedId.includes('/node_modules/echarts/') ||
-            normalizedId.includes('/node_modules/vue-echarts/')
-          ) return 'echarts'
-          if (normalizedId.includes('/node_modules/@antv/g6/')) return 'g6'
-          if (normalizedId.includes('/node_modules/xlsx/')) return 'xlsx'
-          if (normalizedId.includes('/node_modules/@xenova/transformers/')) return 'transformers'
           if (
             normalizedId.includes('/node_modules/vue/') ||
             normalizedId.includes('/node_modules/vue-router/') ||
             normalizedId.includes('/node_modules/pinia/')
           ) return 'vue-vendor'
+          if (normalizedId.includes('/node_modules/element-plus/')) return 'element-plus'
+          if (
+            normalizedId.includes('/node_modules/echarts/') ||
+            normalizedId.includes('/node_modules/vue-echarts/') ||
+            normalizedId.includes('/node_modules/zrender/')
+          ) return 'echarts'
+          if (
+            normalizedId.includes('/node_modules/@tiptap/') ||
+            normalizedId.includes('/node_modules/prosemirror-')
+          ) return 'tiptap'
+          if (normalizedId.includes('/node_modules/@antv/')) return 'g6'
+          if (normalizedId.includes('/node_modules/vis-')) return 'vis-timeline'
+          if (normalizedId.includes('/node_modules/xlsx/')) return 'xlsx'
+          if (normalizedId.includes('/node_modules/@xenova/')) return 'transformers'
+          if (
+            normalizedId.includes('/node_modules/konva/') ||
+            normalizedId.includes('/node_modules/vue-konva/')
+          ) return 'konva'
+          if (
+            normalizedId.includes('/node_modules/lodash-es/') ||
+            normalizedId.includes('/node_modules/marked/') ||
+            normalizedId.includes('/node_modules/js-yaml/') ||
+            normalizedId.includes('/node_modules/jszip/') ||
+            normalizedId.includes('/node_modules/ajv/') ||
+            normalizedId.includes('/node_modules/dompurify/') ||
+            normalizedId.includes('/node_modules/gpt-tokenizer/')
+          ) return 'vendor-utils'
         }
       }
     },
-    // 提高chunk大小警告阈值
-    chunkSizeWarningLimit: 1000
+    chunkSizeWarningLimit: 800,
   },
-  // 优化依赖预构建
   optimizeDeps: {
     include: [
       'vue',
@@ -120,7 +155,7 @@ export default defineConfig({
       'element-plus/es/components/notification/style/css',
       'element-plus/es/components/message-box/style/css'
     ],
-    exclude: ['@xenova/transformers'] // transformers太大，排除预构建
+    exclude: ['@xenova/transformers']
   },
   test: {
     exclude: [

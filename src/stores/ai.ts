@@ -336,9 +336,16 @@ export const useAIStore = defineStore('ai', () => {
     }
 
     const requestContext = buildRequestContext(context, 'ai-store')
-    const response = await aiService.value.chat(messages, requestContext, options)
-    recordTokenUsage(response, requestContext, 'chat')
-    return response
+    try {
+      const response = await aiService.value.chat(messages, requestContext, options)
+      if (error.value) error.value = null
+      recordTokenUsage(response, requestContext, 'chat')
+      return response
+    } catch (err) {
+      error.value = err instanceof Error ? err.message : String(err)
+      logger.error('chat 请求失败', { error: error.value, type: context?.type })
+      throw err
+    }
   }
 
   /**
@@ -366,9 +373,16 @@ export const useAIStore = defineStore('ai', () => {
     }
 
     const requestContext = buildRequestContext(context, 'ai-store-stream')
-    const response = await aiService.value.chatStream(messages, callback, requestContext, options)
-    recordTokenUsage(response, requestContext, 'chatStream')
-    return response
+    try {
+      const response = await aiService.value.chatStream(messages, callback, requestContext, options)
+      if (error.value) error.value = null
+      recordTokenUsage(response, requestContext, 'chatStream')
+      return response
+    } catch (err) {
+      error.value = err instanceof Error ? err.message : String(err)
+      logger.error('chatStream 请求失败', { error: error.value, type: context?.type })
+      throw err
+    }
   }
 
   /**

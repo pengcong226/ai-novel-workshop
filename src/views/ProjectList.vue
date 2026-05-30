@@ -1,6 +1,6 @@
 <template>
   <div class="project-list">
-    <section class="hero-section slide-up">
+    <header class="hero-section slide-up">
       <div class="hero-content">
         <p class="hero-kicker">AI 小说工坊</p>
         <h1 class="hero-title">创作工坊</h1>
@@ -8,17 +8,17 @@
           {{ projectStore.projects.length }} 部作品 · {{ totalWords }} 万字
         </p>
       </div>
-      <div class="hero-actions">
-        <el-button round @click="showImportDialog = true">
+      <div class="hero-actions" role="toolbar" aria-label="项目操作">
+        <el-button round @click="showImportDialog = true" aria-label="导入项目">
           <el-icon><Upload /></el-icon>
           导入
         </el-button>
-        <el-button type="primary" round @click="showCreateDialog = true">
+        <el-button type="primary" round @click="showCreateDialog = true" aria-label="新建项目">
           <el-icon><Plus /></el-icon>
           新建项目
         </el-button>
       </div>
-    </section>
+    </header>
 
     <main class="main" v-loading="projectStore.loading">
       <div
@@ -51,7 +51,7 @@
             <div class="card-header">
               <h3 class="card-title" :title="project.title">{{ project.title }}</h3>
               <el-dropdown @click.stop trigger="click" @command="(cmd: string) => handleCommand(cmd, project.id)">
-                <el-icon class="more-btn"><MoreFilled /></el-icon>
+                <el-icon class="more-btn" aria-label="更多操作"><MoreFilled /></el-icon>
                 <template #dropdown>
                   <el-dropdown-menu>
                     <el-dropdown-item command="edit">

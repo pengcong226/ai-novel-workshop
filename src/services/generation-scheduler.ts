@@ -182,13 +182,21 @@ export class GenerationScheduler {
           })
         }
 
-        // 执行 Pipeline
-        const result = await this.pipeline!.writeNextChapter({
-          project: currentProject,
-          chapterNumber,
-          externalContext: batchOptions.rewrite?.directionPrompt,
-        })
-
+        // 执行 Pipeline (per-chapter error recovery)
+        let result: ChapterPipelineResult | null = null
+        try {
+          result = await this.pipeline!.writeNextChapter({
+            project: currentProject,
+            chapterNumber,
+            externalContext: batchOptions.rewrite?.directionPrompt,
+          })
+        } catch (chapterErr) {
+          const errMsg = chapterErr instanceof Error ? chapterErr.message : String(chapterErr)
+          logger.error('Pipeline: 第 ' + chapterNumber + ' 章生成失败，跳过并继续', chapterErr)
+          taskManager.addToast('第 ' + chapterNumber + ' 章生成失败: ' + errMsg + '，已跳过', 'error')
+          continue
+        }
+        if (!result) continue
         results.push(result)
 
         // 保存章节

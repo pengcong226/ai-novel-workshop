@@ -65,12 +65,42 @@
       </div>
     </el-card>
 
+    <!-- Search and filters -->
+    <div v-if="chapters.length > 0" class="chapter-search-bar">
+      <el-input v-model="chapterSearchQuery" placeholder="搜索章节标题或内容..." clearable size="default" class="chapter-search-input">
+        <template #prefix><el-icon><Search /></el-icon></template>
+      </el-input>
+      <el-select v-model="chapterStatusFilter" placeholder="状态筛选" clearable size="default" style="width: 140px;">
+        <el-option label="草稿" value="draft" />
+        <el-option label="修订" value="revised" />
+        <el-option label="定稿" value="final" />
+      </el-select>
+      <el-select v-model="chapterWordCountFilter" placeholder="字数筛选" clearable size="default" style="width: 140px;">
+        <el-option label="1000字以下" value="lt1000" />
+        <el-option label="1000-5000字" value="1000-5000" />
+        <el-option label="5000-10000字" value="5000-10000" />
+        <el-option label="10000字以上" value="gt10000" />
+      </el-select>
+      <el-select v-model="chapterQualityFilter" placeholder="质量筛选" clearable size="default" style="width: 140px;">
+        <el-option label="优秀 (8-10分)" value="high" />
+        <el-option label="良好 (5-7分)" value="medium" />
+        <el-option label="待改进 (0-4分)" value="low" />
+      </el-select>
+      <span class="filter-count" v-if="isChapterFilterActive">
+        {{ filteredChapters.length }} / {{ chapters.length }} 章
+      </span>
+    </div>
+
     <div class="content">
       <el-empty v-if="chapters.length === 0" description="还没有章节">
         <el-button type="primary" @click="addChapter">创建第一章</el-button>
       </el-empty>
 
-      <div v-else class="chapters-container" ref="scrollContainerRef" style="height: calc(100vh - 200px); overflow-y: auto;">
+      <el-empty v-else-if="filteredChapters.length === 0" description="没有匹配的章节">
+        <el-button @click="clearChapterFilters">清除筛选</el-button>
+      </el-empty>
+
+      <div v-else class="chapters-container" ref="scrollContainerRef" style="height: calc(100vh - 280px); overflow-y: auto;">
         <div class="chapters-list" :style="{ height: `${rowVirtualizer.getTotalSize()}px`, position: 'relative' }">
           <div
             v-for="virtualRow in rowVirtualizer.getVirtualItems()"
@@ -83,7 +113,7 @@
               transform: `translateY(${virtualRow.start}px)`
             }"
           >
-            <template v-for="chapter in [chapters[virtualRow.index]]" :key="chapter?.id">
+            <template v-for="chapter in [filteredChapters[virtualRow.index]]" :key="chapter?.id">
               <el-card
                 v-if="chapter"
                 class="chapter-card"
@@ -425,7 +455,7 @@
 import { computed, defineAsyncComponent, ref, watch, onMounted } from 'vue'
 import { useVirtualizer } from '@tanstack/vue-virtual'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { ArrowDown, CircleCheck, Clock, DataBoard, Delete, Document, Download, InfoFilled, MagicStick, Plus, Reading, RefreshRight, Setting } from '@element-plus/icons-vue'
+import { ArrowDown, CircleCheck, Clock, DataBoard, Delete, Document, Download, InfoFilled, MagicStick, Plus, Reading, RefreshRight, Search, Setting } from '@element-plus/icons-vue'
 import type { Chapter, Checkpoint } from '@/types'
 import { useProjectStore } from '@/stores/project'
 import { usePluginStore } from '@/stores/plugin'
@@ -454,9 +484,68 @@ const pluginStore = usePluginStore()
 const project = computed(() => projectStore.currentProject)
 const chapters = computed(() => project.value?.chapters || [])
 
+// Chapter search and filters
+const chapterSearchQuery = ref('')
+const chapterStatusFilter = ref('')
+const chapterWordCountFilter = ref('')
+const chapterQualityFilter = ref('')
+
+const filteredChapters = computed(() => {
+  let result = chapters.value
+  const q = chapterSearchQuery.value.trim().toLowerCase()
+  if (q) {
+    result = result.filter(ch =>
+      (ch.title?.toLowerCase().includes(q)) ||
+      (ch.content?.toLowerCase().includes(q)) ||
+      (ch.summary?.toLowerCase().includes(q))
+    )
+  }
+  if (chapterStatusFilter.value) {
+    result = result.filter(ch => ch.status === chapterStatusFilter.value)
+  }
+  if (chapterWordCountFilter.value) {
+    result = result.filter(ch => {
+      const wc = ch.wordCount || 0
+      switch (chapterWordCountFilter.value) {
+        case 'lt1000': return wc < 1000
+        case '1000-5000': return wc >= 1000 && wc < 5000
+        case '5000-10000': return wc >= 5000 && wc < 10000
+        case 'gt10000': return wc >= 10000
+        default: return true
+      }
+    })
+  }
+  if (chapterQualityFilter.value) {
+    result = result.filter(ch => {
+      const qs = ch.qualityScore ?? 0
+      switch (chapterQualityFilter.value) {
+        case 'high': return qs >= 8
+        case 'medium': return qs >= 5 && qs < 8
+        case 'low': return qs < 5
+        default: return true
+      }
+    })
+  }
+  return result
+})
+
+const isChapterFilterActive = computed(() =>
+  chapterSearchQuery.value.trim() !== '' ||
+  chapterStatusFilter.value !== '' ||
+  chapterWordCountFilter.value !== '' ||
+  chapterQualityFilter.value !== ''
+)
+
+function clearChapterFilters() {
+  chapterSearchQuery.value = ''
+  chapterStatusFilter.value = ''
+  chapterWordCountFilter.value = ''
+  chapterQualityFilter.value = ''
+}
+
 const scrollContainerRef = ref<HTMLElement | null>(null)
 const rowVirtualizerOptions = computed(() => ({
-  count: chapters.value.length,
+  count: filteredChapters.value.length,
   getScrollElement: () => scrollContainerRef.value,
   estimateSize: () => 180,
   overscan: 5,
@@ -1028,7 +1117,9 @@ async function handleAIGCDetect(chapter: Chapter) {
 }
 </script>
 
-<style scoped>
+<style scoped lang="scss">
+@use "@/styles/responsive" as *;
+
 .chapters {
   max-width: 1200px;
   margin: 0 auto;
@@ -1039,11 +1130,40 @@ async function handleAIGCDetect(chapter: Chapter) {
   border-radius: var(--ds-radius-lg);
 }
 
+.chapter-search-bar {
+  display: flex;
+  align-items: center;
+  gap: var(--ds-space-3);
+  margin-bottom: var(--ds-space-4);
+  padding: var(--ds-space-3);
+  background: var(--ds-surface);
+  border: 1px solid var(--ds-surface-border);
+  border-radius: var(--ds-radius-md);
+  flex-wrap: wrap;
+}
+.chapter-search-input {
+  flex: 1;
+  min-width: 200px;
+}
+.filter-count {
+  font-size: 12px;
+  color: var(--ds-text-tertiary);
+  white-space: nowrap;
+  padding: 0 var(--ds-space-2);
+}
+
 .header {
   display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: var(--ds-space-4);
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--ds-space-3);
+
+  @include mobile {
+    flex-direction: row;
+    justify-content: space-between;
+    align-items: center;
+    gap: var(--ds-space-4);
+  }
 }
 
 .header h2 {
@@ -1056,7 +1176,12 @@ async function handleAIGCDetect(chapter: Chapter) {
   display: flex;
   gap: var(--ds-space-2);
   flex-wrap: wrap;
-  justify-content: flex-end;
+  width: 100%;
+
+  @include mobile {
+    width: auto;
+    justify-content: flex-end;
+  }
 }
 
 .content {
@@ -1117,17 +1242,29 @@ async function handleAIGCDetect(chapter: Chapter) {
 
 .chapter-header {
   display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: var(--ds-space-4);
+  flex-direction: column;
+  gap: var(--ds-space-3);
   margin-bottom: var(--ds-space-4);
+
+  @include mobile {
+    flex-direction: row;
+    justify-content: space-between;
+    align-items: center;
+    gap: var(--ds-space-4);
+  }
 }
 
 .chapter-info {
   display: flex;
   align-items: center;
-  gap: var(--ds-space-3);
+  gap: var(--ds-space-2);
   min-width: 0;
+  flex-wrap: wrap;
+
+  @include mobile {
+    gap: var(--ds-space-3);
+    flex-wrap: nowrap;
+  }
 }
 
 .drag-handle {
@@ -1175,10 +1312,14 @@ async function handleAIGCDetect(chapter: Chapter) {
 
 .chapter-stats {
   display: flex;
-  gap: var(--ds-space-4);
+  gap: var(--ds-space-3);
   color: var(--ds-text-tertiary);
   font-size: var(--ds-text-sm);
   flex-shrink: 0;
+
+  @include mobile {
+    gap: var(--ds-space-4);
+  }
 }
 
 .chapter-content {
@@ -1235,6 +1376,7 @@ async function handleAIGCDetect(chapter: Chapter) {
   gap: var(--ds-space-3);
   color: var(--ds-text-primary);
   font-weight: 600;
+  flex-wrap: wrap;
 }
 
 .checkpoint-time {
@@ -1268,18 +1410,12 @@ async function handleAIGCDetect(chapter: Chapter) {
   color: var(--ds-text-tertiary);
 }
 
-/* breakpoint: md (768px) */
-@media (max-width: 768px) {
-  .header,
-  .chapter-header,
-  .chapter-stats {
-    align-items: flex-start;
-    flex-direction: column;
-  }
-
-  .actions,
-  .chapter-actions {
-    justify-content: flex-start;
+:deep(.el-dialog) {
+  @include below-mobile {
+    --el-dialog-width: 92vw;
+    width: 92vw !important;
+    max-width: 92vw !important;
+    margin: 4vh auto;
   }
 }
 </style>

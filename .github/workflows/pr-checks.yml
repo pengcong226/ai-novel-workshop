@@ -1,0 +1,228 @@
+name: PR Checks
+
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, reopened, labeled, unlabeled]
+
+concurrency:
+  group: pr-checks-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  security-audit:
+    name: Security Audit
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - run: npm ci
+
+      - name: npm audit (production)
+        run: npm audit --omit=dev --audit-level=high || true
+
+      - name: npm audit (all)
+        run: npm audit --audit-level=critical
+
+  lockfile-check:
+    name: Lockfile Integrity
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Check for lockfile changes
+        run: |
+          BASE_SHA="${{ github.event.pull_request.base.sha }}"
+          HEAD_SHA="${{ github.event.pull_request.head.sha }}"
+          CHANGED=$(git diff --name-only "$BASE_SHA" "$HEAD_SHA" | grep -E '(package-lock\.json|Cargo\.lock)' || true)
+          if [ -n "$CHANGED" ]; then
+            echo "::warning::Lockfile(s) changed in this PR:"
+            echo "$CHANGED"
+            echo ""
+            echo "Please review lockfile changes carefully before merging."
+          else
+            echo "No lockfile changes detected."
+          fi
+
+  bundle-size:
+    name: Bundle Size
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - run: npm ci
+
+      - name: Build production bundle
+        run: npm run build
+        env:
+          NODE_ENV: production
+
+      - name: Measure bundle size
+        id: measure
+        run: |
+          TOTAL_KB=$(du -sk dist/ | awk '{print $1}')
+          echo "total_kb=$TOTAL_KB" >> "$GITHUB_OUTPUT"
+          echo "## Bundle Size Report" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "Total dist/ size: **${TOTAL_KB} KB**" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Asset | Size |" >> "$GITHUB_STEP_SUMMARY"
+          echo "|-------|------|" >> "$GITHUB_STEP_SUMMARY"
+          find dist/assets -name '*.js' -o -name '*.css' | sort | while read f; do
+            SIZE=$(du -h "$f" | awk '{print $1}')
+            NAME=$(basename "$f")
+            echo "| \`$NAME\` | $SIZE |" >> "$GITHUB_STEP_SUMMARY"
+          done
+
+      - name: Comment bundle size on PR
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const { execSync } = require('child_process');
+
+            // Get current size
+            const currentKB = ${{ steps.measure.outputs.total_kb }};
+
+            // Build size report
+            let files = [];
+            const distFiles = execSync('find dist/assets -name "*.js" -o -name "*.css" | sort')
+              .toString().trim().split('\n').filter(Boolean);
+            for (const f of distFiles) {
+              const size = execSync(`du -h "${f}" | awk '{print $1}'`).toString().trim();
+              const name = f.split('/').pop();
+              files.push({ name, size });
+            }
+
+            const fileList = files.map(f => `| \`${f.name}\` | ${f.size} |`).join('\n');
+
+            const body = `## Bundle Size Report
+
+            **Total dist/ size:** ${currentKB} KB
+
+            | Asset | Size |
+            |-------|------|
+            ${fileList}
+
+            > Measured on commit ${context.sha.substring(0, 8)}`;
+
+            const { data: comments } = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+            });
+            const existing = comments.find(c =>
+              c.user.type === 'Bot' && c.body.includes('Bundle Size Report')
+            );
+            if (existing) {
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: existing.id,
+                body,
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                body,
+              });
+            }
+
+  label:
+    name: Auto-label
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Auto-label by changed files
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const { execSync } = require('child_process');
+            const base = context.payload.pull_request.base.sha;
+            const head = context.payload.pull_request.head.sha;
+            const files = execSync(`git diff --name-only ${base} ${head}`)
+              .toString().trim().split('\n').filter(Boolean);
+
+            const labelMap = {
+              'frontend': {
+                label: 'frontend',
+                patterns: ['src/components/', 'src/views/', 'src/composables/', 'src/assets/', 'src/plugins/'],
+              },
+              'backend': {
+                label: 'backend',
+                patterns: ['src-tauri/', 'src/services/', 'src/utils/'],
+              },
+              'ai': {
+                label: 'ai',
+                patterns: ['src/assistant/', 'src/stores/ai.ts', 'src/utils/contextBuilder.ts'],
+              },
+              'tests': {
+                label: 'tests',
+                patterns: ['.test.', '.spec.', '__tests__/', 'vitest', 'playwright'],
+              },
+              'docs': {
+                label: 'documentation',
+                patterns: ['docs/', '.md', 'CHANGELOG', 'RELEASE_NOTES'],
+              },
+              'ci': {
+                label: 'ci/cd',
+                patterns: ['.github/', 'Dockerfile', 'docker-compose'],
+              },
+              'deps': {
+                label: 'dependencies',
+                patterns: ['package.json', 'package-lock.json', 'Cargo.toml', 'Cargo.lock'],
+              },
+            };
+
+            const labels = new Set();
+            for (const file of files) {
+              for (const [, config] of Object.entries(labelMap)) {
+                if (config.patterns.some(p => file.includes(p))) {
+                  labels.add(config.label);
+                }
+              }
+            }
+
+            if (labels.size > 0) {
+              // Merge with existing labels
+              const { data: existing } = await github.rest.issues.listLabelsOnIssue({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+              });
+              const existingNames = new Set(existing.map(l => l.name));
+              const newLabels = [...labels].filter(l => !existingNames.has(l));
+
+              if (newLabels.length > 0) {
+                await github.rest.issues.addLabels({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  issue_number: context.issue.number,
+                  labels: newLabels,
+                });
+                console.log(`Added labels: ${newLabels.join(', ')}`);
+              }
+            }
+
+            console.log(`Detected labels: ${[...labels].join(', ')}`);

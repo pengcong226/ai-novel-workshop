@@ -5,18 +5,20 @@
     :show-close="false"
     class="immersive-editor-dialog"
     :close-on-click-modal="false"
+    aria-modal="true"
+    aria-labelledby="chapter-editor-title"
   >
     <template #header="{ titleId, titleClass }">
       <div class="immersive-header">
         <div class="header-left">
-          <el-button @click="visible = false" text circle class="back-btn"><el-icon><ArrowLeft /></el-icon></el-button>
-          <span :id="titleId" :class="titleClass" class="header-chapter-num">{{ editingChapter ? `第${editingChapter.number}章` : '新建章节' }}</span>
+          <el-button @click="visible = false" text circle class="back-btn" aria-label="返回章节列表"><el-icon><ArrowLeft /></el-icon></el-button>
+          <span :id="titleId || 'chapter-editor-title'" :class="titleClass" class="header-chapter-num">{{ editingChapter ? `第${editingChapter.number}章` : '新建章节' }}</span>
         </div>
         <div class="header-center">
-          <el-input v-model="chapterForm.title" placeholder="无尽航程的标题..." class="immersive-title-input" />
+          <el-input v-model="chapterForm.title" placeholder="无尽航程的标题..." class="immersive-title-input" aria-label="章节标题" />
         </div>
         <div class="header-right">
-          <span class="immersive-status" :style="{ color: saveStatusView.color }">{{ saveStatusView.text }}</span>
+          <span class="immersive-status" role="status" :style="{ color: saveStatusView.color }">{{ saveStatusView.text }}</span>
           <el-button @click="saveCheckpoint" v-if="editingChapter" text>打点</el-button>
           <el-button @click="showVersionPanel = true" v-if="editingChapter" text>历史</el-button>
           <el-button type="primary" @click="saveChapter" :loading="saving" round>保存</el-button>
@@ -26,21 +28,21 @@
 
     <div class="immersive-dual-pane">
       <div class="immersive-editor-area">
-        <div class="immersive-toolbar">
-          <el-button @click="generateContent" :loading="generating" type="primary" plain round size="small">
+        <div class="immersive-toolbar" role="toolbar" aria-label="编辑器工具栏">
+          <el-button @click="generateContent" :loading="generating" type="primary" plain round size="small" aria-label="AI连载生成">
             <el-icon><MagicStick /></el-icon> AI连载
           </el-button>
-          <el-checkbox v-model="autoUpdateSettings" size="small" style="margin: 0 10px;">后台静默提词</el-checkbox>
-          <el-button @click="optimizeContent" text size="small">打磨文笔</el-button>
-          <el-button @click="checkQuality" text size="small">防吃书预警</el-button>
-          <el-button @click="runReviewAndShowPanel" :loading="reviewingChapter" text size="small">
+          <el-checkbox v-model="autoUpdateSettings" size="small" style="margin: 0 10px;" aria-label="后台静默提词">后台静默提词</el-checkbox>
+          <el-button @click="optimizeContent" text size="small" aria-label="打磨文笔">打磨文笔</el-button>
+          <el-button @click="checkQuality" text size="small" aria-label="防吃书预警">防吃书预警</el-button>
+          <el-button @click="runReviewAndShowPanel" :loading="reviewingChapter" text size="small" aria-label="审校">
             审校
             <el-badge :value="unresolvedReviewCount" :hidden="unresolvedReviewCount === 0" />
           </el-button>
-          <el-button @click="showFindReplace = !showFindReplace" text size="small">
+          <el-button @click="showFindReplace = !showFindReplace" text size="small" aria-label="查找替换">
             <el-icon><Search /></el-icon> 查找替换
           </el-button>
-          <span class="word-count">{{ editorWordCount }} 墨</span>
+          <span class="word-count" role="status">{{ editorWordCount }} 墨</span>
         </div>
 
         <div style="position: relative; flex: 1; display: flex; flex-direction: column;">

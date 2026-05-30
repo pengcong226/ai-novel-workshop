@@ -43,7 +43,7 @@ export interface PngExportOptions extends WorldbookExportOptions {
     scenario?: string
     first_mes?: string
     mes_example?: string
-    [key: string]: any
+    [key: string]: unknown
   }
 
   /** 是否嵌入到角色卡 */

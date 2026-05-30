@@ -1,0 +1,266 @@
+/* ============================================================
+ * Transitions & Animations – Shared Utilities
+ *
+ * All animations use only `transform` and `opacity` for
+ * GPU-accelerated compositing.  `will-change` is applied
+ * sparingly and removed after animation completes via JS.
+ *
+ * Respects `prefers-reduced-motion: reduce` globally.
+ * ============================================================ */
+
+/* ---------- Reduced motion override ---------- */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* ============================================================
+ * 1. Route Transitions
+ *    Usage: <Transition name="route-fade-slide" mode="out-in">
+ * ============================================================ */
+
+.route-fade-slide-enter-active,
+.route-fade-slide-leave-active {
+  transition: opacity 250ms ease, transform 250ms ease;
+}
+
+.route-fade-slide-enter-from {
+  opacity: 0;
+  transform: translateY(12px);
+}
+
+.route-fade-slide-leave-to {
+  opacity: 0;
+  transform: translateY(-8px);
+}
+
+/* Crossfade (no movement) */
+.route-fade-enter-active,
+.route-fade-leave-active {
+  transition: opacity 200ms ease;
+}
+.route-fade-enter-from,
+.route-fade-leave-to {
+  opacity: 0;
+}
+
+/* Slide-right (horizontal navigation) */
+.route-slide-right-enter-active,
+.route-slide-right-leave-active {
+  transition: opacity 280ms ease, transform 280ms ease;
+}
+.route-slide-right-enter-from {
+  opacity: 0;
+  transform: translateX(24px);
+}
+.route-slide-right-leave-to {
+  opacity: 0;
+  transform: translateX(-16px);
+}
+
+/* ============================================================
+ * 2. Component Transitions
+ * ============================================================ */
+
+/* --- Dialog: scale + fade --- */
+.dialog-scale-enter-active,
+.dialog-scale-leave-active {
+  transition: opacity 260ms cubic-bezier(0.22, 1, 0.36, 1),
+              transform 260ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+.dialog-scale-enter-from {
+  opacity: 0;
+  transform: scale(0.92);
+}
+.dialog-scale-leave-to {
+  opacity: 0;
+  transform: scale(0.95);
+}
+
+/* --- Overlay (backdrop) --- */
+.dialog-overlay-enter-active,
+.dialog-overlay-leave-active {
+  transition: opacity 220ms ease;
+}
+.dialog-overlay-enter-from,
+.dialog-overlay-leave-to {
+  opacity: 0;
+}
+
+/* --- Toast: slide from top --- */
+.toast-slide-top-enter-active {
+  transition: opacity 240ms ease, transform 240ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+.toast-slide-top-leave-active {
+  transition: opacity 180ms ease, transform 180ms ease;
+}
+.toast-slide-top-enter-from {
+  opacity: 0;
+  transform: translateY(-20px);
+}
+.toast-slide-top-leave-to {
+  opacity: 0;
+  transform: translateX(30px);
+}
+.toast-slide-top-move {
+  transition: transform 300ms ease;
+}
+
+/* --- List items: staggered slide-in --- */
+.list-stagger-enter-active {
+  transition: opacity 280ms ease, transform 280ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+.list-stagger-leave-active {
+  transition: opacity 200ms ease, transform 200ms ease;
+}
+.list-stagger-enter-from {
+  opacity: 0;
+  transform: translateY(16px);
+}
+.list-stagger-leave-to {
+  opacity: 0;
+  transform: translateX(-24px);
+}
+.list-stagger-move {
+  transition: transform 300ms ease;
+}
+
+/* ============================================================
+ * 3. Named Utility Classes
+ *    Use as standalone CSS classes or combine with JS hooks.
+ * ============================================================ */
+
+/* Fade in place */
+.anim-fade-in {
+  animation: anim-fade-in 280ms ease forwards;
+}
+@keyframes anim-fade-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+/* Slide up + fade */
+.anim-slide-up {
+  animation: anim-slide-up 300ms cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+@keyframes anim-slide-up {
+  from { opacity: 0; transform: translateY(16px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* Slide right + fade */
+.anim-slide-right {
+  animation: anim-slide-right 280ms ease forwards;
+}
+@keyframes anim-slide-right {
+  from { opacity: 0; transform: translateX(-16px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+
+/* Scale + fade (for popups) */
+.anim-scale-in {
+  animation: anim-scale-in 260ms cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+@keyframes anim-scale-in {
+  from { opacity: 0; transform: scale(0.92); }
+  to   { opacity: 1; transform: scale(1); }
+}
+
+/* ============================================================
+ * 4. Micro-interactions
+ * ============================================================ */
+
+/* Button press feedback */
+.anim-btn-press {
+  transition: transform 100ms ease, box-shadow 100ms ease;
+}
+.anim-btn-press:active {
+  transform: translateY(1px) scale(0.98);
+}
+
+/* Card hover lift */
+.anim-card-lift {
+  transition: transform 200ms ease, box-shadow 200ms ease;
+}
+.anim-card-lift:hover {
+  transform: translateY(-3px);
+  box-shadow: var(--ds-shadow-lg);
+}
+
+/* Toggle switch */
+.anim-toggle {
+  transition: background-color 200ms ease, transform 200ms ease;
+}
+.anim-toggle:active {
+  transform: scale(0.95);
+}
+
+/* Progress bar smooth fill */
+.anim-progress {
+  transition: width 400ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* ============================================================
+ * 5. Loading Animations
+ * ============================================================ */
+
+/* Pulse (generic loading indicator) */
+.anim-pulse {
+  animation: anim-pulse 1.8s ease-in-out infinite;
+}
+@keyframes anim-pulse {
+  0%, 100% { opacity: 1; }
+  50%      { opacity: 0.45; }
+}
+
+/* Skeleton shimmer */
+.anim-shimmer {
+  background: linear-gradient(
+    90deg,
+    var(--ds-bg-tertiary) 25%,
+    var(--ds-bg-hover) 50%,
+    var(--ds-bg-tertiary) 75%
+  );
+  background-size: 200% 100%;
+  animation: anim-shimmer 1.5s ease-in-out infinite;
+}
+@keyframes anim-shimmer {
+  0%   { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+/* Rotating spinner */
+.anim-spin {
+  animation: anim-spin 1s linear infinite;
+}
+@keyframes anim-spin {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
+}
+
+/* Breathing glow (for active/generating states) */
+.anim-breathe {
+  animation: anim-breathe 2.5s ease-in-out infinite;
+}
+@keyframes anim-breathe {
+  0%, 100% { box-shadow: 0 0 8px rgba(108, 92, 231, 0.25); }
+  50%      { box-shadow: 0 0 20px rgba(108, 92, 231, 0.55); }
+}
+
+/* ============================================================
+ * 6. Stagger Delay Helpers
+ *    Apply via :style="{ '--stagger': idx }" on each item,
+ *    then add class `.anim-stagger-child` to each.
+ * ============================================================ */
+
+.anim-stagger-child {
+  opacity: 0;
+  animation: anim-slide-up 300ms cubic-bezier(0.22, 1, 0.36, 1) forwards;
+  animation-delay: calc(var(--stagger, 0) * 60ms);
+}

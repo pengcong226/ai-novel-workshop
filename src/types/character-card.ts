@@ -38,7 +38,7 @@ export interface CharacterCardV1 {
   character_book?: CharacterBookV1
 
   // 其他字段
-  [key: string]: any
+  [key: string]: unknown
 }
 
 /**
@@ -199,7 +199,7 @@ export interface CharacterCardExtensions {
   tavern_helper?: TavernHelperExtension[]
 
   // 其他扩展
-  [key: string]: any
+  [key: string]: unknown
 }
 
 /**
@@ -227,7 +227,7 @@ export interface RegexScript {
  */
 export interface TavernHelperExtension {
   // 具体结构待分析
-  [key: string]: any
+  [key: string]: unknown
 }
 
 // ============================================================================
@@ -314,7 +314,7 @@ export interface SillyTavernCharacterCard {
     regex_scripts?: RegexScript[]
     tavern_helper?: TavernHelperExtension[]
     SPreset?: any
-    [key: string]: any
+    [key: string]: unknown
   }
 
   // 角色数据（V2/V3格式）
@@ -332,7 +332,7 @@ export interface SillyTavernCharacterCard {
   character_book?: CharacterBookV1
 
   // 其他字段
-  [key: string]: any
+  [key: string]: unknown
 }
 
 /**
@@ -472,7 +472,7 @@ export interface CharacterCardImportResult {
     top_p?: number
     top_k?: number
     repetition_penalty?: number
-    [key: string]: any
+    [key: string]: unknown
   }
 
   errors?: string[]

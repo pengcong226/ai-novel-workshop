@@ -1,0 +1,77 @@
+# ============================================================
+# Docker Build Context Exclusions
+# ============================================================
+
+# Version control
+.git
+.gitignore
+
+# Dependencies (rebuilt inside container)
+node_modules
+
+# Build output
+dist
+dist-ssr
+
+# Tauri build artifacts
+src-tauri/target
+
+# IDE and editor files
+.vscode
+.idea
+*.swp
+*.swo
+*~
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Test and coverage output
+coverage
+.nyc_output
+
+# Debug and playground files
+playground
+
+# Documentation (not needed at runtime)
+docs
+*.md
+!README.md
+
+# Docker files (avoid recursive copy)
+Dockerfile
+Dockerfile.dev
+docker-compose*.yml
+.dockerignore
+
+# Environment files (contain secrets -- mount at runtime)
+.env
+.env.*
+
+# Claude Code workspace
+.claude
+.worktrees
+
+# Data directories
+data
+*.db
+*.db-journal
+*.db-wal
+
+# Reports and plans
+reports
+plans
+skills
+
+# Python bytecode
+__pycache__
+*.pyc
+*.pyo
+
+# Backend virtual environment
+backend/venv
+backend/.venv
+
+# NPM debug logs
+npm-debug.log*

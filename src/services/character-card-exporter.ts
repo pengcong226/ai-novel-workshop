@@ -53,7 +53,7 @@ export class CharacterCardExporter {
         top_p?: number
         top_k?: number
         repetition_penalty?: number
-        [key: string]: any
+        [key: string]: unknown
       }
     },
     options: CharacterCardExportOptions

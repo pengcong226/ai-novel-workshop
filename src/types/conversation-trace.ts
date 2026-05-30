@@ -12,7 +12,7 @@ export type TraceRole = 'user' | 'assistant' | 'system' | 'tool' | 'other'
  * JSONL 原始记录
  */
 export interface ConversationTraceRecord {
-  [key: string]: any
+  [key: string]: unknown
 }
 
 /**

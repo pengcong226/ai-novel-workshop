@@ -35,7 +35,7 @@ export interface CustomProviderConfig {
   /** 是否支持流式 */
   supportsStreaming?: boolean;
   /** 额外配置 */
-  [key: string]: any;
+  [key: string]: unknown;
 }
 
 /**

@@ -1,0 +1,158 @@
+// Responsive Design Mixins & Utilities
+// Canonical breakpoints:
+//   mobile:   768px  (phones / tablet portrait)
+//   tablet:  1024px  (tablet landscape / small desktop)
+//   desktop: 1280px  (standard desktop and up)
+// Legacy aliases are kept for backward compatibility.
+
+// ── Canonical breakpoint variables ──────────────────────────────
+$bp-mobile:  768px;
+$bp-tablet:  1024px;
+$bp-desktop: 1280px;
+
+// Legacy aliases (same values)
+$bp-sm:  $bp-mobile;
+$bp-md:  $bp-mobile;
+$bp-lg:  900px;
+$bp-xl:  $bp-tablet;
+$bp-2xl: $bp-desktop;
+
+// ── Mobile-first breakpoint mixins (min-width) ─────────────────
+@mixin mobile {
+  @media (min-width: $bp-mobile) { @content; }
+}
+
+@mixin tablet {
+  @media (min-width: $bp-tablet) { @content; }
+}
+
+@mixin desktop {
+  @media (min-width: $bp-desktop) { @content; }
+}
+
+// Legacy names
+@mixin sm {
+  @include mobile { @content; }
+}
+
+@mixin md {
+  @include mobile { @content; }
+}
+
+@mixin lg {
+  @media (min-width: $bp-lg) { @content; }
+}
+
+@mixin xl {
+  @include tablet { @content; }
+}
+
+@mixin bp-2xl {
+  @include desktop { @content; }
+}
+
+// ── Max-width breakpoint mixins (targeting "below" a breakpoint) ─
+@mixin below-mobile {
+  @media (max-width: ($bp-mobile - 1px)) { @content; }
+}
+
+@mixin below-tablet {
+  @media (max-width: ($bp-tablet - 1px)) { @content; }
+}
+
+@mixin below-desktop {
+  @media (max-width: ($bp-desktop - 1px)) { @content; }
+}
+
+// Legacy names
+@mixin below-sm {
+  @include below-mobile { @content; }
+}
+
+@mixin below-md {
+  @include below-mobile { @content; }
+}
+
+@mixin below-lg {
+  @media (max-width: ($bp-lg - 1px)) { @content; }
+}
+
+@mixin below-xl {
+  @include below-tablet { @content; }
+}
+
+@mixin below-2xl {
+  @include below-desktop { @content; }
+}
+
+// ── Touch / Hover detection ────────────────────────────────────
+@mixin touch {
+  @media (pointer: coarse) { @content; }
+}
+
+@mixin can-hover {
+  @media (hover: hover) and (pointer: fine) { @content; }
+}
+
+// ── Responsive dialog width helper ─────────────────────────────
+// Usage: @include responsive-dialog(500px, 92vw);
+@mixin responsive-dialog($max-width, $mobile-width: 92vw) {
+  width: $mobile-width;
+  max-width: $mobile-width;
+
+  @include mobile {
+    width: $max-width;
+    max-width: $max-width;
+  }
+}
+
+// ── Touch target (44px per WCAG) ──────────────────────────────
+@mixin touch-target($min: 44px) {
+  min-width: $min;
+  min-height: $min;
+}
+
+// ── Responsive spacing ─────────────────────────────────────────
+@mixin responsive-padding($desktop, $mobile: null) {
+  $mobile-val: if($mobile, $mobile, calc(#{$desktop} * 0.6));
+  padding: $mobile-val;
+
+  @include mobile {
+    padding: $desktop;
+  }
+}
+
+// ── Responsive font scaling ────────────────────────────────────
+@mixin responsive-font($desktop-size, $mobile-size) {
+  font-size: $mobile-size;
+
+  @include mobile {
+    font-size: $desktop-size;
+  }
+}
+
+// ── Visibility helpers ─────────────────────────────────────────
+@mixin hide-mobile {
+  @include below-mobile {
+    display: none !important;
+  }
+}
+
+@mixin hide-desktop {
+  @include mobile {
+    display: none !important;
+  }
+}
+
+// ── Scrollable horizontal on mobile ────────────────────────────
+@mixin scroll-x-mobile {
+  @include below-mobile {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+
+    &::-webkit-scrollbar {
+      display: none;
+    }
+  }
+}

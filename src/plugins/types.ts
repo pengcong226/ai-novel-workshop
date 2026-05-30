@@ -22,14 +22,14 @@ export type ChatOptions = {
   topP?: number
   frequencyPenalty?: number
   presencePenalty?: number
-  [key: string]: any
+  [key: string]: unknown
 }
 export type GenerateOptions = {
   temperature?: number
   maxTokens?: number
   model?: string
   stopSequences?: string[]
-  [key: string]: any
+  [key: string]: unknown
 }
 
 // ==================== 基础类型 ====================
@@ -438,7 +438,7 @@ export interface ProviderConfig {
   model: string
   maxTokens?: number
   temperature?: number
-  [key: string]: any
+  [key: string]: unknown
 }
 
 /**
@@ -507,7 +507,7 @@ export interface ExportData {
 export interface ExportOptions {
   includeMetadata?: boolean
   customTemplate?: string
-  [key: string]: any
+  [key: string]: unknown
 }
 
 /**
@@ -516,7 +516,7 @@ export interface ExportOptions {
 export interface ImportOptions {
   encoding?: string
   extractMetadata?: boolean
-  [key: string]: any
+  [key: string]: unknown
 }
 
 /**
