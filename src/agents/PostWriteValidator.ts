@@ -184,7 +184,7 @@ export function validateDuplicateParagraphs(content: string): AuditIssue[] {
 
   for (let i = 0; i < paragraphs.length - 1; i++) {
     for (let j = i + 1; j < paragraphs.length; j++) {
-      const similarity = calculateSimilarity(paragraphs[i], paragraphs[j])
+      const similarity = calculateSimilarity(paragraphs[i]!, paragraphs[j]!)
       if (similarity > DUPLICATE_SIMILARITY_THRESHOLD) {
         issues.push({
           severity: 'warning',
@@ -211,7 +211,7 @@ export function validateTitle(content: string, existingTitles: string[]): AuditI
   // 提取章节标题（以 # 开头的第一行）
   const titleMatch = content.match(/^#\s+(.+)$/m)
   if (titleMatch) {
-    const title = titleMatch[1].trim()
+    const title = titleMatch[1]!.trim()
     if (existingTitles.includes(title)) {
       issues.push({
         severity: 'warning',

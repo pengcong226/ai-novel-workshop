@@ -189,7 +189,7 @@ const emit = defineEmits<{
 }>()
 
 const styleProfile = ref<StyleProfile>(mergeStyleProfile(props.config.styleProfile))
-const selectedPresetId = ref(styleProfile.value.metadata?.presetId ?? STYLE_PRESETS[0].id)
+const selectedPresetId = ref(styleProfile.value.metadata?.presetId ?? STYLE_PRESETS[0]?.id ?? '')
 const sampleText = ref('')
 const extracting = ref(false)
 const analysisDepth = ref<'quick' | 'standard' | 'deep'>('standard')
@@ -198,7 +198,7 @@ const styleAnalyzer = new StyleAnalyzerAgent()
 
 watch(() => props.config.styleProfile, (profile) => {
   styleProfile.value = mergeStyleProfile(profile)
-  selectedPresetId.value = styleProfile.value.metadata?.presetId ?? STYLE_PRESETS[0].id
+  selectedPresetId.value = styleProfile.value.metadata?.presetId ?? STYLE_PRESETS[0]?.id ?? ''
 }, { deep: true })
 
 function emitUpdate() {
@@ -263,7 +263,7 @@ async function extractFromSample() {
       ].filter(Boolean).join('\n'),
     })
 
-    selectedPresetId.value = styleProfile.value.metadata?.presetId ?? STYLE_PRESETS[0].id
+    selectedPresetId.value = styleProfile.value.metadata?.presetId ?? STYLE_PRESETS[0]?.id ?? ''
     emitUpdate()
     ElMessage.success(`文风提取完成（${analysisDepth.value === 'deep' ? '深度' : analysisDepth.value === 'standard' ? '标准' : '快速'}分析）`)
   } catch (error) {

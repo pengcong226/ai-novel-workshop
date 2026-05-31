@@ -1,8 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { mount, VueWrapper } from '@vue/test-utils'
+import { mount } from '@vue/test-utils'
 import { createTestPinia } from '@/test/helpers'
 import { useSuggestionsStore } from '@/stores/suggestions'
-import type { Suggestion, SuggestionPriority, SuggestionStatus } from '@/types/suggestions'
+import type { Suggestion } from '@/types/suggestions'
 import ReviewSidePanel from '@/components/editor/ReviewSidePanel.vue'
 
 // ---------------------------------------------------------------------------

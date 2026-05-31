@@ -16,7 +16,7 @@ export function safeParseAIJson<T = any>(raw: string): T | null {
   // 1. 尝试提取 ```json ... ``` 代码块
   const jsonBlockMatch = cleaned.match(/```(?:json)?\s*\n?([\s\S]*?)```/)
   if (jsonBlockMatch) {
-    cleaned = jsonBlockMatch[1].trim()
+    cleaned = jsonBlockMatch[1]?.trim() ?? cleaned
   }
 
   // 2. 尝试直接解析
@@ -26,14 +26,14 @@ export function safeParseAIJson<T = any>(raw: string): T | null {
 
   // 3. 尝试提取最外层 { ... } 或 [ ... ]
   const objectMatch = cleaned.match(/(\{[\s\S]*\})/)
-  if (objectMatch) {
+  if (objectMatch && objectMatch[1]) {
     try {
       return JSON.parse(objectMatch[1]) as T
     } catch { /* continue */ }
   }
 
   const arrayMatch = cleaned.match(/(\[[\s\S]*\])/)
-  if (arrayMatch) {
+  if (arrayMatch && arrayMatch[1]) {
     try {
       return JSON.parse(arrayMatch[1]) as T
     } catch { /* continue */ }

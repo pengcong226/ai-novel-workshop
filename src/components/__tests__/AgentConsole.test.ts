@@ -551,7 +551,7 @@ describe('AgentConsole', () => {
 
   it('logs failed entries when batch phase agents execution fails', async () => {
     const originalSetTimeout = globalThis.setTimeout
-    let callCount = 0
+    const _callCount = 0
     vi.spyOn(globalThis, 'setTimeout').mockImplementation((fn: any, ms?: number) => {
       // Let the 1500ms single-agent calls through, but throw for the 2000ms batch call
       if (ms === 2000) {

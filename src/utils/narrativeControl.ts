@@ -175,7 +175,7 @@ function parseBodySkeleton(skeleton: string): Record<string, string> {
   for (const { id, patterns } of segmentPatterns) {
     for (const pattern of patterns) {
       const match = skeleton.match(new RegExp(`${pattern.source}([^\\n]+)`, 'i'))
-      if (match) {
+      if (match && match[1] !== undefined) {
         result[id] = match[1].trim()
         hasStructuredMatch = true
         break
@@ -191,9 +191,11 @@ function parseBodySkeleton(skeleton: string): Record<string, string> {
       const ids = NARRATIVE_SEGMENTS.map(s => s.id)
       const perSegment = Math.ceil(lines.length / ids.length)
       for (let i = 0; i < ids.length; i++) {
+        const segmentId = ids[i]
+        if (segmentId === undefined) continue
         const segmentLines = lines.slice(i * perSegment, (i + 1) * perSegment)
         if (segmentLines.length > 0) {
-          result[ids[i]] = segmentLines.join('；')
+          result[segmentId] = segmentLines.join('；')
         }
       }
     } else if (lines.length > 0) {

@@ -43,6 +43,7 @@ export function splitTextForLLM(
 
   for (let i = 0; i < paragraphs.length; i++) {
     const paragraph = paragraphs[i]
+    if (paragraph === undefined) continue
     const testChunk = currentChunk + (currentChunk ? '\n\n' : '') + paragraph
 
     const testTokens = countTokens(testChunk, provider)

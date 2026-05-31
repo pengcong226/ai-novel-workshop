@@ -326,7 +326,7 @@ describe('ChapterEditorDialog', () => {
 
   it('emits update:modelValue when back button is clicked', async () => {
     const wrapper = await mountDialog({ modelValue: true })
-    const backBtn = wrapper.find('.back-btn-stub, .el-button-stub')
+    const _backBtn = wrapper.find('.back-btn-stub, .el-button-stub')
     // The first button in the header is the back button
     const headerButtons = wrapper.findAll('.header-left .el-button-stub, .immersive-header .el-button-stub')
     // Find back button by aria-label in the real component; in stubs we click the first button
@@ -348,7 +348,7 @@ describe('ChapterEditorDialog', () => {
       content: '',
     })
 
-    const wrapper = await mountDialog({ modelValue: true, chapter })
+    const _wrapper = await mountDialog({ modelValue: true, chapter })
     await flushPromises()
 
     expect(mockLoadChapter).toHaveBeenCalledWith('ch-load-test')
@@ -369,7 +369,7 @@ describe('ChapterEditorDialog', () => {
       content: 'Provided content should be used',
     })
 
-    const wrapper = await mountDialog({
+    const _wrapper = await mountDialog({
       modelValue: true,
       chapter,
       preserveProvidedContent: true,
@@ -473,7 +473,7 @@ describe('ChapterEditorDialog', () => {
   // ---- 5. Keyboard shortcuts ----
 
   it('save shortcut is disabled when saving or generating', async () => {
-    const wrapper = await mountDialog({ modelValue: true })
+    const _wrapper = await mountDialog({ modelValue: true })
     await flushPromises()
 
     const saveShortcut = registeredShortcuts.find(s => s.id === 'chapter-editor.save')

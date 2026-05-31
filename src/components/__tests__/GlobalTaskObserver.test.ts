@@ -461,7 +461,7 @@ describe('GlobalTaskObserver', () => {
   // ---- Multiple tasks with mixed statuses ----
 
   it('renders multiple tasks with different statuses simultaneously', async () => {
-    const t1 = store.createTask({ title: 'Pending' })
+    const _t1 = store.createTask({ title: 'Pending' })
     const t2 = store.createTask({ title: 'Running' })
     store.updateTask(t2.id, { status: 'running', progress: 30 })
     const t3 = store.createTask({ title: 'Completed' })
@@ -540,8 +540,8 @@ describe('GlobalTaskObserver', () => {
   // ---- Header active tasks count excludes completed ----
 
   it('header shows only active task count, not total', async () => {
-    const t1 = store.createTask({ title: 'Active' })
-    const t2 = store.createTask({ title: 'Also active' })
+    const _t1 = store.createTask({ title: 'Active' })
+    const _t2 = store.createTask({ title: 'Also active' })
     const t3 = store.createTask({ title: 'Will complete' })
     store.completeTask(t3.id)
 

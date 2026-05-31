@@ -686,9 +686,11 @@ async function validateChapters() {
 
   try {
     for (let index = 1; index < chapters.value.length; index++) {
-      if (chapters.value[index].number !== chapters.value[index - 1].number + 1) {
+      const curr = chapters.value[index]
+      const prev = chapters.value[index - 1]
+      if (curr && prev && curr.number !== prev.number + 1) {
         validationIssues.value.push(
-          `章节号不连续：第${chapters.value[index - 1].number}章之后是第${chapters.value[index].number}章`
+          `章节号不连续：第${prev.number}章之后是第${curr.number}章`
         )
       }
     }

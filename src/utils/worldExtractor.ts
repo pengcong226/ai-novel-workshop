@@ -77,7 +77,7 @@ function extractEraInfo(text: string): ExtractedWorldInfo['era'] {
     }
   }
 
-  return eraNames[maxEra[0]] || eraNames.modern
+  return eraNames[maxEra[0]] ?? eraNames.modern ?? { time: '现代', techLevel: '信息时代', socialForm: '现代社会' }
 }
 
 /**
@@ -156,9 +156,12 @@ function extractPowerSystem(text: string): ExtractedWorldInfo['powerSystem'] | u
   for (const pattern of cultivationPatterns) {
     const matches = text.matchAll(pattern)
     for (const match of matches) {
+      const name = match[1]
+      const desc = match[2]
+      if (!name || !desc) continue
       levels.push({
-        name: match[1],
-        description: match[2].trim()
+        name,
+        description: desc.trim()
       })
     }
   }

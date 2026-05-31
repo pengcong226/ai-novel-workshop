@@ -17,7 +17,9 @@ export function parseActionEnvelope(text: string): ParseResult {
 
   if (jsonMatch) {
     try {
-      const parsedData = JSON.parse(jsonMatch[1]);
+      const capturedGroup = jsonMatch[1]
+      if (!capturedGroup) throw new Error('No captured JSON group')
+      const parsedData = JSON.parse(capturedGroup);
 
       if (parsedData && typeof parsedData === 'object' && 'action' in parsedData) {
         return {

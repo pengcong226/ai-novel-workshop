@@ -32,7 +32,7 @@ const EN_DESCRIPTIONS = [
 ]
 
 function pick<T>(arr: T[]): T {
-  return arr[Math.floor(Math.random() * arr.length)]
+  return arr[Math.floor(Math.random() * arr.length)]!
 }
 
 function makeDoc(id: number): SearchableDocument {

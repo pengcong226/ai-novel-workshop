@@ -419,7 +419,7 @@ const allHistory = computed(() => {
           const newLocation = event.payload.coordinates
             ? `(${event.payload.coordinates.x}, ${event.payload.coordinates.y})`
             : event.payload.value || ''
-          const oldLocation = locationHistory.length > 0 ? locationHistory[locationHistory.length - 1] : ''
+          const oldLocation = locationHistory.length > 0 ? (locationHistory[locationHistory.length - 1] ?? '') : ''
           if (newLocation && newLocation !== oldLocation) {
             history.push({
               characterId: entity.id,

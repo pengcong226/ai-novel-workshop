@@ -43,6 +43,7 @@ export async function exportAllChaptersToEpub(
 
   for (let i = 0; i < chapters.length; i++) {
     const ch = chapters[i]
+    if (!ch) continue
     const id = `ch${i + 1}`
     const heading = options.includeChapterNumbers
       ? `第${ch.number}章 ${escapeXml(ch.title || '')}`

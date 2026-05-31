@@ -452,7 +452,7 @@ function getRelationLabel(type: string): string {
 
 function getTimelineType(index: number): 'primary' | 'success' | 'warning' | 'danger' | 'info' {
   const types: ('primary' | 'success' | 'warning' | 'danger' | 'info')[] = ['primary', 'success', 'warning', 'danger', 'info']
-  return types[index % types.length]
+  return types[index % types.length] ?? 'primary'
 }
 
 // --- Dialog form state ---
@@ -660,7 +660,7 @@ function goToChapter(chapterNumber: number) {
 watch(characterEntitiesWithEvents, (newEntities) => {
   if (!selectedEntityId.value && newEntities.length > 0) {
     const withEvents = newEntities.find(e => e.eventCount > 0)
-    selectedEntityId.value = withEvents?.id || newEntities[0].id
+    selectedEntityId.value = withEvents?.id || newEntities[0]?.id || ''
   }
 }, { immediate: true })
 </script>

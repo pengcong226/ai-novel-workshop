@@ -17,7 +17,10 @@ export function sortStateEventsByChapter(events: StateEvent[]): StateEvent[] {
 
 export function areStateEventsSortedByChapter(events: StateEvent[]): boolean {
   for (let i = 1; i < events.length; i++) {
-    if (compareStateEventsByChapter(events[i - 1], events[i]) > 0) {
+    const prev = events[i - 1]
+    const curr = events[i]
+    if (!prev || !curr) continue
+    if (compareStateEventsByChapter(prev, curr) > 0) {
       return false
     }
   }

@@ -68,7 +68,8 @@ export async function exportAllChaptersToDocx(
   }
 
   for (let i = 0; i < chapters.length; i++) {
-    allParagraphs.push(...chapterToParagraphs(chapters[i], options))
+    const ch = chapters[i]
+    if (ch) allParagraphs.push(...chapterToParagraphs(ch, options))
     onProgress?.(i + 1, chapters.length)
   }
 

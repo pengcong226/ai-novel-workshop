@@ -158,7 +158,10 @@ function computePairwiseSimilarity(texts: string[]): number {
 
   for (let i = 0; i < texts.length; i++) {
     for (let j = i + 1; j < texts.length; j++) {
-      totalSimilarity += computeStringSimilarity(texts[i], texts[j])
+      const textA = texts[i]
+      const textB = texts[j]
+      if (textA === undefined || textB === undefined) continue
+      totalSimilarity += computeStringSimilarity(textA, textB)
       pairCount++
     }
   }

@@ -113,6 +113,7 @@ p { text-indent: 2em; margin: 0.5em 0; }`)
   // OEBPS/chapter-X.xhtml
   for (let i = 0; i < bookChapters.length; i++) {
     const ch = bookChapters[i]
+    if (!ch) continue
     const title = ch.title || `第${ch.number || i + 1}章`
     const content = ch.content || ''
     const htmlContent = plainTextToXHTML(content)

@@ -16,6 +16,7 @@
 
 'use strict'
 
+/* eslint-disable @typescript-eslint/no-var-requires */
 const fs = require('fs')
 const path = require('path')
 
@@ -25,7 +26,7 @@ const path = require('path')
 
 const SRC_DIR = path.resolve(__dirname, '..', 'src')
 const LARGE_FILE_THRESHOLD = 500
-const COMPLEXITY_THRESHOLD = 80
+const _COMPLEXITY_THRESHOLD = 80
 const TOP_N = 15
 
 // ---------------------------------------------------------------------------

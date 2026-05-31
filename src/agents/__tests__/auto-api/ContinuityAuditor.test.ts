@@ -115,7 +115,7 @@ describe('ContinuityAuditor 接口自动化测试', () => {
     it('P1: 未知题材返回默认维度', () => {
       const dims = getGenreAuditDimensions('未知题材')
       expect(dims.length).toBe(AUDIT_DIMENSIONS.length)
-      expect(dims[0].id).toBe(AUDIT_DIMENSIONS[0].id)
+      expect(dims[0]!.id).toBe(AUDIT_DIMENSIONS[0]!.id)
     })
 
     it('P1: 不传genre返回默认维度', () => {

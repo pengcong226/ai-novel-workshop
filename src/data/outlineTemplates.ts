@@ -360,7 +360,7 @@ export function generateChapterTemplates(template: PlotTemplate): Array<{
       chapters.push({
         chapterNumber,
         title: `第${chapterNumber}章`,
-        suggestedContent: volume.mainEvents[Math.min(eventIndex, volume.mainEvents.length - 1)],
+        suggestedContent: volume.mainEvents[Math.min(eventIndex, volume.mainEvents.length - 1)] ?? '',
         volumeNumber: volume.number,
         keyEvents: volume.plotPoints.slice(0, 2)
       })

@@ -301,8 +301,11 @@ async function generateSummaryForChapter(chapter: Chapter & { regenerating?: boo
     if (project.value) {
       const index = project.value.chapters.findIndex(c => c.id === chapter.id)
       if (index !== -1) {
-        project.value.chapters[index].summaryData = summaryData
-        project.value.chapters[index].summary = summaryData.summary
+        const ch = project.value.chapters[index]
+        if (ch) {
+          ch.summaryData = summaryData
+          ch.summary = summaryData.summary
+        }
         await projectStore.saveCurrentProject()
       }
     }
@@ -354,11 +357,15 @@ async function generateAllSummaries() {
     // 更新章节数据
     summaries.forEach((summaryData, index) => {
       const chapter = chaptersToSummarize[index]
+      if (!chapter) return
       if (project.value) {
         const idx = project.value.chapters.findIndex(c => c.id === chapter.id)
         if (idx !== -1) {
-          project.value.chapters[idx].summaryData = summaryData
-          project.value.chapters[idx].summary = summaryData.summary
+          const ch = project.value.chapters[idx]
+          if (ch) {
+            ch.summaryData = summaryData
+            ch.summary = summaryData.summary
+          }
         }
       }
     })
@@ -411,8 +418,11 @@ async function saveSummary() {
     detail: editingChapter.value.summaryData?.detail || SummaryDetail.BRIEF
   }
 
-  project.value.chapters[index].summaryData = summaryData
-  project.value.chapters[index].summary = editForm.value.summary
+  const ch = project.value.chapters[index]
+  if (ch) {
+    ch.summaryData = summaryData
+    ch.summary = editForm.value.summary
+  }
 
   await projectStore.saveCurrentProject()
 

@@ -347,6 +347,7 @@ export async function batchExport(
 
   for (let i = 0; i < formats.length; i++) {
     const format = formats[i]
+    if (!format) continue
     onProgress?.(format, i + 1, formats.length)
 
     const result = await exportWithManager(project, {

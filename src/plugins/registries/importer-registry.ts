@@ -177,6 +177,9 @@ export class ImporterRegistry {
 
     // 使用第一个支持的导入器
     const importer = importers[0]
+    if (!importer) {
+      throw new Error(`不支持的文件格式: ${extension}`)
+    }
     logger.info(`自动选择导入器: ${importer.id}`)
 
     return await this.import(importer.id, file, options)

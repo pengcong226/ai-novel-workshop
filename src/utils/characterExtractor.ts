@@ -77,7 +77,7 @@ ${truncatedText}
     let jsonStr = response.content.trim()
     const jsonMatch = jsonStr.match(/```(?:json)?\s*([\s\S]*?)\s*```/)
     if (jsonMatch) {
-      jsonStr = jsonMatch[1]
+      jsonStr = jsonMatch[1] ?? jsonStr
     } else {
       // 尝试寻找被文字包裹的 JSON 数组
       const startIdx = jsonStr.indexOf('[');
@@ -86,7 +86,7 @@ ${truncatedText}
         jsonStr = jsonStr.substring(startIdx, endIdx + 1);
       }
     }
-    
+
     const parsed = JSON.parse(jsonStr)
     const characters = Array.isArray(parsed) ? parsed : (parsed.characters || [])
     
@@ -171,6 +171,7 @@ export function analyzeRelationships(
     for (let j = i + 1; j < characters.length; j++) {
       const char1 = characters[i]
       const char2 = characters[j]
+      if (!char1 || !char2) continue
 
       let coOccurrences = 0
       for (const para of paragraphs) {
@@ -242,7 +243,7 @@ ${truncatedText}`
   const response = await aiStore.chat([{ role: 'user', content: prompt }], { type: 'check' as const, complexity: 'low', priority: 'quality' }, { maxTokens: 4000 })
   let jsonStr = response.content.trim()
   const jsonMatch = jsonStr.match(/```(?:json)?\s*([\s\S]*?)\s*```/)
-  if (jsonMatch) jsonStr = jsonMatch[1]
+  if (jsonMatch) jsonStr = jsonMatch[1] ?? jsonStr
   else {
     const startIdx = jsonStr.indexOf('{');
     const endIdx = jsonStr.lastIndexOf('}');

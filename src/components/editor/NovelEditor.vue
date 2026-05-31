@@ -199,6 +199,7 @@ function applySuggestedFix(payload: { originalSnippet: string; fixContent: strin
   if (matches.length !== 1) return false
 
   const match = matches[0]
+  if (!match) return false
   editor.value.chain().focus().insertContentAt(
     { from: match.from, to: match.to },
     escapeXml(payload.fixContent).replace(/\n/g, '<br>')

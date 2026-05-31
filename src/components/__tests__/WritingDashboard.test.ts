@@ -432,7 +432,7 @@ describe('WritingDashboard', () => {
   // -----------------------------------------------------------------------
 
   it('shows "运行中" in pipeline when pipelineRunning is true', () => {
-    const { wrapper, aiStore } = mountDashboard()
+    const { wrapper: _wrapper, aiStore } = mountDashboard()
     ;(aiStore as any).pipelineRunning = true
     // pipelineRunning is read as a computed from the store, so re-mount
     const pinia = createTestPinia()

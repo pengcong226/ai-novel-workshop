@@ -439,8 +439,8 @@ function runDeterministicChecks(content: string): AuditIssue[] {
   // 检测连续重复段落
   if (paragraphs.length >= 2) {
     for (let i = 1; i < paragraphs.length; i++) {
-      const prev = paragraphs[i - 1].trim()
-      const curr = paragraphs[i].trim()
+      const prev = paragraphs[i - 1]!.trim()
+      const curr = paragraphs[i]!.trim()
       if (prev.length > 20 && prev === curr) {
         issues.push({
           severity: 'warning',
@@ -499,13 +499,13 @@ function runDeterministicChecks(content: string): AuditIssue[] {
   const numbers: Array<{ value: number; unit: string; position: number }> = []
   let numMatch: RegExpExecArray | null
   while ((numMatch = numberPattern.exec(content)) !== null) {
-    numbers.push({ value: parseInt(numMatch[1]), unit: numMatch[2], position: numMatch.index })
+    numbers.push({ value: parseInt(numMatch[1]!), unit: numMatch[2]!, position: numMatch.index })
   }
   // 同一单位出现矛盾数值（如 "30岁" 和 "18岁" 指同一上下文）
   const unitGroups: Record<string, Array<{ value: number; position: number }>> = {}
   for (const n of numbers) {
     if (!unitGroups[n.unit]) unitGroups[n.unit] = []
-    unitGroups[n.unit].push({ value: n.value, position: n.position })
+    unitGroups[n.unit]!.push({ value: n.value, position: n.position })
   }
   for (const [unit, values] of Object.entries(unitGroups)) {
     if (values.length >= 2) {

@@ -89,8 +89,11 @@ function buildSearchIndex(): SearchIndex {
   props.editor.state.doc.descendants((node, nodePos) => {
     if (!node.isText || !node.text) return
     for (let i = 0; i < node.text.length; i++) {
-      textParts.push(node.text[i])
-      positions.push(nodePos + i)
+      const ch = node.text[i]
+      if (ch !== undefined) {
+        textParts.push(ch)
+        positions.push(nodePos + i)
+      }
     }
   })
 
@@ -111,8 +114,8 @@ function findMatches() {
   while (searchStart < searchText.length) {
     const idx = searchText.indexOf(query, searchStart)
     if (idx === -1) break
-    const startPos = index.positions[idx]
-    const endPos = index.positions[idx + findText.value.length - 1] + 1
+    const startPos = index.positions[idx] ?? 0
+    const endPos = (index.positions[idx + findText.value.length - 1] ?? 0) + 1
     matches.value.push({ from: startPos, to: endPos })
     searchStart = idx + 1
   }
@@ -126,6 +129,7 @@ function findMatches() {
 function highlightCurrent() {
   if (currentMatchIndex.value < 0 || currentMatchIndex.value >= matches.value.length) return
   const match = matches.value[currentMatchIndex.value]
+  if (!match) return
   props.editor.chain().focus().setTextSelection({ from: match.from, to: match.to }).run()
 }
 
@@ -148,6 +152,7 @@ function editorTextToHTML(text: string): string {
 function replaceCurrent() {
   if (currentMatchIndex.value < 0 || matches.value.length === 0) return
   const match = matches.value[currentMatchIndex.value]
+  if (!match) return
   props.editor.chain().focus().insertContentAt(
     { from: match.from, to: match.to },
     editorTextToHTML(replaceText.value)

@@ -354,6 +354,7 @@ export class TemplateManager {
     // CHARACTER entities
     for (let i = 0; i < template.characterTemplates.length; i++) {
       const ct = template.characterTemplates[i]
+      if (!ct) continue
       entities.push({
         id: uuidv4(),
         projectId: '',

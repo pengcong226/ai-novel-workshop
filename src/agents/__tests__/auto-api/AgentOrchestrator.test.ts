@@ -69,7 +69,7 @@ describe('AgentOrchestrator 接口自动化测试', () => {
       expect(calls).toEqual(['planner'])
       expect(result.status).toBe('success')
       expect(result.results).toHaveLength(1)
-      expect(result.results[0].role).toBe('planner')
+      expect(result.results[0]!.role).toBe('planner')
     })
 
     it('P0: disabled的Agent不被执行', async () => {
@@ -137,8 +137,8 @@ describe('AgentOrchestrator 接口自动化测试', () => {
       const result = await orchestrator.runPhase('post-generation', makeContext())
 
       expect(result.results).toHaveLength(1)
-      expect(result.results[0].status).toBe('failed')
-      expect(result.results[0].message).toContain('Agent not registered')
+      expect(result.results[0]!.status).toBe('failed')
+      expect(result.results[0]!.message).toContain('Agent not registered')
       expect(result.status).toBe('failed')
     })
   })
@@ -242,9 +242,9 @@ describe('AgentOrchestrator 接口自动化测试', () => {
       const result = await orchestrator.runPhase('post-generation', makeContext())
 
       expect(calls).toEqual(['sentinel', 'editor'])
-      expect(result.results[0].status).toBe('failed')
-      expect(result.results[0].message).toBe('哨兵执行异常')
-      expect(result.results[1].status).toBe('success')
+      expect(result.results[0]!.status).toBe('failed')
+      expect(result.results[0]!.message).toBe('哨兵执行异常')
+      expect(result.results[1]!.status).toBe('success')
       expect(result.status).toBe('partial')
     })
 

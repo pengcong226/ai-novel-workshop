@@ -1,8 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { mount, flushPromises, VueWrapper } from '@vue/test-utils'
+import { mount, flushPromises } from '@vue/test-utils'
 import { nextTick } from 'vue'
 import { createTestPinia } from '@/test/helpers'
-import type { Entity, EntityType, EntityImportance } from '@/types/sandbox'
+import type { Entity } from '@/types/sandbox'
 import type { Pinia } from 'pinia'
 
 // ── Hoisted mocks ──────────────────────────────────────────────────────

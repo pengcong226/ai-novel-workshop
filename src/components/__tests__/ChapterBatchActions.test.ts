@@ -272,7 +272,7 @@ describe('ChapterBatchActions', () => {
       { command: 'exportAllJson', label: 'JSON' },
     ]
 
-    for (const { command, label } of expected) {
+    for (const { command, label: _label } of expected) {
       const item = wrapper.find(`[data-command="${command}"]`)
       expect(item.exists()).toBe(true)
       await item.trigger('click')

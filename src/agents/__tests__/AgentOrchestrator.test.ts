@@ -83,7 +83,7 @@ describe('AgentOrchestrator', () => {
     expect(extractor.execute).not.toHaveBeenCalled()
     expect(result.status).toBe('halted')
     expect(result.results).toHaveLength(1)
-    expect(result.results[0].message).toBe('逻辑冲突')
+    expect(result.results[0]!.message).toBe('逻辑冲突')
   })
 
   it('captures agent failures and continues by default', async () => {

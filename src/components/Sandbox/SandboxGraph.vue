@@ -111,13 +111,13 @@ const nodes = computed<GraphNodeData[]>(() => {
     // Default or chapter focus: Since we don't have chapter data loaded yet,
     // fallback to showing the protagonist and their 1-degree connections
     const protagonistId = Object.keys(activeState).find(id =>
-      activeState[id].category === 'Protagonist' || activeState[id].category === '核心人物'
+      activeState[id]?.category === 'Protagonist' || activeState[id]?.category === '核心人物'
     )
 
     if (protagonistId) {
       visibleSet.add(protagonistId)
       const pState = activeState[protagonistId]
-      if (pState.relations) {
+      if (pState?.relations) {
         pState.relations.forEach((rel) => visibleSet.add(rel.targetId))
       }
       for (const [id, state] of Object.entries(activeState)) {

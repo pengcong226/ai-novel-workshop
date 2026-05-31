@@ -47,12 +47,15 @@ export class SlidingWindowRateLimiter {
     const windowStart = now - this.windowMs
 
     // Evict expired timestamps
-    while (this.timestamps.length > 0 && this.timestamps[0] <= windowStart) {
+    while (this.timestamps.length > 0 && this.timestamps[0] !== undefined && this.timestamps[0] <= windowStart) {
       this.timestamps.shift()
     }
 
     if (this.timestamps.length >= this.maxRequests) {
       const oldestInWindow = this.timestamps[0]
+      if (oldestInWindow === undefined) {
+        return { allowed: true, retryAfterMs: 0 }
+      }
       const retryAfterMs = oldestInWindow + this.windowMs - now
       logger.warn('Rate limit exceeded', {
         count: this.timestamps.length,
@@ -69,7 +72,7 @@ export class SlidingWindowRateLimiter {
   /** Current number of requests in the active window. */
   get currentCount(): number {
     const windowStart = Date.now() - this.windowMs
-    while (this.timestamps.length > 0 && this.timestamps[0] <= windowStart) {
+    while (this.timestamps.length > 0 && this.timestamps[0] !== undefined && this.timestamps[0] <= windowStart) {
       this.timestamps.shift()
     }
     return this.timestamps.length

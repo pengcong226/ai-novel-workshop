@@ -225,6 +225,9 @@ export function cloneStyleProfile(profile: StyleProfile): StyleProfile {
 
 export function getStylePreset(id: string | undefined = DEFAULT_STYLE_PRESET_ID): StyleProfile {
   const preset = STYLE_PRESETS.find(item => item.id === id) ?? STYLE_PRESETS[0]
+  if (!preset) {
+    return cloneStyleProfile(STYLE_PRESETS[0]!)
+  }
   return cloneStyleProfile(preset)
 }
 

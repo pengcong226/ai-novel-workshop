@@ -1452,7 +1452,7 @@ describe('CharacterDevelopment', () => {
     await nextTick()
 
     // Change event type to RELATION_ADD via the select
-    const selects = wrapper.findAll('.el-select-stub')
+    const _selects = wrapper.findAll('.el-select-stub')
     // The event type select is in the dialog
     const dialog = wrapper.find('.el-dialog-stub')
     const eventTypeSelect = dialog.findAll('.el-select-stub')[0]
@@ -1461,7 +1461,7 @@ describe('CharacterDevelopment', () => {
 
     // The target entity dropdown should show options for c2 and c3 but NOT c1
     const dialogOptions = dialog.findAll('.el-option-stub')
-    const optionTexts = dialogOptions.map(o => o.attributes('value') || o.text())
+    const _optionTexts = dialogOptions.map(o => o.attributes('value') || o.text())
 
     // c1 (selected entity) should not appear in the target entity options
     // The first select is event type, second is the target entity

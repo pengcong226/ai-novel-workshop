@@ -164,7 +164,7 @@ const avatarPaths = computed<AvatarPath[]>(() => {
     if (moves.length < 2) return []
 
     const previous = moves[moves.length - 2]
-    if (previous.x === avatar.x && previous.y === avatar.y) return []
+    if (!previous || (previous.x === avatar.x && previous.y === avatar.y)) return []
 
     return [{
       id: `${avatar.id}:${previous.x},${previous.y}->${avatar.x},${avatar.y}`,

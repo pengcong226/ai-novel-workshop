@@ -156,11 +156,11 @@ export function extractImports(source: string): string[] {
 
   IMPORT_RE.lastIndex = 0
   while ((m = IMPORT_RE.exec(source)) !== null) {
-    results.push(m[1])
+    if (m[1] !== undefined) results.push(m[1])
   }
   DYNAMIC_IMPORT_RE.lastIndex = 0
   while ((m = DYNAMIC_IMPORT_RE.exec(source)) !== null) {
-    results.push(m[1])
+    if (m[1] !== undefined) results.push(m[1])
   }
   return results
 }
@@ -172,7 +172,7 @@ export function extractExports(source: string): string[] {
 
   EXPORT_RE.lastIndex = 0
   while ((m = EXPORT_RE.exec(source)) !== null) {
-    results.push(m[1])
+    if (m[1] !== undefined) results.push(m[1])
   }
   return results
 }
@@ -209,7 +209,8 @@ export function detectDeadCode(metrics: FileMetric[]): DeadCodeCandidate[] {
       imported.add(key)
       // also add basename
       const parts = key.split('/')
-      imported.add(parts[parts.length - 1])
+      const base = parts[parts.length - 1]
+      if (base !== undefined) imported.add(base)
     }
   }
 
@@ -248,7 +249,8 @@ export function detectDeadCodeFromSources(
       const norm = imp.replace(/^\.\.?\//, '').replace(/\.(ts|vue|js|tsx|jsx)$/, '')
       importedKeys.add(norm)
       const parts = norm.split('/')
-      importedKeys.add(parts[parts.length - 1])
+      const base = parts[parts.length - 1]
+      if (base !== undefined) importedKeys.add(base)
     }
   }
 

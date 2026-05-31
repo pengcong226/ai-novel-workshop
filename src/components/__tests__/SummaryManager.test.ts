@@ -611,7 +611,7 @@ describe('SummaryManager', () => {
         summaryData: createMockSummaryData({ summary: '原始摘要' }),
       }),
     ]
-    const { wrapper, project } = mountWithChapters(chapters)
+    const { wrapper, project: _project } = mountWithChapters(chapters)
 
     // Open edit dialog
     const editBtn = wrapper.findAll('.summary-actions .stub-button')

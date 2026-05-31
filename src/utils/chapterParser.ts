@@ -281,7 +281,10 @@ function calculateNumberConsistency(numbers: number[]): number {
 
   let score = 0
   for (let i = 1; i < numbers.length; i++) {
-    const diff = numbers[i] - numbers[i - 1]
+    const curr = numbers[i]
+    const prev = numbers[i - 1]
+    if (curr === undefined || prev === undefined) continue
+    const diff = curr - prev
     if (diff === 1) {
       score += 1      // 完美连续
     } else if (diff > 1) {

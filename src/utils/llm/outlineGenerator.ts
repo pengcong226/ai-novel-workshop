@@ -150,7 +150,7 @@ ${safeRecentOutlinesText}
   let jsonStr = response.content.trim()
   const jsonMatch = jsonStr.match(/```(?:json)?\s*([\s\S]*?)\s*```/)
   if (jsonMatch) {
-    jsonStr = jsonMatch[1]
+    jsonStr = jsonMatch[1] ?? jsonStr
   } else {
     // 暴力提取花括号包裹的 JSON 对象
     const startIdx = jsonStr.indexOf('{')

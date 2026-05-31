@@ -95,7 +95,8 @@ function detectSustainedTension(
 
   let runStart = -1
   for (let i = 0; i <= recent.length; i++) {
-    const isHigh = i < recent.length && HIGH_TENSION_TYPES.has(typeMap.get(recent[i].number) ?? '')
+    const recentCh = recent[i]
+    const isHigh = i < recent.length && recentCh !== undefined && HIGH_TENSION_TYPES.has(typeMap.get(recentCh.number) ?? '')
     if (isHigh) {
       if (runStart < 0) runStart = i
     } else {

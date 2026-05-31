@@ -286,14 +286,14 @@ export class StyleAnalyzerAgent {
     // 文雅用词（4字及以上词汇）
     const literaryWords = uniqueWords
       .filter(w => w.length >= 4)
-      .sort((a, b) => wordFreq[b] - wordFreq[a])
+      .sort((a, b) => wordFreq[b]! - wordFreq[a]!)
       .slice(0, 10)
 
     // 口语化用词（常见口语词）
     const colloquialPatterns = ['嘛', '呢', '吧', '啊', '呀', '哦', '哈', '嗯', '喂', '嘿']
     const colloquialWords = uniqueWords
       .filter(w => colloquialPatterns.some(p => w.includes(p)))
-      .sort((a, b) => wordFreq[b] - wordFreq[a])
+      .sort((a, b) => wordFreq[b]! - wordFreq[a]!)
       .slice(0, 10)
 
     return {

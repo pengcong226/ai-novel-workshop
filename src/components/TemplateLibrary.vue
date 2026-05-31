@@ -579,7 +579,7 @@ ${aiGenForm.value.extraPrompt ? '附加要求：' + aiGenForm.value.extraPrompt 
 
     let jsonStr = response.content.trim()
     const jsonMatch = jsonStr.match(/```(?:json)?\s*([\s\S]*?)\s*```/)
-    if (jsonMatch) jsonStr = jsonMatch[1]
+    if (jsonMatch) jsonStr = jsonMatch[1] ?? jsonStr
 
     // Fallback: remove markdown block if AI still generated it
     if (jsonStr.startsWith('```')) {

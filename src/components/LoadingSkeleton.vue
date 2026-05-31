@@ -113,7 +113,7 @@ const containerStyle = computed(() => ({
  */
 function editorLineWidth(lineNumber: number): string {
   const widths = ['92%', '88%', '78%', '95%', '70%', '85%', '90%', '65%']
-  return widths[(lineNumber - 1) % widths.length]
+  return widths[(lineNumber - 1) % widths.length] ?? '90%'
 }
 
 /**
@@ -121,7 +121,7 @@ function editorLineWidth(lineNumber: number): string {
  */
 function textLineWidth(lineNumber: number): string {
   const widths = ['100%', '90%', '75%', '95%', '60%']
-  return widths[(lineNumber - 1) % widths.length]
+  return widths[(lineNumber - 1) % widths.length] ?? '90%'
 }
 </script>
 

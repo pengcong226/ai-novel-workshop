@@ -47,6 +47,7 @@ export function exportAllChaptersToTxt(
 
   for (let i = 0; i < chapters.length; i++) {
     const ch = chapters[i]
+    if (!ch) continue
     const heading = options.includeChapterNumbers ? `第${ch.number}章 ${ch.title || ''}` : (ch.title || '')
     parts.push(heading)
     parts.push('')

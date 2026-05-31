@@ -33,7 +33,7 @@ function makeEntities(count: number): Entity[] {
   return Array.from({ length: count }, (_, i) => ({
     id: `entity-${i}`,
     projectId: 'project-1',
-    type: ENTITY_TYPES[i % ENTITY_TYPES.length],
+    type: ENTITY_TYPES[i % ENTITY_TYPES.length]!,
     name: `实体${i}`,
     aliases: [`别名${i}A`, `别名${i}B`],
     importance: 'major' as const,
@@ -56,7 +56,7 @@ function makeStateEvents(
     const entityId = `entity-${e}`
     for (let j = 0; j < eventsPerEntity; j++) {
       const chapterNumber = (j % chapterCount) + 1
-      const eventType = EVENT_TYPES[idCounter % EVENT_TYPES.length]
+      const eventType = EVENT_TYPES[idCounter % EVENT_TYPES.length]!
 
       let payload: StateEvent['payload'] = {}
 

@@ -19,7 +19,8 @@ function encodeBase64(bytes: Uint8Array): string {
   let binary = ''
 
   for (let i = 0; i < bytes.length; i += 1) {
-    binary += String.fromCharCode(bytes[i])
+    const byte = bytes[i]
+    if (byte !== undefined) binary += String.fromCharCode(byte)
   }
 
   if (typeof btoa === 'function') {
@@ -47,7 +48,11 @@ function xorBytes(input: Uint8Array, seed: string): Uint8Array {
   const output = new Uint8Array(input.length)
 
   for (let i = 0; i < input.length; i += 1) {
-    output[i] = input[i] ^ seedBytes[i % seedBytes.length]
+    const inputByte = input[i]
+    const seedByte = seedBytes[i % seedBytes.length]
+    if (inputByte !== undefined && seedByte !== undefined) {
+      output[i] = inputByte ^ seedByte
+    }
   }
 
   return output

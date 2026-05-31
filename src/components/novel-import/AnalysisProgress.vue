@@ -210,7 +210,8 @@ watch(() => props.progress, (newProgress) => {
   const stageOrder: AnalysisStage[] = ['pattern', 'chapters', 'characters', 'world', 'outline', 'complete']
   const currentIndex = stageOrder.indexOf(newProgress.stage)
   for (let i = 0; i < currentIndex; i++) {
-    updateStage(stageOrder[i], 'completed')
+    const stage = stageOrder[i]
+    if (stage) updateStage(stage, 'completed')
   }
 }, { immediate: true })
 

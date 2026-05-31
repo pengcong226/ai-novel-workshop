@@ -608,7 +608,7 @@ function updateTrendChart() {
   if (!trendChart || reports.value.length === 0) return
 
   const theme = getChartThemeColors()
-  const dimNames = reports.value[0].dimensions.map(d => d.name)
+  const dimNames = (reports.value[0]?.dimensions ?? []).map(d => d.name)
   const chapters = reports.value.map(r => `第${r.chapterNumber}章`)
   const seriesColors = [theme.accent, ...DIMENSION_COLORS.slice(0, dimNames.length)]
 
@@ -715,7 +715,7 @@ function updateTrendChart() {
       ...dimNames.map((name, index) => ({
         name,
         type: 'line' as const,
-        data: reports.value.map(r => r.dimensions[index].score),
+        data: reports.value.map(r => r.dimensions[index]?.score ?? 0),
         smooth: true,
         symbol: 'circle',
         symbolSize: 4,
@@ -734,14 +734,14 @@ function updateRadarChart() {
   if (!radarChart || reports.value.length === 0) return
 
   const theme = getChartThemeColors()
-  const dimensions = reports.value[0].dimensions
+  const dimensions = reports.value[0]?.dimensions ?? []
   const isManyChapters = reports.value.length > 5
 
   const radarSeriesData = isManyChapters
     ? [
         {
           value: dimensions.map((_, i) => {
-            const sum = reports.value.reduce((s, r) => s + r.dimensions[i].score, 0)
+            const sum = reports.value.reduce((s, r) => s + (r.dimensions[i]?.score ?? 0), 0)
             return +(sum / reports.value.length).toFixed(1)
           }),
           name: '平均',
@@ -753,7 +753,7 @@ function updateRadarChart() {
         },
         {
           value: dimensions.map((_, i) => {
-            return Math.max(...reports.value.map(r => r.dimensions[i].score))
+            return Math.max(...reports.value.map(r => r.dimensions[i]?.score ?? 0))
           }),
           name: '最佳',
           symbol: 'diamond',
@@ -764,7 +764,7 @@ function updateRadarChart() {
         },
         {
           value: dimensions.map((_, i) => {
-            return Math.min(...reports.value.map(r => r.dimensions[i].score))
+            return Math.min(...reports.value.map(r => r.dimensions[i]?.score ?? 0))
           }),
           name: '最差',
           symbol: 'triangle',
@@ -918,7 +918,9 @@ async function checkAllChapters() {
 
     for (let i = 0; i < chapters.value.length; i++) {
       currentCheckingChapter.value = i + 1
-      const report = await checker.checkChapter(chapters.value[i], (progress) => {
+      const chapter = chapters.value[i]
+      if (!chapter) continue
+      const report = await checker.checkChapter(chapter, (progress) => {
         checkProgress.value = Math.round(((i + progress / 100) / chapters.value.length) * 100)
       })
       reports.value.push(report)

@@ -53,9 +53,10 @@ function normalizeReviewItem(item: unknown, paragraphs: ReviewParagraph[]): Pars
   if (!title || !message) return null
 
   const paragraphIndex = normalizeParagraphIndex(source.paragraphIndex, paragraphs)
+  const matchedParagraph = paragraphIndex !== undefined ? paragraphs[paragraphIndex] : undefined
   const textSnippet = paragraphIndex === undefined
     ? undefined
-    : normalizeSnippet(source.textSnippet, paragraphs[paragraphIndex])
+    : matchedParagraph ? normalizeSnippet(source.textSnippet, matchedParagraph) : undefined
   const suggestedFix = textSnippet
     ? normalizeString(source.suggestedFix, MAX_FIX_LENGTH)
     : undefined

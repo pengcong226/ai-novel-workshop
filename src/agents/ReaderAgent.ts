@@ -115,8 +115,8 @@ export class ReaderAgent extends BaseAgent {
       if (result.status === 'fulfilled') {
         return result.value
       }
-      logger.error(`[ReaderAgent] ${targetPersonas[index].name}评估异常:`, result.reason)
-      return this.buildFallbackFeedback(targetPersonas[index])
+      logger.error(`[ReaderAgent] ${targetPersonas[index]!.name}评估异常:`, result.reason)
+      return this.buildFallbackFeedback(targetPersonas[index]!)
     })
 
     logger.info(`[ReaderAgent] 多读者群体评估完成: ${feedbacks.length} 个群体反馈`)

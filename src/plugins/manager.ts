@@ -63,7 +63,7 @@ function satisfiesVersionRange(version: string, range: string): boolean {
     if (!match) return false
 
     const operator = match[1] || '='
-    const target = parseSemver(match[2])
+    const target = parseSemver(match[2] ?? '')
     if (!target) return false
 
     const comparison = compareSemver(current, target)

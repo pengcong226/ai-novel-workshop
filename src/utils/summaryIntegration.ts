@@ -120,6 +120,7 @@ export async function generateMissingSummaries(
 
   for (let i = 0; i < chaptersNeedingSummary.length; i++) {
     const chapter = chaptersNeedingSummary[i]
+    if (!chapter) continue
 
     if (onProgress) {
       onProgress(i + 1, chaptersNeedingSummary.length, chapter.number)

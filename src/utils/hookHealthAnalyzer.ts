@@ -250,7 +250,7 @@ function isResolved(status: string): boolean {
 
 function resolveHalfLife(hook: HookHealthInput): number {
   const timing = hook.payoffTiming?.trim().toLowerCase() || 'default'
-  return HALF_LIFE_BY_TIMING[timing] || HALF_LIFE_BY_TIMING.default
+  return HALF_LIFE_BY_TIMING[timing] ?? HALF_LIFE_BY_TIMING.default ?? 10
 }
 
 function computeSingleDiagnostics(

@@ -381,7 +381,7 @@ async function testProvider() {
     const testUrl = providerForm.value.baseUrl.endsWith('/v1') ? providerForm.value.baseUrl + '/chat/completions' : providerForm.value.baseUrl + (providerForm.value.baseUrl.endsWith('/') ? 'v1/chat/completions' : '/v1/chat/completions')
     const headers: Record<string, string> = { 'Content-Type': 'application/json' }
     if (providerForm.value.type === 'anthropic') { headers['x-api-key'] = providerForm.value.apiKey; headers['anthropic-version'] = '2023-06-01' } else { headers['Authorization'] = `Bearer ${providerForm.value.apiKey}` }
-    const response = await fetch(testUrl, { method: 'POST', headers, body: JSON.stringify({ model: providerForm.value.modelsInput?.split(',')[0].trim() || 'gpt-3.5-turbo', messages: [{ role: 'user', content: 'Hello, this is a test message.' }], max_tokens: 10 }) })
+    const response = await fetch(testUrl, { method: 'POST', headers, body: JSON.stringify({ model: providerForm.value.modelsInput?.split(',')[0]?.trim() || 'gpt-3.5-turbo', messages: [{ role: 'user', content: 'Hello, this is a test message.' }], max_tokens: 10 }) })
     if (response.ok) { ElMessage.success('连接测试成功！') } else { const error = await response.json().catch(() => ({})); ElMessage.error(`连接失败: ${error.error?.message || error.message || `HTTP ${response.status}`}`) }
   } catch (error) { ElMessage.error(`连接失败: ${getErrorMessage(error)}`) } finally { testingProvider.value = false }
 }
@@ -444,7 +444,7 @@ async function batchImportModels() {
 
 function loadCommonModels() { selectedCommonProvider.value = ''; showCommonModelsDialog.value = true }
 function confirmLoadCommonModels() {
-  if (selectedCommonProvider.value && commonModelsPreview[selectedCommonProvider.value]) { providerForm.value.modelsInput = commonModelsPreview[selectedCommonProvider.value].join(', '); showCommonModelsDialog.value = false; ElMessage.success(`已加载 ${selectedCommonProvider.value} 的常用模型`) } else { ElMessage.warning('请选择一个提供商') }
+  if (selectedCommonProvider.value && commonModelsPreview[selectedCommonProvider.value]) { providerForm.value.modelsInput = commonModelsPreview[selectedCommonProvider.value]!.join(', '); showCommonModelsDialog.value = false; ElMessage.success(`已加载 ${selectedCommonProvider.value} 的常用模型`) } else { ElMessage.warning('请选择一个提供商') }
 }
 function selectAllModels() { selectedModels.value = [...filteredFetchedModels.value] }
 function deselectAllModels() { selectedModels.value = [] }

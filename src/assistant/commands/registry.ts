@@ -24,7 +24,7 @@ export class CommandRegistry {
     const match = text.match(/^\/([a-zA-Z0-9_-]+)(?:\s+(.+))?$/);
     if (!match) return null;
 
-    const name = match[1];
+    const name = match[1] ?? '';
     const argsStr = match[2] || '';
 
     // Advanced parse: split by spaces but respect quotes.
@@ -35,7 +35,7 @@ export class CommandRegistry {
       let m;
       while ((m = regex.exec(argsStr)) !== null) {
         // match 1 is double quotes, 2 is single quotes, 3 is unquoted
-        args.push(m[1] || m[2] || m[3]);
+        args.push(m[1] || m[2] || m[3] || '');
       }
     }
 

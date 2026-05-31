@@ -153,7 +153,7 @@ export function inferCurrentScene(recentChapters: Chapter[]): string {
 
   // V5: Use sandbox store for location data
   const lastChapter = recentChapters[0]
-  const lastContent = lastChapter.content || ''
+  const lastContent = lastChapter?.content || ''
 
   try {
     const sandboxStore = useSandboxStore()
@@ -208,6 +208,7 @@ export function inferCharacterStates(recentChapters: Chapter[]): string {
   }
 
   const lastChapter = recentChapters[0]
+  if (!lastChapter) return ''
 
   try {
     const sandboxStore = useSandboxStore()
@@ -524,7 +525,10 @@ export function buildSummary(
     const batchSize = Math.ceil(summaries.length / 5)
     for (let i = 0; i < summaries.length; i += batchSize) {
       const batch = summaries.slice(i, i + batchSize)
-      parts.push(`\n第${batch[0].chapterNumber}-${batch[batch.length - 1].chapterNumber}章：`)
+      const first = batch[0]
+      const last = batch[batch.length - 1]
+      if (!first || !last) continue
+      parts.push(`\n第${first.chapterNumber}-${last.chapterNumber}章：`)
       batch.forEach(s => {
         parts.push(`  ${s.chapterNumber}. ${s.title}：${s.summary}`)
         // 如果有关键事件，添加到摘要中

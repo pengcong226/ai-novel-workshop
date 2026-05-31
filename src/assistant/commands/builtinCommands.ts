@@ -50,9 +50,13 @@ const reviewCommand: AssistantCommand = {
       let chapter: Pick<Chapter, 'id' | 'number' | 'title' | 'content'> | null = null;
 
       if (project && project.chapters && project.chapters.length > 0) {
+        const firstChapter = project.chapters[0]
         const latestChapter = project.chapters.reduce((latest, current) =>
           current.generationTime > latest.generationTime ? current : latest,
-        project.chapters[0]);
+        firstChapter!);
+        if (!latestChapter) {
+          return '没有找到可审校的章节。';
+        }
         const loadedChapter = await projectStore.loadChapter(latestChapter.id);
         chapter = loadedChapter
           ? {
@@ -61,7 +65,7 @@ const reviewCommand: AssistantCommand = {
               title: loadedChapter.title,
               content: loadedChapter.content,
             }
-          : latestChapter;
+          : { id: latestChapter.id, number: latestChapter.number, title: latestChapter.title, content: latestChapter.content };
       }
 
       // Allow overriding chapter text from args (if any)

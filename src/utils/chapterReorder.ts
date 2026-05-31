@@ -51,6 +51,7 @@ export function reorderChaptersByIndex<T extends ChapterOrderItem>(
 
   const reordered = [...chapters]
   const [moved] = reordered.splice(fromIndex, 1)
+  if (moved === undefined) return chapters
   reordered.splice(toIndex, 0, moved)
 
   return renumberChapters(reordered)

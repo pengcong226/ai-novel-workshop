@@ -161,6 +161,7 @@ export function useDeepImportSession() {
     const workers = Array.from({ length: Math.min(QUICK_SCAN_CONCURRENCY, chapters.length) }, async (_, workerIndex) => {
       for (let i = workerIndex; i < chapters.length; i += Math.min(QUICK_SCAN_CONCURRENCY, chapters.length)) {
         const chapter = chapters[i]
+        if (!chapter) continue
         try {
           const result = await ext.quickScanChapter(chapter)
           const merged = { chapterNumber: chapter.number, ...result }
@@ -395,8 +396,10 @@ export function useDeepImportSession() {
     error.value = null
 
     try {
+      const firstFailed = failedChapters[0]
+      const lastFailed = failedChapters[failedChapters.length - 1]
       progress.value = {
-        currentChapter: failedChapters[0].number,
+        currentChapter: firstFailed?.number ?? 0,
         totalChapters: session.value.totalChapters,
         phase: 'entity_extraction',
         percentage: Math.round((session.value.extractedChapters.length / Math.max(session.value.totalChapters, 1)) * 100),
@@ -406,8 +409,8 @@ export function useDeepImportSession() {
         currentBatch: 1,
         totalBatches: 1,
         batchChapterRange: {
-          start: failedChapters[0].number,
-          end: failedChapters[failedChapters.length - 1].number
+          start: firstFailed?.number ?? 0,
+          end: lastFailed?.number ?? 0
         }
       }
 
@@ -449,8 +452,8 @@ export function useDeepImportSession() {
       maxCostUSD: Number.POSITIVE_INFINITY,
       batchSize: activeOptions.value?.batchSize ?? 1,
       chapterRange: {
-        start: chaptersToRetry[0].number,
-        end: chaptersToRetry[chaptersToRetry.length - 1].number
+        start: chaptersToRetry[0]?.number ?? 0,
+        end: chaptersToRetry[chaptersToRetry.length - 1]?.number ?? 0
       }
     }
 

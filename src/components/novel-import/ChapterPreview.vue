@@ -276,11 +276,14 @@ async function handleMergeSelected() {
     const sorted = [...selectedChapters.value].sort((a, b) => a.number - b.number)
 
     // 创建合并后的章节
+    const first = sorted[0]
+    const last = sorted[sorted.length - 1]
+    if (!first || !last) return
     const merged: LLMChapter = {
-      number: sorted[0].number,
-      title: `${sorted[0].title}（合并）`,
-      startPosition: sorted[0].startPosition,
-      endPosition: sorted[sorted.length - 1].endPosition,
+      number: first.number,
+      title: `${first.title}（合并）`,
+      startPosition: first.startPosition,
+      endPosition: last.endPosition,
       content: sorted.map(ch => ch.content).join('\n\n'),
       wordCount: sorted.reduce((sum, ch) => sum + (ch.wordCount || 0), 0)
     }

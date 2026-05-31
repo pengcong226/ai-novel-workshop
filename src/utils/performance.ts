@@ -101,7 +101,8 @@ function initWebVitalObservers(): void {
     const lcpObserver = new PerformanceObserver((entryList) => {
       const entries = entryList.getEntries()
       if (entries.length > 0) {
-        lcpValue = entries[entries.length - 1].startTime
+        const lastEntry = entries[entries.length - 1]
+        if (lastEntry !== undefined) lcpValue = lastEntry.startTime
       }
     })
     lcpObserver.observe({ type: 'largest-contentful-paint', buffered: true })

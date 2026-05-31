@@ -256,8 +256,8 @@ ${chapter.keyEvents.map(e => `- ${e}`).join('\n')}`)
       if (chapterIndex < outline.chapters.length - 1) {
         const nextChapter = outline.chapters[chapterIndex + 1]
         contextParts.push(`## 下一章预告
-第${nextChapter.number}章: ${nextChapter.title}
-${nextChapter.summary}`)
+第${nextChapter!.number}章: ${nextChapter!.title}
+${nextChapter!.summary}`)
       }
 
       const userPrompt = `${contextParts.join('\n\n')}
@@ -342,8 +342,8 @@ ${config.wordsPerChapter - 100}-${config.wordsPerChapter + 100}字
       totalTokenUsage.totalTokens += chapterUsage.totalTokens
 
       chapters.push({
-        number: outline.chapters[i].number,
-        title: outline.chapters[i].title,
+        number: outline.chapters[i]!.number,
+        title: outline.chapters[i]!.title,
         content,
         wordCount,
       })

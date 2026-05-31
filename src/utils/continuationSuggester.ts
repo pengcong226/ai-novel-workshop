@@ -215,7 +215,7 @@ export function generateContinuationSuggestions(
   const avgLength = chapters.reduce((sum, ch) => sum + ch.content.length, 0) / chapters.length
   const lastChapter = chapters[chapters.length - 1]
 
-  if (lastChapter.content.length < avgLength * 0.5) {
+  if (lastChapter && lastChapter.content.length < avgLength * 0.5) {
     suggestions.push({
       type: 'scene',
       priority: 'low',
@@ -235,7 +235,9 @@ export function generateContinuationSuggestions(
   let conflictCount = 0
 
   for (let i = Math.max(0, chapters.length - 3); i < chapters.length; i++) {
-    const content = chapters[i].content
+    const ch = chapters[i]
+    if (!ch) continue
+    const content = ch.content
     for (const keyword of conflictKeywords) {
       conflictCount += (content.match(new RegExp(keyword, 'g')) || []).length
     }

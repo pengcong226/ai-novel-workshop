@@ -87,7 +87,7 @@ function smartTrim(
   const sortedIndices = scoredLines
     .map((_, i) => i)
     .sort((a, b) => {
-      const scoreDiff = scoredLines[b].score - scoredLines[a].score
+      const scoreDiff = scoredLines[b]!.score - scoredLines[a]!.score
       if (scoreDiff !== 0) return scoreDiff
       return a - b // 保持原始顺序
     })
@@ -96,7 +96,7 @@ function smartTrim(
   const included = new Set<number>()
   let usedChars = 0
   for (const idx of sortedIndices) {
-    const lineLen = scoredLines[idx].line.length + 1 // +1 for newline
+    const lineLen = scoredLines[idx]!.line.length + 1 // +1 for newline
     if (usedChars + lineLen <= maxChars - 20) {
       included.add(idx)
       usedChars += lineLen
@@ -112,7 +112,7 @@ function smartTrim(
         resultLines.push('[...部分内容已省略]')
         skipped = false
       }
-      resultLines.push(lines[i])
+      resultLines.push(lines[i]!)
     } else {
       skipped = true
     }
@@ -663,7 +663,7 @@ export class ComposerAgent {
             keptLines.push('[...低相关性内容已省略]')
             skipped = false
           }
-          keptLines.push(lines[i])
+          keptLines.push(lines[i]!)
         } else {
           skipped = true
         }

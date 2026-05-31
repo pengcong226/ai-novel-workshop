@@ -86,14 +86,14 @@ describe('ComposerAgent 裁剪功能 接口自动化测试', () => {
       const sortedIndices = scoredLines
         .map((_, i) => i)
         .sort((a, b) => {
-          const scoreDiff = scoredLines[b].score - scoredLines[a].score
+          const scoreDiff = scoredLines[b]!.score - scoredLines[a]!.score
           if (scoreDiff !== 0) return scoreDiff
           return a - b
         })
       const included = new Set<number>()
       let usedChars = 0
       for (const idx of sortedIndices) {
-        const lineLen = scoredLines[idx].line.length + 1
+        const lineLen = scoredLines[idx]!.line.length + 1
         if (usedChars + lineLen <= maxChars - 20) {
           included.add(idx)
           usedChars += lineLen
@@ -107,7 +107,7 @@ describe('ComposerAgent 裁剪功能 接口自动化测试', () => {
             resultLines.push('[...部分内容已省略]')
             skipped = false
           }
-          resultLines.push(lines[i])
+          resultLines.push(lines[i]!)
         } else {
           skipped = true
         }

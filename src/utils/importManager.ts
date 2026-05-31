@@ -260,8 +260,10 @@ export async function generateImportPreview(
 
   if (chapters.length > 0) {
     const sorted = [...chapters].sort((a, b) => b.wordCount - a.wordCount)
-    longestChapter = { title: sorted[0].title, words: sorted[0].wordCount }
-    shortestChapter = { title: sorted[sorted.length - 1].title, words: sorted[sorted.length - 1].wordCount }
+    const longest = sorted[0]
+    const shortest = sorted[sorted.length - 1]
+    if (longest) longestChapter = { title: longest.title, words: longest.wordCount }
+    if (shortest) shortestChapter = { title: shortest.title, words: shortest.wordCount }
   }
 
   return {

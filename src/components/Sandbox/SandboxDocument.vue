@@ -126,7 +126,7 @@ async function createNewEntity() {
 // For the prototype, we assume the first entity is active if none selected.
 // Real app should have a `sandboxStore.activeEntityId`.
 const activeEntityId = computed(() => {
-  return sandboxStore.entities.length > 0 ? sandboxStore.entities[0].id : null
+  return sandboxStore.entities.length > 0 ? (sandboxStore.entities[0]?.id ?? null) : null
 })
 
 const activeEntity = computed(() => {

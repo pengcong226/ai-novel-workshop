@@ -71,6 +71,7 @@ function analyzeCharacters(characters: Array<{ name: string; description: string
 
   // 检查主角出场频率
   const protagonist = characters[0]
+  if (!protagonist) return 0
   if (protagonist.occurrences < 50) {
     score -= 20 // 主角出场太少
   }

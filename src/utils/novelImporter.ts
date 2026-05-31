@@ -520,7 +520,8 @@ export async function importMultipleFiles(
   onProgress?: ProgressCallback
 ): Promise<ImportResult> {
   if (files.length === 1) {
-    return importNovel(files[0], options, onProgress)
+    const singleFile = files[0]
+    if (singleFile) return importNovel(singleFile, options, onProgress)
   }
 
   // 多文件合并
@@ -529,6 +530,7 @@ export async function importMultipleFiles(
 
   for (let i = 0; i < files.length; i++) {
     const file = files[i]
+    if (!file) continue
     // 文件大小限制检查
     if (file.size > MAX_FILE_SIZE) {
       throw new Error(`文件 ${file.name} 大小(${(file.size / 1024 / 1024).toFixed(1)}MB)超过限制(100MB)`)

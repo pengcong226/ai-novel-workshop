@@ -47,7 +47,7 @@ vi.mock('@/utils/formatters', () => ({
     if (num >= 10000) return `${(num / 10000).toFixed(1)}万`
     return num.toString()
   },
-  formatRelativeTime: (date: Date | string) => {
+  formatRelativeTime: (_date: Date | string) => {
     return '2025-01-01'
   },
 }))
